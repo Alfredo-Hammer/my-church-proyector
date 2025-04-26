@@ -1,0 +1,8 @@
+<body>
+  <div id="himno" style="font-size: 2rem; padding: 2rem; color: white; background-color: black;"></div>
+  <script>
+    window.electron.on("mostrar-himno", (himno) => {
+      document.getElementById("himno").innerText = `${himno.numero}. ${himno.titulo}\n\n${himno.letra}`;
+    });
+  </script>
+</body>

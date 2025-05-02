@@ -1,24 +1,40 @@
-import {useParams, useNavigate} from "react-router-dom";
+import {useParams, useNavigate, useLocation} from "react-router-dom";
 import {useState, useEffect} from "react";
 import himnosData from "../data/himnos.json";
-import {FaProjectDiagram} from "react-icons/fa";
+import vidacristianaData from "../data/vidacristiana.json";
+import {FaProjectDiagram, FaStar, FaHeart, FaRegHeart} from "react-icons/fa";
+import {toast} from "react-toastify";
 
 const HimnoDetalle = () => {
   const {id, numero} = useParams(); // Recibe tanto el id como el numero
+  const {state} = useLocation(); // 👈 Aquí leemos el "state"
   const [himno, setHimno] = useState(null);
   const [selectedParrafo, setSelectedParrafo] = useState(0);
+  const [favoritos, setFavoritos] = useState([]); // Estado para favoritos
   const navigate = useNavigate();
 
   useEffect(() => {
     const cargarHimno = async () => {
       try {
         if (numero) {
-          const jsonHimno = himnosData.find(
-            (h) => h.numero.toString() === numero
-          );
-          if (jsonHimno) {
-            setHimno(jsonHimno);
-            return;
+          if (state?.tipo === "vidaCristiana") {
+            // 👈 Si viene de vidaCristiana
+            const vidaCristianaHimno = vidacristianaData.find(
+              (h) => h.numero.toString() === numero
+            );
+            if (vidaCristianaHimno) {
+              setHimno(vidaCristianaHimno);
+              return;
+            }
+          } else {
+            // 👈 Si viene de himnos normales
+            const jsonHimno = himnosData.find(
+              (h) => h.numero.toString() === numero
+            );
+            if (jsonHimno) {
+              setHimno(jsonHimno);
+              return;
+            }
           }
         }
 
@@ -28,7 +44,7 @@ const HimnoDetalle = () => {
             setHimno({
               numero: himnoDB.numero,
               titulo: himnoDB.titulo,
-              parrafos: himnoDB.letra, // 👈🏻 Aquí corregido
+              parrafos: himnoDB.letra,
             });
             return;
           }
@@ -42,7 +58,11 @@ const HimnoDetalle = () => {
     };
 
     cargarHimno();
-  }, [id, numero]);
+  }, [id, numero, state]);
+
+  useEffect(() => {
+    fetchFavoritos(); // Cargar favoritos al inicio
+  }, []);
 
   const proyectarHimno = () => {
     if (himno) {
@@ -55,6 +75,33 @@ const HimnoDetalle = () => {
     }
   };
 
+  const fetchFavoritos = async () => {
+    try {
+      const data = await window.electron.obtenerFavoritos(); // Obtener favoritos del backend
+      setFavoritos(data.map((fav) => fav.id)); // Guardar solo los IDs de los favoritos
+    } catch (error) {
+      console.error("Error al obtener los favoritos:", error);
+    }
+  };
+
+  const toggleFavorito = async (id) => {
+    try {
+      if (favoritos.includes(id)) {
+        // Si ya está en favoritos, eliminar
+        await window.electron.marcarFavorito(id, false); // Cambié esto
+        setFavoritos((prev) => prev.filter((favId) => favId !== id));
+        toast.info("Himno eliminado de favoritos.");
+      } else {
+        // Si no está en favoritos, agregar
+        await window.electron.marcarFavorito(id, true); // Cambié esto
+        setFavoritos((prev) => [...prev, id]);
+        toast.success("Himno agregado a favoritos.");
+      }
+    } catch (error) {
+      console.error("Error al actualizar favoritos:", error);
+      toast.error("Ocurrió un error al actualizar favoritos.");
+    }
+  };
   const handleKeyDown = (e) => {
     if (!himno) return;
 
@@ -104,45 +151,69 @@ const HimnoDetalle = () => {
 
   return (
     <div className="p-4 h-screen flex flex-col justify-between bg-gray-900 text-white">
-      <div className="relative flex-grow flex flex-col justify-center items-center text-center">
-        <button
-          onClick={proyectarHimno}
-          className="absolute top-4 right-4 p-2 bg-green-500 rounded-full text-white hover:bg-green-600"
-        >
-          <FaProjectDiagram size={24} />
-        </button>
+      {/* Contenedor superior: Título y párrafo centrados */}
+      <div className="flex-grow flex flex-col justify-center items-center text-center">
+        <div className="absolute top-4 right-4 flex gap-4 mr-7">
+          {/* Botón para proyectar */}
+          <button
+            onClick={proyectarHimno}
+            className="p-2 bg-green-500 rounded-full text-white hover:bg-green-600"
+          >
+            <FaProjectDiagram size={24} />
+          </button>
+
+          {/* Botón para agregar o quitar de favoritos */}
+          <button
+            onClick={() => toggleFavorito(himno.id)}
+            className={`p-2 rounded-full ${
+              favoritos.includes(himno.id)
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+            }`}
+          >
+            {favoritos.includes(himno.id) ? (
+              <FaHeart size={20} />
+            ) : (
+              <FaRegHeart size={20} />
+            )}
+          </button>
+        </div>
 
         <div className="mb-8 w-5/6 mx-auto">
-          <h1 className="text-4xl font-bold mb-4">
-            {himno.numero}. {himno.titulo}
+          <h1 className="text-4xl font-bold mb-4 text-orange-200">
+            {himno.titulo}
           </h1>
-          <div className="text-3xl max-w-10/12 mx-auto">
+          <p className="text-xl text-red-300 mb-4">{himno.numero}</p>
+          <div className="text-3xl max-w-screen-md mx-auto text-blue-100">
             {himno.parrafos[selectedParrafo]}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-4 mb-4">
-        {himno.parrafos.map((parrafo, index) => (
-          <div
-            key={index}
-            className={`p-4 rounded-lg border max-w-[250px] cursor-pointer ${
-              selectedParrafo === index
-                ? "bg-gradient-to-r from-blue-800 via-blue-700 to-blue-600 text-white"
-                : "bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 text-gray-300"
-            } hover:from-gray-800 hover:via-gray-700 hover:to-gray-600`}
-            onClick={() => {
-              setSelectedParrafo(index);
-              window.electron.enviarHimno({
-                parrafo,
-                titulo: himno.titulo,
-                numero: himno.numero,
-              });
-            }}
-          >
-            <p className="text-sm">{parrafo}</p>
-          </div>
-        ))}
+      {/* Contenedor inferior: Tarjetas en miniatura */}
+      <div className="flex justify-center items-center">
+        <div className="flex gap-4 mb-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+          {himno.parrafos.map((parrafo, index) => (
+            <div
+              key={index}
+              className={`p-4 rounded-lg border max-w-[280px] justify-center cursor-pointer ${
+                selectedParrafo === index
+                  ? "bg-gradient-to-r from-blue-800 via-blue-700 to-blue-600 text-white"
+                  : "bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 text-gray-300"
+              } hover:from-gray-800 hover:via-gray-700 hover:to-gray-600`}
+              onClick={() => {
+                setSelectedParrafo(index);
+                window.electron.enviarHimno({
+                  parrafo,
+                  titulo: himno.titulo,
+                  numero: himno.numero,
+                });
+              }}
+            >
+              <p className="text-sm">{parrafo}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

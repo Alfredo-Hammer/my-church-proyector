@@ -1,10 +1,19 @@
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog } = require("electron");
 const path = require("path");
-const { agregarHimno, obtenerHimnos, db } = require("./db"); // Asegúrate de que esta ruta esté bien
+const fs = require("fs");
+const { agregarHimno, obtenerHimnos, db,
+  obtenerFondos,
+  agregarFondo,
+  eliminarFondo,
+  establecerFondoActivo,
+  obtenerFondoActivo,
+} = require("./db"); // Asegúrate de que esta ruta esté bien
 
-const Store = require("electron-store").default;
-
-const store = new Store();
+// Crear la carpeta 'assets/fondos' si no existe
+const carpetaFondos = path.join(__dirname, "assets", "fondos");
+if (!fs.existsSync(carpetaFondos)) {
+  fs.mkdirSync(carpetaFondos, { recursive: true });
+}
 
 let mainWindow;
 let proyectorWindow;
@@ -12,11 +21,12 @@ let proyectorWindow;
 // Crear ventana principal
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 800,
+    fullscreenable: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      webSecurity: false,
+      contextIsolation: true, // Asegúrate de que esté habilitado
+      enableRemoteModule: false,
+      nodeIntegration: false,
     },
   });
 
@@ -75,15 +85,16 @@ function createProyectorWindow() {
 // Ventana de gestión de fondos
 function createGestionFondosWindow() {
   const gestionFondosWindow = new BrowserWindow({
-    width: 800,
+    width: 1000, // Cambié el ancho para que sea más razonable
     height: 600,
-    title: "Gestión de Fondos",
+    title: "Fondos", // Cambiar el título de la ventana
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       webSecurity: false,
     },
   });
 
+  gestionFondosWindow.setMenuBarVisibility(false); // Ocultar el menú de la ventana
   gestionFondosWindow.loadURL("http://localhost:3000/gestion-fondos");
 
   gestionFondosWindow.on("closed", () => {
@@ -113,10 +124,8 @@ app.on("window-all-closed", () => {
 
 // Proyectar himno
 ipcMain.on("proyectar-himno", (event, himno) => {
-  console.log("📤 Himno recibido para proyectar:", himno);
 
   if (!proyectorWindow) {
-    console.log("🖥️ Creando ventana del proyector...");
     createProyectorWindow();
 
     proyectorWindow.webContents.on("did-finish-load", () => {
@@ -144,44 +153,78 @@ ipcMain.on("abrir-proyector", () => {
 
 // Seleccionar fondo multimedia (imagen o video)
 ipcMain.handle("seleccionar-fondo", async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
+  const result = await dialog.showOpenDialog({
     properties: ["openFile"],
     filters: [
-      { name: "Imágenes y Videos", extensions: ["jpg", "png", "mp4", "mov", "webm"] },
+      { name: "Imágenes y Videos", extensions: ["jpg", "jpeg", "png", "gif", "mp4", "webm"] },
     ],
   });
 
-  if (canceled) return { filePaths: [] };
-  return { filePaths };
+  if (result.canceled) {
+    return null;
+  }
+
+  const filePath = result.filePaths[0];
+  const extension = path.extname(filePath).toLowerCase();
+
+  let tipo = "imagen"; // Default
+  if ([".mp4", ".webm"].includes(extension)) {
+    tipo = "video";
+  }
+
+  return { filePath, tipo }; // ⬅️ Devolver también el tipo
 });
 
 // Cuando se selecciona un fondo y se envía al proyector
-ipcMain.on("fondo-seleccionado", (event, filePath) => {
+ipcMain.on("fondo-seleccionado", (event, { filePath, tipo }) => {
   if (proyectorWindow) {
     const rutaConProtocolo = `file://${filePath}`;
-    proyectorWindow.webContents.send("fondo-seleccionado", rutaConProtocolo);
+    proyectorWindow.webContents.send("fondo-seleccionado", { ruta: rutaConProtocolo, tipo });
   }
 });
 
 // Gestión de fondos (guardar/leer)
-ipcMain.on("abrir-gestion-fondos", () => {
-  createGestionFondosWindow();
+ipcMain.handle("obtener-fondos", async () => {
+  return obtenerFondos();
 });
 
-ipcMain.handle("obtener-fondos", () => {
-  return store.get("fondos", []);
+ipcMain.handle("agregar-fondo", async (event, { url, tipo }) => {
+  try {
+    // Copiar el archivo a la carpeta 'assets/fondos'
+    const nombreArchivo = path.basename(url);
+    const destino = path.join(__dirname, "assets", "fondos", nombreArchivo);
+    fs.copyFileSync(url, destino);
+
+    // Convertir la ruta a una URL válida
+    const rutaConProtocolo = `file://${destino.replace(/\\/g, "/")}`;
+
+    // Guardar la ruta modificada en la base de datos
+    agregarFondo(rutaConProtocolo, tipo);
+    console.log("Fondo agregado:", { url: rutaConProtocolo, tipo });
+  } catch (error) {
+    console.error("Error al agregar fondo:", error);
+  }
 });
 
-ipcMain.handle("guardar-fondos", (event, fondos) => {
-  store.set("fondos", fondos);
+ipcMain.handle("eliminar-fondo", async (event, id) => {
+  eliminarFondo(id);
 });
 
-ipcMain.handle("establecer-fondo-activo", (event, fondo) => {
-  store.set("fondoActivo", fondo);
+ipcMain.handle("establecer-fondo-activo", async (event, id) => {
+  establecerFondoActivo(id);
 });
 
-ipcMain.handle("obtener-fondo-activo", () => {
-  return store.get("fondoActivo", null);
+ipcMain.handle("obtener-fondo-activo", async () => {
+  return obtenerFondoActivo();
+});
+
+ipcMain.on("fondo-activo-cambiado", (event, fondo) => {
+  console.log("Reenviando fondo activo al proyector:", fondo); // Agregar mensaje de consola
+  if (proyectorWindow) {
+    proyectorWindow.webContents.send("actualizar-fondo-activo", fondo);
+  } else {
+    console.error("La ventana del proyector no está disponible.");
+  }
 });
 
 // 🧠 Handler para agregar himnos desde React
@@ -247,5 +290,43 @@ ipcMain.handle("eliminar-himno", async (event, id) => {
   } catch (error) {
     console.error("Error al eliminar el himno:", error);
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("obtener-favoritos", async () => {
+  try {
+    const stmt = db.prepare("SELECT * FROM himnos WHERE favorito = 1 ORDER BY numero");
+    const rows = stmt.all(); // Usar .all() para obtener múltiples filas
+    return rows.map((row) => ({
+      ...row,
+      letra: JSON.parse(row.letra),
+      favorito: Boolean(row.favorito),
+    }));
+  } catch (error) {
+    console.error("Error al obtener favoritos:", error);
+    throw error;
+  }
+});
+
+ipcMain.handle("marcar-favorito", async (event, { id, favorito }) => {
+  try {
+    const stmt = db.prepare("UPDATE himnos SET favorito = ? WHERE id = ?");
+    stmt.run(favorito ? 1 : 0, id); // Actualizar el campo favorito
+    return true;
+  } catch (error) {
+    console.error("Error al marcar favorito:", error);
+    throw error;
+  }
+});
+
+// Eliminar favorito
+ipcMain.handle("eliminar-favorito", async (event, id) => {
+  try {
+    const stmt = db.prepare("UPDATE himnos SET favorito = 0 WHERE id = ?");
+    stmt.run(id);
+    console.log(`Himno con ID ${id} marcado como no favorito.`);
+  } catch (error) {
+    console.error("Error al marcar el himno como no favorito:", error);
+    throw error;
   }
 });

@@ -5,17 +5,20 @@ const Proyector = () => {
   const [parrafo, setParrafo] = useState("");
   const [titulo, setTitulo] = useState("");
   const [numero, setNumero] = useState("");
-  const [fondo, setFondo] = useState("videos/fondo.mp4");
-  const [isFondoReady, setIsFondoReady] = useState(false); // Nuevo estado para controlar el fondo
+  const [fondo, setFondo] = useState("videos/fondo.mp4"); // Video por defecto
+  const [fondoActivo, setFondoActivo] = useState({
+    url: "videos/fondo.mp4",
+    tipo: "video",
+  });
 
   const fondoRef = useRef(fondo);
 
   useEffect(() => {
     fondoRef.current = fondo;
-    setIsFondoReady(true); // Marca el fondo como listo cuando cambia
   }, [fondo]);
 
   useEffect(() => {
+    // Escuchar eventos desde el proceso principal
     window.electron?.on("mostrar-himno", (event, data) => {
       setParrafo(data.parrafo);
       setTitulo(data.titulo);
@@ -36,6 +39,10 @@ const Proyector = () => {
       setFondo(fondoPath);
     });
 
+    window.electron?.onFondoActivoCambiado((fondo) => {
+      setFondoActivo(fondo);
+    });
+
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         window.electron?.cerrarProyector();
@@ -43,11 +50,31 @@ const Proyector = () => {
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.electron?.removeFondoActivoListener();
+    };
   }, []);
 
-  const esVideo = fondoRef.current.match(/\.(mp4|mov|webm)$/i);
-  const esImagen = fondoRef.current.match(/\.(jpg|jpeg|png|webp)$/i);
+  useEffect(() => {
+    // Escuchar el evento desde el proceso principal
+    window.electron?.on("actualizar-fondo-activo", (event, fondo) => {
+      console.log("Fondo activo recibido en Proyector.jsx:", fondo);
+      if (fondo && fondo.url) {
+        setFondoActivo(fondo); // Usar la ruta directamente
+      } else {
+        console.log("No hay fondo activo, usando el video por defecto.");
+        setFondoActivo({url: "videos/fondo.mp4", tipo: "video"});
+      }
+    });
+
+    return () => {
+      window.electron?.removeAllListeners("actualizar-fondo-activo");
+    };
+  }, []);
+
+  const esVideo = (url) => url?.match(/\.(mp4|mov|webm)$/i);
+  const esImagen = (url) => url?.match(/\.(jpg|jpeg|png|webp)$/i);
 
   return (
     <AnimatePresence>
@@ -59,23 +86,31 @@ const Proyector = () => {
         className="min-h-screen flex flex-col items-center justify-center bg-black text-white px-8 relative overflow-hidden"
       >
         {/* Fondo */}
-        {isFondoReady && esVideo ? (
+        {fondoActivo ? (
+          fondoActivo.tipo === "video" ? (
+            <video
+              src={fondoActivo.url}
+              className="absolute inset-0 w-full h-full object-cover -z-10"
+              autoPlay
+              muted
+              loop
+            />
+          ) : (
+            <img
+              src={fondoActivo.url}
+              alt="Fondo activo"
+              className="absolute inset-0 w-full h-full object-cover -z-10"
+            />
+          )
+        ) : (
           <video
+            src="videos/fondo.mp4"
+            className="absolute inset-0 w-full h-full object-cover -z-10"
             autoPlay
             muted
             loop
-            className="absolute inset-0 w-full h-full object-cover -z-10"
-            src={fondoRef.current}
-            onError={() => console.error("Error al cargar el video")}
-            onLoadedData={() => console.log("Video cargado correctamente")}
           />
-        ) : isFondoReady && esImagen ? (
-          <img
-            src={fondoRef.current}
-            alt="Fondo personalizado"
-            className="absolute inset-0 w-full h-full object-cover -z-10"
-          />
-        ) : null}
+        )}
 
         {/* Número del himno */}
         {numero && (
@@ -109,7 +144,7 @@ const Proyector = () => {
           transition={{duration: 0.5}}
           className="w-full max-w-5xl text-center px-6"
         >
-          <p className="text-5xl font-semibold leading-tight whitespace-pre-wrap">
+          <p className="text-6xl font-semibold leading-tight whitespace-pre-wrap">
             {parrafo}
           </p>
         </motion.div>

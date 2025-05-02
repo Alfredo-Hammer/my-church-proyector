@@ -14,24 +14,25 @@ contextBridge.exposeInMainWorld("electron", {
   // Favoritos
   marcarFavorito: (id, favorito) =>
     ipcRenderer.invoke("marcar-favorito", { id, favorito }),
+  eliminarFavorito: (id) => ipcRenderer.invoke("eliminar-favorito", id),
   obtenerFavoritos: () => ipcRenderer.invoke("obtener-favoritos"),
 
   // Fondos
   seleccionarFondo: () => ipcRenderer.invoke("seleccionar-fondo"),
-  guardarFondos: (fondos) => ipcRenderer.invoke("guardar-fondos", fondos),
+  agregarFondo: (fondo) => ipcRenderer.invoke("agregar-fondo", fondo),
   obtenerFondos: () => ipcRenderer.invoke("obtener-fondos"),
-  establecerFondoActivo: (fondo) => ipcRenderer.invoke("establecer-fondo-activo", fondo),
   obtenerFondoActivo: () => ipcRenderer.invoke("obtener-fondo-activo"),
+  establecerFondoActivo: (id) => ipcRenderer.invoke("establecer-fondo-activo", id),
+  eliminarFondo: (id) => ipcRenderer.invoke("eliminar-fondo", id),
+  notificarFondoActivo: (fondo) => ipcRenderer.send("fondo-activo-cambiado", fondo),
 
   //Eliminar y actualizar
   actualizarHimno: (himno) => ipcRenderer.invoke("actualizar-himno", himno),
   eliminarHimno: (id) => ipcRenderer.invoke("eliminar-himno", id),
 
   // Eventos
-  on: (channel, callback) => {
-    const validChannels = ["mostrar-himno", "fondo-seleccionado", "mostrar-fondo"];
-    if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, callback);
-    }
-  },
+  on: (channel, callback) => ipcRenderer.on(channel, callback),
+  removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+  onFondoActivoCambiado: (callback) => ipcRenderer.on("actualizar-fondo-activo", (event, fondo) => callback(fondo)),
+  removeFondoActivoListener: () => ipcRenderer.removeAllListeners("actualizar-fondo-activo"),
 });

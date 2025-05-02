@@ -8,6 +8,7 @@ import {
   FaBars,
   FaTimes,
   FaPlus,
+  FaBookOpen,
 } from "react-icons/fa";
 
 const Sidebar = ({isCollapsed, setIsCollapsed}) => {
@@ -43,6 +44,15 @@ const Sidebar = ({isCollapsed, setIsCollapsed}) => {
         <FaMusic className="text-xl text-green-400 " />
         {!isCollapsed && <span>Himnario Moravo</span>}
       </Link>
+
+      <Link
+        to="/vida-cristiana"
+        className="hover:bg-gray-700 p-2 rounded flex items-center gap-2"
+      >
+        <FaBookOpen className="text-xl text-fuchsia-300" />
+        {!isCollapsed && <span>Vida Cristiana</span>}
+      </Link>
+
       <Link
         to="/agregar-himno"
         className="hover:bg-gray-700 p-2 rounded flex items-center gap-2"

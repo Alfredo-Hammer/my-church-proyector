@@ -11,6 +11,7 @@ import { useState } from "react";
 import GestionFondos from "./pages/GestionFondos";
 import Inicio from "./pages/Inicio";
 import AgregarHimno from "./pages/AgregarHimno";
+import HimnoVidaCristiana from "./pages/HimnoVidaCristiana";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -39,6 +40,7 @@ function App() {
                   <Route path="/" element={<Inicio />} />
                   <Route path="/biblia" element={<Biblia />} />
                   <Route path="/himnos" element={<Himnos />} />
+                  <Route path="/vida-cristiana" element={<HimnoVidaCristiana />} />
                   <Route path="/presentaciones" element={<Presentaciones />} />
                   <Route path="/favoritos" element={<Favoritos />} />
                   <Route path="/himno-detalle/:id" element={<HimnoDetalle />} />

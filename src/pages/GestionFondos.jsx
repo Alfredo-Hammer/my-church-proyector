@@ -1,198 +1,164 @@
-import {useEffect, useState} from "react";
+import {useState, useEffect} from "react";
 
 const GestionFondos = () => {
   const [fondos, setFondos] = useState([]);
   const [fondoActivo, setFondoActivo] = useState(null);
-  const [busqueda, setBusqueda] = useState("");
-  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
+  const [tabActivo, setTabActivo] = useState("imagen"); // Estado para controlar el tab activo
 
   useEffect(() => {
-    const cargarFondos = async () => {
-      try {
-        const fondosGuardados = await window.electron.obtenerFondos();
-        const activo = await window.electron.obtenerFondoActivo();
-        setFondos(fondosGuardados);
-        setFondoActivo(activo);
-      } catch (error) {
-        console.error("Error al cargar los fondos:", error);
-      }
-    };
     cargarFondos();
   }, []);
 
-  const fetchImages = async (query) => {
+  const cargarFondos = async () => {
     try {
-      const response = await fetch(
-        `https://api.pexels.com/v1/search?query=${query}&per_page=10`,
-        {
-          headers: {
-            Authorization:
-              "zIqOnk9z16U0MrMF47SQnx7h7JiJuSt8Ab31uWGAJMq1nhNfwuXSRUkv", // Reemplaza con tu clave de API
-          },
-        }
+      const fondosGuardados = await window.electron.obtenerFondos();
+      const activo = await window.electron.obtenerFondoActivo();
+      setFondos(fondosGuardados);
+      setFondoActivo(activo?.url || null);
+    } catch (error) {
+      console.error("Error al cargar los fondos:", error);
+    }
+  };
+
+  const agregarFondoDesdeDispositivo = async () => {
+    try {
+      const resultado = await window.electron.seleccionarFondo();
+      if (!resultado || !resultado.filePath) return;
+
+      const fondosActuales = await window.electron.obtenerFondos();
+      const fondoDuplicado = fondosActuales.some(
+        (fondo) => fondo.url === resultado.filePath
       );
-      const data = await response.json();
-      setResultadosBusqueda(data.photos);
-    } catch (error) {
-      console.error("Error al buscar imágenes:", error);
-    }
-  };
 
-  const agregarFondoDesdeBusqueda = async (url) => {
-    try {
-      const nuevosFondos = [...fondos, url];
-      setFondos(nuevosFondos);
-      await window.electron.guardarFondos(nuevosFondos);
-    } catch (error) {
-      console.error("Error al agregar fondo desde búsqueda:", error);
-    }
-  };
-
-  const agregarFondo = async () => {
-    try {
-      const {filePaths} = await window.electron.seleccionarFondo();
-      if (filePaths?.length) {
-        const nuevosFondos = [...fondos, filePaths[0]];
-        setFondos(nuevosFondos);
-        await window.electron.guardarFondos(nuevosFondos);
+      if (fondoDuplicado) {
+        alert("El fondo ya existe en la base de datos.");
+        return;
       }
+
+      await window.electron.agregarFondo({
+        url: resultado.filePath,
+        tipo: resultado.tipo,
+      });
+
+      const fondosActualizados = await window.electron.obtenerFondos();
+      setFondos(fondosActualizados);
     } catch (error) {
-      console.error("Error al agregar fondo:", error);
+      console.error("Error al agregar fondo desde dispositivo:", error);
     }
   };
 
-  const eliminarFondo = async (index) => {
+  const eliminarFondo = async (id) => {
     try {
-      const nuevoFondo = fondos.filter((_, i) => i !== index);
-      setFondos(nuevoFondo);
-      await window.electron.guardarFondos(nuevoFondo);
-      if (fondos[index] === fondoActivo) {
+      await window.electron.eliminarFondo(id);
+      const fondosActualizados = await window.electron.obtenerFondos();
+      setFondos(fondosActualizados);
+      if (fondoActivo?.id === id) {
         setFondoActivo(null);
-        await window.electron.establecerFondoActivo(null);
       }
     } catch (error) {
       console.error("Error al eliminar fondo:", error);
     }
   };
 
-  const seleccionarComoActivo = async (fondo) => {
+  const seleccionarComoActivo = async (id) => {
     try {
-      if (
-        !fondo ||
-        (!fondo.endsWith(".jpg") &&
-          !fondo.endsWith(".png") &&
-          !fondo.endsWith(".mp4") &&
-          !fondo.endsWith(".webm"))
-      ) {
-        throw new Error("El archivo seleccionado no es un fondo válido.");
-      }
-      console.log("Seleccionando fondo como activo:", fondo);
-      setFondoActivo(fondo);
-      await window.electron.establecerFondoActivo(fondo);
-      window.electron.send("mostrar-fondo", fondo);
-      console.log("Fondo enviado al proyector:", fondo);
+      await window.electron.establecerFondoActivo(id);
+      const activo = await window.electron.obtenerFondoActivo();
+      setFondoActivo(activo?.url || null);
+
+      // Notificar al proceso principal que el fondo activo ha cambiado
+      window.electron.notificarFondoActivo({
+        url: activo?.url,
+        tipo: activo?.tipo,
+      });
+      console.log("Fondo activo notificado:", {
+        url: activo?.url,
+        tipo: activo?.tipo,
+      });
     } catch (error) {
       console.error("Error al seleccionar fondo como activo:", error);
     }
   };
 
   return (
-    <div className="p-4 bg-gray-900 text-white h-screen">
-      <h1 className="text-3xl font-bold mb-4">Gestión de Fondos</h1>
-      <button
-        onClick={agregarFondo}
-        className="bg-green-500 px-4 py-2 rounded mb-4"
-      >
-        Agregar Fondo
-      </button>
+    <div className="p-4 bg-zinc-800 text-white h-screen">
+      <div className="flex justify-between items-center mb-4">
+        {/* Tabs */}
+        <div className="flex mb-4 gap-2">
+          <button
+            onClick={() => setTabActivo("imagen")}
+            className={`px-4 py-2 rounded-md ${
+              tabActivo === "imagen" ? "bg-blue-600" : "bg-gray-700"
+            }`}
+          >
+            Imágenes
+          </button>
+          <button
+            onClick={() => setTabActivo("video")}
+            className={`px-4 py-2 rounded-md ${
+              tabActivo === "video" ? "bg-blue-600" : "bg-gray-700"
+            }`}
+          >
+            Videos
+          </button>
+        </div>
 
-      {/* Campo de búsqueda */}
-      <div className="mb-4">
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar imágenes en Pexels"
-          className="px-4 py-2 rounded bg-gray-800 text-white w-full"
-        />
         <button
-          onClick={() => fetchImages(busqueda)}
-          className="bg-blue-500 px-4 py-2 rounded mt-2"
+          onClick={agregarFondoDesdeDispositivo}
+          className="bg-green-500 px-4 py-2 rounded"
         >
-          Buscar
+          Crear Fondo
         </button>
       </div>
 
-      {/* Resultados de búsqueda */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        {resultadosBusqueda.map((foto, index) => (
-          <div
-            key={index}
-            className="relative border-2 rounded overflow-hidden border-white"
-          >
-            <img
-              src={foto.src.medium}
-              alt={foto.alt}
-              className="w-full h-40 object-cover"
-            />
-            <button
-              onClick={() => agregarFondoDesdeBusqueda(foto.src.original)}
-              className="absolute bottom-2 right-2 bg-green-500 px-2 py-1 text-xs rounded"
-            >
-              Agregar
-            </button>
-          </div>
-        ))}
-      </div>
-
       {/* Fondos locales */}
-      <div className="grid grid-cols-3 gap-4">
-        {fondos.map((fondo, index) => {
-          const esVideo =
-            fondo.endsWith(".mp4") ||
-            fondo.endsWith(".mov") ||
-            fondo.endsWith(".webm");
-          const esActivo = fondo === fondoActivo;
-
-          return (
-            <div
-              key={index}
-              className="relative border-2 rounded overflow-hidden border-white"
-            >
-              {esVideo ? (
-                <video
-                  src={`file://${fondo}`}
-                  className="w-full h-40 object-cover"
-                  muted
-                  autoPlay
-                  loop
-                />
-              ) : (
-                <img
-                  src={`file://${fondo}`}
-                  alt={`Fondo ${index + 1}`}
-                  className="w-full h-40 object-cover"
-                />
-              )}
-              <div className="absolute top-2 right-2 flex gap-1">
-                <button
-                  onClick={() => eliminarFondo(index)}
-                  className="bg-red-500 px-2 py-1 text-xs rounded"
-                >
-                  Eliminar
-                </button>
-                <button
-                  onClick={() => seleccionarComoActivo(fondo)}
-                  className={`${
-                    esActivo ? "bg-blue-600" : "bg-gray-700"
-                  } px-2 py-1 text-xs rounded`}
-                >
-                  {esActivo ? "Activo" : "Usar"}
-                </button>
+      <div className="grid grid-cols-4 gap-4">
+        {fondos.filter((fondo) => fondo.tipo === tabActivo).length === 0 ? (
+          <div className="col-span-4 text-center text-gray-400">
+            No hay fondos disponibles para mostrar.
+          </div>
+        ) : (
+          fondos
+            .filter((fondo) => fondo.tipo === tabActivo) // Filtrar por tipo (imagen o video)
+            .map((fondo) => (
+              <div
+                key={fondo.id}
+                className="relative border-2 rounded overflow-hidden border-white"
+              >
+                {fondo.tipo === "video" ? (
+                  <video
+                    src={fondo.url}
+                    className="w-full h-40 object-cover"
+                    autoPlay
+                    muted
+                    loop
+                  />
+                ) : (
+                  <img
+                    src={fondo.url}
+                    alt={`Fondo ${fondo.id}`}
+                    className="w-full h-40 object-cover"
+                  />
+                )}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    onClick={() => eliminarFondo(fondo.id)}
+                    className="bg-red-500 px-2 py-1 text-xs rounded"
+                  >
+                    Eliminar
+                  </button>
+                  <button
+                    onClick={() => seleccionarComoActivo(fondo.id)}
+                    className={`${
+                      fondoActivo === fondo.url ? "bg-blue-600" : "bg-gray-700"
+                    } px-2 py-1 text-xs rounded`}
+                  >
+                    {fondoActivo === fondo.url ? "Activo" : "Usar"}
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            ))
+        )}
       </div>
     </div>
   );

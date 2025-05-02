@@ -71,23 +71,46 @@ const librosBiblia = [
 
 export const obtenerVersiculo = async (libro, capitulo, versiculo) => {
   try {
-    const cita = `${libro} ${capitulo}:${versiculo}`;
+    const apiKey = "5968e99e-dc67-4e4e-afc5-b05bb2850a52"; // Reemplaza con tu clave de API
+    const bibleId = "SPNLBV"; // ID de la Biblia en Lenguaje Sencillo
+
+    // Mapeo de nombres de libros en español a códigos en inglés
+    const mapeoLibros = {
+      Génesis: "GEN",
+      Éxodo: "EXO",
+      Levítico: "LEV",
+      Números: "NUM",
+      Deuteronomio: "DEU",
+      Mateo: "MAT",
+      Juan: "JHN",
+      Apocalipsis: "REV",
+    };
+
+    const codigoLibro = mapeoLibros[libro];
+    if (!codigoLibro) {
+      throw new Error(`El libro "${libro}" no tiene un código válido.`);
+    }
+
     const response = await fetch(
-      `https://biblia-api.vercel.app/api?cita=${encodeURIComponent(cita)}`
+      `https://4.dbt.io/api/bibles/filesets/${bibleId}/verse?book=${codigoLibro}&chapter=${capitulo}&verse_start=${versiculo}&verse_end=${versiculo}`,
+      {
+        headers: {
+          "api-key": apiKey,
+        },
+      }
     );
 
-    // Verifica si la respuesta es correcta
     if (!response.ok) {
       throw new Error(`Error al obtener el versículo: ${response.statusText}`);
     }
 
     const data = await response.json();
 
-    if (data.error) {
-      throw new Error(`Error: ${data.error}`);
+    if (!data || !data.data || data.data.length === 0) {
+      throw new Error("No se encontró el versículo solicitado.");
     }
 
-    return `${data.cita} - ${data.versiculo}`;
+    return `${libro} ${capitulo}:${versiculo} - ${data.data[0].verse_text}`;
   } catch (error) {
     console.error("Error al obtener el versículo:", error);
     return `No se pudo obtener el versículo. ${error.message}`;
@@ -95,9 +118,9 @@ export const obtenerVersiculo = async (libro, capitulo, versiculo) => {
 };
 
 export default function Biblia() {
-  const [libro, setLibro] = useState("Juan");
-  const [capitulo, setCapitulo] = useState(3);
-  const [versiculo, setVersiculo] = useState(16);
+  const [libro, setLibro] = useState("");
+  const [capitulo, setCapitulo] = useState();
+  const [versiculo, setVersiculo] = useState();
   const [texto, setTexto] = useState("");
 
   const manejarBusqueda = async () => {

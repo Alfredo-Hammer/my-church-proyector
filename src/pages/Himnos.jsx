@@ -10,8 +10,10 @@ const Himnos = () => {
     setHimnos(himnosData);
   }, []);
 
-  const filtrados = himnos.filter((himno) =>
-    himno.titulo.toLowerCase().includes(busqueda.toLowerCase())
+  const filtrados = himnos.filter(
+    (himno) =>
+      himno.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
+      himno.numero.toString().includes(busqueda)
   );
 
   return (
@@ -20,7 +22,7 @@ const Himnos = () => {
 
       <input
         type="text"
-        placeholder="Buscar himno..."
+        placeholder="Buscar himno por título o número..."
         className="w-full p-2 mb-4 border rounded bg-gray-800 text-white placeholder-gray-400"
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}

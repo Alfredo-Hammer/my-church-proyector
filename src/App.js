@@ -9,6 +9,7 @@ import HimnoDetalle from "./pages/HimnoDetalle";
 import Proyector from "./pages/Proyector";
 import { useState } from "react";
 import GestionFondos from "./pages/GestionFondos";
+import Contactos from "./pages/Contactos";
 import Inicio from "./pages/Inicio";
 import AgregarHimno from "./pages/AgregarHimno";
 import HimnoVidaCristiana from "./pages/HimnoVidaCristiana";
@@ -46,6 +47,7 @@ function App() {
                   <Route path="/himno-detalle/:id" element={<HimnoDetalle />} />
                   <Route path="/himno/:numero" element={<HimnoDetalle />} />
                   <Route path="/agregar-himno" element={<AgregarHimno />} />
+                  <Route path="/contactos" element={<Contactos />} />
                 </Routes>
               </main>
             </div>

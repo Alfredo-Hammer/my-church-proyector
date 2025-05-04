@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog } = require("electron");
+const { parseBibFile } = require("./src/utils/bibliaParser.jsx"); // Asegúrate de que esta ruta esté bien
 const path = require("path");
 const fs = require("fs");
 const { agregarHimno, obtenerHimnos, db,
@@ -7,7 +8,7 @@ const { agregarHimno, obtenerHimnos, db,
   eliminarFondo,
   establecerFondoActivo,
   obtenerFondoActivo,
-} = require("./db"); // Asegúrate de que esta ruta esté bien
+} = require("./db");
 
 // Crear la carpeta 'assets/fondos' si no existe
 const carpetaFondos = path.join(__dirname, "assets", "fondos");
@@ -25,7 +26,6 @@ function createMainWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true, // Asegúrate de que esté habilitado
-      enableRemoteModule: false,
       nodeIntegration: false,
     },
   });
@@ -82,6 +82,7 @@ function createProyectorWindow() {
   return proyectorWindow;
 }
 
+
 // Ventana de gestión de fondos
 function createGestionFondosWindow() {
   const gestionFondosWindow = new BrowserWindow({
@@ -92,6 +93,7 @@ function createGestionFondosWindow() {
       preload: path.join(__dirname, "preload.js"),
       webSecurity: false,
     },
+
   });
 
   gestionFondosWindow.setMenuBarVisibility(false); // Ocultar el menú de la ventana
@@ -126,10 +128,11 @@ app.on("window-all-closed", () => {
 ipcMain.on("proyectar-himno", (event, himno) => {
 
   if (!proyectorWindow) {
-    createProyectorWindow();
+    const nuevaVentana = createProyectorWindow();
+    if (!nuevaVentana) return; // ⚠️ Si no hay segunda pantalla, salir
 
-    proyectorWindow.webContents.on("did-finish-load", () => {
-      proyectorWindow.webContents.send("mostrar-himno", himno);
+    nuevaVentana.webContents.on("did-finish-load", () => {
+      nuevaVentana.webContents.send("mostrar-himno", himno);
     });
   } else {
     proyectorWindow.webContents.send("mostrar-himno", himno);
@@ -156,8 +159,14 @@ ipcMain.handle("seleccionar-fondo", async () => {
   const result = await dialog.showOpenDialog({
     properties: ["openFile"],
     filters: [
-      { name: "Imágenes y Videos", extensions: ["jpg", "jpeg", "png", "gif", "mp4", "webm"] },
+      {
+        name: "Medios compatibles",
+        extensions: ["jpg", "jpeg", "png", "gif", "mp4", "webm"],
+      },
     ],
+    // filters: [
+    //   { name: "Imágenes y Videos", extensions: ["jpg", "jpeg", "png", "gif", "mp4", "webm"] },
+    // ],
   });
 
   if (result.canceled) {
@@ -189,7 +198,16 @@ ipcMain.handle("obtener-fondos", async () => {
 });
 
 ipcMain.handle("agregar-fondo", async (event, { url, tipo }) => {
+
+
   try {
+
+    // Verificar si la carpeta 'assets/fondos' existe
+    const carpetaFondos = path.join(__dirname, "assets", "fondos");
+    if (!fs.existsSync(carpetaFondos)) {
+      fs.mkdirSync(carpetaFondos, { recursive: true });
+    }
+
     // Copiar el archivo a la carpeta 'assets/fondos'
     const nombreArchivo = path.basename(url);
     const destino = path.join(__dirname, "assets", "fondos", nombreArchivo);
@@ -328,5 +346,14 @@ ipcMain.handle("eliminar-favorito", async (event, id) => {
   } catch (error) {
     console.error("Error al marcar el himno como no favorito:", error);
     throw error;
+  }
+});
+
+//Mostrar versículo
+ipcMain.on("proyectar-versiculo", (event, versiculo) => {
+  if (proyectorWindow) {
+    proyectorWindow.webContents.send("mostrar-versiculo", versiculo);
+  } else {
+    console.error("No se encontró la ventana del proyector.");
   }
 });

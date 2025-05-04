@@ -25,11 +25,30 @@ const Proyector = () => {
       setNumero(data.numero);
     });
 
-    window.electron?.on("mostrar-versiculo", (event, texto) => {
-      setTitulo("Versículo Bíblico");
-      setParrafo(texto);
-      setNumero("");
-    });
+    window.electron?.on(
+      "mostrar-versiculo",
+      (event, {parrafo, titulo, numero, origen}) => {
+        if (origen === "biblia") {
+          // Si los datos vienen de Biblia.jsx, mostrar el título con el número
+          setTitulo(`${titulo} ${numero}`); // Ejemplo: "Mateo 12:5"
+          setParrafo(parrafo || "No disponible");
+          setNumero(""); // No mostrar el número por separado
+        } else if (origen === "himno") {
+          // Si los datos vienen de HimnoDetalle.jsx, mostrar como himno
+          setTitulo(titulo || "Himno");
+          setParrafo(parrafo || "No disponible");
+          setNumero(numero || "");
+        }
+      }
+    );
+    // window.electron?.on(
+    //   "mostrar-versiculo",
+    //   (event, {parrafo, titulo, numero}) => {
+    //     setTitulo(titulo || "Versículo Bíblico");
+    //     setParrafo(parrafo || "No disponible");
+    //     setNumero(numero || "");
+    //   }
+    // );
 
     window.electron?.on("fondo-seleccionado", (event, filePath) => {
       setFondo(filePath);
@@ -53,6 +72,7 @@ const Proyector = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.electron?.removeFondoActivoListener();
+      window.electron?.removeAllListeners("mostrar-versiculo");
     };
   }, []);
 
@@ -121,18 +141,7 @@ const Proyector = () => {
 
         {/* Título */}
         {titulo && (
-          <motion.div
-            key={titulo}
-            initial={{opacity: 0, y: -30}}
-            animate={{opacity: 1, y: 0}}
-            exit={{opacity: 0, y: 30}}
-            transition={{duration: 0.5}}
-            className="text-center mb-6"
-          >
-            <h1 className="text-6xl font-bold text-orange-400 mb-6">
-              {titulo}
-            </h1>
-          </motion.div>
+          <h1 className="text-6xl font-bold text-orange-400 mb-6">{titulo}</h1>
         )}
 
         {/* Contenido */}

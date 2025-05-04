@@ -5,6 +5,17 @@ import vidacristianaData from "../data/vidacristiana.json";
 import {FaProjectDiagram, FaStar, FaHeart, FaRegHeart} from "react-icons/fa";
 import {toast} from "react-toastify";
 
+const coloresGradientes = [
+  "bg-gradient-to-r from-red-500 to-red-700",
+  "bg-gradient-to-r from-blue-500 to-blue-700",
+  "bg-gradient-to-r from-green-500 to-green-700",
+  "bg-gradient-to-r from-yellow-500 to-yellow-700",
+  "bg-gradient-to-r from-purple-500 to-purple-700",
+  "bg-gradient-to-r from-pink-500 to-pink-700",
+  "bg-gradient-to-r from-indigo-500 to-indigo-700",
+  "bg-gradient-to-r from-teal-500 to-teal-700",
+];
+
 const HimnoDetalle = () => {
   const {id, numero} = useParams(); // Recibe tanto el id como el numero
   const {state} = useLocation(); // 👈 Aquí leemos el "state"
@@ -71,6 +82,7 @@ const HimnoDetalle = () => {
         parrafo: himno.parrafos[selectedParrafo],
         titulo: himno.titulo,
         numero: himno.numero,
+        origen: "himno",
       });
     }
   };
@@ -198,9 +210,11 @@ const HimnoDetalle = () => {
               key={index}
               className={`p-4 rounded-lg border max-w-[280px] justify-center cursor-pointer ${
                 selectedParrafo === index
-                  ? "bg-gradient-to-r from-blue-800 via-blue-700 to-blue-600 text-white"
-                  : "bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 text-gray-300"
-              } hover:from-gray-800 hover:via-gray-700 hover:to-gray-600`}
+                  ? "text-white border-4 border-yellow-400"
+                  : "text-gray-300 border border-gray-600"
+              } hover:opacity-90 transition-all duration-300 ${
+                coloresGradientes[index % coloresGradientes.length]
+              }`}
               onClick={() => {
                 setSelectedParrafo(index);
                 window.electron.enviarHimno({

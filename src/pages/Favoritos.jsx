@@ -41,7 +41,7 @@ export default function Favoritos() {
   };
 
   return (
-    <div className="bg-gray-900 text-white min-h-screen p-4">
+    <div className="bg-gradient-to-r from-gray-800 via-gray-900 to-black text-white min-h-screen p-4">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold text-grey-400 mb-6">
           Himnos Favoritos

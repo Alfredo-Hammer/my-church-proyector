@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+
 contextBridge.exposeInMainWorld("electron", {
   // Proyección
   enviarHimno: (parrafo) => ipcRenderer.send("proyectar-himno", parrafo),
@@ -29,6 +30,9 @@ contextBridge.exposeInMainWorld("electron", {
   //Eliminar y actualizar
   actualizarHimno: (himno) => ipcRenderer.invoke("actualizar-himno", himno),
   eliminarHimno: (id) => ipcRenderer.invoke("eliminar-himno", id),
+
+  //Enviar versiculo
+  enviarVersiculo: (versiculo) => ipcRenderer.send("proyectar-versiculo", versiculo),
 
   // Eventos
   on: (channel, callback) => ipcRenderer.on(channel, callback),

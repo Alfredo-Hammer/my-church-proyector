@@ -3,7 +3,18 @@ import {useState, useEffect} from "react";
 import {useNavigate} from "react-router-dom";
 import {toast, ToastContainer} from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import {FaEdit, FaTrash, FaHeart, FaRegHeart} from "react-icons/fa"; // Importar íconos
+import {FaEdit, FaTrash, FaHeart, FaRegHeart, FaPlus} from "react-icons/fa"; // Importar íconos
+
+const coloresGradientes = [
+  "bg-gradient-to-r from-red-500 to-red-700",
+  "bg-gradient-to-r from-blue-500 to-blue-700",
+  "bg-gradient-to-r from-green-500 to-green-700",
+  "bg-gradient-to-r from-yellow-500 to-yellow-700",
+  "bg-gradient-to-r from-purple-500 to-purple-700",
+  "bg-gradient-to-r from-pink-500 to-pink-700",
+  "bg-gradient-to-r from-indigo-500 to-indigo-700",
+  "bg-gradient-to-r from-teal-500 to-teal-700",
+];
 
 export default function AgregarHimno() {
   const [himnos, setHimnos] = useState([]);
@@ -135,6 +146,7 @@ export default function AgregarHimno() {
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
+            <FaPlus className="inline mr-2" />
             Crear Himno
           </button>
         </div>
@@ -143,10 +155,12 @@ export default function AgregarHimno() {
           <p className="text-gray-400">No hay himnos agregados aún.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {himnos.map((himno) => (
+            {himnos.map((himno, index) => (
               <div
                 key={himno.id}
-                className="relative bg-gray-800 p-4 rounded-lg border-2 border-blue-500 hover:border-blue-400 transition-transform duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                className={`relative p-4 rounded-lg border-2 hover:border-blue-400 transition-transform duration-300 shadow-lg hover:shadow-xl hover:scale-105 ${
+                  coloresGradientes[index % coloresGradientes.length]
+                }`}
               >
                 <button
                   onClick={() => toggleFavorito(himno.id)}
@@ -166,21 +180,21 @@ export default function AgregarHimno() {
                   onClick={() => handleNavigate(himno.id)}
                   className="cursor-pointer mb-4"
                 >
-                  <h2 className="text-xl font-bold text-blue-300">
+                  <h2 className="text-xl font-bold text-white">
                     {himno.titulo}
                   </h2>
-                  <p className="text-gray-400 text-sm">{himno.numero}</p>
+                  <p className="text-gray-200 text-sm">{himno.numero}</p>
                 </div>
                 <div className="flex justify-end space-x-4">
                   <button
                     onClick={() => handleEditar(himno)}
-                    className="text-yellow-500 hover:text-yellow-400"
+                    className="text-yellow-300 hover:text-yellow-200"
                   >
                     <FaEdit size={20} />
                   </button>
                   <button
                     onClick={() => handleEliminar(himno.id)}
-                    className="text-red-500 hover:text-red-400"
+                    className="text-red-300 hover:text-red-200"
                   >
                     <FaTrash size={20} />
                   </button>

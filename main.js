@@ -19,6 +19,51 @@ if (!fs.existsSync(carpetaFondos)) {
 let mainWindow;
 let proyectorWindow;
 
+function attachWindowDebugging(win, name) {
+  if (!win) return;
+
+  win.webContents.on("did-finish-load", () => {
+    console.log(`✅ [${name}] did-finish-load`, {
+      url: win.webContents.getURL(),
+      title: win.getTitle(),
+    });
+  });
+
+  win.webContents.on(
+    "did-fail-load",
+    (event, errorCode, errorDescription, validatedURL) => {
+      console.error(`❌ [${name}] did-fail-load`, {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+    }
+  );
+
+  win.webContents.on(
+    "console-message",
+    (event, level, message, line, sourceId) => {
+      const levelName =
+        level === 0
+          ? "LOG"
+          : level === 1
+            ? "WARN"
+            : level === 2
+              ? "ERROR"
+              : "INFO";
+      console.log(`🧾 [${name}] ${levelName}: ${message} (${sourceId}:${line})`);
+    }
+  );
+
+  win.webContents.on("render-process-gone", (event, details) => {
+    console.error(`💥 [${name}] render-process-gone`, details);
+  });
+
+  win.on("unresponsive", () => {
+    console.error(`⏳ [${name}] window unresponsive`);
+  });
+}
+
 // Crear ventana principal
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -31,6 +76,13 @@ function createMainWindow() {
   });
 
   mainWindow.loadURL("http://localhost:3000");
+
+  // Ayuda a detectar por qué queda en blanco (errores de carga/JS)
+  attachWindowDebugging(mainWindow, "main");
+
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   const menuTemplate = [
     {
@@ -75,6 +127,8 @@ function createProyectorWindow() {
   proyectorWindow.setMenuBarVisibility(false);
   proyectorWindow.loadURL("http://localhost:3000/proyector");
 
+  attachWindowDebugging(proyectorWindow, "proyector");
+
   proyectorWindow.on("closed", () => {
     proyectorWindow = null;
   });
@@ -98,6 +152,8 @@ function createGestionFondosWindow() {
 
   gestionFondosWindow.setMenuBarVisibility(false); // Ocultar el menú de la ventana
   gestionFondosWindow.loadURL("http://localhost:3000/gestion-fondos");
+
+  attachWindowDebugging(gestionFondosWindow, "fondos");
 
   gestionFondosWindow.on("closed", () => {
     console.log("Ventana de gestión de fondos cerrada.");

@@ -1,0 +1,36 @@
+LICENCIA DE SOFTWARE - GLORYVIEW PROYECTOR
+
+Copyright (C) 2025 Alfredo Hammer
+
+Este software es proporcionado "tal cual", sin garantia de ningun tipo, expresa o implicita, 
+incluyendo pero no limitado a las garantias de comercializacion, idoneidad para un proposito 
+particular y no infraccion.
+
+TERMINOS DE USO:
+
+1. CONCESION DE LICENCIA
+Se concede permiso para usar este software de forma gratuita para fines religiosos y educativos 
+en iglesias, templos y organizaciones sin fines de lucro.
+
+2. USO PERMITIDO
+- Instalacion en multiples computadoras dentro de la misma iglesia u organizacion
+- Proyeccion de himnos, canciones y contenido multimedia durante servicios religiosos
+- Modificacion de la configuracion para adaptarse a las necesidades de la congregacion
+
+3. RESTRICCIONES
+- No se permite la venta o distribucion comercial de este software
+- No se permite la eliminacion de los creditos del autor
+- No se permite el uso para fines que no sean religiosos o educativos sin autorizacion expresa
+
+4. DESCARGO DE RESPONSABILIDAD
+En ningun caso el autor sera responsable por cualquier dano especial, incidental, indirecto o 
+consecuente que surja del uso o la imposibilidad de usar este software.
+
+5. SOPORTE Y ACTUALIZACIONES
+El soporte tecnico y las actualizaciones son proporcionadas de forma voluntaria sin garantias 
+de disponibilidad o tiempo de respuesta.
+
+Para consultas o permisos especiales, contactar a:
+Alfredo Hammer - coderhammer70@gmail.com
+
+Fecha de la licencia: 19 de Noviembre de 2025

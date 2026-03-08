@@ -1,0 +1,59 @@
+appId: com.gloryview.proyector
+productName: GloryView Proyector
+copyright: Copyright © 2025 Alfredo Hammer
+
+directories:
+  output: dist-installer
+  buildResources: assets
+
+extraMetadata:
+  main: main.js
+
+files:
+  - build/**/*
+  - main.js
+  - preload.js
+  - db.js
+  - db-new.js
+  - assets/**/*
+  - data/**/*
+  - package.json
+  - "!node_modules/@types/**/*"
+  - "!node_modules/.cache/**/*"
+
+extraResources:
+  - from: data
+    to: data
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - nsis
+  icon: assets/icon.ico
+  verifyUpdateCodeSignature: false
+  requestedExecutionLevel: asInvoker
+  executableName: GloryViewProyector
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: GloryView Proyector
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeader: assets/icon-256.png
+  installerHeaderIcon: assets/icon.ico
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  menuCategory: true
+  license: LICENSE.txt
+  warningsAsErrors: false
+  differentialPackage: true
+  displayLanguageSelector: false
+
+portable:
+  artifactName: "${productName}-${version}-Portable.${ext}"

@@ -5,16 +5,16 @@
   "main": "main.js",
   "dependencies": {
     "@mantine/rte": "^5.10.5",
-    "@testing-library/dom": "^10.4.0",
+    "@testing-library/dom": "^9.3.4",
     "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
+    "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@tinymce/tinymce-react": "^6.1.0",
     "better-sqlite3": "^11.9.1",
     "framer-motion": "^12.8.0",
     "quill": "^2.0.3",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.5.1",
     "react-scripts": "5.0.1",
@@ -28,8 +28,10 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+    "postinstall": "npm run rebuild",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "electron": "electron ."
+    "electron": "electron .",
+    "dev": "concurrently -k \"BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run electron\""
   },
   "eslintConfig": {
     "extends": [
@@ -50,8 +52,21 @@
     ]
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "electron": "^35.2.0",
     "electron-rebuild": "^3.2.9",
-    "tailwindcss": "^3.4.17"
-  }
+    "tailwindcss": "^3.4.17",
+    "wait-on": "^9.0.4"
+  },
+  "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alfredo-Hammer/my-church-proyector.git"
+  },
+  "author": "Alfredo Hammer",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Alfredo-Hammer/my-church-proyector/issues"
+  },
+  "homepage": "."
 }

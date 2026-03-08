@@ -100,23 +100,43 @@ const Sidebar = ({isCollapsed, setIsCollapsed}) => {
       </div>
 
       {/* Menú */}
-      {menuItems.map((item) => (
-        <Link
-          key={item.path}
-          to={item.path}
-          className={`group flex items-center gap-3 p-2 rounded hover:bg-gray-700 transition-colors ${
-            location.pathname === item.path ? "bg-gray-700" : ""
-          }`}
-        >
-          <span className={`${item.color} text-xl`}>{item.icon}</span>
-          {!isCollapsed && <span className="text-sm">{item.label}</span>}
-          {isCollapsed && (
-            <span className="sr-only group-hover:not-sr-only absolute left-16 bg-black text-xs px-2 py-1 rounded z-50">
-              {item.label}
-            </span>
-          )}
-        </Link>
-      ))}
+      {menuItems.map((item) => {
+        const content = (
+          <>
+            <span className={`${item.color} text-xl`}>{item.icon}</span>
+            {!isCollapsed && <span className="text-sm">{item.label}</span>}
+            {isCollapsed && (
+              <span className="sr-only group-hover:not-sr-only absolute left-16 bg-black text-xs px-2 py-1 rounded z-50">
+                {item.label}
+              </span>
+            )}
+          </>
+        );
+
+        if (!item.path) {
+          return (
+            <div
+              key={item.label}
+              className="group flex items-center gap-3 p-2 rounded text-gray-400 cursor-default"
+              aria-label={item.label}
+            >
+              {content}
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`group flex items-center gap-3 p-2 rounded hover:bg-gray-700 transition-colors ${
+              location.pathname === item.path ? "bg-gray-700" : ""
+            }`}
+          >
+            {content}
+          </Link>
+        );
+      })}
     </div>
   );
 };

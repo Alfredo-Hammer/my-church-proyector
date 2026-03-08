@@ -1,6 +1,4 @@
-import React from "react";
-import {useEffect, useState} from "react";
-import {motion, AnimatePresence} from "framer-motion";
+import {motion} from "framer-motion";
 
 // ✨ COMPONENTE DE PANTALLA DE BIENVENIDA MODERNA
 const ModernWelcomeScreen = ({configuracion}) => {
@@ -83,10 +81,7 @@ const ModernWelcomeScreen = ({configuracion}) => {
 
       {/* Church name with modern typography - Solo si mostrarNombreIglesia está activo */}
       {configuracion.mostrarNombreIglesia !== false && (
-        <motion.h1
-          initial={{opacity: 0, y: 30}}
-          animate={{opacity: 1, y: 0}}
-          transition={{delay: 0.6, duration: 0.8}}
+        <h1
           className={`${configuracion.fontSize.titulo} font-black mb-6 text-center max-w-6xl relative`}
           style={{
             background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #ffffff, ${configuracion.colorPrimario})`,
@@ -96,15 +91,7 @@ const ModernWelcomeScreen = ({configuracion}) => {
             filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))",
           }}
         >
-          <motion.span
-            animate={{
-              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+          <span
             style={{
               background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #ffffff, ${configuracion.colorPrimario})`,
               WebkitBackgroundClip: "text",
@@ -113,8 +100,8 @@ const ModernWelcomeScreen = ({configuracion}) => {
             }}
           >
             {configuracion.nombreIglesia}
-          </motion.span>
-        </motion.h1>
+          </span>
+        </h1>
       )}
 
       {/* Slogan with glass morphism effect - Solo si mostrarEslogan está activo */}
@@ -136,31 +123,6 @@ const ModernWelcomeScreen = ({configuracion}) => {
           </p>
         </motion.div>
       )}
-
-      {/* Animated bottom decoration */}
-      <motion.div
-        className="absolute bottom-20 flex space-x-4"
-        initial={{opacity: 0, y: 20}}
-        animate={{opacity: 1, y: 0}}
-        transition={{delay: 1.2, duration: 0.8}}
-      >
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="w-3 h-3 bg-white/40 rounded-full"
-            animate={{
-              scale: [1, 1.5, 1],
-              opacity: [0.3, 1, 0.3],
-            }}
-            transition={{
-              duration: 2,
-              delay: i * 0.3,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
-      </motion.div>
     </motion.div>
   );
 };

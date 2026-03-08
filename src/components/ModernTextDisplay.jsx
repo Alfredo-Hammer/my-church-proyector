@@ -1,6 +1,5 @@
-import React from "react";
-import {useEffect, useState, useRef} from "react";
-import {motion, AnimatePresence} from "framer-motion";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
+import {motion} from "framer-motion";
 
 // ✨ COMPONENTE DE TEXTO MODERNO
 const ModernTextDisplay = ({
@@ -10,19 +9,122 @@ const ModernTextDisplay = ({
   configuracion,
   mostrarTitulo = true, // Ahora controla si mostrar título ARRIBA del párrafo (para versículos)
 }) => {
+  const textBoxRef = useRef(null);
+  const paragraphRef = useRef(null);
+  const [fontSizePx, setFontSizePx] = useState(null);
+
   // ✨ Ajustar tamaño de fuente según longitud del párrafo
   const calcularTamañoTexto = (texto) => {
     const longitud = texto?.length || 0;
 
     // Si el párrafo es muy largo, reducir el tamaño
-    if (longitud > 400) return "text-4xl"; // Muy largo
-    if (longitud > 300) return "text-5xl"; // Largo
-    if (longitud > 200) return "text-6xl"; // Medio-largo
-    if (longitud > 100) return configuracion.fontSize.parrafo || "text-7xl"; // Normal
-    return configuracion.fontSize.parrafo || "text-7xl"; // Corto
+    if (longitud > 450) return "text-4xl"; // Muy largo
+    if (longitud > 320) return "text-5xl"; // Largo
+    if (longitud > 220) return "text-6xl"; // Medio-largo
+
+    // Normal / corto: tamaño equilibrado por defecto
+    if (longitud > 120) return configuracion?.fontSize?.parrafo || "text-7xl";
+    return configuracion?.fontSize?.parrafo || "text-7xl";
   };
 
   const tamañoParrafo = calcularTamañoTexto(parrafo);
+
+  const ajustarTextoParaQuepa = () => {
+    const boxEl = textBoxRef.current;
+    const pEl = paragraphRef.current;
+    if (!boxEl || !pEl) return;
+
+    // Si no hay contenido, no forzar medidas
+    if (!parrafo || String(parrafo).trim().length === 0) {
+      pEl.style.fontSize = "";
+      setFontSizePx(null);
+      return;
+    }
+
+    // Restablecer cualquier font-size anterior para medir el tamaño base real
+    pEl.style.fontSize = "";
+
+    const computed = window.getComputedStyle(pEl);
+    const computedPx = Number.parseFloat(computed.fontSize || "0");
+    if (!Number.isFinite(computedPx) || computedPx <= 0) return;
+
+    // Tamaño máximo sugerido basado en el alto disponible y el # de líneas explícitas.
+    // Esto hace que con pocas líneas el texto crezca más, y con muchas se reduzca.
+    const availableHeight = Math.max(0, boxEl.clientHeight - 2);
+    const explicitLines = String(parrafo)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean).length;
+    const lineCount = Math.max(1, explicitLines);
+
+    // Asumimos line-height ~1.3, y dejamos un pequeño margen.
+    // IMPORTANTE: limitar el tamaño máximo para evitar que con 1–2 líneas se vuelva gigante.
+    const assumedLineHeight = 1.3;
+    const heightBasedMaxPx =
+      (availableHeight / (lineCount * assumedLineHeight)) * 0.92;
+
+    const maxCapPx =
+      lineCount <= 1
+        ? 104
+        : lineCount <= 2
+          ? 98
+          : lineCount <= 3
+            ? 92
+            : lineCount <= 4
+              ? 86
+              : 80;
+
+    const maxPx = Math.max(computedPx, Math.min(heightBasedMaxPx, maxCapPx));
+    const maxPxClamped = Math.min(140, Math.max(28, maxPx));
+
+    // Límite inferior para evitar texto ilegible
+    const minPx = Math.max(22, Math.round(maxPxClamped * 0.42));
+
+    const cabe = () => {
+      // Un pequeño margen ayuda a evitar cortes por subpíxeles
+      return pEl.scrollHeight <= availableHeight;
+    };
+
+    // Probar con el máximo primero
+    pEl.style.fontSize = `${maxPxClamped}px`;
+    if (cabe()) {
+      setFontSizePx(maxPxClamped);
+      return;
+    }
+
+    // Búsqueda binaria para encontrar el mayor font-size que cabe
+    let low = minPx;
+    let high = maxPxClamped;
+    let best = minPx;
+
+    for (let i = 0; i < 20 && high - low > 0.5; i++) {
+      const mid = (low + high) / 2;
+      pEl.style.fontSize = `${mid}px`;
+
+      if (cabe()) {
+        best = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    setFontSizePx(best);
+  };
+
+  useLayoutEffect(() => {
+    // Esperar a que el layout esté estable (animaciones/tipografías)
+    const raf = window.requestAnimationFrame(() => {
+      ajustarTextoParaQuepa();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [parrafo, titulo, mostrarTitulo, tamañoParrafo]);
+
+  useEffect(() => {
+    const handleResize = () => ajustarTextoParaQuepa();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
     <motion.div
@@ -30,11 +132,8 @@ const ModernTextDisplay = ({
       animate={{opacity: 1, y: 0, scale: 1}}
       exit={{opacity: 0, y: -50, scale: 0.95}}
       transition={{duration: 0.8, ease: "easeOut"}}
-      className="text-center z-10 relative max-w-7xl mx-auto px-8"
+      className="text-center z-10 relative w-screen h-screen flex flex-col justify-center px-[4vw] py-[4vh]"
     >
-      {/* Subtle background glow */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent rounded-3xl blur-2xl scale-110" />
-
       {/* Title with enhanced styling - Solo mostrar si mostrarTitulo es true */}
       {mostrarTitulo && (
         <motion.h1
@@ -42,34 +141,10 @@ const ModernTextDisplay = ({
           animate={{opacity: 1, y: 0}}
           exit={{opacity: 0, y: -20}}
           transition={{delay: 0.2, duration: 0.6}}
-          className={`${configuracion.fontSize.titulo} font-black mb-8 relative`}
-          style={{
-            background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #fff, ${configuracion.colorPrimario})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundSize: "200% 200%",
-            textShadow: "0 4px 20px rgba(0,0,0,0.4)",
-            filter: "drop-shadow(0 0 20px rgba(255,255,255,0.2))",
-          }}
+          className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-6 tracking-wide`}
+          style={{color: configuracion?.colorSecundario || "#ffffff"}}
         >
-          <motion.span
-            animate={{
-              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{
-              background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #fff, ${configuracion.colorPrimario})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundSize: "200% 200%",
-            }}
-          >
-            {titulo}
-          </motion.span>
+          {titulo}
         </motion.h1>
       )}
 
@@ -78,63 +153,34 @@ const ModernTextDisplay = ({
         initial={{opacity: 0, scale: 0.9}}
         animate={{opacity: 1, scale: 1}}
         transition={{delay: mostrarTitulo ? 0.4 : 0.2, duration: 0.6}}
-        className="backdrop-blur-xl bg-gradient-to-br from-white/15 to-white/5 rounded-3xl p-8 md:p-12 border border-white/20 shadow-2xl relative overflow-hidden"
-        style={{
-          maxHeight: mostrarTitulo ? "65vh" : "80vh", // Más espacio sin título
-        }}
+        className="relative flex-1 min-h-0 flex flex-col"
       >
-        {/* Animated border */}
-        <div className="absolute inset-0 rounded-3xl">
-          <div className="absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-white/20 via-transparent to-white/20 bg-clip-border animate-pulse" />
-        </div>
-
-        <motion.div
-          key={parrafo}
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          transition={{duration: 0.5}}
-          className="relative z-10 flex items-center justify-center"
-          style={{
-            minHeight: mostrarTitulo ? "auto" : "60vh", // Centrar verticalmente sin título
-          }}
+        <div
+          ref={textBoxRef}
+          className="relative z-10 flex-1 min-h-0 flex items-center justify-center"
         >
-          <p
-            className={`${tamañoParrafo} font-semibold leading-relaxed whitespace-pre-wrap`}
-            style={{
-              color: configuracion.colorSecundario,
-              textShadow: "0 3px 15px rgba(0,0,0,0.6)",
-              lineHeight: 1.5,
-              overflowY: "auto",
-              maxHeight: mostrarTitulo ? "60vh" : "75vh",
-            }}
+          <motion.div
+            key={parrafo}
+            initial={{opacity: 0, y: 20}}
+            animate={{opacity: 1, y: 0}}
+            transition={{duration: 0.5}}
+            className="w-full"
           >
-            {parrafo}
-          </p>
-        </motion.div>
+            <p
+              ref={paragraphRef}
+              className={`${tamañoParrafo} font-semibold leading-snug whitespace-pre-wrap`}
+              style={{
+                color: configuracion.colorSecundario,
+                lineHeight: 1.3,
+                fontSize: fontSizePx ? `${fontSizePx}px` : undefined,
+                overflow: "hidden",
+              }}
+            >
+              {parrafo}
+            </p>
+          </motion.div>
+        </div>
       </motion.div>
-
-      {/* Decorative corner elements */}
-      <motion.div
-        className="absolute -top-6 -left-6 w-12 h-12 bg-gradient-to-br from-yellow-400/30 to-orange-500/30 rounded-full blur-sm"
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.7, 0.3],
-        }}
-        transition={{duration: 3, repeat: Infinity, ease: "easeInOut"}}
-      />
-      <motion.div
-        className="absolute -bottom-6 -right-6 w-8 h-8 bg-gradient-to-br from-blue-400/30 to-purple-500/30 rounded-full blur-sm"
-        animate={{
-          scale: [1, 1.3, 1],
-          opacity: [0.4, 0.8, 0.4],
-        }}
-        transition={{
-          duration: 2.5,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 1,
-        }}
-      />
     </motion.div>
   );
 };

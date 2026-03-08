@@ -101,7 +101,7 @@ const Configuracion = () => {
 
       mostrarMensaje(
         `Fondo "${fondo.nombre}" establecido como activo`,
-        "success"
+        "success",
       );
       setMostrarSelectorFondo(false);
     } catch (error) {
@@ -147,7 +147,7 @@ const Configuracion = () => {
         console.error("❌ Funciones de configuración no disponibles");
         mostrarMensaje(
           "Error: Funciones de configuración no disponibles",
-          "error"
+          "error",
         );
         return;
       }
@@ -163,6 +163,8 @@ const Configuracion = () => {
           nombreIglesia: config.nombreIglesia || "",
           // 🔄 Mantener eslogan tal cual viene de la BD
           eslogan: config.eslogan || "",
+          // 🔄 Mapear sitioWeb (BD) -> website (UI)
+          website: config.sitioWeb || "",
           // ✨ Solo usar icono de app si no hay logo válido
           logo:
             config.logoUrl &&
@@ -180,14 +182,14 @@ const Configuracion = () => {
         console.log("✅ Configuración cargada correctamente");
       } else {
         console.log(
-          "ℹ️ No hay configuración guardada, usando valores por defecto"
+          "ℹ️ No hay configuración guardada, usando valores por defecto",
         );
       }
     } catch (error) {
       console.error("❌ Error cargando configuración:", error);
       mostrarMensaje(
         `Error al cargar la configuración: ${error.message}`,
-        "error"
+        "error",
       );
     } finally {
       setCargando(false);
@@ -208,17 +210,17 @@ const Configuracion = () => {
 
       // ✨ Aplanar el objeto de configuración para que db-new.js pueda guardarlo
       const configAplanada = {
-        nombreIglesia: configToSave.nombreIglesia,
-        eslogan: configToSave.eslogan,
-        pastor: configToSave.pastor,
-        direccion: configToSave.direccion,
-        telefono: configToSave.telefono,
-        email: configToSave.email,
-        sitioWeb: configToSave.website,
-        logoUrl: configToSave.logo,
+        nombreIglesia: configToSave.nombreIglesia || "",
+        eslogan: configToSave.eslogan || "",
+        pastor: configToSave.pastor || "",
+        direccion: configToSave.direccion || "",
+        telefono: configToSave.telefono || "",
+        email: configToSave.email || "",
+        sitioWeb: configToSave.website || configToSave.sitioWeb || "",
+        logoUrl: configToSave.logo || "",
         logoSize: configToSave.logoSize || "w-80 h-80", // ✨ Nuevo campo para tamaño del logo
-        colorPrimario: configToSave.colorPrimario,
-        colorSecundario: configToSave.colorSecundario,
+        colorPrimario: configToSave.colorPrimario || "#fb923c",
+        colorSecundario: configToSave.colorSecundario || "#ffffff",
         // ✨ Aplanar fontSize
         fontSizeTitulo: configToSave.fontSize?.titulo || "text-5xl",
         fontSizeParrafo: configToSave.fontSize?.parrafo || "text-6xl",
@@ -240,9 +242,8 @@ const Configuracion = () => {
 
       console.log("📝 Configuración aplanada a guardar:", configAplanada);
 
-      const resultado = await window.electron.guardarConfiguracion(
-        configAplanada
-      );
+      const resultado =
+        await window.electron.guardarConfiguracion(configAplanada);
       console.log("📝 Resultado del guardado:", resultado);
 
       if (!resultado) {
@@ -270,7 +271,7 @@ const Configuracion = () => {
         try {
           const arrayBuffer = await archivoLogo.arrayBuffer();
           const logoPath = await window.electron.guardarLogo(
-            new Uint8Array(arrayBuffer)
+            new Uint8Array(arrayBuffer),
           );
 
           if (logoPath) {
@@ -352,7 +353,7 @@ const Configuracion = () => {
 
         mostrarMensaje(
           "Configuración restaurada a valores por defecto",
-          "success"
+          "success",
         );
       } else {
         throw new Error("No se pudo restaurar la configuración");
@@ -379,7 +380,7 @@ const Configuracion = () => {
       } else {
         mostrarMensaje(
           "Por favor selecciona un archivo de imagen válido",
-          "error"
+          "error",
         );
       }
     }
@@ -416,35 +417,35 @@ const Configuracion = () => {
   // Mostrar pantalla de carga
   if (cargando) {
     return (
-      <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white min-h-screen flex items-center justify-center">
+      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="relative">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-transparent border-t-indigo-400 border-r-indigo-400 mb-6 mx-auto"></div>
-            <div className="absolute inset-0 animate-ping rounded-full h-20 w-20 border-2 border-indigo-400/30"></div>
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-transparent border-t-emerald-400 border-r-emerald-400 mb-6 mx-auto"></div>
+            <div className="absolute inset-0 animate-ping rounded-full h-20 w-20 border-2 border-emerald-400/30"></div>
           </div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">
+          <h2 className="text-2xl font-semibold text-white mb-2">
             Cargando configuración...
           </h2>
-          <p className="text-slate-400">Preparando el panel de configuración</p>
+          <p className="text-white/60">Preparando el panel de configuración</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white min-h-screen p-6 overflow-y-auto">
+    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen p-6 overflow-y-auto">
       {/* Header moderno */}
-      <div className="bg-black/20 backdrop-blur-sm border-b border-indigo-500/20 rounded-2xl p-6 mb-8">
+      <div className="bg-black/30 backdrop-blur border border-white/10 rounded-2xl p-6 mb-8">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full">
+            <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
               <IoSave className="text-2xl" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-semibold text-white">
                 Configuración
               </h1>
-              <p className="text-slate-400 mt-1">
+              <p className="text-white/60 mt-1">
                 Personaliza la información de tu iglesia u organización
               </p>
             </div>
@@ -454,7 +455,7 @@ const Configuracion = () => {
             <button
               onClick={() => setMostrarModalRestaurar(true)}
               disabled={guardando || cargando}
-              className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-700 disabled:to-gray-800 rounded-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              className="px-4 py-2 bg-amber-500/15 hover:bg-amber-500/20 disabled:bg-white/5 disabled:text-white/40 text-amber-200 border border-amber-500/20 rounded-xl transition-colors flex items-center gap-2"
             >
               <IoRefresh />
               Restaurar
@@ -463,7 +464,7 @@ const Configuracion = () => {
             <button
               onClick={guardarConfiguracion}
               disabled={guardando || cargando}
-              className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-700 disabled:to-gray-800 rounded-xl transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              className="px-6 py-2 bg-emerald-600/90 hover:bg-emerald-600 disabled:bg-white/5 disabled:text-white/40 text-white border border-emerald-500/20 rounded-xl transition-colors flex items-center gap-2"
             >
               <IoSave />
               {guardando ? "Guardando..." : "Guardar"}
@@ -479,8 +480,8 @@ const Configuracion = () => {
             mensaje.tipo === "success"
               ? "bg-green-500/10 border-green-400 text-green-300"
               : mensaje.tipo === "error"
-              ? "bg-red-500/10 border-red-400 text-red-300"
-              : "bg-blue-500/10 border-blue-400 text-blue-300"
+                ? "bg-red-500/10 border-red-400 text-red-300"
+                : "bg-blue-500/10 border-blue-400 text-blue-300"
           }`}
         >
           {mensaje.tipo === "success" && <IoCheckmark className="text-xl" />}
@@ -496,7 +497,7 @@ const Configuracion = () => {
         {/* COLUMNA 1: Información General */}
         <div className="space-y-6">
           {/* Información Básica */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-green-500/20 p-3 rounded-full">
                 <IoInformationCircle className="text-green-400 text-xl" />
@@ -577,7 +578,7 @@ const Configuracion = () => {
                         onChange={(e) =>
                           actualizarCampo(
                             "mostrarNombreIglesia",
-                            e.target.checked
+                            e.target.checked,
                           )
                         }
                         className="sr-only peer"
@@ -622,7 +623,7 @@ const Configuracion = () => {
           </div>
 
           {/* Contacto */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-purple-500/20 p-3 rounded-full">
                 <IoCheckmark className="text-purple-400 text-xl" />
@@ -699,7 +700,7 @@ const Configuracion = () => {
         {/* COLUMNA 2: Apariencia Visual */}
         <div className="space-y-6">
           {/* Logo */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-orange-500/20 p-3 rounded-full">
                 <IoImage className="text-orange-400 text-xl" />
@@ -729,7 +730,7 @@ const Configuracion = () => {
                     onError={(e) => {
                       console.error(
                         "❌ Error cargando logo:",
-                        configuracion.logo
+                        configuracion.logo,
                       );
                       e.target.src = "/images/icon-256.png";
                     }}
@@ -763,7 +764,7 @@ const Configuracion = () => {
           </div>
 
           {/* Colores */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-pink-500/20 p-3 rounded-full">
                 <IoRefresh className="text-pink-400 text-xl" />
@@ -830,7 +831,7 @@ const Configuracion = () => {
           </div>
 
           {/* Tamaños de Fuente */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-cyan-500/20 p-3 rounded-full">
                 <IoWarning className="text-cyan-400 text-xl" />
@@ -916,7 +917,7 @@ const Configuracion = () => {
           </div>
 
           {/* Tamaño del Logo */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="flex items-center space-x-3 mb-6">
               <div className="bg-yellow-500/20 p-3 rounded-full">
                 <IoImage className="text-yellow-400 text-xl" />
@@ -975,7 +976,7 @@ const Configuracion = () => {
       </div>
 
       {/* Preview */}
-      <div className="mt-8 bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
+      <div className="mt-8 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
         <div className="flex items-center space-x-3 mb-6">
           <div className="bg-indigo-500/20 p-3 rounded-full">
             <IoEye className="text-indigo-400 text-xl" />
@@ -1048,7 +1049,7 @@ const Configuracion = () => {
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={subirNuevoFondo}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2"
+                    className="bg-emerald-600/90 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center space-x-2"
                   >
                     <FaUpload />
                     <span>Subir Fondo</span>
@@ -1077,7 +1078,7 @@ const Configuracion = () => {
                   </p>
                   <button
                     onClick={subirNuevoFondo}
-                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 flex items-center space-x-2 mx-auto"
+                    className="bg-emerald-600/90 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl border border-emerald-500/20 transition-colors flex items-center space-x-2 mx-auto"
                   >
                     <FaUpload />
                     <span>Subir Primer Fondo</span>
@@ -1088,10 +1089,10 @@ const Configuracion = () => {
                   {fondos.map((fondo) => (
                     <div
                       key={fondo.id}
-                      className={`relative group bg-gray-700/50 rounded-xl overflow-hidden border transition-all duration-300 hover:scale-105 cursor-pointer ${
+                      className={`relative group bg-white/5 rounded-xl overflow-hidden border transition-colors cursor-pointer hover:bg-white/10 ${
                         fondo.activo
-                          ? "border-purple-400 shadow-lg shadow-purple-400/25"
-                          : "border-gray-600 hover:border-purple-400/50"
+                          ? "border-emerald-400/40"
+                          : "border-white/10 hover:border-white/20"
                       }`}
                       onClick={() => seleccionarFondo(fondo)}
                     >
@@ -1107,7 +1108,7 @@ const Configuracion = () => {
                             onError={(e) => {
                               console.error(
                                 "Error cargando video:",
-                                fondo.ruta
+                                fondo.ruta,
                               );
                               e.target.style.display = "none";
                               // Mostrar placeholder de error
@@ -1122,7 +1123,7 @@ const Configuracion = () => {
                             onError={(e) => {
                               console.error(
                                 "Error cargando imagen:",
-                                fondo.ruta
+                                fondo.ruta,
                               );
                               e.target.style.display = "none";
                               // Mostrar placeholder de error

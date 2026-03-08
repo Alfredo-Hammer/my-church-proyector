@@ -146,7 +146,7 @@ const Multimedia = () => {
 
     if (!metodosDisponibles.proyectarMultimedia) {
       showError(
-        "⚠️ Funciones de proyección no disponibles. Verifica la conexión con Electron."
+        "⚠️ Funciones de proyección no disponibles. Verifica la conexión con Electron.",
       );
     }
 
@@ -196,7 +196,7 @@ const Multimedia = () => {
     } catch (error) {
       console.warn(
         "⚠️ [Multimedia] URL principal falló, intentando corrección:",
-        error
+        error,
       );
     }
 
@@ -263,7 +263,7 @@ const Multimedia = () => {
     console.log("🔍 [Validación] ========== INICIO VALIDACIÓN ==========");
     console.log(
       "🔍 [Validación] Validando multimedia antes de reproducir:",
-      media
+      media,
     );
 
     try {
@@ -330,11 +330,11 @@ const Multimedia = () => {
           (mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be")))
       ) {
         console.log(
-          "📺 [Validación] ✅ Es video de YouTube, saltando validación de archivo local"
+          "📺 [Validación] ✅ Es video de YouTube, saltando validación de archivo local",
         );
         console.log(
           "📺 [Validación] Retornando válido para YouTube con URL:",
-          mediaUrl
+          mediaUrl,
         );
 
         // ✅ Para YouTube, confiar en la URL sin validar conectividad
@@ -379,7 +379,7 @@ const Multimedia = () => {
         // Si el timeout fue excedido, asumir que el archivo es muy grande pero válido
         if (error.name === "AbortError") {
           console.warn(
-            "⚠️ [Validación] Timeout en validación (archivo grande), permitiendo reproducción"
+            "⚠️ [Validación] Timeout en validación (archivo grande), permitiendo reproducción",
           );
           return {
             valid: true,
@@ -459,19 +459,19 @@ const Multimedia = () => {
         multimedia = await window.electron.obtenerMultimedia();
       } else {
         console.warn(
-          "⚠️ [Multimedia] No se encontró método para obtener multimedia"
+          "⚠️ [Multimedia] No se encontró método para obtener multimedia",
         );
         multimedia = [];
       }
 
       console.log(
         "✅ [Multimedia] Multimedia cargada:",
-        multimedia?.length || 0
+        multimedia?.length || 0,
       );
       console.log("📋 [Multimedia] Lista completa de archivos:");
       multimedia?.forEach((media, index) => {
         console.log(
-          `  ${index + 1}. ${media.nombre || media.name || "Sin nombre"}`
+          `  ${index + 1}. ${media.nombre || media.name || "Sin nombre"}`,
         );
         console.log(`     - ID: ${media.id}`);
         console.log(`     - Tipo: ${media.tipo || media.type}`);
@@ -494,13 +494,13 @@ const Multimedia = () => {
           }));
           console.log(
             "📺 [Multimedia] URLs guardadas cargadas:",
-            urlsGuardadas.length
+            urlsGuardadas.length,
           );
           console.log("📺 [Multimedia] URLs con isUrl:", urlsGuardadas);
         } catch (error) {
           console.error(
             "❌ [Multimedia] Error cargando URLs guardadas:",
-            error
+            error,
           );
         }
       }
@@ -511,22 +511,22 @@ const Multimedia = () => {
 
       console.log(
         "📊 [Multimedia] Media completa combinada:",
-        mediaCompleta.length
+        mediaCompleta.length,
       );
       console.log(
         "📊 [Multimedia] URLs en media completa:",
-        mediaCompleta.filter((m) => m.isUrl).length
+        mediaCompleta.filter((m) => m.isUrl).length,
       );
       console.log(
         "📊 [Multimedia] Todos los items con isUrl:",
-        mediaCompleta.filter((m) => m.isUrl)
+        mediaCompleta.filter((m) => m.isUrl),
       );
 
       if (mediaCompleta && mediaCompleta.length > 0 && !currentMedia) {
         let archivoSeleccionado =
           mediaCompleta.find((m) => m.favorito) ||
           mediaCompleta.sort(
-            (a, b) => (b.reproducido || 0) - (a.reproducido || 0)
+            (a, b) => (b.reproducido || 0) - (a.reproducido || 0),
           )[0] ||
           mediaCompleta[0];
         playMediaGlobal(archivoSeleccionado);
@@ -546,7 +546,7 @@ const Multimedia = () => {
       console.log("▶️ [Multimedia] Iniciando reproducción de media:", media);
       console.log(
         "📊 [Multimedia] currentMedia antes de reproducir:",
-        currentMedia
+        currentMedia,
       );
 
       // ✨ VALIDAR ANTES DE REPRODUCIR
@@ -564,12 +564,12 @@ const Multimedia = () => {
         if (esYoutube) {
           mensajeError = `❌ No se puede reproducir video de YouTube: ${validacion.error}`;
           showError(
-            `${mensajeError}<br/>📺 Verifique su conexión a internet y que la URL de YouTube sea válida`
+            `${mensajeError}<br/>📺 Verifique su conexión a internet y que la URL de YouTube sea válida`,
           );
         } else {
           mensajeError = `❌ Archivo no disponible: ${validacion.error}`;
           showError(
-            `${mensajeError}<br/>📁 Verifique que el archivo existe en multimedia/<br/>💡 Use el botón "Debug: Ver Archivos Disponibles" para revisar archivos disponibles`
+            `${mensajeError}<br/>📁 Verifique que el archivo existe en multimedia/<br/>💡 Use el botón "Debug: Ver Archivos Disponibles" para revisar archivos disponibles`,
           );
         }
 
@@ -578,7 +578,7 @@ const Multimedia = () => {
       }
 
       console.log(
-        "✅ [Multimedia] Validación exitosa, procediendo a reproducir"
+        "✅ [Multimedia] Validación exitosa, procediendo a reproducir",
       );
 
       // Incrementar contador si no es URL
@@ -592,7 +592,7 @@ const Multimedia = () => {
         } catch (error) {
           console.warn(
             "⚠️ [Multimedia] No se pudo incrementar contador:",
-            error
+            error,
           );
         }
       }
@@ -639,7 +639,7 @@ const Multimedia = () => {
   const projectToScreenNew = async (media) => {
     try {
       console.log(
-        "🚀 [Multimedia] ========== NUEVA PROYECCIÓN CON VALIDACIÓN =========="
+        "🚀 [Multimedia] ========== NUEVA PROYECCIÓN CON VALIDACIÓN ==========",
       );
       console.log("📺 [Multimedia] Proyectando multimedia:", media);
 
@@ -658,24 +658,24 @@ const Multimedia = () => {
         if (esYoutube) {
           mensajeError = `❌ No se puede proyectar video de YouTube: ${validacion.error}`;
           showError(
-            `${mensajeError}<br/>📺 Verifique su conexión a internet y que la URL de YouTube sea válida`
+            `${mensajeError}<br/>📺 Verifique su conexión a internet y que la URL de YouTube sea válida`,
           );
         } else {
           mensajeError = `❌ No se puede proyectar: ${validacion.error}`;
           showError(
-            `${mensajeError}<br/>📁 Verifique que el archivo existe en multimedia/<br/>💡 Use el botón "Debug: Ver Archivos Disponibles" para revisar archivos disponibles`
+            `${mensajeError}<br/>📁 Verifique que el archivo existe en multimedia/<br/>💡 Use el botón "Debug: Ver Archivos Disponibles" para revisar archivos disponibles`,
           );
         }
 
         console.error(
           "❌ [Multimedia] Validación de proyección falló:",
-          mensajeError
+          mensajeError,
         );
         return; // No continuar si la validación falla
       }
 
       console.log(
-        "✅ [Multimedia] Validación exitosa, procediendo a proyectar"
+        "✅ [Multimedia] Validación exitosa, procediendo a proyectar",
       );
       console.log("🔗 [Multimedia] URL validada:", validacion.url);
 
@@ -684,20 +684,20 @@ const Multimedia = () => {
       console.log("🔍 [Multimedia] Tipo de objeto media:", typeof media);
       console.log(
         "🔍 [Multimedia] ¿Es null/undefined?:",
-        media === null || media === undefined
+        media === null || media === undefined,
       );
       if (media) {
         console.log(
           "🔍 [Multimedia] Tiene propiedades:",
-          Object.keys(media).length > 0
+          Object.keys(media).length > 0,
         );
         console.log(
           "🔍 [Multimedia] Propiedades disponibles:",
-          Object.keys(media)
+          Object.keys(media),
         );
         console.log(
           "🔍 [Multimedia] Valores de propiedades:",
-          Object.entries(media)
+          Object.entries(media),
         );
       }
       console.log("🔍 [Multimedia] === FIN DIAGNÓSTICO ===");
@@ -722,7 +722,7 @@ const Multimedia = () => {
 
       console.log(
         "🎬 [Multimedia] Datos preparados para multimedia activa:",
-        multimediaData
+        multimediaData,
       );
 
       // ✨ VALIDACIÓN PREVIA ANTES DEL ENVÍO
@@ -742,7 +742,7 @@ const Multimedia = () => {
       }
 
       console.log(
-        "✅ [Multimedia] Validación previa exitosa, estableciendo multimedia activa..."
+        "✅ [Multimedia] Validación previa exitosa, estableciendo multimedia activa...",
       );
 
       // ✨ ABRIR PROYECTOR PRIMERO
@@ -762,13 +762,12 @@ const Multimedia = () => {
       // ✨ ESTABLECER MULTIMEDIA ACTIVA EN BD (SIGUIENDO PATRÓN DE FONDOS)
       if (window.electron?.establecerMultimediaActiva) {
         console.log("🎬 [Multimedia] Estableciendo multimedia activa en BD...");
-        const resultado = await window.electron.establecerMultimediaActiva(
-          multimediaData
-        );
+        const resultado =
+          await window.electron.establecerMultimediaActiva(multimediaData);
 
         if (resultado) {
           console.log(
-            "✅ [Multimedia] Multimedia activa establecida exitosamente"
+            "✅ [Multimedia] Multimedia activa establecida exitosamente",
           );
 
           // Mostrar notificación de éxito
@@ -797,7 +796,7 @@ const Multimedia = () => {
   const projectToScreen = async (media) => {
     try {
       console.log(
-        "🚀 [Multimedia] ========== INICIANDO PROYECCIÓN REAL =========="
+        "🚀 [Multimedia] ========== INICIANDO PROYECCIÓN REAL ==========",
       );
       console.log("📺 [Multimedia] Proyectando en pantalla:", media);
 
@@ -806,20 +805,20 @@ const Multimedia = () => {
       console.log("🔍 [Multimedia] Tipo de objeto media:", typeof media);
       console.log(
         "🔍 [Multimedia] ¿Es null/undefined?:",
-        media === null || media === undefined
+        media === null || media === undefined,
       );
       if (media) {
         console.log(
           "🔍 [Multimedia] Tiene propiedades:",
-          Object.keys(media).length > 0
+          Object.keys(media).length > 0,
         );
         console.log(
           "🔍 [Multimedia] Propiedades disponibles:",
-          Object.keys(media)
+          Object.keys(media),
         );
         console.log(
           "🔍 [Multimedia] Valores de propiedades:",
-          Object.entries(media)
+          Object.entries(media),
         );
       }
       console.log("🔍 [Multimedia] === FIN DIAGNÓSTICO ===");
@@ -857,7 +856,7 @@ const Multimedia = () => {
           }`;
           console.log(
             "🔗 [Multimedia] URL construida desde URL relativa:",
-            mediaUrl
+            mediaUrl,
           );
         }
       } else if (media.ruta_archivo) {
@@ -869,14 +868,14 @@ const Multimedia = () => {
           mediaUrl = media.ruta_archivo;
           console.log(
             "🔗 [Multimedia] URL tomada de ruta_archivo completa:",
-            mediaUrl
+            mediaUrl,
           );
         } else {
           const archivoLimpio = media.ruta_archivo.replace(/^.*[\\\/]/, ""); // Solo el nombre del archivo
           mediaUrl = `${getBaseURL()}/multimedia/${archivoLimpio}`;
           console.log(
             "🔗 [Multimedia] URL construida desde nombre de archivo:",
-            mediaUrl
+            mediaUrl,
           );
         }
       } else if (media.nombre) {
@@ -904,14 +903,14 @@ const Multimedia = () => {
 
       console.log(
         "📺 [Multimedia] Datos preparados con URL completa:",
-        mediaData
+        mediaData,
       );
       console.log("📺 [Multimedia] - Tipo detectado:", getMediaType(media));
       console.log("📺 [Multimedia] - Nombre detectado:", getMediaName(media));
       console.log("📺 [Multimedia] - URL final:", mediaUrl);
       console.log(
         "📺 [Multimedia] - ¿Es YouTube?:",
-        media.isYoutube || isYouTubeUrl(mediaUrl)
+        media.isYoutube || isYouTubeUrl(mediaUrl),
       );
 
       // ✨ VALIDACIÓN PREVIA ANTES DEL ENVÍO
@@ -931,7 +930,7 @@ const Multimedia = () => {
       }
 
       console.log(
-        "✅ [Multimedia] Validación previa exitosa, procediendo con envío..."
+        "✅ [Multimedia] Validación previa exitosa, procediendo con envío...",
       );
 
       // ✨ ABRIR PROYECTOR USANDO EL MISMO MÉTODO QUE PRESENTATIONMANAGER
@@ -963,7 +962,7 @@ const Multimedia = () => {
 
           window.electron.send("proyectar-multimedia-data", mediaData);
           console.log(
-            "✅ [Multimedia] Datos enviados por canal proyectar-multimedia-data"
+            "✅ [Multimedia] Datos enviados por canal proyectar-multimedia-data",
           );
 
           // Esperar un poco para que se procese
@@ -980,12 +979,11 @@ const Multimedia = () => {
       if (window.electron?.proyectarMultimedia && !proyectionExitosa) {
         try {
           console.log("📺 [Multimedia] Método 2: proyectarMultimedia");
-          const resultado = await window.electron.proyectarMultimedia(
-            mediaData
-          );
+          const resultado =
+            await window.electron.proyectarMultimedia(mediaData);
           console.log(
             "📺 [Multimedia] Respuesta proyectarMultimedia:",
-            resultado
+            resultado,
           );
 
           if (resultado?.success) {
@@ -995,7 +993,7 @@ const Multimedia = () => {
             errorDetails.push(
               `proyectarMultimedia: ${
                 resultado?.error || "Sin respuesta exitosa"
-              }`
+              }`,
             );
           }
         } catch (error) {
@@ -1026,7 +1024,7 @@ const Multimedia = () => {
           console.log("📺 [Multimedia] Método 4: invoke");
           const resultado = await window.electron.invoke(
             "proyectar-multimedia",
-            mediaData
+            mediaData,
           );
           console.log("📺 [Multimedia] Respuesta invoke:", resultado);
 
@@ -1035,7 +1033,7 @@ const Multimedia = () => {
             console.log("✅ [Multimedia] invoke exitoso");
           } else {
             errorDetails.push(
-              `invoke: ${resultado?.error || "Sin respuesta exitosa"}`
+              `invoke: ${resultado?.error || "Sin respuesta exitosa"}`,
             );
           }
         } catch (error) {
@@ -1064,7 +1062,7 @@ const Multimedia = () => {
         }
       } else {
         throw new Error(
-          `Todos los métodos fallaron: ${errorDetails.join(", ")}`
+          `Todos los métodos fallaron: ${errorDetails.join(", ")}`,
         );
       }
     } catch (error) {
@@ -1166,7 +1164,7 @@ const Multimedia = () => {
               error: "Tipo de archivo no soportado",
             });
             showError(
-              `<strong>${file.name}</strong><br/>❌ Formato no soportado`
+              `<strong>${file.name}</strong><br/>❌ Formato no soportado`,
             );
             continue;
           }
@@ -1176,7 +1174,7 @@ const Multimedia = () => {
           // 🔍 VERIFICAR DUPLICADOS
           console.log(
             "🔍 [Upload] Verificando duplicado para:",
-            nombreSinExtension
+            nombreSinExtension,
           );
 
           let verificacion = null;
@@ -1187,16 +1185,15 @@ const Multimedia = () => {
                 tamaño: file.size,
                 tipo: tipo,
               };
-              verificacion = await window.electronAPI.verificarArchivoDuplicado(
-                datos
-              );
+              verificacion =
+                await window.electronAPI.verificarArchivoDuplicado(datos);
               console.log(
                 `📥 [Upload] Verificación:`,
-                verificacion?.existe ? "DUPLICADO" : "ÚNICO"
+                verificacion?.existe ? "DUPLICADO" : "ÚNICO",
               );
             } else if (window.electron?.["verificar-archivo-duplicado"]) {
               console.log(
-                `📞 [Upload] Usando window.electron["verificar-archivo-duplicado"]`
+                `📞 [Upload] Usando window.electron["verificar-archivo-duplicado"]`,
               );
               const datos = {
                 nombre: nombreSinExtension,
@@ -1204,13 +1201,12 @@ const Multimedia = () => {
                 tipo: tipo,
               };
               console.log(`📤 [Upload] Enviando datos:`, datos);
-              verificacion = await window.electron[
-                "verificar-archivo-duplicado"
-              ](datos);
+              verificacion =
+                await window.electron["verificar-archivo-duplicado"](datos);
               console.log(`📥 [Upload] Respuesta recibida:`, verificacion);
             } else {
               console.warn(
-                "⚠️ [Upload] No hay método de verificación disponible"
+                "⚠️ [Upload] No hay método de verificación disponible",
               );
             }
           } catch (error) {
@@ -1224,7 +1220,7 @@ const Multimedia = () => {
               archivoExistente: verificacion.archivo,
             });
             showWarning(
-              `<strong>${file.name}</strong><br/>⚠️ Este archivo ya existe en la base de datos`
+              `<strong>${file.name}</strong><br/>⚠️ Este archivo ya existe en la base de datos`,
             );
             continue; // ✨ Saltar este archivo
           } else {
@@ -1248,7 +1244,7 @@ const Multimedia = () => {
           console.log("  - MimeType:", fileData.mimeType);
           console.log(
             "  - Data (primeros 50 caracteres):",
-            fileData.data.substring(0, 50) + "..."
+            fileData.data.substring(0, 50) + "...",
           );
 
           // Procesar archivo
@@ -1258,44 +1254,41 @@ const Multimedia = () => {
             console.log("🔍 [Upload] Verificando métodos disponibles:");
             console.log(
               "  - window.electron['procesar-archivo-multimedia']:",
-              !!window.electron?.["procesar-archivo-multimedia"]
+              !!window.electron?.["procesar-archivo-multimedia"],
             );
             console.log(
               "  - window.electronAPI?.procesarArchivoMultimedia:",
-              !!window.electronAPI?.procesarArchivoMultimedia
+              !!window.electronAPI?.procesarArchivoMultimedia,
             );
             console.log(
               "  - window.electron?.procesarArchivoMultimedia:",
-              !!window.electron?.procesarArchivoMultimedia
+              !!window.electron?.procesarArchivoMultimedia,
             );
 
             if (window.electron?.["procesar-archivo-multimedia"]) {
               console.log(
-                "📞 [Upload] Usando window.electron['procesar-archivo-multimedia']"
+                "📞 [Upload] Usando window.electron['procesar-archivo-multimedia']",
               );
-              resultado = await window.electron["procesar-archivo-multimedia"](
-                fileData
-              );
+              resultado =
+                await window.electron["procesar-archivo-multimedia"](fileData);
             } else if (window.electronAPI?.procesarArchivoMultimedia) {
               console.log(
-                "📞 [Upload] Usando window.electronAPI.procesarArchivoMultimedia"
+                "📞 [Upload] Usando window.electronAPI.procesarArchivoMultimedia",
               );
-              resultado = await window.electronAPI.procesarArchivoMultimedia(
-                fileData
-              );
+              resultado =
+                await window.electronAPI.procesarArchivoMultimedia(fileData);
             } else if (window.electron?.procesarArchivoMultimedia) {
               console.log(
-                "📞 [Upload] Usando window.electron.procesarArchivoMultimedia"
+                "📞 [Upload] Usando window.electron.procesarArchivoMultimedia",
               );
-              resultado = await window.electron.procesarArchivoMultimedia(
-                fileData
-              );
+              resultado =
+                await window.electron.procesarArchivoMultimedia(fileData);
             } else {
               console.error(
-                "❌ [Upload] No se encontró ningún método IPC para procesar archivos"
+                "❌ [Upload] No se encontró ningún método IPC para procesar archivos",
               );
               throw new Error(
-                "No hay método disponible para procesar archivos"
+                "No hay método disponible para procesar archivos",
               );
             }
             console.log("📥 [Upload] Resultado recibido:", resultado);
@@ -1303,7 +1296,7 @@ const Multimedia = () => {
             console.log("📥 [Upload] Propiedad success:", resultado?.success);
             console.log(
               "📥 [Upload] Propiedad multimedia:",
-              resultado?.multimedia
+              resultado?.multimedia,
             );
             console.log("📥 [Upload] Propiedad error:", resultado?.error);
           } catch (error) {
@@ -1329,13 +1322,13 @@ const Multimedia = () => {
               id: resultado.id || resultado.multimedia?.id,
             });
             showSuccess(
-              `<strong>${file.name}</strong><br/>✅ Agregado exitosamente`
+              `<strong>${file.name}</strong><br/>✅ Agregado exitosamente`,
             );
           } else {
             if (resultado?.error === "ARCHIVO_DUPLICADO") {
               archivosDuplicados.push({nombre: file.name});
               showWarning(
-                `<strong>${file.name}</strong><br/>⚠️ Archivo duplicado`
+                `<strong>${file.name}</strong><br/>⚠️ Archivo duplicado`,
               );
             } else {
               archivosErrores.push({
@@ -1345,7 +1338,7 @@ const Multimedia = () => {
               showError(
                 `<strong>${file.name}</strong><br/>❌ ${
                   resultado?.error || "Error desconocido"
-                }`
+                }`,
               );
             }
           }
@@ -1417,13 +1410,12 @@ const Multimedia = () => {
       console.log("✅ [Upload-Optimizado] Archivos seleccionados:", filePaths);
 
       showInfo(
-        `📤 Procesando ${filePaths.length} archivo(s)... (método optimizado)`
+        `📤 Procesando ${filePaths.length} archivo(s)... (método optimizado)`,
       );
 
       // Procesar archivos por ruta (sin base64)
-      const resultadoProceso = await window.electron.procesarArchivosPorRuta(
-        filePaths
-      );
+      const resultadoProceso =
+        await window.electron.procesarArchivosPorRuta(filePaths);
 
       if (!resultadoProceso.success) {
         throw new Error(resultadoProceso.error || "Error procesando archivos");
@@ -1431,7 +1423,7 @@ const Multimedia = () => {
 
       console.log(
         "📊 [Upload-Optimizado] Resultados:",
-        resultadoProceso.resultados
+        resultadoProceso.resultados,
       );
 
       // Contar éxitos y errores
@@ -1451,7 +1443,7 @@ const Multimedia = () => {
       if (exitosos.length > 0) {
         await loadMediaFromDB();
         showInfo(
-          `📊 Procesamiento completado:<br/>✅ ${exitosos.length} archivo(s) agregado(s)<br/>❌ ${fallidos.length} error(es)`
+          `📊 Procesamiento completado:<br/>✅ ${exitosos.length} archivo(s) agregado(s)<br/>❌ ${fallidos.length} error(es)`,
         );
       }
     } catch (error) {
@@ -1477,7 +1469,7 @@ const Multimedia = () => {
 
       // Confirmar eliminación con el usuario
       const confirmacion = window.confirm(
-        `¿Estás seguro de que deseas eliminar "${getMediaName(mediaToDelete)}"?`
+        `¿Estás seguro de que deseas eliminar "${getMediaName(mediaToDelete)}"?`,
       );
 
       if (!confirmacion) {
@@ -1494,8 +1486,8 @@ const Multimedia = () => {
         }
         showSuccess(
           `<strong>${getMediaName(
-            mediaToDelete
-          )}</strong><br/>🗑️ Removido de la lista`
+            mediaToDelete,
+          )}</strong><br/>🗑️ Removido de la lista`,
         );
         return;
       }
@@ -1508,38 +1500,38 @@ const Multimedia = () => {
         console.log("🔍 [Multimedia] Verificando métodos IPC disponibles...");
         console.log(
           "  - window.electron['db-eliminar-multimedia']:",
-          !!window.electron?.["db-eliminar-multimedia"]
+          !!window.electron?.["db-eliminar-multimedia"],
         );
         console.log(
           "  - window.electronAPI?.eliminarMultimedia:",
-          !!window.electronAPI?.eliminarMultimedia
+          !!window.electronAPI?.eliminarMultimedia,
         );
         console.log(
           "  - window.electron?.eliminarMultimedia:",
-          !!window.electron?.eliminarMultimedia
+          !!window.electron?.eliminarMultimedia,
         );
 
         if (window.electron?.["db-eliminar-multimedia"]) {
           console.log(
-            "📞 [Multimedia] Usando window.electron['db-eliminar-multimedia']"
+            "📞 [Multimedia] Usando window.electron['db-eliminar-multimedia']",
           );
           resultado = await window.electron["db-eliminar-multimedia"](id);
           console.log("📥 [Multimedia] Resultado recibido:", resultado);
         } else if (window.electronAPI?.eliminarMultimedia) {
           console.log(
-            "📞 [Multimedia] Usando window.electronAPI.eliminarMultimedia"
+            "📞 [Multimedia] Usando window.electronAPI.eliminarMultimedia",
           );
           resultado = await window.electronAPI.eliminarMultimedia(id);
           console.log("📥 [Multimedia] Resultado recibido:", resultado);
         } else if (window.electron?.eliminarMultimedia) {
           console.log(
-            "📞 [Multimedia] Usando window.electron.eliminarMultimedia"
+            "📞 [Multimedia] Usando window.electron.eliminarMultimedia",
           );
           resultado = await window.electron.eliminarMultimedia(id);
           console.log("📥 [Multimedia] Resultado recibido:", resultado);
         } else {
           console.error(
-            "❌ [Multimedia] No se encontró ningún método IPC disponible"
+            "❌ [Multimedia] No se encontró ningún método IPC disponible",
           );
           showError("❌ No hay conexión con Electron. Reinicia la aplicación.");
           return;
@@ -1568,14 +1560,14 @@ const Multimedia = () => {
 
       if (exitoso) {
         console.log(
-          "✅ [Multimedia] Eliminación exitosa, actualizando estado..."
+          "✅ [Multimedia] Eliminación exitosa, actualizando estado...",
         );
         setMediaFiles((prev) => prev.filter((media) => media.id !== id));
         if (currentMedia?.id === id) {
           stopGlobal(); // Detener reproducción global
         }
         showSuccess(
-          `<strong>${fileName}</strong><br/>🗑️ Eliminado exitosamente`
+          `<strong>${fileName}</strong><br/>🗑️ Eliminado exitosamente`,
         );
         console.log("✅ [Multimedia] Estado actualizado correctamente");
       } else {
@@ -1583,13 +1575,13 @@ const Multimedia = () => {
         showError(
           `<strong>${fileName}</strong><br/>❌ Error al eliminar: ${
             resultado?.error || "Error desconocido"
-          }`
+          }`,
         );
       }
     } catch (error) {
       console.error(
         "❌ [Multimedia] Error general al eliminar archivo:",
-        error
+        error,
       );
       console.error("📋 [Multimedia] Stack trace:", error.stack);
       showError(`❌ Error al eliminar archivo: ${error.message}`);
@@ -1605,7 +1597,7 @@ const Multimedia = () => {
       if (media.isUrl) {
         setMediaFiles((prev) => {
           const updated = prev.map((item) =>
-            item.id === media.id ? {...item, favorito: nuevoFavorito} : item
+            item.id === media.id ? {...item, favorito: nuevoFavorito} : item,
           );
 
           // Guardar en localStorage
@@ -1616,7 +1608,7 @@ const Multimedia = () => {
         });
 
         showInfo(
-          `${nuevoFavorito ? "⭐ Agregado a" : "🗑️ Removido de"} favoritos`
+          `${nuevoFavorito ? "⭐ Agregado a" : "🗑️ Removido de"} favoritos`,
         );
         return;
       }
@@ -1631,7 +1623,7 @@ const Multimedia = () => {
         } else if (window.electronAPI?.actualizarFavoritoMultimedia) {
           resultado = await window.electronAPI.actualizarFavoritoMultimedia(
             media.id,
-            nuevoFavorito
+            nuevoFavorito,
           );
         }
       } catch (error) {
@@ -1642,17 +1634,17 @@ const Multimedia = () => {
       if (resultado?.success) {
         setMediaFiles((prev) =>
           prev.map((item) =>
-            item.id === media.id ? {...item, favorito: nuevoFavorito} : item
-          )
+            item.id === media.id ? {...item, favorito: nuevoFavorito} : item,
+          ),
         );
         showInfo(
-          `${nuevoFavorito ? "⭐ Agregado a" : "🗑️ Removido de"} favoritos`
+          `${nuevoFavorito ? "⭐ Agregado a" : "🗑️ Removido de"} favoritos`,
         );
       } else {
         showError(
           `❌ Error actualizando favorito: ${
             resultado?.error || "Error desconocido"
-          }`
+          }`,
         );
       }
     } catch (error) {
@@ -1771,7 +1763,7 @@ const Multimedia = () => {
         // Verificar si ya se alcanzó el límite de 20
         if (customQuickLinks.length >= 20) {
           showWarning(
-            "⚠️ Has alcanzado el límite de 20 enlaces rápidos. Elimina algunos para agregar nuevos."
+            "⚠️ Has alcanzado el límite de 20 enlaces rápidos. Elimina algunos para agregar nuevos.",
           );
           return;
         }
@@ -1786,12 +1778,12 @@ const Multimedia = () => {
 
         const updatedQuickLinks = [newQuickLink, ...customQuickLinks].slice(
           0,
-          20
+          20,
         );
         setCustomQuickLinks(updatedQuickLinks);
         localStorage.setItem(
           "multimedia-quick-links",
-          JSON.stringify(updatedQuickLinks)
+          JSON.stringify(updatedQuickLinks),
         );
 
         // Mostrar advertencia cuando se acerque al límite
@@ -1799,7 +1791,7 @@ const Multimedia = () => {
           showWarning(
             `⚠️ Te quedan ${
               20 - updatedQuickLinks.length
-            } espacios para enlaces rápidos`
+            } espacios para enlaces rápidos`,
           );
         }
       }
@@ -1832,12 +1824,12 @@ const Multimedia = () => {
 
   const removeCustomQuickLink = (linkId) => {
     const updatedQuickLinks = customQuickLinks.filter(
-      (link) => link.id !== linkId
+      (link) => link.id !== linkId,
     );
     setCustomQuickLinks(updatedQuickLinks);
     localStorage.setItem(
       "multimedia-quick-links",
-      JSON.stringify(updatedQuickLinks)
+      JSON.stringify(updatedQuickLinks),
     );
     showInfo("🗑️ Enlace eliminado de accesos rápidos");
   };
@@ -1966,7 +1958,7 @@ const Multimedia = () => {
   });
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white min-h-screen overflow-y-auto">
+    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen overflow-y-auto">
       {/* ✨ CONTENEDOR DE NOTIFICACIONES */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
         {notifications.map((notification) => (
@@ -1975,18 +1967,18 @@ const Multimedia = () => {
       </div>
 
       {/* ✨ HEADER MODERNO ESTILO YOUTUBE */}
-      <div className="bg-black/20 backdrop-blur-sm border-b border-indigo-500/20 sticky top-0 z-40">
+      <div className="bg-black/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
         <div className="max-w-full mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-r from-red-500 to-pink-600 rounded-full">
+              <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
                 <FaPlay className="text-2xl" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 to-pink-400 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-semibold text-white">
                   Glory Studio
                 </h1>
-                <p className="text-slate-400">
+                <p className="text-white/60">
                   Tu centro de contenido multimedia
                 </p>
               </div>
@@ -1995,7 +1987,7 @@ const Multimedia = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowUrlModal(true)}
-                className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white px-4 py-2 rounded-full transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl border border-white/10 transition-colors flex items-center gap-2"
               >
                 <FaLink />
                 <span>Agregar URL</span>
@@ -2008,8 +2000,8 @@ const Multimedia = () => {
                 className={`${
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
-                } text-white px-4 py-2 rounded-full transition-all duration-300 transform hover:scale-105 flex items-center gap-2`}
+                    : "bg-emerald-600/90 hover:bg-emerald-600"
+                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2`}
                 title="Recomendado para videos grandes"
               >
                 <FaUpload />
@@ -2022,8 +2014,8 @@ const Multimedia = () => {
                 className={`${
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 cursor-pointer"
-                } text-white px-4 py-2 rounded-full transition-all duration-300 transform hover:scale-105 flex items-center gap-2`}
+                    : "bg-emerald-600/90 hover:bg-emerald-600 cursor-pointer"
+                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2`}
                 title="Para archivos pequeños"
               >
                 <FaUpload />
@@ -2042,7 +2034,7 @@ const Multimedia = () => {
           </div>
 
           {/* Barra de búsqueda y controles */}
-          <div className="bg-gray-800/50 rounded-lg p-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1 relative">
                 <FaSearch className="absolute left-3 top-3 text-gray-400" />
@@ -2128,7 +2120,7 @@ const Multimedia = () => {
                     mediaFiles.filter(
                       (m) =>
                         getMediaType(m) === "video" ||
-                        getMediaType(m) === "youtube"
+                        getMediaType(m) === "youtube",
                     ).length
                   }
                 </div>
@@ -2146,7 +2138,7 @@ const Multimedia = () => {
                     mediaFiles.filter(
                       (m) =>
                         getMediaType(m) === "imagen" ||
-                        getMediaType(m) === "image"
+                        getMediaType(m) === "image",
                     ).length
                   }
                 </div>
@@ -2273,14 +2265,14 @@ const Multimedia = () => {
                         onError={(e) => {
                           console.error("❌ Error cargando imagen:", e);
                           const mensaje = `Error cargando imagen: ${getMediaName(
-                            currentMedia
+                            currentMedia,
                           )}`;
                           console.error(
                             "📁 URL problemática:",
-                            currentMedia.url
+                            currentMedia.url,
                           );
                           showError(
-                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`
+                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
                           );
                         }}
                       />
@@ -2297,14 +2289,14 @@ const Multimedia = () => {
                         onError={(e) => {
                           console.error("❌ Error cargando video:", e);
                           const mensaje = `Error cargando video: ${getMediaName(
-                            currentMedia
+                            currentMedia,
                           )}`;
                           console.error(
                             "📁 URL problemática:",
-                            currentMedia.url
+                            currentMedia.url,
                           );
                           showError(
-                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`
+                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
                           );
                         }}
                         onPlay={resume}
@@ -2561,7 +2553,7 @@ const Multimedia = () => {
                                 <div className="w-full h-full relative bg-black">
                                   <img
                                     src={getYouTubeThumbnail(
-                                      media.url || media.originalUrl
+                                      media.url || media.originalUrl,
                                     )}
                                     alt={getMediaName(media)}
                                     className="w-full h-full object-cover"
@@ -3003,7 +2995,7 @@ const Multimedia = () => {
                     key={index}
                     onClick={() => {
                       const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                        link.query
+                        link.query,
                       )}`;
                       window.open(youtubeSearchUrl, "_blank");
                     }}

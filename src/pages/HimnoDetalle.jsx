@@ -2,45 +2,166 @@ import {useParams, useNavigate, useLocation} from "react-router-dom";
 import {useState, useEffect} from "react";
 import himnosData from "../data/himnos.json";
 import vidacristianaData from "../data/vidacristiana.json";
-import {FaProjectDiagram, FaStar, FaHeart, FaRegHeart} from "react-icons/fa";
-import {toast} from "react-toastify";
+import {
+  FaProjectDiagram,
+  FaHeart,
+  FaRegHeart,
+  FaStop,
+  FaVolumeUp,
+  FaArrowLeft,
+  FaArrowRight,
+  FaMusic,
+  FaBible,
+  FaCross,
+  FaTimes,
+  FaCheck,
+  FaUndo,
+  FaRedo,
+  FaHome,
+} from "react-icons/fa";
 
-const coloresGradientes = [
-  "bg-gradient-to-r from-red-500 to-red-700",
-  "bg-gradient-to-r from-blue-500 to-blue-700",
-  "bg-gradient-to-r from-green-500 to-green-700",
-  "bg-gradient-to-r from-yellow-500 to-yellow-700",
-  "bg-gradient-to-r from-purple-500 to-purple-700",
-  "bg-gradient-to-r from-pink-500 to-pink-700",
-  "bg-gradient-to-r from-indigo-500 to-indigo-700",
-  "bg-gradient-to-r from-teal-500 to-teal-700",
+const temasFondo = [
+  {
+    nombre: "Oscuro",
+    clase: "bg-slate-950",
+    texto: "text-slate-100",
+  },
+  {
+    nombre: "Grafito",
+    clase: "bg-slate-900",
+    texto: "text-slate-100",
+  },
+  {
+    nombre: "Índigo",
+    clase: "bg-indigo-950",
+    texto: "text-slate-100",
+  },
 ];
 
 const HimnoDetalle = () => {
-  const {id, numero} = useParams(); // Recibe tanto el id como el numero
-  const {state} = useLocation(); // 👈 Aquí leemos el "state"
+  const {id, numero} = useParams();
+  const {state} = useLocation();
   const [himno, setHimno] = useState(null);
   const [selectedParrafo, setSelectedParrafo] = useState(0);
-  const [favoritos, setFavoritos] = useState([]); // Estado para favoritos
+  const [favoritos, setFavoritos] = useState(new Set());
+  const [isProyectando, setIsProyectando] = useState(false);
+  const [historial, setHistorial] = useState([0]);
+  const [posicionHistorial, setPosicionHistorial] = useState(0);
+  const [toasts, setToasts] = useState([]);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    cargarFavoritos();
+  }, []);
+
+  const cargarFavoritos = () => {
+    try {
+      // Determinar qué tipo de favoritos cargar según el himno
+      const tipoFavoritos =
+        state?.tipo === "vidaCristiana"
+          ? "himnosVidaCristianaFavoritos"
+          : "himnosFavoritos";
+
+      const favoritosGuardados = JSON.parse(
+        localStorage.getItem(tipoFavoritos) || "[]",
+      );
+      setFavoritos(new Set(favoritosGuardados));
+    } catch (error) {
+      console.error("Error al cargar favoritos:", error);
+    }
+  };
+
+  // ✨ FUNCIÓN PARA TOASTS
+  const addToast = (message, type = "success", duration = 3000) => {
+    const id = Date.now();
+    const newToast = {id, message, type};
+    setToasts((prev) => [...prev, newToast]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, duration);
+  };
+
+  const removeToast = (id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
+
+  // ✨ COMPONENTE TOAST
+  const Toast = ({toast}) => {
+    const getIcon = () => {
+      switch (toast.type) {
+        case "success":
+          return <FaCheck className="text-green-400" />;
+        case "info":
+          return <FaMusic className="text-blue-400" />;
+        case "warning":
+          return <FaVolumeUp className="text-yellow-400" />;
+        case "error":
+          return <FaTimes className="text-red-400" />;
+        default:
+          return <FaCheck className="text-green-400" />;
+      }
+    };
+
+    const getAccent = () => {
+      switch (toast.type) {
+        case "success":
+          return "border-l-green-500";
+        case "info":
+          return "border-l-blue-500";
+        case "warning":
+          return "border-l-yellow-500";
+        case "error":
+          return "border-l-red-500";
+        default:
+          return "border-l-green-500";
+      }
+    };
+
+    return (
+      <div
+        className={`bg-slate-900/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl shadow-lg flex items-start gap-3 border border-white/10 border-l-4 ${getAccent()}`}
+      >
+        <div className="flex-shrink-0 mt-0.5">{getIcon()}</div>
+        <div className="flex-1 text-sm font-medium leading-snug">
+          {toast.message}
+        </div>
+        <button
+          onClick={() => removeToast(toast.id)}
+          className="flex-shrink-0 text-white/80 hover:text-white transition-colors"
+        >
+          <FaTimes className="text-xs" />
+        </button>
+      </div>
+    );
+  };
+
+  const ui = {
+    btnBase:
+      "inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+    btnIcon:
+      "w-10 h-10 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+    btnPrimary:
+      "inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-600/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+    btnDanger:
+      "inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-600 hover:bg-red-500 active:bg-red-600/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+  };
 
   useEffect(() => {
     const cargarHimno = async () => {
       try {
         if (numero) {
           if (state?.tipo === "vidaCristiana") {
-            // 👈 Si viene de vidaCristiana
             const vidaCristianaHimno = vidacristianaData.find(
-              (h) => h.numero.toString() === numero
+              (h) => h.numero.toString() === numero,
             );
             if (vidaCristianaHimno) {
               setHimno(vidaCristianaHimno);
               return;
             }
           } else {
-            // 👈 Si viene de himnos normales
             const jsonHimno = himnosData.find(
-              (h) => h.numero.toString() === numero
+              (h) => h.numero.toString() === numero,
             );
             if (jsonHimno) {
               setHimno(jsonHimno);
@@ -50,7 +171,7 @@ const HimnoDetalle = () => {
         }
 
         if (id) {
-          const himnoDB = await window.electron.obtenerHimnoPorId(id);
+          const himnoDB = await window.electron?.obtenerHimnoPorId(id);
           if (himnoDB) {
             setHimno({
               numero: himnoDB.numero,
@@ -71,12 +192,8 @@ const HimnoDetalle = () => {
     cargarHimno();
   }, [id, numero, state]);
 
-  useEffect(() => {
-    fetchFavoritos(); // Cargar favoritos al inicio
-  }, []);
-
   const proyectarHimno = () => {
-    if (himno) {
+    if (himno && window.electron) {
       window.electron.abrirProyector();
       window.electron.enviarHimno({
         parrafo: himno.parrafos[selectedParrafo],
@@ -84,151 +201,393 @@ const HimnoDetalle = () => {
         numero: himno.numero,
         origen: "himno",
       });
+      setIsProyectando(true);
+      addToast(`🎵 Proyectando: ${himno.titulo}`, "success");
     }
   };
 
-  const fetchFavoritos = async () => {
-    try {
-      const data = await window.electron.obtenerFavoritos(); // Obtener favoritos del backend
-      setFavoritos(data.map((fav) => fav.id)); // Guardar solo los IDs de los favoritos
-    } catch (error) {
-      console.error("Error al obtener los favoritos:", error);
+  const limpiarProyeccion = () => {
+    if (window.electron) {
+      window.electron.enviarVersiculo({
+        parrafo: "",
+        titulo: "",
+        numero: "",
+        origen: "clear",
+      });
+      setIsProyectando(false);
+      addToast("🧹 Proyección limpiada", "info");
     }
   };
 
-  const toggleFavorito = async (id) => {
-    try {
-      if (favoritos.includes(id)) {
-        // Si ya está en favoritos, eliminar
-        await window.electron.marcarFavorito(id, false); // Cambié esto
-        setFavoritos((prev) => prev.filter((favId) => favId !== id));
-        toast.info("Himno eliminado de favoritos.");
-      } else {
-        // Si no está en favoritos, agregar
-        await window.electron.marcarFavorito(id, true); // Cambié esto
-        setFavoritos((prev) => [...prev, id]);
-        toast.success("Himno agregado a favoritos.");
-      }
-    } catch (error) {
-      console.error("Error al actualizar favoritos:", error);
-      toast.error("Ocurrió un error al actualizar favoritos.");
+  // ✨ TOGGLE FAVORITOS CON LOCALSTORAGE
+  const toggleFavorito = () => {
+    if (!himno) return;
+
+    const tipoFavoritos =
+      state?.tipo === "vidaCristiana"
+        ? "himnosVidaCristianaFavoritos"
+        : "himnosFavoritos";
+
+    const nuevosFavoritos = new Set(favoritos);
+    const esAgregar = !nuevosFavoritos.has(himno.numero);
+
+    if (nuevosFavoritos.has(himno.numero)) {
+      nuevosFavoritos.delete(himno.numero);
+    } else {
+      nuevosFavoritos.add(himno.numero);
+    }
+
+    setFavoritos(nuevosFavoritos);
+
+    // Guardar en localStorage
+    localStorage.setItem(tipoFavoritos, JSON.stringify([...nuevosFavoritos]));
+
+    // Mostrar toast de confirmación
+    if (esAgregar) {
+      addToast(`❤️ "${himno.titulo}" agregado a favoritos`, "success");
+    } else {
+      addToast(`💔 "${himno.titulo}" removido de favoritos`, "info");
     }
   };
+
+  const cambiarParrafo = (indice, agregarAlHistorial = true) => {
+    if (!himno) return;
+
+    if (agregarAlHistorial) {
+      const nuevoHistorial = historial.slice(0, posicionHistorial + 1);
+      nuevoHistorial.push(indice);
+      setHistorial(nuevoHistorial);
+      setPosicionHistorial(nuevoHistorial.length - 1);
+    }
+
+    setSelectedParrafo(indice);
+
+    if (window.electron && isProyectando) {
+      window.electron.enviarHimno({
+        parrafo: himno.parrafos[indice],
+        titulo: himno.titulo,
+        numero: himno.numero,
+      });
+    }
+  };
+
+  const irAtras = () => {
+    if (posicionHistorial > 0) {
+      const nuevaPosicion = posicionHistorial - 1;
+      setPosicionHistorial(nuevaPosicion);
+      cambiarParrafo(historial[nuevaPosicion], false);
+      addToast("⬅️ Párrafo anterior", "info");
+    }
+  };
+
+  const irAdelante = () => {
+    if (posicionHistorial < historial.length - 1) {
+      const nuevaPosicion = posicionHistorial + 1;
+      setPosicionHistorial(nuevaPosicion);
+      cambiarParrafo(historial[nuevaPosicion], false);
+      addToast("➡️ Párrafo siguiente", "info");
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (!himno) return;
 
-    if (["ArrowUp", "ArrowLeft"].includes(e.key)) {
-      setSelectedParrafo((prev) => {
-        const newIndex = Math.max(0, prev - 1);
-        window.electron.enviarHimno({
-          parrafo: himno.parrafos[newIndex],
-          titulo: himno.titulo,
-          numero: himno.numero,
-        });
-        return newIndex;
-      });
-    }
-
-    if (["ArrowDown", "ArrowRight"].includes(e.key)) {
-      setSelectedParrafo((prev) => {
-        const newIndex = Math.min(himno.parrafos.length - 1, prev + 1);
-        window.electron.enviarHimno({
-          parrafo: himno.parrafos[newIndex],
-          titulo: himno.titulo,
-          numero: himno.numero,
-        });
-        return newIndex;
-      });
+    switch (e.key) {
+      case "Escape":
+        limpiarProyeccion();
+        break;
+      case " ":
+        e.preventDefault();
+        proyectarHimno();
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        e.preventDefault();
+        const prevIndex = Math.max(0, selectedParrafo - 1);
+        cambiarParrafo(prevIndex);
+        break;
+      case "ArrowDown":
+      case "ArrowRight":
+        e.preventDefault();
+        const nextIndex = Math.min(
+          himno.parrafos.length - 1,
+          selectedParrafo + 1,
+        );
+        cambiarParrafo(nextIndex);
+        break;
+      case "Home":
+        e.preventDefault();
+        cambiarParrafo(0);
+        break;
+      case "End":
+        e.preventDefault();
+        cambiarParrafo(himno.parrafos.length - 1);
+        break;
+      default:
+        // No action for other keys
+        break;
     }
   };
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [himno]);
+  }, [himno, selectedParrafo, isProyectando, historial, posicionHistorial]);
 
   if (!himno) {
     return (
-      <div className="text-white bg-gray-900 h-screen flex flex-col items-center justify-center">
-        <p>Himno no encontrado</p>
-        <button
-          onClick={() => navigate("/agregar-himno")}
-          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Volver a la lista
-        </button>
+      <div className="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-xl text-center max-w-md w-full">
+          <FaMusic className="mx-auto text-6xl text-gray-600 mb-6" />
+          <h3 className="text-2xl font-bold text-gray-300 mb-4">
+            Himno no encontrado
+          </h3>
+          <p className="text-gray-400 mb-6">
+            El himno que buscas no está disponible
+          </p>
+          <button
+            onClick={() => navigate("/himnos")}
+            className={`${ui.btnBase} px-5 py-3 mx-auto`}
+          >
+            <FaHome />
+            Volver a himnos
+          </button>
+        </div>
       </div>
     );
   }
 
+  const temaActual = temasFondo[0];
+
   return (
-    <div className="p-4 h-screen flex flex-col justify-between bg-gray-900 text-white">
-      {/* Contenedor superior: Título y párrafo centrados */}
-      <div className="flex-grow flex flex-col justify-center items-center text-center">
-        <div className="absolute top-4 right-4 flex gap-4 mr-7">
-          {/* Botón para proyectar */}
-          <button
-            onClick={proyectarHimno}
-            className="p-2 bg-green-500 rounded-full text-white hover:bg-green-600"
-          >
-            <FaProjectDiagram size={24} />
-          </button>
+    <div
+      className={`${temaActual.clase} ${temaActual.texto} min-h-screen relative flex flex-col`}
+    >
+      {/* ✨ CONTENEDOR DE TOASTS */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <Toast key={toast.id} toast={toast} />
+        ))}
+      </div>
 
-          {/* Botón para agregar o quitar de favoritos */}
-          <button
-            onClick={() => toggleFavorito(himno.id)}
-            className={`p-2 rounded-full ${
-              favoritos.includes(himno.id)
-                ? "bg-red-500 text-white hover:bg-red-600"
-                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-            }`}
-          >
-            {favoritos.includes(himno.id) ? (
-              <FaHeart size={20} />
-            ) : (
-              <FaRegHeart size={20} />
-            )}
-          </button>
-        </div>
+      {/* Header limpio */}
+      <header className="sticky top-0 z-30 bg-black/30 backdrop-blur border-b border-white/10">
+        <div className="max-w-[96vw] mx-auto px-3 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => navigate(-1)}
+                className={ui.btnIcon}
+                title="Volver"
+              >
+                <FaArrowLeft />
+              </button>
 
-        <div className="mb-8 w-5/6 mx-auto">
-          <h1 className="text-4xl font-bold mb-4 text-orange-200">
-            {himno.titulo}
-          </h1>
-          <p className="text-xl text-red-300 mb-4">{himno.numero}</p>
-          <div className="text-3xl max-w-screen-md mx-auto text-blue-100">
-            {himno.parrafos[selectedParrafo]}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs text-white/60">
+                  {state?.tipo === "vidaCristiana" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <FaCross /> Vida Cristiana
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      <FaBible /> Moravo
+                    </span>
+                  )}
+                  <span className="text-white/30">•</span>
+                  <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10">
+                    Himno #{himno.numero}
+                  </span>
+                </div>
+                <h1 className="text-lg sm:text-xl font-semibold truncate leading-tight">
+                  {himno.titulo}
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={irAtras}
+                disabled={posicionHistorial <= 0}
+                className={ui.btnIcon}
+                title="Atrás"
+              >
+                <FaUndo />
+              </button>
+              <button
+                onClick={irAdelante}
+                disabled={posicionHistorial >= historial.length - 1}
+                className={ui.btnIcon}
+                title="Adelante"
+              >
+                <FaRedo />
+              </button>
+
+              <button
+                onClick={limpiarProyeccion}
+                className={`${ui.btnDanger} w-10 h-10`}
+                title="Limpiar (Esc)"
+              >
+                <FaStop />
+              </button>
+
+              <button
+                onClick={proyectarHimno}
+                className={`${ui.btnPrimary} w-10 h-10`}
+                title="Proyectar (Espacio)"
+              >
+                <FaProjectDiagram />
+              </button>
+
+              <button
+                onClick={toggleFavorito}
+                className={
+                  favoritos.has(himno.numero)
+                    ? `${ui.btnIcon} bg-red-600 hover:bg-red-500 border-red-500/30`
+                    : ui.btnIcon
+                }
+                title="Favoritos"
+              >
+                {favoritos.has(himno.numero) ? <FaHeart /> : <FaRegHeart />}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Contenedor inferior: Tarjetas en miniatura */}
-      <div className="flex justify-center items-center">
-        <div className="flex gap-4 mb-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-          {himno.parrafos.map((parrafo, index) => (
-            <div
-              key={index}
-              className={`p-4 rounded-lg border max-w-[280px] justify-center cursor-pointer ${
-                selectedParrafo === index
-                  ? "text-white border-4 border-yellow-400"
-                  : "text-gray-300 border border-gray-600"
-              } hover:opacity-90 transition-all duration-300 ${
-                coloresGradientes[index % coloresGradientes.length]
-              }`}
-              onClick={() => {
-                setSelectedParrafo(index);
-                window.electron.enviarHimno({
-                  parrafo,
-                  titulo: himno.titulo,
-                  numero: himno.numero,
-                });
-              }}
-            >
-              <p className="text-sm">{parrafo}</p>
+      <main className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 max-w-[96vw] mx-auto px-3 py-3 flex flex-col gap-3">
+          {/* Tarjeta principal */}
+          <section className="flex-1 min-h-0 w-full rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 sm:p-5 flex flex-col">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="text-sm text-white/60">
+                Párrafo{" "}
+                <span className="text-white/90">{selectedParrafo + 1}</span> de{" "}
+                <span className="text-white/90">{himno.parrafos.length}</span>
+              </div>
+              {isProyectando && (
+                <span className="px-2.5 py-1 rounded-md text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                  Proyectando
+                </span>
+              )}
             </div>
-          ))}
+
+            <div className="flex-1 min-h-0 flex items-center justify-center">
+              <div className="w-full max-w-3xl mx-auto text-center">
+                <p className="whitespace-pre-line font-medium">
+                  <span className="text-3xl sm:text-4xl md:text-5xl leading-relaxed">
+                    {himno.parrafos[selectedParrafo]}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+              <button
+                onClick={() => cambiarParrafo(Math.max(0, selectedParrafo - 1))}
+                disabled={selectedParrafo === 0}
+                className={ui.btnIcon}
+                title="Anterior"
+              >
+                <FaArrowLeft />
+              </button>
+
+              <div className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-white/70">
+                Atajos: <span className="text-white/90">Espacio</span> proyectar
+                · <span className="text-white/90">← →</span> cambiar ·{" "}
+                <span className="text-white/90">Esc</span> limpiar
+              </div>
+
+              <button
+                onClick={() =>
+                  cambiarParrafo(
+                    Math.min(himno.parrafos.length - 1, selectedParrafo + 1),
+                  )
+                }
+                disabled={selectedParrafo === himno.parrafos.length - 1}
+                className={ui.btnIcon}
+                title="Siguiente"
+              >
+                <FaArrowRight />
+              </button>
+            </div>
+          </section>
+
+          {/* Progreso */}
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden shrink-0">
+            <div
+              className="h-full bg-emerald-500/80 transition-all duration-300 ease-out"
+              style={{
+                width: `${
+                  ((selectedParrafo + 1) / Math.max(1, himno.parrafos.length)) *
+                  100
+                }%`,
+              }}
+            />
+          </div>
+
+          {/* Párrafos */}
+          <section className="mt-auto shrink-0 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h2 className="text-sm font-semibold text-white/90 flex items-center gap-2">
+                <FaMusic className="text-white/60" />
+                Párrafos
+              </h2>
+              <span className="text-xs text-white/50">Clic para navegar</span>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent">
+              {himno.parrafos.map((parrafo, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => cambiarParrafo(index)}
+                  className={`min-w-[240px] text-left rounded-xl border p-4 transition-colors ${
+                    selectedParrafo === index
+                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-xs text-white/60">Párrafo</span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-md border ${
+                        selectedParrafo === index
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                          : "border-white/10 bg-white/5 text-white/70"
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                  </div>
+                  <p className="text-sm text-white/90 line-clamp-4 leading-relaxed">
+                    {parrafo}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
-      </div>
+      </main>
+
+      <style jsx>{`
+        .line-clamp-4 {
+          display: -webkit-box;
+          -webkit-line-clamp: 4;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .scrollbar-thin {
+          scrollbar-width: thin;
+        }
+        .scrollbar-thumb-slate-400\/20::-webkit-scrollbar-thumb {
+          background-color: rgba(148, 163, 184, 0.2);
+          border-radius: 0.375rem;
+        }
+        .scrollbar-track-transparent::-webkit-scrollbar-track {
+          background-color: transparent;
+        }
+      `}</style>
     </div>
   );
 };

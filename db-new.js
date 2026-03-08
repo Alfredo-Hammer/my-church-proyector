@@ -348,10 +348,24 @@ async function obtenerConfiguracion(clave) {
 // Función para actualizar configuración
 async function actualizarConfiguracion(clave, valor) {
   try {
+    const valorFinal =
+      valor === null || valor === undefined
+        ? ""
+        : typeof valor === "string"
+          ? valor
+          : typeof valor === "number" || typeof valor === "boolean"
+            ? String(valor)
+            : JSON.stringify(valor);
+
     const result = await runQuery(
-      'UPDATE configuracion SET valor = ?, fecha_actualizacion = CURRENT_TIMESTAMP WHERE clave = ?',
-      [valor, clave]
+      `INSERT INTO configuracion (clave, valor, fecha_actualizacion)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(clave) DO UPDATE SET
+         valor = excluded.valor,
+         fecha_actualizacion = CURRENT_TIMESTAMP`,
+      [clave, valorFinal]
     );
+
     return result.changes > 0;
   } catch (error) {
     console.error('Error al actualizar configuración:', error);

@@ -3,35 +3,55 @@
   "version": "0.1.0",
   "private": true,
   "main": "main.js",
+  "homepage": ".",
+  "description": "GloryView Proyector - Aplicación de proyección para iglesias",
+  "author": "Alfredo Hammer <coderhammer70@gmail.com>",
   "dependencies": {
     "@mantine/rte": "^5.10.5",
-    "@testing-library/dom": "^9.3.4",
+    "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^13.4.0",
+    "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "@tinymce/tinymce-react": "^6.1.0",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^11.10.0",
+    "cors": "^2.8.5",
+    "docx": "^9.5.1",
+    "express": "^5.1.0",
     "framer-motion": "^12.8.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.11.0",
+    "node-fetch": "^3.3.2",
+    "officegen": "^0.6.5",
+    "pizzip": "^3.2.0",
+    "pptx-parser": "^1.1.7-beta.9",
+    "pptx2json": "^0.0.10",
     "quill": "^2.0.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.5.1",
     "react-scripts": "5.0.1",
     "react-toastify": "^11.0.5",
+    "sqlite3": "^5.1.7",
     "suneditor": "^2.47.5",
     "suneditor-react": "^3.6.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "postinstall": "npm run rebuild",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "electron": "electron .",
-    "dev": "concurrently -k \"BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run electron\""
+    "electron": "npx electron .",
+    "electron-dev": "cross-env NODE_ENV=development npx electron .",
+    "electron-prod": "npm run build && cross-env NODE_ENV=production npx electron .",
+    "dist": "npm run build && npx electron .",
+    "build-exe": "npm run build && electron-builder",
+    "build-exe-win": "npm run build && electron-builder --win",
+    "pack": "electron-builder --dir",
+    "release": "npm run build && electron-builder --publish=never"
   },
   "eslintConfig": {
     "extends": [
@@ -52,21 +72,82 @@
     ]
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "electron": "^35.2.0",
+    "@electron/rebuild": "^3.7.2",
+    "app-builder-bin": "^4.2.0",
+    "cross-env": "^10.1.0",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
+    "electron-icon-builder": "^2.0.1",
+    "electron-packager": "^17.1.2",
     "electron-rebuild": "^3.2.9",
+    "rcedit": "^4.0.1",
     "tailwindcss": "^3.4.17",
-    "wait-on": "^9.0.4"
+    "to-ico": "^1.1.5"
   },
-  "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Alfredo-Hammer/my-church-proyector.git"
-  },
-  "author": "Alfredo Hammer",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Alfredo-Hammer/my-church-proyector/issues"
-  },
-  "homepage": "."
+  "build": {
+    "appId": "com.gloryview.proyector",
+    "productName": "GloryView Proyector",
+    "copyright": "Copyright © 2025 Alfredo Hammer",
+    "directories": {
+      "output": "dist-installer",
+      "buildResources": "assets"
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "files": [
+      "build/**/*",
+      "main.js",
+      "preload.js",
+      "db.js",
+      "db-new.js",
+      "assets/**/*",
+      "data/**/*",
+      "package.json",
+      "!node_modules/@types/**/*",
+      "!node_modules/.cache/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "data",
+        "to": "data",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico",
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker",
+      "executableName": "GloryViewProyector",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "GloryView Proyector",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "assets/icon-256.png",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "menuCategory": true,
+      "license": "LICENSE.txt",
+      "warningsAsErrors": false,
+      "differentialPackage": true,
+      "displayLanguageSelector": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    }
+  }
 }

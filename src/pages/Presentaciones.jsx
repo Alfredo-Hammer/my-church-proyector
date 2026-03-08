@@ -8,18 +8,18 @@ export default function Presentaciones() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-gray-800 via-gray-900 to-black text-white p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-6 overflow-y-auto">
       <div className="max-w-5xl mx-auto">
         {/* Encabezado */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Presentaciones</h1>
-          <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg transition duration-300">
+          <h1 className="text-3xl font-semibold">Presentaciones</h1>
+          <button className="px-4 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white border border-emerald-500/20 transition-colors">
             + Nueva Presentación
           </button>
         </div>
 
         {/* Lista de presentaciones */}
-        <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <h2 className="text-xl font-semibold mb-4">
             Lista de Presentaciones
           </h2>
@@ -28,20 +28,22 @@ export default function Presentaciones() {
               {presentaciones.map((presentacion) => (
                 <li
                   key={presentacion.id}
-                  className="flex justify-between items-center bg-gray-700 p-4 rounded-lg hover:bg-gray-600 transition duration-300"
+                  className="flex justify-between items-center bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 transition-colors"
                 >
                   <div>
-                    <h3 className="text-lg font-bold">{presentacion.titulo}</h3>
-                    <p className="text-gray-400">Fecha: {presentacion.fecha}</p>
+                    <h3 className="text-lg font-semibold">
+                      {presentacion.titulo}
+                    </h3>
+                    <p className="text-white/60">Fecha: {presentacion.fecha}</p>
                   </div>
-                  <button className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg shadow-lg transition duration-300">
+                  <button className="px-3 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/20 text-red-200 border border-red-500/20 transition-colors">
                     Eliminar
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-gray-400">No hay presentaciones disponibles.</p>
+            <p className="text-white/60">No hay presentaciones disponibles.</p>
           )}
         </div>
       </div>

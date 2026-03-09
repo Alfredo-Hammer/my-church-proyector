@@ -72,6 +72,13 @@ const Proyector = () => {
     body: "",
   });
 
+  const previousGlobalStylesRef = useRef({
+    htmlBg: "",
+    bodyBg: "",
+    htmlColor: "",
+    bodyColor: "",
+  });
+
   useEffect(() => {
     // Ocultar cursor del mouse en el proyector (más robusto que solo Tailwind)
     const htmlEl = document.documentElement;
@@ -91,6 +98,42 @@ const Proyector = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Asegurar fondo oscuro SIEMPRE en el proyector.
+    // La ventana del proyector carga la misma SPA que la app principal,
+    // cuyo body por defecto es claro; si el fondo dinámico se oculta o falla
+    // por un instante (updates de configuración, modo slide, etc.) se ve blanco.
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+
+    previousGlobalStylesRef.current = {
+      htmlBg: htmlEl?.style?.backgroundColor || "",
+      bodyBg: bodyEl?.style?.backgroundColor || "",
+      htmlColor: htmlEl?.style?.color || "",
+      bodyColor: bodyEl?.style?.color || "",
+    };
+
+    if (htmlEl?.style) {
+      htmlEl.style.backgroundColor = "#000";
+      htmlEl.style.color = "#fff";
+    }
+    if (bodyEl?.style) {
+      bodyEl.style.backgroundColor = "#000";
+      bodyEl.style.color = "#fff";
+    }
+
+    return () => {
+      if (htmlEl?.style) {
+        htmlEl.style.backgroundColor = previousGlobalStylesRef.current.htmlBg;
+        htmlEl.style.color = previousGlobalStylesRef.current.htmlColor;
+      }
+      if (bodyEl?.style) {
+        bodyEl.style.backgroundColor = previousGlobalStylesRef.current.bodyBg;
+        bodyEl.style.color = previousGlobalStylesRef.current.bodyColor;
+      }
+    };
+  }, []);
+
   const [parrafo, setParrafo] = useState("");
   const [titulo, setTitulo] = useState("");
   const [numero, setNumero] = useState("");
@@ -104,6 +147,28 @@ const Proyector = () => {
   // ✨ NUEVOS ESTADOS PARA MULTIMEDIA
   const [multimediaActiva, setMultimediaActiva] = useState(null);
   const [modoProyector, setModoProyector] = useState("bienvenida"); // Iniciar en bienvenida
+
+  // Evitar closures stale en listeners IPC registrados 1 sola vez.
+  const multimediaActivaRef = useRef(null);
+  const modoProyectorRef = useRef("bienvenida");
+  const pendingMultimediaControlRef = useRef(null);
+  const pendingMultimediaControlRetriesRef = useRef(0);
+
+  useEffect(() => {
+    multimediaActivaRef.current = multimediaActiva;
+  }, [multimediaActiva]);
+
+  useEffect(() => {
+    // Resetear cola de controles cuando cambia la multimedia.
+    // Evita que el contador de reintentos se quede “agotado” y los controles
+    // no vuelvan a intentar al proyectar un nuevo YouTube.
+    pendingMultimediaControlRef.current = null;
+    pendingMultimediaControlRetriesRef.current = 0;
+  }, [multimediaActiva?.id, multimediaActiva?.url, multimediaActiva?.tipo]);
+
+  useEffect(() => {
+    modoProyectorRef.current = modoProyector;
+  }, [modoProyector]);
 
   // ✨ ESTADO PARA NÚMERO DE MONITORES
   const [tieneMultiplesMonitores, setTieneMultiplesMonitores] = useState(false);
@@ -1042,7 +1107,7 @@ const Proyector = () => {
       console.log("🧹 [Proyector] Evento limpiar-multimedia-activa recibido");
 
       // Solo limpiar si estamos en modo multimedia
-      if (modoProyector === "multimedia") {
+      if (modoProyectorRef.current === "multimedia") {
         setModoProyector("welcome");
         setMultimediaActiva(null);
         setParrafo("");
@@ -1053,38 +1118,196 @@ const Proyector = () => {
       }
     };
 
-    const handleControlMultimedia = (event, {action, mediaId}) => {
+    const handleControlMultimedia = (event, payload) => {
+      const {action, mediaId, time, volume} = payload || {};
       console.log("🎮 [Proyector] Control multimedia recibido:", {
         action,
         mediaId,
+        time,
+        volume,
       });
 
-      if (!multimediaActiva) {
+      const multimedia = multimediaActivaRef.current;
+      if (!multimedia) {
         console.log("⚠️ [Proyector] No hay multimedia activa para controlar");
+        // Guardar el último control por si llega antes de que se monte el media
+        // y reintentar automáticamente (race común al proyectar YouTube).
+        if (payload?.action) {
+          pendingMultimediaControlRef.current = payload;
+          const retries = pendingMultimediaControlRetriesRef.current;
+          if (retries < 12) {
+            pendingMultimediaControlRetriesRef.current = retries + 1;
+            setTimeout(() => {
+              const pending = pendingMultimediaControlRef.current;
+              if (!pending) return;
+              handleControlMultimedia(null, pending);
+            }, 200);
+          }
+        }
         return;
       }
 
-      // Buscar el elemento multimedia actual
-      const mediaElement = document.querySelector("video, audio");
-      if (!mediaElement) {
-        console.log("⚠️ [Proyector] No se encontró elemento multimedia");
-        return;
-      }
+      // IMPORTANTE: en el proyector hay videos de fondo.
+      // Nunca usar querySelector('video') genérico o se controlará el fondo.
+      const mediaType = multimedia.tipo || multimedia.type;
+
+      const mediaElement =
+        mediaType === "video"
+          ? document.querySelector(".multimedia-video")
+          : mediaType === "audio"
+            ? document.querySelector(".multimedia-audio")
+            : null;
+
+      const youtubeIframe = document.getElementById("youtube-player");
+
+      const canPostMessageYouTube =
+        !!youtubeIframe &&
+        typeof youtubeIframe.contentWindow?.postMessage === "function";
+
+      const sendYouTubeCommand = (func, args = []) => {
+        if (!canPostMessageYouTube) return false;
+        try {
+          youtubeIframe.contentWindow.postMessage(
+            JSON.stringify({event: "command", func, args}),
+            "*",
+          );
+          return true;
+        } catch (error) {
+          console.error(
+            "❌ [Proyector] Error enviando comando YouTube:",
+            error,
+          );
+          return false;
+        }
+      };
+
+      const scheduleRetry = () => {
+        // Reintento corto para carreras: el control puede llegar antes de que el DOM tenga el video.
+        pendingMultimediaControlRef.current = payload;
+        const retries = pendingMultimediaControlRetriesRef.current;
+        if (retries >= 12) return; // ~2.4s
+        pendingMultimediaControlRetriesRef.current = retries + 1;
+        setTimeout(() => {
+          const pending = pendingMultimediaControlRef.current;
+          if (!pending) return;
+          handleControlMultimedia(null, pending);
+        }, 200);
+      };
 
       try {
         switch (action) {
           case "play":
-            mediaElement.play();
-            console.log("▶️ [Proyector] Reproduciendo multimedia");
+            if (mediaElement) {
+              mediaElement.play().catch((err) => {
+                console.warn(
+                  "⚠️ [Proyector] play() falló (posible política autoplay):",
+                  err,
+                );
+              });
+              console.log(
+                "▶️ [Proyector] Reproduciendo multimedia (video/audio)",
+              );
+            } else if (
+              sendYouTubeCommand("mute", []) ||
+              sendYouTubeCommand("playVideo", [])
+            ) {
+              // YouTube suele bloquear autoplay con sonido; arrancamos muteado.
+              // No dependemos de dataset.ready; si aún no está listo, YouTube ignorará
+              // el comando y el retry lo reenviará.
+              sendYouTubeCommand("mute", []);
+              sendYouTubeCommand("playVideo", []);
+              console.log(
+                "▶️ [Proyector] Reproduciendo multimedia (YouTube, iniciando en mute)",
+              );
+            } else {
+              console.log(
+                "⚠️ [Proyector] No se encontró elemento multimedia para play",
+              );
+              scheduleRetry();
+            }
             break;
           case "pause":
-            mediaElement.pause();
-            console.log("⏸️ [Proyector] Pausando multimedia");
+            if (mediaElement) {
+              mediaElement.pause();
+              console.log("⏸️ [Proyector] Pausando multimedia (video/audio)");
+            } else if (sendYouTubeCommand("pauseVideo", [])) {
+              console.log("⏸️ [Proyector] Pausando multimedia (YouTube)");
+            } else {
+              console.log(
+                "⚠️ [Proyector] No se encontró elemento multimedia para pause",
+              );
+              scheduleRetry();
+            }
             break;
           case "stop":
-            mediaElement.pause();
-            mediaElement.currentTime = 0;
-            console.log("⏹️ [Proyector] Deteniendo multimedia");
+            if (mediaElement) {
+              mediaElement.pause();
+              mediaElement.currentTime = 0;
+              console.log("⏹️ [Proyector] Deteniendo multimedia (video/audio)");
+            } else if (sendYouTubeCommand("stopVideo", [])) {
+              // "stop" en YouTube no siempre deja en 0 visualmente; reforzamos con seekTo.
+              sendYouTubeCommand("seekTo", [0, true]);
+              console.log("⏹️ [Proyector] Deteniendo multimedia (YouTube)");
+            } else {
+              console.log(
+                "⚠️ [Proyector] No se encontró elemento multimedia para stop",
+              );
+              scheduleRetry();
+            }
+            break;
+          case "seek":
+            if (typeof time !== "number" || Number.isNaN(time)) {
+              console.log("⚠️ [Proyector] seek sin 'time' válido:", time);
+              break;
+            }
+
+            if (mediaElement) {
+              mediaElement.currentTime = time;
+              console.log("⏩ [Proyector] Seek aplicado (video/audio):", time);
+            } else if (sendYouTubeCommand("seekTo", [time, true])) {
+              console.log("⏩ [Proyector] Seek aplicado (YouTube):", time);
+            } else {
+              console.log(
+                "⚠️ [Proyector] No se encontró elemento multimedia para seek",
+              );
+              scheduleRetry();
+            }
+            break;
+          case "volume":
+            if (typeof volume !== "number" || Number.isNaN(volume)) {
+              console.log("⚠️ [Proyector] volume sin 'volume' válido:", volume);
+              break;
+            }
+
+            if (mediaElement) {
+              const normalized = Math.max(0, Math.min(1, volume));
+              mediaElement.volume = normalized;
+              console.log(
+                "🔊 [Proyector] Volumen aplicado (video/audio):",
+                normalized,
+              );
+            } else {
+              const youtubeVol = Math.round(
+                Math.max(0, Math.min(1, volume)) * 100,
+              );
+              if (sendYouTubeCommand("setVolume", [youtubeVol])) {
+                // Mantener mute/unmute sincronizado con volumen.
+                if (youtubeVol === 0) {
+                  sendYouTubeCommand("mute", []);
+                } else {
+                  sendYouTubeCommand("unMute", []);
+                }
+                console.log(
+                  "🔊 [Proyector] Volumen aplicado (YouTube):",
+                  youtubeVol,
+                );
+              } else {
+                console.log(
+                  "⚠️ [Proyector] No se encontró elemento multimedia para volume",
+                );
+                scheduleRetry();
+              }
+            }
             break;
           case "limpiar":
             setModoProyector("welcome");
@@ -1312,6 +1535,7 @@ const Proyector = () => {
         transition={{duration: 0.8}}
         className="w-full h-screen flex flex-col items-center justify-center text-white relative overflow-hidden cursor-none"
         style={{
+          backgroundColor: "#000",
           // ✨ OPTIMIZACIONES CSS PARA ALTA CALIDAD
           imageRendering: "crisp-edges",
           textRendering: "optimizeLegibility",

@@ -8,6 +8,7 @@ import {
   FaTimes,
   FaPlus,
   FaBookOpen,
+  FaMobileAlt,
   FaVial,
   FaDev,
   FaSteam,
@@ -80,6 +81,13 @@ const menuItems = [
     icon: <FaStar />,
     label: "Favoritos",
     color: "text-blue-400",
+  },
+  {
+    id: "app-movil",
+    path: "/app-movil",
+    icon: <FaMobileAlt />,
+    label: "App móvil",
+    color: "text-emerald-300",
   },
   {
     id: "configuracion",

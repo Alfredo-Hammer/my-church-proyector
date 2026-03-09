@@ -25,7 +25,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     } catch (error) {
       console.error(
         "❌ [ModernMultimediaRenderer] Error validando archivo:",
-        error
+        error,
       );
       return false;
     }
@@ -35,7 +35,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     console.log("🎬 [ModernMultimediaRenderer] useEffect ejecutado");
     console.log(
       "🎬 [ModernMultimediaRenderer] multimediaActiva:",
-      multimediaActiva
+      multimediaActiva,
     );
 
     if (multimediaActiva) {
@@ -47,60 +47,60 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
       console.log("🔍 [ModernMultimediaRenderer] === DIAGNÓSTICO COMPLETO ===");
       console.log(
         "🔍 [ModernMultimediaRenderer] Tipo de objeto:",
-        typeof multimediaActiva
+        typeof multimediaActiva,
       );
       console.log(
         "🔍 [ModernMultimediaRenderer] ¿Es null/undefined?:",
-        multimediaActiva === null || multimediaActiva === undefined
+        multimediaActiva === null || multimediaActiva === undefined,
       );
       if (multimediaActiva) {
         console.log(
           "🔍 [ModernMultimediaRenderer] Propiedades disponibles:",
-          Object.keys(multimediaActiva)
+          Object.keys(multimediaActiva),
         );
         console.log(
           "🔍 [ModernMultimediaRenderer] Valores de propiedades:",
-          Object.entries(multimediaActiva)
+          Object.entries(multimediaActiva),
         );
       }
       console.log("🔍 [ModernMultimediaRenderer] === FIN DIAGNÓSTICO ===");
 
       console.log(
-        "🎬 [ModernMultimediaRenderer] ==========================================="
+        "🎬 [ModernMultimediaRenderer] ===========================================",
       );
       console.log(
         "🎬 [ModernMultimediaRenderer] Recibido multimedia:",
-        multimediaActiva
+        multimediaActiva,
       );
       console.log("🎬 [ModernMultimediaRenderer] Tipo:", multimediaActiva.tipo);
       console.log("🎬 [ModernMultimediaRenderer] URL:", multimediaActiva.url);
       console.log(
         "🎬 [ModernMultimediaRenderer] Nombre:",
-        multimediaActiva.nombre
+        multimediaActiva.nombre,
       );
 
       // ✨ LOGS ADICIONALES PARA DEBUGGING
       console.log(
-        "🎬 [ModernMultimediaRenderer] Todas las propiedades del objeto:"
+        "🎬 [ModernMultimediaRenderer] Todas las propiedades del objeto:",
       );
       Object.keys(multimediaActiva).forEach((key) => {
         console.log(`  - ${key}:`, multimediaActiva[key]);
       });
       console.log(
         "🎬 [ModernMultimediaRenderer] Tipo de dato del tipo:",
-        typeof multimediaActiva.tipo
+        typeof multimediaActiva.tipo,
       );
       console.log(
         "🎬 [ModernMultimediaRenderer] Longitud del tipo:",
-        multimediaActiva.tipo?.length
+        multimediaActiva.tipo?.length,
       );
       console.log(
         "🎬 [ModernMultimediaRenderer] Código de caracteres del tipo:",
-        multimediaActiva.tipo?.split("").map((c) => c.charCodeAt(0))
+        multimediaActiva.tipo?.split("").map((c) => c.charCodeAt(0)),
       );
 
       console.log(
-        "🎬 [ModernMultimediaRenderer] ==========================================="
+        "🎬 [ModernMultimediaRenderer] ===========================================",
       );
 
       // ✨ VALIDAR ARCHIVOS LOCALES ANTES DE RENDERIZAR
@@ -118,7 +118,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
           (url && (url.includes("youtube.com") || url.includes("youtu.be")))
         ) {
           console.log(
-            "🔍 [ModernMultimediaRenderer] YouTube detectado, saltando validación de archivo"
+            "🔍 [ModernMultimediaRenderer] YouTube detectado, saltando validación de archivo",
           );
           setFileValidated(true);
           return;
@@ -129,16 +129,16 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
           if (url && url.startsWith(`${getBaseURL()}/multimedia/`)) {
             console.log(
               "🔍 [ModernMultimediaRenderer] Validando archivo local:",
-              url
+              url,
             );
             const fileExists = await validateFileExists(url);
             console.log(
               "🔍 [ModernMultimediaRenderer] Resultado validación:",
-              fileExists
+              fileExists,
             );
             if (!fileExists) {
               console.log(
-                "❌ [ModernMultimediaRenderer] Archivo no encontrado, estableciendo error"
+                "❌ [ModernMultimediaRenderer] Archivo no encontrado, estableciendo error",
               );
               setError(`❌ Archivo no encontrado: ${url.split("/").pop()}`);
               setLoading(false);
@@ -149,7 +149,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
         }
 
         console.log(
-          "✅ [ModernMultimediaRenderer] Validación completada exitosamente"
+          "✅ [ModernMultimediaRenderer] Validación completada exitosamente",
         );
         setFileValidated(true);
       };
@@ -157,7 +157,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
       validateLocalFile();
     } else {
       console.log(
-        "🎬 [ModernMultimediaRenderer] multimedia es null, limpiando estado"
+        "🎬 [ModernMultimediaRenderer] multimedia es null, limpiando estado",
       );
       setError(null);
       setLoading(false);
@@ -181,19 +181,90 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   // ✨ FUNCIÓN PARA CONVERTIR URL DE YOUTUBE A FORMATO EMBED
   const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
-    let videoId = null;
+    const extractYouTubeId = (input) => {
+      if (!input) return null;
+      try {
+        // ID directo
+        if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+      } catch {
+        // ignore
+      }
 
-    if (url.includes("youtu.be/")) {
-      videoId = url.split("youtu.be/")[1].split("?")[0]; // Remover parámetros adicionales
-    } else if (url.includes("watch?v=")) {
-      videoId = url.split("watch?v=")[1].split("&")[0]; // Remover parámetros adicionales
-    } else if (url.includes("youtube.com/embed/")) {
-      return url; // ya es embed
+      // youtu.be/<id>
+      if (input.includes("youtu.be/")) {
+        return (
+          input.split("youtu.be/")[1]?.split("?")[0]?.split("&")[0] || null
+        );
+      }
+
+      // youtube.com/watch?v=<id>
+      if (input.includes("watch?v=")) {
+        return input.split("watch?v=")[1]?.split("&")[0] || null;
+      }
+
+      // youtube.com/embed/<id>
+      if (input.includes("youtube.com/embed/")) {
+        return (
+          input.split("youtube.com/embed/")[1]?.split("?")[0]?.split("&")[0] ||
+          null
+        );
+      }
+
+      // Fallback regex (watch, youtu.be, embed)
+      const match = input.match(
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/,
+      );
+      return match ? match[1] : null;
+    };
+
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return url;
+
+    // Usamos enablejsapi=1 para poder controlar play/pause/stop/seek/volume desde IPC.
+    // Mantener autoplay=0 para que el proyector NO se auto-reproduzca.
+    const originRaw =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "";
+    const origin =
+      originRaw &&
+      (originRaw.startsWith("http://") || originRaw.startsWith("https://"))
+        ? originRaw
+        : "";
+
+    // Preservar parámetros existentes (por ej. start) si la URL ya era válida.
+    let existingParams = null;
+    try {
+      const parsed = new URL(url);
+      existingParams = parsed.searchParams;
+    } catch {
+      existingParams = null;
     }
 
-    return videoId
-      ? `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1&fs=1`
-      : url;
+    const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+    if (existingParams) {
+      for (const [key, value] of existingParams.entries()) {
+        embedUrl.searchParams.set(key, value);
+      }
+    }
+
+    embedUrl.searchParams.set("autoplay", "0");
+    embedUrl.searchParams.set("controls", "0");
+    embedUrl.searchParams.set("rel", "0");
+    embedUrl.searchParams.set("modestbranding", "1");
+    embedUrl.searchParams.set("fs", "1");
+    embedUrl.searchParams.set("playsinline", "1");
+    embedUrl.searchParams.set("mute", "1");
+    embedUrl.searchParams.set("enablejsapi", "1");
+    if (origin && origin !== "null") {
+      embedUrl.searchParams.set("origin", origin);
+    } else {
+      // Si estamos en file:// (o sin origin), dejarlo fuera.
+      // Tener origin inválido puede hacer que YouTube ignore comandos postMessage.
+      embedUrl.searchParams.delete("origin");
+    }
+
+    return embedUrl.toString();
   };
 
   // Determinar el tipo real considerando YouTube
@@ -268,7 +339,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     console.log("❌ [ModernMultimediaRenderer] fileValidated:", fileValidated);
     console.log(
       "❌ [ModernMultimediaRenderer] urlReal definida:",
-      typeof urlReal !== "undefined"
+      typeof urlReal !== "undefined",
     );
     console.log("❌ [ModernMultimediaRenderer] urlReal valor:", urlReal);
     return (
@@ -318,36 +389,36 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   }
 
   console.log(
-    "🔍 [ModernMultimediaRenderer] =================== SWITCH DEBUG ==================="
+    "🔍 [ModernMultimediaRenderer] =================== SWITCH DEBUG ===================",
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Tipo recibido para switch:",
-    `"${tipoReal}"`
+    `"${tipoReal}"`,
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Comparando con 'youtube':",
-    tipoReal === "youtube"
+    tipoReal === "youtube",
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Comparando con 'video':",
-    tipoReal === "video"
+    tipoReal === "video",
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Comparando con 'audio':",
-    tipoReal === "audio"
+    tipoReal === "audio",
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Comparando con 'imagen':",
-    tipoReal === "imagen"
+    tipoReal === "imagen",
   );
   console.log(
     "🔍 [ModernMultimediaRenderer] Comparando con 'image':",
-    tipoReal === "image"
+    tipoReal === "image",
   );
   console.log("🔍 [ModernMultimediaRenderer] URL disponible:", !!urlReal);
   console.log("🔍 [ModernMultimediaRenderer] URL valor:", urlReal);
   console.log(
-    "🔍 [ModernMultimediaRenderer] =================== SWITCH DEBUG ==================="
+    "🔍 [ModernMultimediaRenderer] =================== SWITCH DEBUG ===================",
   );
 
   if (!tipoReal || !urlReal) {
@@ -360,7 +431,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   // ✨ ESPERAR A QUE LA VALIDACIÓN DE ARCHIVO ESTÉ COMPLETA
   if (!fileValidated) {
     console.log(
-      "⏳ [ModernMultimediaRenderer] Esperando validación de archivo..."
+      "⏳ [ModernMultimediaRenderer] Esperando validación de archivo...",
     );
     console.log("⏳ [ModernMultimediaRenderer] fileValidated:", fileValidated);
     console.log("⏳ [ModernMultimediaRenderer] error:", error);
@@ -381,7 +452,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   }
 
   console.log(
-    "✅ [ModernMultimediaRenderer] Validación completada, continuando con renderizado"
+    "✅ [ModernMultimediaRenderer] Validación completada, continuando con renderizado",
   );
   console.log("✅ [ModernMultimediaRenderer] fileValidated:", fileValidated);
   console.log("✅ [ModernMultimediaRenderer] error:", error);
@@ -402,23 +473,32 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               </div>
             )}
             <iframe
+              key={`youtube-${urlReal}`}
+              id="youtube-player"
               src={urlReal}
               title={nombre}
               className="w-full h-full border-0"
               style={{filter: "drop-shadow(0 0 20px rgba(0,0,0,0.5))"}}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
-              onLoad={() => {
+              onLoad={(e) => {
                 console.log(
-                  "📺 [ModernMultimediaRenderer] YouTube iframe onLoad disparado"
+                  "📺 [ModernMultimediaRenderer] YouTube iframe onLoad disparado",
                 );
+                try {
+                  // Señal simple para que Proyector.jsx sepa que el iframe ya está listo
+                  // antes de enviar comandos via postMessage.
+                  e.currentTarget.dataset.ready = "1";
+                } catch {
+                  // noop
+                }
                 handleMediaLoad("YouTube");
                 setLoading(false);
               }}
               onError={(e) => {
                 console.error(
                   "❌ [ModernMultimediaRenderer] Error en iframe YouTube:",
-                  e
+                  e,
                 );
                 handleMediaError("youtube", e);
               }}
@@ -441,10 +521,9 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               </div>
             )}
             <video
-              key={`video-${urlReal}-${Date.now()}`}
+              key={`video-${urlReal}`}
               src={urlReal}
               controls={false}
-              autoPlay
               muted={false}
               playsInline
               preload="metadata"
@@ -461,33 +540,21 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               onCanPlay={() => {
                 console.log(
                   "🎥 [Proyector] Video listo para reproducir:",
-                  urlReal
+                  urlReal,
                 );
                 handleMediaLoad("Video");
-                // ✨ FORZAR REPRODUCCIÓN AUTOMÁTICA
-                const video = document.querySelector(".multimedia-video");
-                if (video) {
-                  video.play().catch((error) => {
-                    console.log(
-                      "🎥 [Proyector] Autoplay bloqueado, intentando sin audio:",
-                      error
-                    );
-                    video.muted = true;
-                    video.play();
-                  });
-                }
               }}
               onLoadedData={() => {
                 console.log(
                   "🎥 [Proyector] Datos del video cargados:",
-                  urlReal
+                  urlReal,
                 );
                 setLoading(false);
               }}
               onLoadedMetadata={() => {
                 console.log(
                   "🎥 [Proyector] Metadatos del video cargados:",
-                  urlReal
+                  urlReal,
                 );
               }}
               onVolumeChange={(e) => {
@@ -495,7 +562,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
                   "🔊 [Proyector] Volumen:",
                   e.target.volume,
                   "Muted:",
-                  e.target.muted
+                  e.target.muted,
                 );
               }}
             />
@@ -543,8 +610,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             <audio
               src={urlReal}
               controls={false}
-              autoPlay
-              className="w-full max-w-lg bg-white/10 rounded-lg p-2"
+              className="multimedia-audio w-full max-w-lg bg-white/10 rounded-lg p-2"
               onError={(e) => handleMediaError("audio", e)}
               onLoadStart={() =>
                 console.log("🎵 [Proyector] Iniciando carga de audio")
@@ -552,16 +618,6 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               onCanPlay={() => {
                 console.log("🎵 [Proyector] Audio listo para reproducir");
                 handleMediaLoad("Audio");
-                // ✨ FORZAR REPRODUCCIÓN AUTOMÁTICA DE AUDIO
-                const audio = document.querySelector("audio");
-                if (audio) {
-                  audio.play().catch((error) => {
-                    console.log(
-                      "🎵 [Proyector] Error en autoplay de audio:",
-                      error
-                    );
-                  });
-                }
               }}
               onLoadedData={() => setLoading(false)}
             />
@@ -621,7 +677,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
       console.log("❌ [ModernMultimediaRenderer] LLEGÓ AL DEFAULT CASE");
       console.log(
         "❌ [ModernMultimediaRenderer] Tipo no reconocido:",
-        `"${tipoReal}"`
+        `"${tipoReal}"`,
       );
       console.log("❌ [ModernMultimediaRenderer] URL:", urlReal);
       console.log("❌ [ModernMultimediaRenderer] Nombre:", nombre);

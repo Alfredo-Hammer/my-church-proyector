@@ -522,15 +522,8 @@ const Multimedia = () => {
         mediaCompleta.filter((m) => m.isUrl),
       );
 
-      if (mediaCompleta && mediaCompleta.length > 0 && !currentMedia) {
-        let archivoSeleccionado =
-          mediaCompleta.find((m) => m.favorito) ||
-          mediaCompleta.sort(
-            (a, b) => (b.reproducido || 0) - (a.reproducido || 0),
-          )[0] ||
-          mediaCompleta[0];
-        playMediaGlobal(archivoSeleccionado);
-      }
+      // IMPORTANTE: no auto-reproducir al navegar a esta página.
+      // El usuario debe iniciar la reproducción manualmente.
     } catch (error) {
       console.error("❌ [Multimedia] Error al cargar multimedia:", error);
       showError(`❌ Error cargando biblioteca: ${error.message}`);
@@ -776,6 +769,31 @@ const Multimedia = () => {
             message: `Proyectando: ${multimediaData.nombre}`,
             duration: 3000,
           });
+
+          // Si en escritorio ya está reproduciendo, iniciar reproducción en el proyector.
+          // Esto evita tener que dar "play" manualmente en la pantalla del proyector.
+          if (isPlaying && window.electron?.send) {
+            setTimeout(() => {
+              try {
+                window.electron.send("proyector-control-multimedia", {
+                  action: "play",
+                });
+
+                // Sincronizar volumen actual (0..1). Para YouTube esto también hace unMute si corresponde.
+                if (typeof volume === "number" && !Number.isNaN(volume)) {
+                  window.electron.send("proyector-control-multimedia", {
+                    action: "volume",
+                    volume: Math.max(0, Math.min(1, volume / 100)),
+                  });
+                }
+              } catch (error) {
+                console.warn(
+                  "⚠️ [Multimedia] No se pudo enviar PLAY al proyector:",
+                  error,
+                );
+              }
+            }, 400);
+          }
         } else {
           throw new Error("Error estableciendo multimedia activa en BD");
         }

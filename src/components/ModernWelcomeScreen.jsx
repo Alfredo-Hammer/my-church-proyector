@@ -2,6 +2,8 @@ import {motion} from "framer-motion";
 
 // ✨ COMPONENTE DE PANTALLA DE BIENVENIDA MODERNA
 const ModernWelcomeScreen = ({configuracion}) => {
+  const colorPrimario = configuracion?.colorPrimario || "#fb923c";
+
   return (
     <motion.div
       className="absolute inset-0 flex flex-col items-center justify-center z-10"
@@ -21,7 +23,7 @@ const ModernWelcomeScreen = ({configuracion}) => {
           <motion.div
             className="absolute inset-0 rounded-full opacity-75"
             style={{
-              background: `conic-gradient(from 0deg, ${configuracion.colorPrimario}, transparent, ${configuracion.colorPrimario})`,
+              background: `conic-gradient(from 0deg, ${colorPrimario}, transparent, ${colorPrimario})`,
               padding: "8px",
               filter: "blur(8px)",
             }}
@@ -84,19 +86,24 @@ const ModernWelcomeScreen = ({configuracion}) => {
         <h1
           className={`${configuracion.fontSize.titulo} font-black mb-6 text-center max-w-6xl relative`}
           style={{
-            background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #ffffff, ${configuracion.colorPrimario})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundSize: "200% 200%",
+            background: "none",
+            backgroundColor: "transparent",
             filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))",
           }}
         >
           <span
             style={{
-              background: `linear-gradient(135deg, ${configuracion.colorPrimario}, #ffffff, ${configuracion.colorPrimario})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              display: "inline-block",
+              backgroundColor: "transparent",
+              backgroundImage: `linear-gradient(135deg, ${colorPrimario}, #ffffff, ${colorPrimario})`,
               backgroundSize: "200% 200%",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              color: "transparent",
+              willChange: "transform",
+              transform: "translateZ(0)",
+              backfaceVisibility: "hidden",
             }}
           >
             {configuracion.nombreIglesia}

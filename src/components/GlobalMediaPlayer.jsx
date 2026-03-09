@@ -38,16 +38,62 @@ const GlobalMediaPlayer = () => {
     stop,
     setVolume,
     seek,
+    videoRef,
   } = useMediaPlayer();
+
+  const tipoActual = currentMedia?.tipo || currentMedia?.type;
+  const isYouTube = Boolean(currentMedia?.isYoutube);
+  const canControlYouTube = isYouTube && !useInvidious;
+
+  const sendYouTubeCommand = (func, args = []) => {
+    try {
+      if (!canControlYouTube) return;
+      const iframe = document.getElementById("global-youtube-player");
+      const win = iframe?.contentWindow;
+      if (!win) return;
+      win.postMessage(JSON.stringify({event: "command", func, args}), "*");
+    } catch (error) {
+      console.warn("⚠️ Error enviando comando a YouTube:", error);
+    }
+  };
+
+  // Mantener el video local sincronizado con isPlaying
+  useEffect(() => {
+    if (!currentMedia) return;
+    if (currentMedia.isYoutube || tipoActual !== "video") return;
+
+    const el = videoRef?.current;
+    if (!el) return;
+
+    if (isPlaying) {
+      el.play().catch(() => {
+        // Si el autoplay está bloqueado, no romper la UI.
+      });
+    } else {
+      el.pause();
+    }
+  }, [isPlaying, currentMedia?.isYoutube, tipoActual, videoRef]);
+
+  // Mantener YouTube sincronizado con isPlaying (sin autoplay)
+  useEffect(() => {
+    if (!currentMedia) return;
+    if (!canControlYouTube) return;
+
+    if (isPlaying) {
+      sendYouTubeCommand("playVideo");
+    } else {
+      sendYouTubeCommand("pauseVideo");
+    }
+  }, [isPlaying, currentMedia?.url, canControlYouTube]);
 
   // Recalcular posición del iframe/video cuando cambiamos de página o cambia el tamaño
   useEffect(() => {
-    if (!currentMedia?.isYoutube && currentMedia?.tipo !== "video") return;
+    if (!currentMedia?.isYoutube && tipoActual !== "video") return;
 
     const updatePosition = () => {
       if (isInMultimediaPage) {
         const multimediaContainer = document.getElementById(
-          "multimedia-preview-container"
+          "multimedia-preview-container",
         );
         if (multimediaContainer) {
           const rect = multimediaContainer.getBoundingClientRect();
@@ -105,12 +151,7 @@ const GlobalMediaPlayer = () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [
-    isInMultimediaPage,
-    isMinimized,
-    currentMedia?.isYoutube,
-    currentMedia?.tipo,
-  ]);
+  }, [isInMultimediaPage, isMinimized, currentMedia?.isYoutube, tipoActual]);
 
   // ✨ Resetear estados cuando cambia el video
   useEffect(() => {
@@ -138,11 +179,11 @@ const GlobalMediaPlayer = () => {
     // Limitar a los bordes de la pantalla
     const clampedRight = Math.max(
       0,
-      Math.min(newRight, window.innerWidth - 320)
+      Math.min(newRight, window.innerWidth - 320),
     );
     const clampedBottom = Math.max(
       0,
-      Math.min(newBottom, window.innerHeight - 180)
+      Math.min(newBottom, window.innerHeight - 180),
     );
 
     setPipPosition({
@@ -233,11 +274,48 @@ const GlobalMediaPlayer = () => {
     if (useInvidious) {
       // Usar primera instancia de Invidious disponible
       const instance = invidiousInstances[0];
-      return `https://${instance}/embed/${videoId}?autoplay=1&quality=dash`;
+      return `https://${instance}/embed/${videoId}?autoplay=0&quality=dash`;
     }
 
     // YouTube normal
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    const origin = encodeURIComponent(window.location.origin);
+    return `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&controls=0&enablejsapi=1&origin=${origin}`;
+  };
+
+  const handleTogglePlayPause = () => {
+    // Primero actualiza el estado global/proyector
+    togglePlayPause();
+
+    // Además controla el preview local de YouTube
+    if (canControlYouTube) {
+      if (isPlaying) {
+        sendYouTubeCommand("pauseVideo");
+      } else {
+        sendYouTubeCommand("playVideo");
+      }
+    }
+  };
+
+  const handleStop = () => {
+    stop();
+
+    // Detener preview local
+    if (canControlYouTube) {
+      sendYouTubeCommand("stopVideo");
+      sendYouTubeCommand("seekTo", [0, true]);
+    }
+
+    if (!isYouTube && tipoActual === "video") {
+      const el = videoRef?.current;
+      if (el) {
+        el.pause();
+        try {
+          el.currentTime = 0;
+        } catch {
+          // Ignorar si el navegador bloquea por estado
+        }
+      }
+    }
   };
 
   // Renderizar el iframe de YouTube/Invidious con fallback automático
@@ -273,7 +351,7 @@ const GlobalMediaPlayer = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                stop();
+                handleStop();
               }}
               className="absolute top-2 right-2 z-20 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all"
               title="Cerrar video"
@@ -300,12 +378,19 @@ const GlobalMediaPlayer = () => {
 
           <iframe
             key={`video-iframe-${useInvidious ? "invidious" : "youtube"}`}
+            id={useInvidious ? undefined : "global-youtube-player"}
             src={getVideoUrl(useInvidious)}
             className="w-full h-full"
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             title="YouTube Video"
+            onLoad={() => {
+              // Asegurar que no quede reproduciendo por estados previos
+              if (!useInvidious && !isPlaying) {
+                sendYouTubeCommand("pauseVideo");
+              }
+            }}
             onError={() => {
               console.warn("❌ Error cargando video, intentando fallback...");
               if (!useInvidious) {
@@ -321,7 +406,7 @@ const GlobalMediaPlayer = () => {
 
   // Renderizar video local - similar al iframe de YouTube
   const renderLocalVideo = () => {
-    if (currentMedia.isYoutube || currentMedia.tipo !== "video") return null;
+    if (currentMedia.isYoutube || tipoActual !== "video") return null;
 
     // Usar posición arrastrable si no estamos en multimedia
     const finalPosition = isInMultimediaPage
@@ -345,7 +430,7 @@ const GlobalMediaPlayer = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                stop();
+                handleStop();
               }}
               className="absolute top-2 right-2 z-20 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg transition-all"
               title="Cerrar video"
@@ -357,8 +442,9 @@ const GlobalMediaPlayer = () => {
           <video
             key="video-persistent"
             src={currentMedia.url}
-            controls
-            autoPlay={isPlaying}
+            controls={false}
+            ref={videoRef}
+            autoPlay={false}
             className="w-full h-full"
             onPlay={() =>
               console.log("🎥 Video local reproduciéndose en flotante")
@@ -394,7 +480,7 @@ const GlobalMediaPlayer = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                togglePlayPause();
+                handleTogglePlayPause();
               }}
               className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-all"
             >
@@ -408,7 +494,7 @@ const GlobalMediaPlayer = () => {
                   {getMediaName()}
                 </span>
               </div>
-              {currentMedia.tipo === "audio" && (
+              {tipoActual === "audio" && (
                 <div className="text-xs text-gray-400">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </div>
@@ -429,7 +515,7 @@ const GlobalMediaPlayer = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                stop();
+                handleStop();
               }}
               className="text-gray-400 hover:text-red-400 transition-colors"
               title="Cerrar"
@@ -473,14 +559,14 @@ const GlobalMediaPlayer = () => {
               {/* Controles */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={togglePlayPause}
+                  onClick={handleTogglePlayPause}
                   className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all transform hover:scale-105"
                 >
                   {isPlaying ? <FaPause /> : <FaPlay />}
                 </button>
 
                 <button
-                  onClick={stop}
+                  onClick={handleStop}
                   className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full transition-all"
                 >
                   <FaStop />
@@ -488,7 +574,7 @@ const GlobalMediaPlayer = () => {
               </div>
 
               {/* Barra de progreso (solo para audio) */}
-              {currentMedia.tipo === "audio" && (
+              {tipoActual === "audio" && (
                 <div className="flex-1 max-w-md">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-gray-400 w-12 text-right">

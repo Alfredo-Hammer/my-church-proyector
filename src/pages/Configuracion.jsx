@@ -1,5 +1,4 @@
 import {useState, useEffect} from "react";
-import {useNavigate} from "react-router-dom";
 import {
   IoSave,
   IoRefresh,
@@ -10,7 +9,6 @@ import {
   IoInformationCircle,
   IoEye,
   IoTrash,
-  IoAdd,
 } from "react-icons/io5";
 import {FaVideo, FaUpload, FaTimes} from "react-icons/fa";
 
@@ -20,8 +18,6 @@ const getBaseURL = () => {
 };
 
 const Configuracion = () => {
-  const navigate = useNavigate();
-
   const [configuracion, setConfiguracion] = useState({
     nombreIglesia: "", // ✨ Vacío hasta que el usuario agregue su iglesia
     eslogan: "", // ✨ Vacío hasta que el usuario agregue su eslogan
@@ -51,7 +47,7 @@ const Configuracion = () => {
 
   // Estados para fondos
   const [fondos, setFondos] = useState([]);
-  const [fondoSeleccionado, setFondoSeleccionado] = useState(null);
+  const [, setFondoSeleccionado] = useState(null);
   const [mostrarSelectorFondo, setMostrarSelectorFondo] = useState(false);
   const [previsualizandoFondo, setPrevisualizandoFondo] = useState(null);
 
@@ -60,11 +56,10 @@ const Configuracion = () => {
 
   // Estados generales
   const [archivoLogo, setArchivoLogo] = useState(null);
-  const [logoPreview, setLogoPreview] = useState(null); // Preview temporal del logo
+  const [, setLogoPreview] = useState(null); // Preview temporal del logo
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState(null);
-  const [mostrarAvanzado, setMostrarAvanzado] = useState(false);
 
   // ✨ FUNCIÓN PARA CARGAR FONDOS
   const cargarFondos = async () => {

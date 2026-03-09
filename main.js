@@ -8,14 +8,30 @@ if (!DEBUG_LOGS) {
 }
 
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell, globalShortcut } = require("electron");
+
+// Permitir reproducción sin gesto del usuario (necesario para controlar play/pause por IPC en el proyector).
+// No fuerza autoplay por sí mismo; solo evita que Chromium rechace `media.play()`.
+try {
+  app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+} catch (error) {
+  // No bloquear la app si Electron cambia esta API.
+}
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const express = require("express");
 const cors = require("cors");
 const https = require("https");
 const http = require("http");
+const QRCode = require("qrcode");
 // Importar la nueva base de datos
 const dbNew = require("./db-new");
+
+// ==================================================
+// Bridge: Express -> Renderer (Biblia preview)
+// ==================================================
+const pendingBibliaPreview = new Map();
+let bibliaPreviewListenerRegistered = false;
 
 // Importar funciones específicas que aún se necesitan de la base de datos antigua
 const {
@@ -189,6 +205,75 @@ function iniciarServidorMultimedia() {
   const expressApp = express();
   const PORT = 3001;
 
+  if (!bibliaPreviewListenerRegistered) {
+    bibliaPreviewListenerRegistered = true;
+    ipcMain.on('control-biblia-preview-response', (event, payload) => {
+      try {
+        const id = payload?.id;
+        if (!id) return;
+        const pending = pendingBibliaPreview.get(id);
+        if (!pending) return;
+        pendingBibliaPreview.delete(id);
+        pending.resolve(payload);
+      } catch (error) {
+        console.error('❌ [MAIN] Error procesando control-biblia-preview-response:', error);
+      }
+    });
+  }
+
+  const solicitarBibliaPreviewAlRenderer = ({ libroId, capitulo, versiculo }) => {
+    return new Promise((resolve, reject) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        reject(new Error('Ventana principal no disponible'));
+        return;
+      }
+
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const timeout = setTimeout(() => {
+        pendingBibliaPreview.delete(id);
+        reject(new Error('Timeout obteniendo vista previa de Biblia'));
+      }, 2500);
+
+      pendingBibliaPreview.set(id, {
+        resolve: (payload) => {
+          clearTimeout(timeout);
+          resolve(payload);
+        },
+      });
+
+      mainWindow.webContents.send('control-biblia-preview', {
+        id,
+        libroId,
+        capitulo,
+        versiculo,
+      });
+    });
+  };
+
+  const obtenerIpsLocalesV4 = () => {
+    const nets = os.networkInterfaces();
+    const ips = [];
+
+    for (const nombre of Object.keys(nets || {})) {
+      for (const net of nets[nombre] || []) {
+        const family = typeof net.family === 'string' ? net.family : String(net.family);
+        const isV4 = family === 'IPv4' || family === '4';
+        if (!isV4) continue;
+        if (net.internal) continue;
+        if (!net.address) continue;
+        ips.push(net.address);
+      }
+    }
+
+    return Array.from(new Set(ips));
+  };
+
+  const obtenerUrlPreferidaParaMovil = () => {
+    const ips = obtenerIpsLocalesV4();
+    const ip = ips[0] || '127.0.0.1';
+    return `http://${ip}:${PORT}`;
+  };
+
   // Habilitar CORS para React
   expressApp.use(cors());
 
@@ -357,6 +442,736 @@ function iniciarServidorMultimedia() {
       buildFiles,
       totalFiles: [...new Set([...publicFiles, ...buildFiles])]
     });
+  });
+
+  // ✅ Endpoint mínimo para apps externas (móvil) - prueba de conectividad
+  expressApp.get('/api/ping', (req, res) => {
+    res.json({
+      ok: true,
+      app: 'GloryView Proyector',
+      version: app.getVersion(),
+      serverTime: new Date().toISOString(),
+    });
+  });
+
+  // ✅ Info de conexión para emparejar app móvil (LAN)
+  // Respuesta: { ok:true, port, urls, preferredUrl, qrValue }
+  expressApp.get('/api/connection-info', (req, res) => {
+    try {
+      const ips = obtenerIpsLocalesV4();
+      const urls = ips.map((ip) => `http://${ip}:${PORT}`);
+      const preferredUrl = obtenerUrlPreferidaParaMovil();
+
+      res.json({
+        ok: true,
+        app: 'GloryView Proyector',
+        version: app.getVersion(),
+        port: PORT,
+        urls,
+        preferredUrl,
+        qrValue: preferredUrl,
+        serverTime: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/connection-info:', error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ QR PNG para emparejar (contenido = URL preferida)
+  // Query opcional: ?url=http://ip:3001
+  expressApp.get('/api/qr.png', async (req, res) => {
+    try {
+      const raw = String(req.query?.url || '').trim();
+      const value = raw && /^https?:\/\//i.test(raw) ? raw : obtenerUrlPreferidaParaMovil();
+
+      const png = await QRCode.toBuffer(value, {
+        type: 'png',
+        width: 360,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      });
+
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(png);
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/qr.png:', error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Catálogo de himnos para app móvil (siempre desde el escritorio)
+  // Query: ?tipo=moravo|vida
+  // Respuesta: { ok:true, tipo, himnos:[{ id, numero, titulo, parrafos, fuente }] }
+  // Nota: incluye también los himnos creados en la BD (Agregar Himno) para reflejar cambios.
+  const leerJsonHimnosSeguro = (filename) => {
+    const candidatos = [
+      // Producción: build (si el archivo fue copiado desde public/)
+      path.join(buildDir, 'data', filename),
+      // Desarrollo: fuente del proyecto
+      path.join(__dirname, 'src', 'data', filename),
+      // Último recurso: carpeta data del repo
+      path.join(__dirname, 'data', filename),
+    ];
+
+    for (const ruta of candidatos) {
+      try {
+        if (fs.existsSync(ruta)) {
+          const raw = fs.readFileSync(ruta, 'utf-8');
+          const json = JSON.parse(raw);
+          return Array.isArray(json) ? json : [];
+        }
+      } catch (e) {
+        console.warn('⚠️ [MAIN] No se pudo leer JSON de himnos:', ruta, e?.message);
+      }
+    }
+
+    return [];
+  };
+
+  expressApp.get('/api/himnos', async (req, res) => {
+    try {
+      const tipo = String(req.query?.tipo || 'moravo').toLowerCase() === 'vida' ? 'vida' : 'moravo';
+      const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+
+      const base = leerJsonHimnosSeguro(filename);
+      const baseNormalizados = base
+        .map((h) => ({
+          id: `base:${tipo}:${h?.numero ?? ''}`,
+          numero: h?.numero ?? '',
+          titulo: h?.titulo ?? '',
+          parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+          fuente: tipo,
+        }))
+        .filter((h) => String(h.titulo || '').trim());
+
+      const himnosDb = await dbNew.obtenerHimnos();
+      const dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
+        .map((h) => {
+          let letra = [];
+          try {
+            letra = JSON.parse(h?.letra || '[]');
+          } catch {
+            letra = [];
+          }
+
+          return {
+            id: `db:${h?.id ?? ''}`,
+            numero: h?.numero ?? '',
+            titulo: h?.titulo ?? '',
+            parrafos: Array.isArray(letra) ? letra : [],
+            fuente: 'personal',
+          };
+        })
+        .filter((h) => String(h.titulo || '').trim());
+
+      return res.json({
+        ok: true,
+        tipo,
+        himnos: [...baseNormalizados, ...dbNormalizados],
+      });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/himnos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Proyectar himno desde app móvil
+  // Body esperado: { parrafo: string, titulo: string, numero: string|number, origen?: string }
+  expressApp.post('/api/proyector/himno', async (req, res) => {
+    try {
+      const himno = req.body;
+
+      if (!himno || typeof himno !== 'object') {
+        return res.status(400).json({ ok: false, error: 'Body inválido' });
+      }
+
+      const parrafo = typeof himno.parrafo === 'string' ? himno.parrafo : '';
+      const titulo = typeof himno.titulo === 'string' ? himno.titulo : '';
+      const numero = himno.numero ?? '';
+      const origen = typeof himno.origen === 'string' ? himno.origen : 'himno';
+
+      if (!parrafo.trim() || !titulo.trim()) {
+        return res
+          .status(400)
+          .json({ ok: false, error: 'Faltan parrafo/titulo' });
+      }
+
+      const payload = { parrafo, titulo, numero, origen };
+
+      // Reutilizar la misma lógica que ipcMain.on("proyectar-himno")
+      if (!proyectorWindow) {
+        const nuevaVentana = createProyectorWindow();
+        if (!nuevaVentana) {
+          return res.status(500).json({ ok: false, error: 'No se pudo abrir proyector' });
+        }
+
+        nuevaVentana.webContents.once('did-finish-load', () => {
+          setTimeout(() => {
+            if (nuevaVentana && !nuevaVentana.isDestroyed()) {
+              console.log('📤 [MAIN] (API) Enviando himno a nuevo proyector:', payload.titulo);
+              nuevaVentana.webContents.send('mostrar-himno', payload);
+            }
+          }, 1000);
+        });
+      } else {
+        console.log('📤 [MAIN] (API) Enviando himno a proyector existente:', payload.titulo);
+        proyectorWindow.webContents.send('mostrar-himno', payload);
+      }
+
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error proyectando himno:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Limpiar proyector desde app móvil
+  // Respuesta: { ok:true }
+  expressApp.post('/api/proyector/limpiar', async (req, res) => {
+    try {
+      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+        proyectorWindow.webContents.send('limpiar-proyector');
+        console.log('🧹 [MAIN] (API) Comando limpiar enviado al proyector');
+        return res.json({ ok: true });
+      }
+
+      return res
+        .status(500)
+        .json({ ok: false, error: 'Ventana del proyector no disponible' });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/proyector/limpiar:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Control Biblia desde app móvil (sin duplicar texto en el móvil)
+  // Body esperado: { libroId: string, capitulo: number, versiculo: number }
+  // Nota: el renderer (React) resuelve el texto y llama a window.electron.enviarVersiculo.
+  expressApp.post('/api/control/biblia/proyectar', (req, res) => {
+    try {
+      const { libroId, capitulo, versiculo } = req.body || {};
+
+      if (!libroId || typeof libroId !== 'string') {
+        return res.status(400).json({ ok: false, error: 'libroId inválido' });
+      }
+
+      const cap = Number(capitulo);
+      const ver = Number(versiculo);
+
+      if (!Number.isFinite(cap) || cap <= 0) {
+        return res.status(400).json({ ok: false, error: 'capitulo inválido' });
+      }
+
+      if (!Number.isFinite(ver) || ver <= 0) {
+        return res.status(400).json({ ok: false, error: 'versiculo inválido' });
+      }
+
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return res.status(500).json({ ok: false, error: 'Ventana principal no disponible' });
+      }
+
+      mainWindow.webContents.send('control-biblia-proyectar', {
+        libroId: libroId.trim(),
+        capitulo: cap,
+        versiculo: ver,
+      });
+
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error control Biblia:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Vista previa Biblia (para mostrar anterior/actual/siguiente en la app móvil)
+  // Body esperado: { libroId: string, capitulo: number, versiculo: number }
+  // Respuesta: { ok:true, data:{ libroId, nombreLibro, capitulo, versiculo, prev, current, next } }
+  expressApp.post('/api/control/biblia/preview', async (req, res) => {
+    try {
+      const { libroId, capitulo, versiculo } = req.body || {};
+
+      if (!libroId || typeof libroId !== 'string') {
+        return res.status(400).json({ ok: false, error: 'libroId inválido' });
+      }
+
+      const cap = Number(capitulo);
+      const ver = Number(versiculo);
+
+      if (!Number.isFinite(cap) || cap <= 0) {
+        return res.status(400).json({ ok: false, error: 'capitulo inválido' });
+      }
+
+      if (!Number.isFinite(ver) || ver <= 0) {
+        return res.status(400).json({ ok: false, error: 'versiculo inválido' });
+      }
+
+      const payload = await solicitarBibliaPreviewAlRenderer({
+        libroId: libroId.trim(),
+        capitulo: cap,
+        versiculo: ver,
+      });
+
+      if (!payload?.ok) {
+        return res.status(500).json({ ok: false, error: payload?.error || 'Error obteniendo vista previa' });
+      }
+
+      return res.json({ ok: true, data: payload.data });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/biblia/preview:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ==================================================
+  // ✅ Multimedia (App móvil)
+  // ==================================================
+
+  const getRequestBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+  const absolutizarUrl = (req, url) => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const base = getRequestBaseUrl(req);
+    if (raw.startsWith('/')) return `${base}${raw}`;
+    return `${base}/${raw}`;
+  };
+
+  const toLocalhostUrl = (url) => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('/')) return `http://localhost:${PORT}${raw}`;
+    return `http://localhost:${PORT}/${raw}`;
+  };
+
+  const asegurarProyectorListo = async () => {
+    if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+      proyectorWindow = createProyectorWindow();
+      if (!proyectorWindow) {
+        throw new Error('No se pudo crear la ventana del proyector');
+      }
+
+      await new Promise((resolve) => {
+        proyectorWindow.webContents.once('did-finish-load', resolve);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    if (proyectorWindow.webContents.isLoading()) {
+      await new Promise((resolve) => {
+        proyectorWindow.webContents.once('did-finish-load', resolve);
+      });
+    }
+
+    try {
+      proyectorWindow.focus();
+    } catch {
+      // Ignorar
+    }
+
+    return proyectorWindow;
+  };
+
+  // ✅ Listar multimedia
+  // Respuesta: { ok:true, multimedia:[...] }
+  expressApp.get('/api/multimedia', async (req, res) => {
+    try {
+      const multimedia = await obtenerMultimedia();
+      const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
+        const urlRel = String(m?.url || '').trim();
+        return {
+          ...m,
+          url: urlRel ? absolutizarUrl(req, urlRel) : '',
+          url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
+        };
+      });
+      return res.json({ ok: true, multimedia: normalizados });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/multimedia:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Listar multimedia favoritos
+  expressApp.get('/api/multimedia/favoritos', async (req, res) => {
+    try {
+      const multimedia = await obtenerMultimediaFavoritos();
+      const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
+        const urlRel = String(m?.url || '').trim();
+        return {
+          ...m,
+          url: urlRel ? absolutizarUrl(req, urlRel) : '',
+          url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
+        };
+      });
+      return res.json({ ok: true, multimedia: normalizados });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/multimedia/favoritos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Proyectar multimedia desde app móvil
+  // Body esperado: { id?: number|string, url?: string, tipo?: 'video'|'audio'|'imagen', nombre?: string }
+  expressApp.post('/api/control/multimedia/proyectar', async (req, res) => {
+    try {
+      const { id, url, tipo, nombre } = req.body || {};
+
+      let media = null;
+      if (id !== undefined && id !== null && String(id).trim() !== '') {
+        const all = await obtenerMultimedia();
+        const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
+        if (found) {
+          media = found;
+        }
+      }
+
+      const finalTipo = String(tipo || media?.tipo || '').trim();
+      const finalNombre = String(nombre || media?.nombre || '').trim();
+      const finalUrl = String(url || media?.url || '').trim();
+
+      if (!finalTipo || !finalUrl) {
+        return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
+      }
+
+      const proyector = await asegurarProyectorListo();
+      const payload = {
+        tipo: finalTipo,
+        url: toLocalhostUrl(finalUrl),
+        nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
+      };
+
+      proyector.webContents.send('mostrar-multimedia', payload);
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/multimedia/proyectar:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Favorito multimedia
+  // Body: { favorito: boolean }
+  expressApp.post('/api/multimedia/:id/favorito', async (req, res) => {
+    try {
+      const id = Number(req.params?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+      const favorito = Boolean(req.body?.favorito);
+      const result = await actualizarFavoritoMultimedia(id, favorito);
+      if (!result?.success) {
+        return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
+      }
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/multimedia/:id/favorito:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ==================================================
+  // ✅ Presentaciones Slides (App móvil)
+  // ==================================================
+
+  // ✅ Listado (ligero)
+  // Respuesta: { ok:true, presentaciones:[{id,nombre,descripcion,total_slides,slide_actual,favorito,updated_at,created_at}] }
+  expressApp.get('/api/presentaciones-slides', async (req, res) => {
+    try {
+      const presentaciones = await obtenerPresentacionesSlides();
+      const lista = (Array.isArray(presentaciones) ? presentaciones : []).map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        total_slides: p.total_slides,
+        slide_actual: p.slide_actual,
+        favorito: Boolean(p.favorito),
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }));
+      return res.json({ ok: true, presentaciones: lista });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Detalle (incluye slides)
+  expressApp.get('/api/presentaciones-slides/:id', async (req, res) => {
+    try {
+      const id = Number(req.params?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+
+      const presentacion = await obtenerPresentacionSlidesPorId(id);
+      if (!presentacion) {
+        return res.status(404).json({ ok: false, error: 'No encontrada' });
+      }
+
+      return res.json({ ok: true, presentacion });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  const proyectarPresentacionSlide = async ({ presentacionId, slideIndex }) => {
+    const presentacion = await obtenerPresentacionSlidesPorId(presentacionId);
+    if (!presentacion) {
+      throw new Error('Presentación no encontrada');
+    }
+    const slides = Array.isArray(presentacion.slides) ? presentacion.slides : [];
+    if (slides.length === 0) {
+      throw new Error('Presentación sin slides');
+    }
+
+    const index = Number(slideIndex);
+    if (!Number.isFinite(index) || index < 0 || index >= slides.length) {
+      throw new Error('slideIndex inválido');
+    }
+
+    const slideData = {
+      tipo: 'slide',
+      slide: slides[index],
+      presentation: {
+        name: presentacion.nombre,
+        currentIndex: index,
+        totalSlides: slides.length,
+      },
+    };
+
+    const proyector = await asegurarProyectorListo();
+    proyector.webContents.send('proyectar-slide-data', slideData);
+
+    try {
+      await actualizarSlideActualPresentacion(presentacionId, index);
+    } catch {
+      // No bloquear si falla actualizar en BD
+    }
+
+    return { presentacionId, slideIndex: index, totalSlides: slides.length };
+  };
+
+  // ✅ Proyectar slide (por id y slideIndex opcional)
+  // Body: { id:number, slideIndex?:number }
+  expressApp.post('/api/control/presentaciones-slides/proyectar', async (req, res) => {
+    try {
+      const id = Number(req.body?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+
+      const presentacion = await obtenerPresentacionSlidesPorId(id);
+      if (!presentacion) {
+        return res.status(404).json({ ok: false, error: 'No encontrada' });
+      }
+
+      const slideIndex =
+        req.body?.slideIndex !== undefined && req.body?.slideIndex !== null
+          ? Number(req.body.slideIndex)
+          : Number(presentacion.slide_actual || 0);
+
+      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex });
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/proyectar:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Siguiente slide
+  // Body: { id:number }
+  expressApp.post('/api/control/presentaciones-slides/siguiente', async (req, res) => {
+    try {
+      const id = Number(req.body?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+
+      const presentacion = await obtenerPresentacionSlidesPorId(id);
+      if (!presentacion) {
+        return res.status(404).json({ ok: false, error: 'No encontrada' });
+      }
+
+      const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
+      if (total <= 0) {
+        return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
+      }
+
+      const current = Number(presentacion.slide_actual || 0);
+      const next = Math.min(total - 1, current + 1);
+
+      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: next });
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/siguiente:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Slide anterior
+  // Body: { id:number }
+  expressApp.post('/api/control/presentaciones-slides/anterior', async (req, res) => {
+    try {
+      const id = Number(req.body?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+
+      const presentacion = await obtenerPresentacionSlidesPorId(id);
+      if (!presentacion) {
+        return res.status(404).json({ ok: false, error: 'No encontrada' });
+      }
+
+      const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
+      if (total <= 0) {
+        return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
+      }
+
+      const current = Number(presentacion.slide_actual || 0);
+      const prev = Math.max(0, current - 1);
+
+      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: prev });
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/anterior:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Favorito presentación slides
+  // Body: { favorito: boolean }
+  expressApp.post('/api/presentaciones-slides/:id/favorito', async (req, res) => {
+    try {
+      const id = Number(req.params?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+      const favorito = Boolean(req.body?.favorito);
+      const result = await actualizarFavoritoPresentacionSlides(id, favorito);
+      if (!result?.success) {
+        return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
+      }
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id/favorito:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ==================================================
+  // ✅ Fondos (App móvil)
+  // ==================================================
+
+  // ✅ Listar fondos
+  // Respuesta: { ok:true, fondos:[{id,url,tipo,nombre,activo,created_at}] }
+  expressApp.get('/api/fondos', async (req, res) => {
+    try {
+      const fondos = await dbNew.obtenerFondos();
+      const base = getRequestBaseUrl(req);
+
+      const normalizados = (Array.isArray(fondos) ? fondos : []).map((f) => {
+        const rawUrl = String(f?.url || '').trim();
+        let urlPublica = rawUrl;
+        if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
+          if (urlPublica.startsWith('/')) {
+            urlPublica = `${base}${urlPublica}`;
+          } else {
+            urlPublica = `${base}/fondos/${path.basename(urlPublica)}`;
+          }
+        }
+
+        return {
+          id: f.id,
+          url: urlPublica,
+          url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
+          tipo: f.tipo || 'imagen',
+          nombre: f.nombre || `Fondo ${f.id}`,
+          activo: Boolean(f.activo),
+          created_at: f.created_at || new Date().toISOString(),
+        };
+      });
+
+      return res.json({ ok: true, fondos: normalizados });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/fondos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Fondo activo
+  expressApp.get('/api/fondos/activo', async (req, res) => {
+    try {
+      const fondos = await dbNew.obtenerFondos();
+      const activo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo);
+      if (!activo) return res.json({ ok: true, fondo: null });
+
+      const base = getRequestBaseUrl(req);
+      const rawUrl = String(activo?.url || '').trim();
+      let urlPublica = rawUrl;
+      if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
+        if (urlPublica.startsWith('/')) {
+          urlPublica = `${base}${urlPublica}`;
+        } else {
+          urlPublica = `${base}/fondos/${path.basename(urlPublica)}`;
+        }
+      }
+
+      return res.json({
+        ok: true,
+        fondo: {
+          ...activo,
+          url: urlPublica,
+          url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
+        },
+      });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/fondos/activo:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Establecer fondo activo
+  // Body: { id:number }
+  expressApp.post('/api/fondos/activo', async (req, res) => {
+    try {
+      const id = Number(req.body?.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ ok: false, error: 'id inválido' });
+      }
+
+      const ok = await dbNew.activarFondo(id);
+      if (!ok) {
+        return res.status(500).json({ ok: false, error: 'No se pudo activar el fondo' });
+      }
+
+      const fondos = await dbNew.obtenerFondos();
+      const fondoActivo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo) || null;
+
+      // Notificar a todas las ventanas (incluye proyector)
+      const todasLasVentanas = BrowserWindow.getAllWindows();
+      todasLasVentanas.forEach((ventana) => {
+        if (!ventana.isDestroyed()) {
+          if (fondoActivo && fondoActivo.url && !String(fondoActivo.url).startsWith('http')) {
+            ventana.webContents.send('actualizar-fondo-activo', {
+              ...fondoActivo,
+              url: toLocalhostUrl(fondoActivo.url),
+            });
+          } else {
+            ventana.webContents.send('actualizar-fondo-activo', fondoActivo);
+          }
+        }
+      });
+
+      return res.json({ ok: true, fondo: fondoActivo });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error POST /api/fondos/activo:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   // ✨ ENDPOINT PARA DEBUGGEAR FONDOS DISPONIBLES
@@ -836,6 +1651,23 @@ function createMainWindow() {
       ],
     },
 
+    // ✨ MENÚ EDITAR - Necesario para habilitar copiar/pegar en macOS (Cmd+C / Cmd+V)
+    {
+      label: "Editar",
+      submenu: [
+        { role: "undo", label: "Deshacer" },
+        { role: "redo", label: "Rehacer" },
+        { type: "separator" },
+        { role: "cut", label: "Cortar" },
+        { role: "copy", label: "Copiar" },
+        { role: "paste", label: "Pegar" },
+        { role: "pasteAndMatchStyle", label: "Pegar y adaptar estilo" },
+        { role: "delete", label: "Eliminar" },
+        { type: "separator" },
+        { role: "selectAll", label: "Seleccionar todo" },
+      ],
+    },
+
     // ✨ MENÚ NAVEGACIÓN - Acceso rápido a todas las secciones
     {
       label: "Navegación",
@@ -909,6 +1741,23 @@ function createMainWindow() {
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navegar-a-ruta', '/favoritos');
+              mainWindow.focus();
+            }
+          },
+        },
+      ],
+    },
+
+    // 📱 MENÚ APP MÓVIL - Emparejamiento por QR
+    {
+      label: "App móvil",
+      submenu: [
+        {
+          label: "Abrir",
+          accelerator: "CmdOrCtrl+Shift+M",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('navegar-a-ruta', '/app-movil');
               mainWindow.focus();
             }
           },
@@ -2125,46 +2974,55 @@ function registrarHandlers() {
   // ✨ HANDLERS PARA CONTROL REMOTO DEL PROYECTOR
   ipcMain.on("proyector-play", (event) => {
     console.log("🎮 [Main] Comando play recibido para proyector");
-    const todasLasVentanas = BrowserWindow.getAllWindows();
-    todasLasVentanas.forEach(ventana => {
-      if (!ventana.isDestroyed() && ventana.getTitle().includes("Glory")) {
-        ventana.webContents.send("control-multimedia", { action: "play" });
-        console.log("▶️ [Main] Comando play enviado al proyector");
-      }
-    });
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("control-multimedia", { action: "play" });
+      console.log("▶️ [Main] Comando play enviado al proyector");
+    } else {
+      console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar PLAY");
+    }
   });
 
   ipcMain.on("proyector-pause", (event) => {
     console.log("🎮 [Main] Comando pause recibido para proyector");
-    const todasLasVentanas = BrowserWindow.getAllWindows();
-    todasLasVentanas.forEach(ventana => {
-      if (!ventana.isDestroyed() && ventana.getTitle().includes("Glory")) {
-        ventana.webContents.send("control-multimedia", { action: "pause" });
-        console.log("⏸️ [Main] Comando pause enviado al proyector");
-      }
-    });
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("control-multimedia", { action: "pause" });
+      console.log("⏸️ [Main] Comando pause enviado al proyector");
+    } else {
+      console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar PAUSE");
+    }
   });
 
   ipcMain.on("proyector-stop", (event) => {
     console.log("🎮 [Main] Comando stop recibido para proyector");
-    const todasLasVentanas = BrowserWindow.getAllWindows();
-    todasLasVentanas.forEach(ventana => {
-      if (!ventana.isDestroyed() && ventana.getTitle().includes("Glory")) {
-        ventana.webContents.send("control-multimedia", { action: "stop" });
-        console.log("⏹️ [Main] Comando stop enviado al proyector");
-      }
-    });
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("control-multimedia", { action: "stop" });
+      console.log("⏹️ [Main] Comando stop enviado al proyector");
+    } else {
+      console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar STOP");
+    }
   });
 
   ipcMain.on("proyector-limpiar", (event) => {
     console.log("🎮 [Main] Comando limpiar recibido para proyector");
-    const todasLasVentanas = BrowserWindow.getAllWindows();
-    todasLasVentanas.forEach(ventana => {
-      if (!ventana.isDestroyed() && ventana.getTitle().includes("Glory")) {
-        ventana.webContents.send("control-multimedia", { action: "limpiar" });
-        console.log("🧹 [Main] Comando limpiar enviado al proyector");
-      }
-    });
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("control-multimedia", { action: "limpiar" });
+      console.log("🧹 [Main] Comando limpiar enviado al proyector");
+    } else {
+      console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar LIMPIAR");
+    }
+  });
+
+  // ✨ Handler genérico para controles adicionales (volumen/seek, etc.)
+  ipcMain.on("proyector-control-multimedia", (event, payload) => {
+    console.log("🎮 [Main] Control multimedia genérico recibido:", payload);
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("control-multimedia", payload);
+    } else {
+      console.warn(
+        "⚠️ [Main] No hay proyectorWindow activo para enviar control genérico:",
+        payload,
+      );
+    }
   });
 
   // ====================================

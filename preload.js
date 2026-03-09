@@ -132,7 +132,9 @@ contextBridge.exposeInMainWorld("electron", {
       "proyectar-slide-data", // ✨ Canal para slides individuales
       "navegar-a-ruta", // ✨ Canal para navegación desde menú
       "abrir-buscador-biblia", // ✨ Canal para abrir buscador de Biblia
-      "seleccionar-libro-biblia" // ✨ Canal para seleccionar libro bíblico
+      "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
+      "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
+      "control-biblia-preview" // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
     ];
 
     if (validChannels.includes(channel)) {
@@ -151,7 +153,9 @@ contextBridge.exposeInMainWorld("electron", {
       "proyectar-slide-data", // ✨ Canal para slides individuales
       "navegar-a-ruta", // ✨ Canal para navegación desde menú
       "abrir-buscador-biblia", // ✨ Canal para abrir buscador de Biblia
-      "seleccionar-libro-biblia" // ✨ Canal para seleccionar libro bíblico
+      "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
+      "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
+      "control-biblia-preview" // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
     ];
 
     if (validChannels.includes(channel)) {

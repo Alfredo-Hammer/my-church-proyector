@@ -19,7 +19,7 @@ export const useMediaPlayer = () => {
 export const MediaPlayerProvider = ({children}) => {
   const [currentMedia, setCurrentMedia] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(50);
+  const [volume, setVolumeState] = useState(50);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -71,6 +71,19 @@ export const MediaPlayerProvider = ({children}) => {
     }
   }, [volume]);
 
+  const sendProjectorControl = (payload) => {
+    try {
+      if (window.electron?.send) {
+        window.electron.send("proyector-control-multimedia", payload);
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ [MediaPlayer] No se pudo enviar control al proyector:",
+        error,
+      );
+    }
+  };
+
   const playMedia = (media) => {
     console.log("🎵 [MediaPlayer] Reproduciendo:", media);
 
@@ -90,10 +103,12 @@ export const MediaPlayerProvider = ({children}) => {
       audioRef.current.play().catch((err) => {
         console.error("❌ Error reproduciendo audio:", err);
       });
+      sendProjectorControl({action: "play"});
     }
     // Para video, YouTube e imágenes, se renderizarán en el componente
     else {
       setIsPlaying(true);
+      sendProjectorControl({action: "play"});
     }
   };
 
@@ -102,6 +117,7 @@ export const MediaPlayerProvider = ({children}) => {
       audioRef.current.pause();
     }
     setIsPlaying(false);
+    sendProjectorControl({action: "pause"});
   };
 
   const resume = () => {
@@ -111,6 +127,7 @@ export const MediaPlayerProvider = ({children}) => {
       });
     }
     setIsPlaying(true);
+    sendProjectorControl({action: "play"});
   };
 
   const stop = () => {
@@ -120,6 +137,7 @@ export const MediaPlayerProvider = ({children}) => {
     }
     setIsPlaying(false);
     setCurrentTime(0);
+    sendProjectorControl({action: "stop"});
   };
 
   const togglePlayPause = () => {
@@ -134,6 +152,20 @@ export const MediaPlayerProvider = ({children}) => {
     if (audioRef.current && currentMedia?.tipo === "audio") {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
+    }
+
+    // También intentar sincronizar el proyector (video/audio/youtube)
+    if (typeof time === "number" && !Number.isNaN(time)) {
+      sendProjectorControl({action: "seek", time});
+    }
+  };
+
+  const setVolume = (newVolume) => {
+    setVolumeState(newVolume);
+
+    if (typeof newVolume === "number" && !Number.isNaN(newVolume)) {
+      const normalized = Math.max(0, Math.min(1, newVolume / 100));
+      sendProjectorControl({action: "volume", volume: normalized});
     }
   };
 

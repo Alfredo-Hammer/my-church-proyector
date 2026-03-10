@@ -53,6 +53,16 @@ contextBridge.exposeInMainWorld("electron", {
   // ✨ MÉTODO SEND GENÉRICO PARA ENVÍO DIRECTO
   send: (channel, data) => ipcRenderer.send(channel, data),
 
+  // ====================================
+  // APIs DE CONTROL MULTIMEDIA AL PROYECTOR
+  // ====================================
+  proyectorControlMultimedia: (payload) =>
+    ipcRenderer.send("proyector-control-multimedia", payload),
+  proyectorPlay: () => ipcRenderer.send("proyector-play"),
+  proyectorPause: () => ipcRenderer.send("proyector-pause"),
+  proyectorStop: () => ipcRenderer.send("proyector-stop"),
+  proyectorLimpiar: () => ipcRenderer.send("proyector-limpiar"),
+
   // Fondos
   seleccionarFondo: () => ipcRenderer.invoke("seleccionar-fondo"),
   agregarFondo: (fondo) => ipcRenderer.invoke("agregar-fondo", fondo),

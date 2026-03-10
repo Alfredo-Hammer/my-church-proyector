@@ -27,6 +27,22 @@ export const MediaPlayerProvider = ({children}) => {
   const audioRef = useRef(null);
   const videoRef = useRef(null);
 
+  const broadcastRef = useRef(null);
+
+  const sendBroadcastControl = (payload) => {
+    try {
+      if (typeof BroadcastChannel === "undefined") return;
+      if (!broadcastRef.current) {
+        broadcastRef.current = new BroadcastChannel(
+          "gloryview-proyector-control",
+        );
+      }
+      broadcastRef.current.postMessage(payload);
+    } catch {
+      // noop
+    }
+  };
+
   // Crear elementos de audio/video persistentes
   useEffect(() => {
     // Crear elemento de audio global
@@ -73,14 +89,27 @@ export const MediaPlayerProvider = ({children}) => {
 
   const sendProjectorControl = (payload) => {
     try {
+      // IPC explícito (preferido)
+      if (window.electron?.proyectorControlMultimedia) {
+        window.electron.proyectorControlMultimedia(payload);
+        return;
+      }
+
+      // Compatibilidad: send genérico
       if (window.electron?.send) {
         window.electron.send("proyector-control-multimedia", payload);
+        return;
       }
+
+      // Fallback para modo web o casos donde IPC no esté inyectado
+      sendBroadcastControl(payload);
     } catch (error) {
       console.warn(
         "⚠️ [MediaPlayer] No se pudo enviar control al proyector:",
         error,
       );
+      // Último fallback
+      sendBroadcastControl(payload);
     }
   };
 

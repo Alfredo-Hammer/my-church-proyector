@@ -12,7 +12,6 @@ import {
 import {motion} from "framer-motion";
 import StatWidget from "../components/StatWidget";
 import QuickAccessButton from "../components/QuickAccessButton";
-import NewsCard from "../components/NewsCard";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
 
 const Inicio = () => {
@@ -244,34 +243,6 @@ const Inicio = () => {
           initial="hidden"
           animate="visible"
         >
-          {/* 1️⃣ SECCIÓN BIENVENIDA */}
-          <motion.section variants={itemVariants} className="mb-8">
-            <div className="rounded-2xl bg-gradient-to-br from-white/5 to-white/0 backdrop-blur-sm border border-white/10 p-6 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                {mensaje}, 👋
-              </h2>
-              {configuracion.nombreIglesia && (
-                <>
-                  <p className="text-lg text-white/80 mb-2 flex items-center justify-center gap-2">
-                    <FaChurch className="text-emerald-400" />
-                    {configuracion.nombreIglesia}
-                  </p>
-                  {configuracion.eslogan && (
-                    <p className="text-white/60 italic mb-4">
-                      {configuracion.eslogan}
-                    </p>
-                  )}
-                  {configuracion.direccion && (
-                    <p className="text-white/50 flex items-center justify-center gap-2 text-sm">
-                      <FaMapMarkerAlt className="text-emerald-400" />
-                      {configuracion.direccion}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          </motion.section>
-
           {/* 2️⃣ SECCIÓN ESTADÍSTICAS */}
           <motion.section variants={itemVariants} className="mb-8">
             <h3 className="text-xl font-semibold text-white mb-4">

@@ -2,7 +2,6 @@ import {Link, useLocation} from "react-router-dom";
 import {
   FaHome,
   FaMusic,
-  FaBook,
   FaStar,
   FaBars,
   FaTimes,
@@ -15,6 +14,7 @@ import {
   FaPlay,
   FaFile,
   FaImage,
+  FaBook,
 } from "react-icons/fa";
 
 const menuItems = [
@@ -23,35 +23,30 @@ const menuItems = [
     path: "/",
     icon: <FaHome />,
     label: "Inicio",
-    color: "text-orange-500",
   },
   {
     id: "himnos",
     path: "/himnos",
     icon: <FaMusic />,
     label: "Himnario Moravo",
-    color: "text-green-400",
   },
   {
     id: "vida-cristiana",
     path: "/vida-cristiana",
     icon: <FaBookOpen />,
     label: "Vida Cristiana",
-    color: "text-fuchsia-300",
   },
   {
     id: "agregar-himno",
     path: "/agregar-himno",
     icon: <FaPlus />,
     label: "Agregar Himno",
-    color: "text-orange-300",
   },
   {
     id: "biblia",
     path: "/biblia",
     icon: <FaBook />,
     label: "Biblia",
-    color: "text-purple-400",
   },
   // ✨ NUEVA OPCIÓN PARA PRESENTACIONES
   {
@@ -59,55 +54,47 @@ const menuItems = [
     path: "/presentacion-manager",
     icon: <FaFile />,
     label: "Presentaciones",
-    color: "text-cyan-400",
   },
   {
     id: "multimedia",
     path: "/multimedia",
     icon: <FaPlay />,
     label: "Fuentes Multimedia",
-    color: "text-red-500",
   },
   {
     id: "gestion-fondos",
     path: "/gestion-fondos",
     icon: <FaImage />,
     label: "Gestión de Fondos",
-    color: "text-indigo-400",
   },
   {
     id: "favoritos",
     path: "/favoritos",
     icon: <FaStar />,
     label: "Favoritos",
-    color: "text-blue-400",
   },
   {
     id: "app-movil",
     path: "/app-movil",
     icon: <FaMobileAlt />,
     label: "App móvil",
-    color: "text-emerald-300",
   },
   {
     id: "configuracion",
     path: "/configuracion",
     icon: <FaVial />,
     label: "Configuración",
-    color: "text-pink-500",
   },
   {
     id: "contactos",
     path: "/contactos",
     icon: <FaSteam />,
     label: "Soporte",
-    color: "text-yellow-500",
   },
   {
     id: "version",
     icon: <FaDev />,
     label: "Versión 1.0.0",
-    color: "text-brown-500",
     isLabel: true,
   },
 ];
@@ -119,71 +106,105 @@ const Sidebar = ({isCollapsed, setIsCollapsed}) => {
     <div
       className={`${
         isCollapsed ? "w-16" : "w-60"
-      } h-screen bg-gray-900 text-white flex flex-col p-4 space-y-6 transition-all duration-300 shrink-0 border-r border-gray-700`}
+      } h-screen bg-gray-950 text-white flex flex-col p-3 transition-all duration-300 shrink-0 border-r border-gray-800`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 px-2">
+      <div className="flex items-center justify-between px-2 pt-1 pb-2">
         {!isCollapsed && (
-          <div className="flex-grow flex items-center justify-center p-2">
-            <h1 className="text-2xl font-extrabold text-white tracking-wide">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500">
-                Glory
-              </span>
-              <span className="ml-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500">
-                View
-              </span>
-            </h1>
+          <div className="flex-grow flex items-center justify-center py-2">
+            <div className="flex items-center gap-2">
+              <img
+                src="/images/icon-256.png"
+                alt="GloryView"
+                className="w-9 h-9 rounded-md object-contain"
+                draggable={false}
+              />
+              <h1 className="text-lg font-semibold tracking-wide text-gray-100">
+                GloryView
+              </h1>
+            </div>
           </div>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-xl"
+          className="text-lg text-gray-300 hover:text-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+          aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
           {isCollapsed ? <FaBars /> : <FaTimes />}
         </button>
       </div>
 
+      <div className="h-px bg-gray-800 mx-2" />
+
       {/* Menú - ✨ USAR ID COMO KEY Y MANEJAR ELEMENTOS SIN PATH */}
-      {menuItems.map((item) => {
-        // ✨ SI ES SOLO UNA ETIQUETA (como versión), renderizar diferente
-        if (item.isLabel) {
+      <nav className="flex-1 pt-2 space-y-2">
+        {menuItems.map((item) => {
+          // ✨ SI ES SOLO UNA ETIQUETA (como versión), renderizar diferente
+          if (item.isLabel) {
+            return (
+              <div
+                key={item.id} // ✨ USAR ID COMO KEY
+                className="group relative flex items-center gap-3 px-3 py-2.5 rounded opacity-60 cursor-default"
+              >
+                <span className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-gray-700 bg-gradient-to-br from-indigo-900/35 via-gray-900 to-gray-950">
+                  <span className="text-lg text-gray-400">{item.icon}</span>
+                </span>
+                {!isCollapsed && (
+                  <span className="text-xs text-gray-400">{item.label}</span>
+                )}
+                {isCollapsed && (
+                  <span className="sr-only group-hover:not-sr-only absolute left-16 bg-gray-900 text-xs px-2 py-1 rounded border border-gray-800 z-50 whitespace-nowrap">
+                    {item.label}
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          const isActive = location.pathname === item.path;
+
+          // ✨ ELEMENTOS NORMALES CON LINK
           return (
-            <div
+            <Link
               key={item.id} // ✨ USAR ID COMO KEY
-              className="group flex items-center gap-3 p-2 rounded opacity-60 cursor-default"
+              to={item.path}
+              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ${
+                isActive
+                  ? "bg-gray-900 text-gray-100"
+                  : "text-gray-300 hover:text-gray-100 hover:bg-gray-900"
+              }`}
             >
-              <span className={`${item.color} text-xl`}>{item.icon}</span>
+              <span
+                className={`inline-flex items-center justify-center w-9 h-9 rounded-md border transition-colors bg-gradient-to-br ${
+                  isActive
+                    ? "from-indigo-800/45 via-gray-900 to-gray-950 border-indigo-900/40"
+                    : "from-indigo-900/30 via-gray-900 to-gray-950 border-gray-700 group-hover:from-indigo-800/45 group-hover:via-gray-900 group-hover:to-gray-950 group-hover:border-indigo-900/40"
+                }`}
+              >
+                <span
+                  className={`text-lg transition-colors ${
+                    isActive
+                      ? "text-gray-100"
+                      : "text-gray-400 group-hover:text-gray-100"
+                  }`}
+                >
+                  {item.icon}
+                </span>
+              </span>
               {!isCollapsed && (
-                <span className="text-xs text-gray-400">{item.label}</span>
-              )}
-              {isCollapsed && (
-                <span className="sr-only group-hover:not-sr-only absolute left-16 bg-black text-xs px-2 py-1 rounded z-50">
+                <span className={`text-sm ${isActive ? "font-medium" : ""}`}>
                   {item.label}
                 </span>
               )}
-            </div>
+              {isCollapsed && (
+                <span className="sr-only group-hover:not-sr-only absolute left-16 bg-gray-900 text-xs px-2 py-1 rounded border border-gray-800 z-50 whitespace-nowrap">
+                  {item.label}
+                </span>
+              )}
+            </Link>
           );
-        }
-
-        // ✨ ELEMENTOS NORMALES CON LINK
-        return (
-          <Link
-            key={item.id} // ✨ USAR ID COMO KEY
-            to={item.path}
-            className={`group flex items-center gap-3 p-2 rounded hover:bg-gray-700 transition-colors ${
-              location.pathname === item.path ? "bg-gray-700" : ""
-            }`}
-          >
-            <span className={`${item.color} text-xl`}>{item.icon}</span>
-            {!isCollapsed && <span className="text-sm">{item.label}</span>}
-            {isCollapsed && (
-              <span className="sr-only group-hover:not-sr-only absolute left-16 bg-black text-xs px-2 py-1 rounded z-50">
-                {item.label}
-              </span>
-            )}
-          </Link>
-        );
-      })}
+        })}
+      </nav>
     </div>
   );
 };

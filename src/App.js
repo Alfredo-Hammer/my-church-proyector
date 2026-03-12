@@ -26,6 +26,75 @@ function AppContent() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Migración 1 vez: favoritos antiguos (localStorage) -> backend (SQLite/config)
+    // Esto hace que el estado sea el mismo en escritorio y móvil.
+    const API_BASE = "http://localhost:3001";
+
+    const migrarKey = async ({
+      storageKey,
+      migradoKey,
+      tipo,
+    }) => {
+      try {
+        if (localStorage.getItem(migradoKey) === "1") return;
+
+        const raw = localStorage.getItem(storageKey) || "[]";
+        const numeros = JSON.parse(raw);
+        if (!Array.isArray(numeros) || numeros.length === 0) {
+          localStorage.setItem(migradoKey, "1");
+          return;
+        }
+
+        // Enviar al backend como IDs base:<tipo>:<numero>
+        for (const n of numeros) {
+          const numero = String(n ?? "").trim();
+          if (!numero) continue;
+
+          const id = `base:${tipo}:${numero}`;
+          try {
+            const res = await fetch(
+              `${API_BASE}/api/himnos/${encodeURIComponent(id)}/favorito`,
+              {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ favorito: true }),
+              },
+            );
+            const json = await res.json().catch(() => null);
+            if (!res.ok || !json?.ok) {
+              // No abortar toda la migración por un himno
+              console.warn("⚠️ [Migración favoritos] Falló", id, json);
+            }
+          } catch (err) {
+            console.warn("⚠️ [Migración favoritos] Error", id, err);
+          }
+        }
+
+        localStorage.setItem(migradoKey, "1");
+      } catch (err) {
+        // Si hay error, no marcamos como migrado para reintentar luego.
+        console.warn("⚠️ [Migración favoritos] No completada:", storageKey, err);
+      }
+    };
+
+    (async () => {
+      await migrarKey({
+        storageKey: "himnosFavoritos",
+        migradoKey: "himnosFavoritos:migrado:v2",
+        tipo: "moravo",
+      });
+      await migrarKey({
+        storageKey: "himnosVidaCristianaFavoritos",
+        migradoKey: "himnosVidaCristianaFavoritos:migrado:v2",
+        tipo: "vida",
+      });
+    })();
+  }, []);
+
+  useEffect(() => {
     // Listener para navegación desde el menú de Electron
     const handleNavigation = (event, ruta) => {
       console.log("🧭 [App] Navegando a:", ruta);

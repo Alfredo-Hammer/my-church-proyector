@@ -63,12 +63,17 @@ contextBridge.exposeInMainWorld("electron", {
   proyectorStop: () => ipcRenderer.send("proyector-stop"),
   proyectorLimpiar: () => ipcRenderer.send("proyector-limpiar"),
 
+  // Debug
+  debugLog: (message, data) =>
+    ipcRenderer.send("debug-log", { message, data, ts: Date.now() }),
+
   // Fondos
   seleccionarFondo: () => ipcRenderer.invoke("seleccionar-fondo"),
   agregarFondo: (fondo) => ipcRenderer.invoke("agregar-fondo", fondo),
   obtenerFondos: () => ipcRenderer.invoke("obtener-fondos"),
   obtenerFondoActivo: () => ipcRenderer.invoke("obtener-fondo-activo"),
   establecerFondoActivo: (id) => ipcRenderer.invoke("establecer-fondo-activo", id),
+  actualizarFondo: (fondo) => ipcRenderer.invoke("actualizar-fondo", fondo),
   eliminarFondo: (id) => ipcRenderer.invoke("eliminar-fondo", id),
   notificarFondoActivo: (fondo) => ipcRenderer.send("fondo-activo-cambiado", fondo),
   copiarArchivoAFondos: (sourcePath) => ipcRenderer.invoke("copiarArchivoAFondos", sourcePath),
@@ -135,16 +140,29 @@ contextBridge.exposeInMainWorld("electron", {
     const validChannels = [
       "mostrar-himno",
       "mostrar-versiculo",
+      "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
       "limpiar-proyector",
       "configuracion-actualizada", // ✨ NUEVO CANAL
       "proyectar-slide-data", // ✨ Canal para slides individuales
+      "proyectar-multimedia-data", // ✨ Canal para enviar multimedia al proyector
+
+      // Multimedia activa (proyector)
+      "actualizar-multimedia-activa",
+      "limpiar-multimedia-activa",
+
+      // Control remoto multimedia (proyector)
+      "control-multimedia",
       "navegar-a-ruta", // ✨ Canal para navegación desde menú
       "abrir-buscador-biblia", // ✨ Canal para abrir buscador de Biblia
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
-      "control-biblia-preview" // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+      "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+
+      // Control remoto: reproducir multimedia "solo audio" en el escritorio (sin proyectar)
+      "solo-audio-play",
+      "solo-audio-control",
     ];
 
     if (validChannels.includes(channel)) {
@@ -152,20 +170,58 @@ contextBridge.exposeInMainWorld("electron", {
     }
   },
 
+  removeListener: (channel, callback) => {
+    const validChannels = [
+      "mostrar-himno",
+      "mostrar-versiculo",
+      "mostrar-multimedia",
+      "fondo-seleccionado",
+      "actualizar-fondo-activo",
+      "limpiar-proyector",
+      "configuracion-actualizada",
+      "proyectar-slide-data",
+      "proyectar-multimedia-data",
+
+      "actualizar-multimedia-activa",
+      "limpiar-multimedia-activa",
+      "control-multimedia",
+      "navegar-a-ruta",
+      "abrir-buscador-biblia",
+      "seleccionar-libro-biblia",
+      "control-biblia-proyectar",
+      "control-biblia-preview",
+
+      "solo-audio-play",
+      "solo-audio-control",
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeListener(channel, callback);
+    }
+  },
+
   removeAllListeners: (channel) => {
     const validChannels = [
       "mostrar-himno",
       "mostrar-versiculo",
+      "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
       "limpiar-proyector",
       "configuracion-actualizada", // ✨ NUEVO CANAL
       "proyectar-slide-data", // ✨ Canal para slides individuales
+      "proyectar-multimedia-data", // ✨ Canal para enviar multimedia al proyector
+
+      "actualizar-multimedia-activa",
+      "limpiar-multimedia-activa",
+      "control-multimedia",
       "navegar-a-ruta", // ✨ Canal para navegación desde menú
       "abrir-buscador-biblia", // ✨ Canal para abrir buscador de Biblia
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
-      "control-biblia-preview" // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+      "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+
+      "solo-audio-play",
+      "solo-audio-control",
     ];
 
     if (validChannels.includes(channel)) {

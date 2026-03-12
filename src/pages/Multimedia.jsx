@@ -88,6 +88,7 @@ const Multimedia = () => {
   // ✨ Usar el reproductor global del contexto
   const {
     currentMedia,
+    lastPlayedMedia,
     isPlaying,
     volume,
     setVolume,
@@ -121,6 +122,34 @@ const Multimedia = () => {
 
   // ✨ Ref para controlar el video local (cuando está en la página Multimedia)
   const videoRef = useRef(null);
+
+  // Auto-reproducir videos locales al seleccionarlos desde la biblioteca.
+  // El reproductor global (contexto) no reproduce videos por sí mismo.
+  useEffect(() => {
+    if (!currentMedia) return;
+
+    const mediaType = currentMedia?.tipo || currentMedia?.type;
+    if (mediaType !== "video") return;
+
+    // Intentar reproducir después de que React actualice el src del <video>
+    const id = setTimeout(() => {
+      const el = videoRef.current;
+      if (!el) return;
+      try {
+        const p = el.play();
+        if (p && typeof p.catch === "function") {
+          p.catch(() => {
+            // Autoplay puede fallar dependiendo del estado del elemento/codec.
+            // El usuario aún puede presionar Play manualmente.
+          });
+        }
+      } catch {
+        // noop
+      }
+    }, 0);
+
+    return () => clearTimeout(id);
+  }, [currentMedia]);
 
   // ✨ VERIFICAR Y CONFIGURAR ELECTRON API AL INICIO
   useEffect(() => {
@@ -481,32 +510,145 @@ const Multimedia = () => {
         console.log("     - Objeto completo:", media);
       });
 
-      // Cargar URLs guardadas y fusionar con multimedia de BD
-      const savedUrls = localStorage.getItem("multimedia-urls");
-      let urlsGuardadas = [];
-      if (savedUrls) {
-        try {
-          urlsGuardadas = JSON.parse(savedUrls);
-          // Asegurar que todas las URLs tengan la propiedad isUrl
-          urlsGuardadas = urlsGuardadas.map((url) => ({
-            ...url,
-            isUrl: true, // Forzar isUrl en caso de URLs antiguas
-          }));
-          console.log(
-            "📺 [Multimedia] URLs guardadas cargadas:",
-            urlsGuardadas.length,
+      // Migrar URLs antiguas (localStorage) a la BD para que también aparezcan en la app móvil.
+      // Esto evita que la sección Multimedia del móvil quede vacía si el usuario solo usaba URLs.
+      let multimediaDespues = multimedia || [];
+      try {
+        // Nota: históricamente se han guardado URLs en distintas claves de localStorage.
+        // - multimedia-urls (legacy)
+        // - multimedia-quick-links (accesos rápidos)
+        // - multimedia-url-history (historial)
+        // Si una URL existe solo en localStorage, la app móvil NO la verá (móvil usa la BD).
+        if (window.electron?.agregarMultimedia) {
+          const existentes = new Set(
+            (Array.isArray(multimediaDespues) ? multimediaDespues : [])
+              .flatMap((m) => [m?.url, m?.ruta_archivo])
+              .map((v) => String(v || "").trim())
+              .filter(Boolean),
           );
-          console.log("📺 [Multimedia] URLs con isUrl:", urlsGuardadas);
-        } catch (error) {
-          console.error(
-            "❌ [Multimedia] Error cargando URLs guardadas:",
-            error,
+
+          const inferirTipoDesdeUrl = (rawUrl) => {
+            const urlStr = String(rawUrl || "").trim();
+            if (!urlStr) return "video";
+            if (isYouTubeUrl(urlStr)) return "youtube";
+
+            const extension = urlStr
+              .split(".")
+              .pop()
+              ?.toLowerCase()
+              .split("?")[0];
+            if (
+              ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(extension)
+            ) {
+              return "imagen";
+            }
+            if (
+              ["mp3", "wav", "ogg", "aac", "flac", "m4a"].includes(extension)
+            ) {
+              return "audio";
+            }
+            if (["mp4", "webm", "avi", "mov", "mkv"].includes(extension)) {
+              return "video";
+            }
+            return "video";
+          };
+
+          const normalizarUrlParaBD = (rawUrl) => {
+            const urlStr = String(rawUrl || "").trim();
+            if (!urlStr) return {urlOriginal: "", urlFinal: "", tipo: "video"};
+
+            if (isYouTubeUrl(urlStr)) {
+              const videoId = extractVideoId(urlStr);
+              if (!videoId) {
+                return {urlOriginal: urlStr, urlFinal: "", tipo: "youtube"};
+              }
+              const embed = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1&rel=0&modestbranding=1&fs=1`;
+              return {urlOriginal: urlStr, urlFinal: embed, tipo: "youtube"};
+            }
+
+            return {
+              urlOriginal: urlStr,
+              urlFinal: urlStr,
+              tipo: inferirTipoDesdeUrl(urlStr),
+            };
+          };
+
+          const intentarInsertarSiNoExiste = async ({
+            nombre,
+            rawUrl,
+            favorito,
+          }) => {
+            const {urlOriginal, urlFinal, tipo} = normalizarUrlParaBD(rawUrl);
+            if (!urlOriginal || !urlFinal) return;
+
+            const key1 = String(urlFinal).trim();
+            const key2 = String(urlOriginal).trim();
+            if (existentes.has(key1) || existentes.has(key2)) return;
+
+            try {
+              await window.electron.agregarMultimedia({
+                nombre: String(nombre || "URL").trim() || "URL",
+                tipo,
+                tamaño: null,
+                ruta_archivo: urlOriginal,
+                url: urlFinal,
+                favorito: Boolean(favorito),
+                tags: [],
+              });
+              existentes.add(key1);
+              existentes.add(key2);
+            } catch (e) {
+              console.warn("⚠️ [Multimedia] No se pudo guardar URL en BD:", e);
+            }
+          };
+
+          // 1) Migrar multimedia-urls (legacy) a BD y eliminarlo (ya queda en BD)
+          const savedUrls = localStorage.getItem("multimedia-urls");
+          if (savedUrls) {
+            const urlsGuardadas = JSON.parse(savedUrls);
+            const urlsArray = Array.isArray(urlsGuardadas) ? urlsGuardadas : [];
+            for (const item of urlsArray) {
+              await intentarInsertarSiNoExiste({
+                nombre: item?.nombre || item?.name || "URL",
+                rawUrl: item?.originalUrl || item?.url,
+                favorito: Boolean(item?.favorito),
+              });
+            }
+            localStorage.removeItem("multimedia-urls");
+          }
+
+          // 2) Migrar accesos rápidos a BD (NO se eliminan: siguen siendo UI local)
+          const savedQuickLinks = localStorage.getItem(
+            "multimedia-quick-links",
           );
+          if (savedQuickLinks) {
+            const quickLinks = JSON.parse(savedQuickLinks);
+            const quickLinksArray = Array.isArray(quickLinks) ? quickLinks : [];
+            for (const link of quickLinksArray) {
+              await intentarInsertarSiNoExiste({
+                nombre: link?.name || link?.title || "URL",
+                rawUrl: link?.url,
+                favorito: false,
+              });
+            }
+          }
+
+          // Recargar lista desde BD para reflejar migraciones/sincronización
+          try {
+            multimediaDespues =
+              await window.electron["db-obtener-multimedia"]?.();
+            if (!Array.isArray(multimediaDespues))
+              multimediaDespues = multimedia || [];
+          } catch {
+            multimediaDespues = multimedia || [];
+          }
         }
+      } catch (e) {
+        console.warn("⚠️ [Multimedia] Error migrando URLs antiguas:", e);
       }
 
-      // Combinar URLs guardadas con multimedia de BD
-      const mediaCompleta = [...urlsGuardadas, ...(multimedia || [])];
+      // Usar solo BD (las URLs ya migradas quedan aquí)
+      const mediaCompleta = [...(multimediaDespues || [])];
       setMediaFiles(mediaCompleta);
 
       console.log(
@@ -595,6 +737,17 @@ const Multimedia = () => {
         ...media,
         url: validacion.url,
         validatedUrl: validacion.url,
+        // Importante: los items provenientes de la BD normalmente no traen isYoutube,
+        // pero la UI (preview/controles) lo usaba para decidir entre <iframe> y <video>.
+        // Propagamos aquí para que la reproducción no falle.
+        isYoutube: Boolean(
+          validacion?.isYoutube ||
+          media?.isYoutube ||
+          media?.tipo === "youtube" ||
+          isYouTubeUrl(validacion?.url) ||
+          isYouTubeUrl(media?.url) ||
+          isYouTubeUrl(media?.ruta_archivo),
+        ),
       };
 
       // ✨ Usar el reproductor global del contexto
@@ -610,6 +763,16 @@ const Multimedia = () => {
   // Para videos: controla el elemento <video> local
   // Para audio: usa el contexto global
   const handleTogglePlayPause = () => {
+    const effectiveMedia = currentMedia || lastPlayedMedia;
+    if (!effectiveMedia) return;
+
+    // Si no hay media seleccionada "actual" pero sí última reproducción,
+    // el primer click debe seleccionar y reproducir ese contenido.
+    if (!currentMedia) {
+      playMedia(effectiveMedia);
+      return;
+    }
+
     const mediaType = currentMedia?.tipo || currentMedia?.type;
 
     if (mediaType === "video" && videoRef.current) {
@@ -1772,6 +1935,25 @@ const Multimedia = () => {
         isYoutube: isYouTubeUrl(url),
       };
 
+      // Guardar también en BD para que aparezca en la app móvil (/api/multimedia)
+      let guardadoEnBD = false;
+      try {
+        if (window.electron?.agregarMultimedia) {
+          const result = await window.electron.agregarMultimedia({
+            nombre: title,
+            tipo: type,
+            tamaño: null,
+            ruta_archivo: url,
+            url: finalUrl,
+            favorito: false,
+            tags: [],
+          });
+          guardadoEnBD = typeof result === "number" && !Number.isNaN(result);
+        }
+      } catch (e) {
+        console.warn("⚠️ [Multimedia] No se pudo guardar URL en BD:", e);
+      }
+
       // Guardar en historial
       await saveUrlToHistory(url, title);
 
@@ -1814,20 +1996,19 @@ const Multimedia = () => {
         }
       }
 
-      // Agregar a la lista actual
-      setMediaFiles((prev) => {
-        const updated = [mediaItem, ...prev];
-
-        // Guardar URLs en localStorage
-        const urlsOnly = updated.filter((m) => m.isUrl);
-        localStorage.setItem("multimedia-urls", JSON.stringify(urlsOnly));
-
-        return updated;
-      });
+      // Refrescar biblioteca desde BD (incluye la URL recién agregada)
+      await loadMediaFromDB();
 
       playMediaGlobal(mediaItem); // Reproducir automáticamente la URL agregada
 
-      showSuccess(`<strong>URL agregada:</strong><br/>📺 ${title}`);
+      if (guardadoEnBD) {
+        showSuccess(`<strong>URL agregada:</strong><br/>📺 ${title}`);
+      } else {
+        showWarning(
+          `<strong>URL guardada en el escritorio</strong> (historial/accesos rápidos), pero <strong>NO</strong> se pudo guardar en la BD.<br/>📱 No aparecerá en la app móvil hasta que se sincronice correctamente.`,
+          6500,
+        );
+      }
       setUrlInput("");
       setUrlTitle("");
       setShowUrlModal(false);
@@ -1946,8 +2127,13 @@ const Multimedia = () => {
   const getMediaName = (media) =>
     media.nombre || media.name || "Archivo sin nombre";
 
+  const mediaForPlayer = currentMedia || lastPlayedMedia;
+
+  const isMediaForPlayerYouTube =
+    !!mediaForPlayer && getMediaType(mediaForPlayer) === "youtube";
+
   // ✨ FUNCIÓN MEJORADA PARA DETECTAR TIPO DE MULTIMEDIA CON YOUTUBE
-  const getMediaType = (media) => {
+  function getMediaType(media) {
     // Primero verificar si es YouTube por la propiedad isYoutube
     if (media.isYoutube) {
       return "youtube";
@@ -1960,7 +2146,7 @@ const Multimedia = () => {
 
     // Si no es YouTube, retornar el tipo original
     return media.tipo || media.type || "unknown";
-  };
+  }
 
   const getMediaSize = (media) =>
     media.size || formatFileSize(media.tamaño || 0);
@@ -2201,45 +2387,50 @@ const Multimedia = () => {
                 </div>
               </div>
 
-              {currentMedia ? (
+              {mediaForPlayer ? (
                 <div className="space-y-4">
                   {/* Información del archivo actual */}
                   <div className="bg-gray-700/50 p-4 rounded-xl">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-white truncate mb-1">
-                          {getMediaName(currentMedia)}
+                          {getMediaName(mediaForPlayer)}
                         </h3>
                         <div className="flex items-center gap-2 text-sm text-gray-400">
                           <span className="capitalize">
-                            {getMediaType(currentMedia)}
+                            {getMediaType(mediaForPlayer)}
                           </span>
                           <span>•</span>
                           <span>
-                            {currentMedia.isUrl
+                            {mediaForPlayer.isUrl
                               ? "URL"
-                              : `${getMediaSize(currentMedia)} MB`}
+                              : `${getMediaSize(mediaForPlayer)} MB`}
                           </span>
-                          {currentMedia.favorito && (
+                          {!currentMedia && (
+                            <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
+                              Última reproducción
+                            </span>
+                          )}
+                          {mediaForPlayer.favorito && (
                             <FaStar className="text-yellow-400" />
                           )}
-                          {currentMedia.isUrl && (
+                          {mediaForPlayer.isUrl && (
                             <FaLink className="text-blue-400" />
                           )}
-                          {currentMedia.isYoutube && (
+                          {isMediaForPlayerYouTube && (
                             <FaYoutube className="text-red-500" />
                           )}
                         </div>
                       </div>
                       <button
-                        onClick={() => toggleFavorite(currentMedia)}
+                        onClick={() => toggleFavorite(mediaForPlayer)}
                         className={`p-2 rounded transition-colors ${
-                          currentMedia.favorito
+                          mediaForPlayer.favorito
                             ? "text-yellow-400"
                             : "text-gray-400 hover:text-yellow-400"
                         }`}
                       >
-                        {currentMedia.favorito ? <FaStar /> : <FaRegStar />}
+                        {mediaForPlayer.favorito ? <FaStar /> : <FaRegStar />}
                       </button>
                     </div>
                   </div>
@@ -2249,20 +2440,20 @@ const Multimedia = () => {
                     id="multimedia-preview-container"
                     className="bg-black rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative"
                   >
-                    {currentMedia.isYoutube ? (
+                    {isMediaForPlayerYouTube ? (
                       <iframe
-                        src={currentMedia.url}
+                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
                         className="w-full h-full"
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                         title="YouTube Video Player"
                       />
-                    ) : getMediaType(currentMedia) === "audio" ? (
+                    ) : getMediaType(mediaForPlayer) === "audio" ? (
                       <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
                         <FaMusic className="text-green-400 text-6xl mb-6" />
                         <h3 className="text-xl font-semibold text-white mb-4">
-                          {getMediaName(currentMedia)}
+                          {getMediaName(mediaForPlayer)}
                         </h3>
                         {/* Visualización del audio - El audio real se reproduce en el contexto global */}
                         <div className="w-full max-w-md bg-gray-800/50 rounded-lg p-6 text-center">
@@ -2274,20 +2465,20 @@ const Multimedia = () => {
                           </p>
                         </div>
                       </div>
-                    ) : getMediaType(currentMedia) === "imagen" ? (
+                    ) : getMediaType(mediaForPlayer) === "imagen" ? (
                       <img
-                        src={currentMedia.url}
-                        alt={getMediaName(currentMedia)}
+                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
+                        alt={getMediaName(mediaForPlayer)}
                         className="max-w-full max-h-full object-contain"
                         onLoad={() => console.log("✅ Imagen cargada")}
                         onError={(e) => {
                           console.error("❌ Error cargando imagen:", e);
                           const mensaje = `Error cargando imagen: ${getMediaName(
-                            currentMedia,
+                            mediaForPlayer,
                           )}`;
                           console.error(
                             "📁 URL problemática:",
-                            currentMedia.url,
+                            mediaForPlayer.url,
                           );
                           showError(
                             `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
@@ -2297,7 +2488,7 @@ const Multimedia = () => {
                     ) : (
                       <video
                         ref={videoRef}
-                        src={currentMedia.url}
+                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
                         controls
                         className="w-full h-full"
                         onLoadStart={() => console.log("🎥 Cargando video...")}
@@ -2307,11 +2498,11 @@ const Multimedia = () => {
                         onError={(e) => {
                           console.error("❌ Error cargando video:", e);
                           const mensaje = `Error cargando video: ${getMediaName(
-                            currentMedia,
+                            mediaForPlayer,
                           )}`;
                           console.error(
                             "📁 URL problemática:",
-                            currentMedia.url,
+                            mediaForPlayer.url,
                           );
                           showError(
                             `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
@@ -2325,7 +2516,7 @@ const Multimedia = () => {
 
                   {/* Controles principales */}
                   <div className="flex items-center justify-center space-x-3">
-                    {!currentMedia.isYoutube && (
+                    {!isMediaForPlayerYouTube && (
                       <>
                         <button
                           onClick={handleTogglePlayPause}
@@ -2346,7 +2537,7 @@ const Multimedia = () => {
                       </>
                     )}
                     <button
-                      onClick={() => projectToScreenNew(currentMedia)}
+                      onClick={() => projectToScreenNew(mediaForPlayer)}
                       className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-all duration-300"
                       title="Proyectar en pantalla completa"
                     >
@@ -2359,10 +2550,10 @@ const Multimedia = () => {
                     >
                       <FaTimes />
                     </button>
-                    {currentMedia.originalUrl && (
+                    {mediaForPlayer.originalUrl && (
                       <button
                         onClick={() =>
-                          copyToClipboard(currentMedia.originalUrl)
+                          copyToClipboard(mediaForPlayer.originalUrl)
                         }
                         className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
                         title="Copiar URL original"
@@ -2417,7 +2608,7 @@ const Multimedia = () => {
                   )}
 
                   {/* Control de volumen (solo para no-YouTube) */}
-                  {!currentMedia.isYoutube && (
+                  {!isMediaForPlayerYouTube && (
                     <div className="bg-gray-700/50 p-4 rounded-xl">
                       <div className="flex items-center space-x-3">
                         <FaVolumeUp className="text-gray-300 flex-shrink-0" />
@@ -2530,7 +2721,7 @@ const Multimedia = () => {
                     viewMode === "grid"
                       ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                       : "space-y-3"
-                  } max-h-[600px] overflow-y-auto custom-scrollbar`}
+                  }`}
                 >
                   {filteredMedia.map((media) => {
                     const isCurrentlyPlaying = currentMedia?.id === media.id;
@@ -2617,7 +2808,7 @@ const Multimedia = () => {
                                     URL
                                   </div>
                                 )}
-                                {media.isYoutube && (
+                                {getMediaType(media) === "youtube" && (
                                   <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
                                     YT
                                   </div>
@@ -2719,7 +2910,7 @@ const Multimedia = () => {
                                   {media.isUrl && (
                                     <FaLink className="text-blue-400" />
                                   )}
-                                  {media.isYoutube && (
+                                  {getMediaType(media) === "youtube" && (
                                     <FaYoutube className="text-red-500" />
                                   )}
                                 </div>
@@ -2836,8 +3027,16 @@ const Multimedia = () => {
                             )}
 
                             {/* Información */}
-                            <button
+                            <div
+                              role="button"
+                              tabIndex={0}
                               onClick={() => handleQuickLinkClick(link)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  handleQuickLinkClick(link);
+                                }
+                              }}
                               className="flex-1 text-left min-w-0"
                             >
                               <div className="flex items-start justify-between gap-2">
@@ -2872,7 +3071,7 @@ const Multimedia = () => {
                                   <FaTimes className="text-sm" />
                                 </button>
                               </div>
-                            </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -2928,8 +3127,16 @@ const Multimedia = () => {
                                 )}
 
                                 {/* Información */}
-                                <button
+                                <div
+                                  role="button"
+                                  tabIndex={0}
                                   onClick={() => handleQuickLinkClick(link)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      handleQuickLinkClick(link);
+                                    }
+                                  }}
                                   className="flex-1 text-left min-w-0"
                                 >
                                   <div className="flex items-start justify-between gap-2">
@@ -2964,7 +3171,7 @@ const Multimedia = () => {
                                       <FaTimes className="text-sm" />
                                     </button>
                                   </div>
-                                </button>
+                                </div>
                               </div>
                             </div>
                           );
@@ -3157,26 +3364,6 @@ const Multimedia = () => {
           </div>
         </div>
       )}
-
-      {/* ✨ ESTILOS PERSONALIZADOS */}
-      <jsx>
-        {`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #374151;
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #6b7280;
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
-        }
-      `}
-      </jsx>
     </div>
   );
 };

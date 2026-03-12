@@ -16,13 +16,14 @@ import {
 import {useNavigate} from "react-router-dom";
 import {toast, ToastContainer} from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import himnosData from "../data/himnos.json";
-import vidacristianaData from "../data/vidacristiana.json";
 
 export default function Favoritos() {
+  const API_BASE = "http://localhost:3001";
+
   const [favoritosHimnos, setFavoritosHimnos] = useState([]);
   const [favoritosVidaCristiana, setFavoritosVidaCristiana] = useState([]);
   const [favoritosPersonalizados, setFavoritosPersonalizados] = useState([]);
+  const [favoritosBiblia, setFavoritosBiblia] = useState([]);
   const [logoIglesia, setLogoIglesia] = useState(null);
   const [vistaActual, setVistaActual] = useState("lista");
   const [modalEliminar, setModalEliminar] = useState({
@@ -41,27 +42,77 @@ export default function Favoritos() {
   }, []);
 
   const cargarFavoritos = async () => {
-    // ✨ CARGAR FAVORITOS DE HIMNOS MORAVOS
-    const favoritosHimnosIds = JSON.parse(
-      localStorage.getItem("himnosFavoritos") || "[]",
-    );
-    const himnosFavoritos = himnosData
-      .filter((himno) => favoritosHimnosIds.includes(himno.numero))
-      .map((himno) => ({
-        ...himno,
-        tipo: "moravo",
-      }));
+    // ✨ CARGAR FAVORITOS DESDE EL BACKEND COMPARTIDO (mismo estado que la app móvil)
+    let himnosFavoritos = [];
+    let vidaCristianaFavoritos = [];
 
-    // ✨ CARGAR FAVORITOS DE VIDA CRISTIANA
-    const favoritosVidaCristianaIds = JSON.parse(
-      localStorage.getItem("himnosVidaCristianaFavoritos") || "[]",
-    );
-    const vidaCristianaFavoritos = vidacristianaData
-      .filter((himno) => favoritosVidaCristianaIds.includes(himno.numero))
-      .map((himno) => ({
-        ...himno,
-        tipo: "vidaCristiana",
-      }));
+    try {
+      const resMoravo = await fetch(
+        `${API_BASE}/api/himnos/favoritos?tipo=moravo`,
+        {
+          method: "GET",
+          headers: {Accept: "application/json"},
+        },
+      );
+      const jsonMoravo = await resMoravo.json().catch(() => null);
+      if (resMoravo.ok && jsonMoravo?.ok && Array.isArray(jsonMoravo?.himnos)) {
+        himnosFavoritos = jsonMoravo.himnos.map((h) => ({
+          id: h?.id,
+          numero: h?.numero,
+          titulo: h?.titulo,
+          parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+          tipo: "moravo",
+        }));
+      }
+
+      const resVida = await fetch(
+        `${API_BASE}/api/himnos/favoritos?tipo=vida`,
+        {
+          method: "GET",
+          headers: {Accept: "application/json"},
+        },
+      );
+      const jsonVida = await resVida.json().catch(() => null);
+      if (resVida.ok && jsonVida?.ok && Array.isArray(jsonVida?.himnos)) {
+        vidaCristianaFavoritos = jsonVida.himnos.map((h) => ({
+          id: h?.id,
+          numero: h?.numero,
+          titulo: h?.titulo,
+          parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+          tipo: "vidaCristiana",
+        }));
+      }
+    } catch (error) {
+      console.warn("⚠️ Error cargando favoritos base desde backend:", error);
+    }
+
+    // ✨ CARGAR FAVORITOS DE BIBLIA DESDE EL BACKEND
+    let bibliaFavoritos = [];
+    try {
+      const resBiblia = await fetch(`${API_BASE}/api/biblia/favoritos`, {
+        method: "GET",
+        headers: {Accept: "application/json"},
+      });
+      const jsonBiblia = await resBiblia.json().catch(() => null);
+      if (
+        resBiblia.ok &&
+        jsonBiblia?.ok &&
+        Array.isArray(jsonBiblia?.favoritos)
+      ) {
+        bibliaFavoritos = jsonBiblia.favoritos
+          .map((f) => ({
+            id: String(f?.id || "").trim(),
+            libroId: String(f?.libroId || "").trim(),
+            libroNombre: String(f?.libroNombre || "").trim(),
+            capitulo: Number(f?.capitulo) || null,
+            versiculo: Number(f?.versiculo) || null,
+            texto: typeof f?.texto === "string" ? f.texto : "",
+          }))
+          .filter((f) => Boolean(f.id));
+      }
+    } catch (error) {
+      console.warn("⚠️ Error cargando favoritos de Biblia:", error);
+    }
 
     // ✨ CARGAR FAVORITOS PERSONALIZADOS CON LOADING
     try {
@@ -80,6 +131,7 @@ export default function Favoritos() {
 
     setFavoritosHimnos(himnosFavoritos);
     setFavoritosVidaCristiana(vidaCristianaFavoritos);
+    setFavoritosBiblia(bibliaFavoritos);
   };
 
   // ✨ FUNCIÓN PARA CARGAR EL LOGO
@@ -113,32 +165,44 @@ export default function Favoritos() {
     const {himno} = modalEliminar;
     try {
       if (himno.tipo === "moravo") {
-        const favoritosActuales = JSON.parse(
-          localStorage.getItem("himnosFavoritos") || "[]",
+        const idApi = `base:moravo:${String(himno.identificador)}`;
+        const res = await fetch(
+          `${API_BASE}/api/himnos/${encodeURIComponent(idApi)}/favorito`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({favorito: false}),
+          },
         );
-        const nuevosFavoritos = favoritosActuales.filter(
-          (id) => id !== himno.identificador,
-        );
-        localStorage.setItem(
-          "himnosFavoritos",
-          JSON.stringify(nuevosFavoritos),
-        );
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error || `Error HTTP ${res.status}`);
+        }
         setFavoritosHimnos((prev) =>
           prev.filter(
             (himno_item) => himno_item.numero !== himno.identificador,
           ),
         );
       } else if (himno.tipo === "vidaCristiana") {
-        const favoritosActuales = JSON.parse(
-          localStorage.getItem("himnosVidaCristianaFavoritos") || "[]",
+        const idApi = `base:vida:${String(himno.identificador)}`;
+        const res = await fetch(
+          `${API_BASE}/api/himnos/${encodeURIComponent(idApi)}/favorito`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({favorito: false}),
+          },
         );
-        const nuevosFavoritos = favoritosActuales.filter(
-          (id) => id !== himno.identificador,
-        );
-        localStorage.setItem(
-          "himnosVidaCristianaFavoritos",
-          JSON.stringify(nuevosFavoritos),
-        );
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error || `Error HTTP ${res.status}`);
+        }
         setFavoritosVidaCristiana((prev) =>
           prev.filter(
             (himno_item) => himno_item.numero !== himno.identificador,
@@ -192,13 +256,78 @@ export default function Favoritos() {
     }
   };
 
-  // ✨ COMBINAR TODOS LOS FAVORITOS
-  const todosFavoritos = [
-    ...favoritosHimnos,
-    ...favoritosVidaCristiana,
-    ...favoritosPersonalizados,
-  ];
-  const totalFavoritos = todosFavoritos.length;
+  const proyectarFavoritoBiblia = (favorito) => {
+    try {
+      if (
+        !window.electron?.abrirProyector ||
+        !window.electron?.enviarVersiculo
+      ) {
+        throw new Error("Electron bridge no disponible");
+      }
+
+      const titulo = favorito?.libroNombre || "Biblia";
+      const numero = `${favorito?.capitulo || ""}:${favorito?.versiculo || ""}`;
+      const parrafo = favorito?.texto || "";
+
+      window.electron.abrirProyector();
+      window.electron.enviarVersiculo({
+        parrafo,
+        titulo,
+        numero,
+        origen: "biblia",
+      });
+    } catch (error) {
+      console.error("Error proyectando favorito de Biblia:", error);
+      toast.error("❌ No se pudo proyectar el versículo", {
+        position: "top-right",
+        autoClose: 3000,
+        theme: "dark",
+      });
+    }
+  };
+
+  const quitarFavoritoBiblia = async (favorito) => {
+    try {
+      const id = String(favorito?.id || "").trim();
+      if (!id) throw new Error("id inválido");
+
+      const res = await fetch(
+        `${API_BASE}/api/biblia/${encodeURIComponent(id)}/favorito`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({favorito: false}),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Error HTTP ${res.status}`);
+      }
+
+      setFavoritosBiblia((prev) => prev.filter((f) => f.id !== id));
+      toast.success("🗑️ Versículo quitado de favoritos", {
+        position: "top-right",
+        autoClose: 2500,
+        theme: "dark",
+      });
+    } catch (error) {
+      console.error("Error quitando favorito de Biblia:", error);
+      toast.error("❌ Error al quitar de favoritos", {
+        position: "top-right",
+        autoClose: 3000,
+        theme: "dark",
+      });
+    }
+  };
+
+  const totalFavoritos =
+    favoritosPersonalizados.length +
+    favoritosHimnos.length +
+    favoritosVidaCristiana.length +
+    favoritosBiblia.length;
 
   // ✨ FILTRAR HIMNOS PERSONALIZADOS
   const favoritosPersonalizadosFiltrados = favoritosPersonalizados.filter(
@@ -239,11 +368,9 @@ export default function Favoritos() {
                 <FaHeart className="text-2xl text-red-300" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">
-                  Himnos Favoritos
-                </h1>
+                <h1 className="text-3xl font-bold text-white">Favoritos</h1>
                 <p className="text-white/60">
-                  Tus himnos marcados como favoritos
+                  Himnos y versículos marcados como favoritos
                 </p>
               </div>
             </div>
@@ -276,6 +403,12 @@ export default function Favoritos() {
                     {favoritosVidaCristiana.length}
                   </div>
                   <div className="text-xs text-white/60">V. Cristiana</div>
+                </div>
+                <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                  <div className="text-xl font-bold text-yellow-300">
+                    {favoritosBiblia.length}
+                  </div>
+                  <div className="text-xs text-white/60">Biblia</div>
                 </div>
               </div>
 
@@ -376,6 +509,17 @@ export default function Favoritos() {
               />
             )}
 
+            {/* ✨ SECCIÓN BIBLIA */}
+            {favoritosBiblia.length > 0 && (
+              <SeccionFavoritosBiblia
+                favoritos={favoritosBiblia}
+                cantidad={favoritosBiblia.length}
+                vistaActual={vistaActual}
+                onProyectar={proyectarFavoritoBiblia}
+                onQuitar={quitarFavoritoBiblia}
+              />
+            )}
+
             {/* Sección Himnos Moravos - SEGUNDO */}
             {favoritosHimnos.length > 0 && (
               <SeccionFavoritos
@@ -413,8 +557,8 @@ export default function Favoritos() {
               <div className="flex items-center space-x-3">
                 <FaHeart className="text-red-300" />
                 <span className="text-white/70">
-                  Tienes {totalFavoritos} himno{totalFavoritos !== 1 ? "s" : ""}{" "}
-                  marcado{totalFavoritos !== 1 ? "s" : ""} como favorito
+                  Tienes {totalFavoritos} favorito
+                  {totalFavoritos !== 1 ? "s" : ""} guardado
                   {totalFavoritos !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -693,6 +837,123 @@ const SeccionFavoritosPersonalizados = ({
                     Clic para ver detalles
                   </div>
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ✨ NUEVO: Sección de favoritos de Biblia
+const SeccionFavoritosBiblia = ({
+  favoritos,
+  cantidad,
+  vistaActual,
+  onProyectar,
+  onQuitar,
+}) => {
+  return (
+    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-white/5 border border-white/10 rounded-full">
+            <FaStar className="text-xl text-yellow-300" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Biblia</h2>
+            <p className="text-white/60 text-sm">
+              {cantidad} versículo{cantidad !== 1 ? "s" : ""} favorito
+              {cantidad !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+          <span className="text-2xl font-bold text-yellow-300">{cantidad}</span>
+        </div>
+      </div>
+
+      {vistaActual === "tarjetas" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {favoritos.map((f) => (
+            <div
+              key={f.id}
+              className="group bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.07] hover:border-white/20 transition-colors duration-200"
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    {f.libroNombre || "Biblia"}
+                  </div>
+                  <div className="text-xs text-white/60">
+                    {f.capitulo}:{f.versiculo}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => onQuitar(f)}
+                  className="p-2 text-red-200 hover:text-red-100 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-colors duration-200 opacity-0 group-hover:opacity-100"
+                  title="Quitar de favoritos"
+                >
+                  <FaTrash size={16} />
+                </button>
+              </div>
+
+              <p className="text-white/80 text-sm leading-relaxed line-clamp-2 mb-5">
+                {f.texto || ""}
+              </p>
+
+              <button
+                onClick={() => onProyectar(f)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600/90 hover:bg-emerald-600 border border-emerald-500/20 rounded-xl transition-colors"
+              >
+                <FaPlay />
+                <span>Proyectar</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+          {favoritos.map((f, index) => (
+            <div
+              key={f.id}
+              className={`flex items-center justify-between p-4 ${
+                index !== favoritos.length - 1 ? "border-b border-white/10" : ""
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <div className="bg-yellow-500/15 border border-yellow-500/20 text-yellow-200 text-xs font-bold px-3 py-1 rounded-full flex-shrink-0">
+                    {f.capitulo}:{f.versiculo}
+                  </div>
+                  <div className="text-white font-semibold truncate">
+                    {f.libroNombre || "Biblia"}
+                  </div>
+                </div>
+                <div className="text-white/60 text-sm mt-2 line-clamp-2">
+                  {f.texto || ""}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                <button
+                  onClick={() => onProyectar(f)}
+                  className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/20 rounded-lg text-emerald-200 transition-colors"
+                  title="Proyectar"
+                >
+                  <FaPlay />
+                </button>
+                <button
+                  onClick={() => onQuitar(f)}
+                  className="p-2 bg-red-600/15 hover:bg-red-600/25 border border-red-500/20 rounded-lg text-red-200 transition-colors"
+                  title="Quitar de favoritos"
+                >
+                  <FaTrash />
+                </button>
               </div>
             </div>
           ))}

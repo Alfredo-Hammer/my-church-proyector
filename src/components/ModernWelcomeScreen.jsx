@@ -14,71 +14,27 @@ const ModernWelcomeScreen = ({configuracion}) => {
     >
       {/* Logo container con efectos modernos - Solo si mostrarLogo está activo */}
       {configuracion.mostrarLogo !== false && (
-        <motion.div
-          className="relative mb-12 group"
-          whileHover={{scale: 1.05}}
-          transition={{type: "spring", stiffness: 300}}
+        <div
+          className={`relative mb-12 ${
+            configuracion.logoSize || "w-80 h-80"
+          } rounded-full`}
         >
-          {/* Glowing ring effect */}
-          <motion.div
-            className="absolute inset-0 rounded-full opacity-75"
-            style={{
-              background: `conic-gradient(from 0deg, ${colorPrimario}, transparent, ${colorPrimario})`,
-              padding: "8px",
-              filter: "blur(8px)",
-            }}
-            animate={{rotate: 360}}
-            transition={{duration: 10, repeat: Infinity, ease: "linear"}}
-          />
+          {/* Borde neón (sin fondo) */}
+          <div className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-emerald-300/80 shadow-lg shadow-emerald-500/30" />
+          <div className="pointer-events-none absolute inset-0 rounded-full ring-8 ring-emerald-400/10 blur-md" />
 
-          {/* Inner ring */}
-          <motion.div
-            className="absolute inset-2 rounded-full border-2 border-white/30"
-            animate={{
-              scale: [1, 1.1, 1],
-              opacity: [0.3, 0.7, 0.3],
-            }}
-            transition={{duration: 3, repeat: Infinity, ease: "easeInOut"}}
-          />
-
-          {/* Logo */}
-          <motion.img
-            src={configuracion.logoUrl || "/images/icon-256.png"}
-            alt="Logo"
-            className={`relative ${
-              configuracion.logoSize || "w-80 h-80"
-            } rounded-full object-cover shadow-2xl border-4 border-white/20 backdrop-blur-sm`}
-            initial={{scale: 0.8, opacity: 0}}
-            animate={{scale: 1, opacity: 1}}
-            transition={{delay: 0.3, duration: 0.8}}
-            onError={(e) => {
-              e.target.src = "/images/icon-256.png";
-            }}
-          />
-
-          {/* Floating elements around logo */}
-          {[...Array(8)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white/40 rounded-full"
-              style={{
-                top: "50%",
-                left: "50%",
-                transform: `rotate(${i * 45}deg) translateY(-140px)`,
-              }}
-              animate={{
-                scale: [1, 1.8, 1],
-                opacity: [0.2, 0.8, 0.2],
-              }}
-              transition={{
-                duration: 2.5,
-                delay: i * 0.2,
-                repeat: Infinity,
-                ease: "easeInOut",
+          {/* Logo (mantener transparencia y forma circular) */}
+          <div className="relative w-full h-full rounded-full overflow-hidden">
+            <img
+              src={configuracion.logoUrl || "/images/icon-256.png"}
+              alt="Logo"
+              className="w-full h-full rounded-full object-contain"
+              onError={(e) => {
+                e.target.src = "/images/icon-256.png";
               }}
             />
-          ))}
-        </motion.div>
+          </div>
+        </div>
       )}
 
       {/* Church name with modern typography - Solo si mostrarNombreIglesia está activo */}

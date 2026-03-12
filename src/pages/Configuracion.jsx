@@ -28,8 +28,8 @@ const Configuracion = () => {
     website: "",
     logo: "/images/icon-256.png", // ✨ Logo por defecto de la app
     logoSize: "w-80 h-80", // ✨ Tamaño del logo por defecto
-    colorPrimario: "#fb923c", // orange-400
-    colorSecundario: "#ffffff",
+    colorPrimario: "#ffffff",
+    colorSecundario: "#d1d5db",
     fondoActivo: "", // ✨ Sin fondo activo por defecto
     tipoFondo: "imagen",
     fontSize: {
@@ -214,8 +214,8 @@ const Configuracion = () => {
         sitioWeb: configToSave.website || configToSave.sitioWeb || "",
         logoUrl: configToSave.logo || "",
         logoSize: configToSave.logoSize || "w-80 h-80", // ✨ Nuevo campo para tamaño del logo
-        colorPrimario: configToSave.colorPrimario || "#fb923c",
-        colorSecundario: configToSave.colorSecundario || "#ffffff",
+        colorPrimario: configToSave.colorPrimario || "#ffffff",
+        colorSecundario: configToSave.colorSecundario || "#d1d5db",
         // ✨ Aplanar fontSize
         fontSizeTitulo: configToSave.fontSize?.titulo || "text-5xl",
         fontSizeParrafo: configToSave.fontSize?.parrafo || "text-6xl",
@@ -319,8 +319,8 @@ const Configuracion = () => {
           email: "",
           website: "",
           logo: "/images/icon-256.png", // Solo el icono de la app
-          colorPrimario: "#fb923c",
-          colorSecundario: "#ffffff",
+          colorPrimario: "#ffffff",
+          colorSecundario: "#d1d5db",
           fondoActivo: "",
           tipoFondo: "imagen",
           fontSize: {

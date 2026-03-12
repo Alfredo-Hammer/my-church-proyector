@@ -242,12 +242,12 @@ const configuracionPorDefecto = {
     descripcion: "URL del logo de la iglesia"
   },
   colorPrimario: {
-    valor: "#1e40af",
+    valor: "#ffffff",
     tipo: "color",
     descripcion: "Color primario de la interfaz"
   },
   colorSecundario: {
-    valor: "#3b82f6",
+    valor: "#d1d5db",
     tipo: "color",
     descripcion: "Color secundario de la interfaz"
   },
@@ -452,6 +452,18 @@ async function eliminarHimno(id) {
   }
 }
 
+// Función para marcar/desmarcar favorito (rápida, sin actualizar todo el himno)
+async function actualizarFavoritoHimno(id, favorito) {
+  try {
+    const fav = favorito ? 1 : 0;
+    const result = await runQuery('UPDATE himnos SET favorito = ? WHERE id = ?', [fav, id]);
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al actualizar favorito de himno:', error);
+    return false;
+  }
+}
+
 // ====================================
 // FUNCIONES DE PRESENTACIONES
 // ====================================
@@ -555,6 +567,48 @@ async function eliminarFondo(id) {
     return result.changes > 0;
   } catch (error) {
     console.error('Error al eliminar fondo:', error);
+    return false;
+  }
+}
+
+// Función para actualizar un fondo (parcial)
+async function actualizarFondo(fondo) {
+  try {
+    if (!fondo || !fondo.id) {
+      throw new Error('ID del fondo es requerido');
+    }
+
+    const fields = [];
+    const params = [];
+
+    if (fondo.url !== undefined) {
+      fields.push('url = ?');
+      params.push(fondo.url);
+    }
+
+    if (fondo.tipo !== undefined) {
+      fields.push('tipo = ?');
+      params.push(fondo.tipo);
+    }
+
+    if (fondo.activo !== undefined) {
+      fields.push('activo = ?');
+      params.push(fondo.activo ? 1 : 0);
+    }
+
+    if (fields.length === 0) {
+      return false;
+    }
+
+    params.push(fondo.id);
+    const result = await runQuery(
+      `UPDATE fondos SET ${fields.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al actualizar fondo:', error);
     return false;
   }
 }
@@ -886,6 +940,7 @@ module.exports = {
   buscarHimnos,
   crearHimno,
   actualizarHimno,
+  actualizarFavoritoHimno,
   eliminarHimno,
 
   // Presentaciones
@@ -902,6 +957,7 @@ module.exports = {
   obtenerFondos,
   crearFondo,
   activarFondo,
+  actualizarFondo,
   eliminarFondo,
 
   // Planes

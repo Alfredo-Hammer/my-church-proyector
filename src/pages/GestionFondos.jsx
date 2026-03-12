@@ -156,6 +156,8 @@ const GestionFondos = () => {
         Array.isArray(fondosGuardados) &&
         fondosGuardados.length > 0
       ) {
+        const migracionesPendientes = [];
+
         // ✨ PROCESAR FONDOS CORRECTAMENTE
         let fondosProcesados = fondosGuardados.map((fondo) => {
           let urlFinal = fondo.url;
@@ -168,13 +170,16 @@ const GestionFondos = () => {
             fondo.url.includes("/fondos/")
           ) {
             const filename = fondo.url.split("/").pop(); // Extraer solo el nombre del archivo
-            urlFinal = `${getBaseURL()}/images/pixabay/${filename}`;
+            // Guardar ruta CANÓNICA en BD (relativa). El frontend ya sabe prefijar con baseURL.
+            urlFinal = `/images/pixabay/${filename}`;
             console.log(
               `🔄 [MIGRACIÓN] Corrigiendo URL antigua: ${fondo.url} -> ${urlFinal}`,
             );
 
-            // TODO: Actualizar en BD cuando se implemente window.electron.actualizarFondo
-            // Por ahora, la corrección solo aplica en memoria (suficiente para mostrar las imágenes)
+            // ✅ Persistir migración en BD (si está disponible)
+            if (window.electron?.actualizarFondo && fondo.id) {
+              migracionesPendientes.push({id: fondo.id, url: urlFinal});
+            }
           }
 
           // Si la URL no empieza con http (es archivo local), construir ruta completa
@@ -194,6 +199,24 @@ const GestionFondos = () => {
             tipo: fondo.tipo || "imagen",
           };
         });
+
+        if (migracionesPendientes.length > 0) {
+          console.log(
+            `🛠️ [GestionFondos] Persistiendo ${migracionesPendientes.length} migraciones de fondos en BD...`,
+          );
+          Promise.allSettled(
+            migracionesPendientes.map((m) =>
+              window.electron.actualizarFondo(m),
+            ),
+          ).then((results) => {
+            const ok = results.filter(
+              (r) => r.status === "fulfilled" && r.value,
+            ).length;
+            console.log(
+              `✅ [GestionFondos] Migraciones persistidas: ${ok}/${migracionesPendientes.length}`,
+            );
+          });
+        }
 
         // ✨ Filtrar videos en modo selección (presentaciones solo soportan imágenes)
         if (modoSeleccion) {

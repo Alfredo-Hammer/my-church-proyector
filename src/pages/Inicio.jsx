@@ -1,9 +1,39 @@
 import React, {useState, useEffect} from "react";
-import {FaClock, FaMapMarkerAlt, FaChurch} from "react-icons/fa";
+import {useNavigate} from "react-router-dom";
+import {
+  FaClock,
+  FaMapMarkerAlt,
+  FaChurch,
+  FaMusic,
+  FaBook,
+  FaHeart,
+  FaFilm,
+} from "react-icons/fa";
+import {motion} from "framer-motion";
+import StatWidget from "../components/StatWidget";
+import QuickAccessButton from "../components/QuickAccessButton";
+import NewsCard from "../components/NewsCard";
+import {useMediaPlayer} from "../contexts/MediaPlayerContext";
 
 const Inicio = () => {
+  const navigate = useNavigate();
+  let mediaContext = null;
+  try {
+    mediaContext = useMediaPlayer();
+  } catch {
+    // Si no estamos dentro de MediaPlayerProvider, mediaContext será null
+    mediaContext = null;
+  }
   const [mensaje, setMensaje] = useState("");
   const [fechaHora, setFechaHora] = useState("");
+
+  // ✨ ESTADOS PARA ESTADÍSTICAS
+  const [estadisticas, setEstadisticas] = useState({
+    totalHimnos: 0,
+    totalFavoritos: 0,
+    totalMultimedia: 0,
+    totalVidaCristiana: 0,
+  });
 
   // ✨ ESTADOS PARA CONFIGURACIÓN
   const [configuracion, setConfiguracion] = useState({
@@ -14,129 +44,18 @@ const Inicio = () => {
   });
   const [configuracionCargada, setConfiguracionCargada] = useState(false);
 
-  // ✨ ESTADOS PARA FONDOS DINÁMICOS
-  const [fondosDisponibles, setFondosDisponibles] = useState([]);
-  const [fondoActivo, setFondoActivo] = useState(null); // null inicialmente hasta cargar fondos
-
-  // ✨ FUNCIÓN PARA CARGAR FONDOS DE LA BASE DE DATOS
-  const cargarFondosDisponibles = async () => {
-    try {
-      console.log("🖼️ [Inicio] Cargando fondos desde DB...");
-
-      if (window.electron?.obtenerFondos) {
-        const fondos = await window.electron.obtenerFondos();
-        console.log("🖼️ [Inicio] Fondos obtenidos:", fondos);
-
-        if (fondos && fondos.length > 0) {
-          // Mapear los fondos al formato correcto (sin duplicar rutas)
-          const fondosMapeados = fondos.map((fondo) => {
-            // Las rutas ya vienen completas desde la DB, no necesitamos convertirlas
-            console.log(
-              `🔗 [Inicio] Procesando fondo: ${fondo.nombre} - ${fondo.url}`,
-            );
-
-            return {
-              ruta: fondo.url, // Usar la ruta tal cual viene de la DB
-              tipo: fondo.tipo || "imagen",
-              nombre: fondo.nombre || "Fondo",
-            };
-          });
-
-          console.log("📋 [Inicio] Fondos mapeados:", fondosMapeados);
-          setFondosDisponibles(fondosMapeados);
-
-          // Establecer el primer fondo como activo
-          const primerFondo = fondosMapeados[0];
-          console.log("🎯 [Inicio] Estableciendo primer fondo:", {
-            nombre: primerFondo.nombre,
-            ruta: primerFondo.ruta,
-            tipo: primerFondo.tipo,
-          });
-          setFondoActivo(primerFondo);
-          console.log("✅ [Inicio] Fondos cargados:", fondosMapeados.length);
-        } else {
-          console.log(
-            "⚠️ [Inicio] No hay fondos en la DB, usando fondo por defecto",
-          );
-        }
-      }
-    } catch (error) {
-      console.error("❌ [Inicio] Error cargando fondos:", error);
-    }
-  };
-
-  // ✨ FUNCIÓN PARA CAMBIAR FONDO ALEATORIAMENTE
-  const cambiarFondoAleatorio = () => {
-    if (fondosDisponibles.length > 1) {
-      let indiceAleatorio;
-      let nuevoFondo;
-
-      // Asegurarse de que el nuevo fondo sea diferente al actual
-      do {
-        indiceAleatorio = Math.floor(Math.random() * fondosDisponibles.length);
-        nuevoFondo = fondosDisponibles[indiceAleatorio];
-      } while (nuevoFondo.ruta === fondoActivo.ruta);
-
-      setFondoActivo(nuevoFondo);
-      console.log("🔄 [Inicio] Fondo cambiado a:", nuevoFondo.nombre);
-    } else if (fondosDisponibles.length === 1) {
-      // Si solo hay un fondo, usarlo
-      setFondoActivo(fondosDisponibles[0]);
-      console.log("ℹ️ [Inicio] Solo hay un fondo disponible");
-    }
-  };
-
-  // ✨ CARGAR FONDOS AL INICIAR
-  useEffect(() => {
-    cargarFondosDisponibles();
-  }, []);
-
-  // ✨ CAMBIAR FONDO CADA 30 MINUTOS
-  useEffect(() => {
-    if (fondosDisponibles.length > 1) {
-      console.log(
-        "⏰ [Inicio] Iniciando intervalo de cambio de fondos (30 min). Total fondos:",
-        fondosDisponibles.length,
-      );
-
-      const intervalo = setInterval(() => {
-        console.log("🔄 [Inicio] Ejecutando cambio de fondo programado...");
-        cambiarFondoAleatorio();
-      }, 1800000); // 30 minutos = 1,800,000 ms
-
-      return () => {
-        console.log("🛑 [Inicio] Limpiando intervalo de fondos");
-        clearInterval(intervalo);
-      };
-    } else if (fondosDisponibles.length === 1) {
-      console.log(
-        "ℹ️ [Inicio] Solo hay 1 fondo, no se cambiará automáticamente",
-      );
-    } else {
-      console.log("⚠️ [Inicio] No hay fondos disponibles para cambiar");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fondosDisponibles]);
-
   // ✨ FUNCIÓN PARA CARGAR CONFIGURACIÓN
   const cargarConfiguracion = async () => {
     try {
-      console.log("🔄 [Inicio] Cargando configuración...");
-
       if (window.electron?.obtenerConfiguracion) {
         const config = await window.electron.obtenerConfiguracion();
-        console.log("📋 [Inicio] Configuración obtenida:", config);
-
         if (config) {
           setConfiguracion((prevConfig) => ({
             ...prevConfig,
             ...config,
-            // Asegurar que logoUrl siempre tenga un valor válido
             logoUrl:
               config.logoUrl || prevConfig.logoUrl || "/images/icon-256.png",
           }));
-
-          console.log("✅ [Inicio] Configuración aplicada");
         }
       }
     } catch (error) {
@@ -146,9 +65,36 @@ const Inicio = () => {
     }
   };
 
+  // ✨ CARGAR ESTADÍSTICAS DESDE LOCALSTORAGE
+  const cargarEstadisticas = () => {
+    try {
+      const himnosFav = localStorage.getItem("himnosFavoritos") || "[]";
+      const vidaCristianaFav =
+        localStorage.getItem("himnosVidaCristianaFavoritos") || "[]";
+      const favoritosPersonalizados =
+        localStorage.getItem("favoritosPersonalizados") || "[]";
+      const favoritosBiblia = localStorage.getItem("favoritosBiblia") || "[]";
+
+      const totalHimnosFav = JSON.parse(himnosFav).length;
+      const totalVidaCristiana = JSON.parse(vidaCristianaFav).length;
+      const totalPersonalizados = JSON.parse(favoritosPersonalizados).length;
+      const totalBiblia = JSON.parse(favoritosBiblia).length;
+
+      setEstadisticas({
+        totalHimnos: totalHimnosFav,
+        totalFavoritos: totalPersonalizados + totalBiblia,
+        totalMultimedia: 0, // Se actualizará si hay datos de multimedia
+        totalVidaCristiana: totalVidaCristiana,
+      });
+    } catch (error) {
+      console.error("❌ [Inicio] Error cargando estadísticas:", error);
+    }
+  };
+
   // ✨ CARGAR CONFIGURACIÓN AL INICIAR
   useEffect(() => {
     cargarConfiguracion();
+    cargarEstadisticas();
 
     // ✨ LISTENER PARA ACTUALIZACIONES EN TIEMPO REAL
     if (window.electron?.on) {
@@ -198,33 +144,11 @@ const Inicio = () => {
     return () => clearInterval(intervalo);
   }, []);
 
-  // ✨ LISTENER PARA CAMBIOS DE FONDO
-  useEffect(() => {
-    if (window.electron?.on) {
-      window.electron.on("fondo-actualizado", (event, nuevoFondo) => {
-        console.log("🔄 [Inicio] Fondo actualizado:", nuevoFondo);
-        setFondoActivo({
-          ruta: nuevoFondo.ruta,
-          tipo: nuevoFondo.tipo,
-        });
-      });
-    }
-
-    return () => {
-      if (window.electron?.removeAllListeners) {
-        window.electron.removeAllListeners("fondo-actualizado");
-      }
-    };
-  }, []);
-
   // ✨ LOADER MODERNO
   if (!configuracionCargada) {
     return (
-      <div className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        {/* Overlay oscuro */}
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-
-        {/* Loader elegante */}
+      <div className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-l border-white/5">
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
         <div className="relative z-10 flex items-center justify-center text-white">
           <div className="text-center">
             <div className="relative">
@@ -241,168 +165,196 @@ const Inicio = () => {
     );
   }
 
+  // ✨ VARIANTES DE ANIMACIÓN
+  const containerVariants = {
+    hidden: {opacity: 0},
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: {opacity: 0, y: 20},
+    visible: {opacity: 1, y: 0, transition: {duration: 0.4}},
+  };
+
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      {/* Fondo dinámico con transición suave */}
-      {fondoActivo?.ruta && (
-        <>
-          {console.log(
-            "🎨 [Inicio] Renderizando fondo:",
-            fondoActivo.nombre,
-            "Tipo:",
-            fondoActivo.tipo,
-            "Ruta:",
-            fondoActivo.ruta,
-          )}
+    <div className="relative w-full h-screen overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-l border-white/5">
+      {/* Overlay suave para profundidad */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/25 pointer-events-none" />
 
-          {fondoActivo.tipo === "video" ? (
-            <video
-              key={fondoActivo.ruta}
-              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out"
-              src={fondoActivo.ruta}
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              onLoadedData={(e) => {
-                console.log(
-                  "✅ [Inicio] Video cargado exitosamente:",
-                  fondoActivo.ruta,
-                );
-                e.target.style.opacity = "1";
-              }}
-              onError={(e) => {
-                console.error(
-                  "❌ [Inicio] Error cargando video:",
-                  fondoActivo.ruta,
-                  "Event:",
-                  e.target.error,
-                );
-                // Intentar con el siguiente fondo disponible
-                if (fondosDisponibles.length > 1) {
-                  cambiarFondoAleatorio();
-                }
-              }}
-            />
-          ) : (
-            <img
-              key={fondoActivo.ruta}
-              src={fondoActivo.ruta}
-              alt={fondoActivo.nombre}
-              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out"
-              onLoad={() => {
-                console.log(
-                  "✅ [Inicio] Imagen cargada exitosamente:",
-                  fondoActivo.ruta,
-                );
-              }}
-              onError={(e) => {
-                console.error(
-                  "❌ [Inicio] Error cargando imagen:",
-                  fondoActivo.ruta,
-                  "Error:",
-                  e.target.error,
-                );
-              }}
-            />
-          )}
-        </>
-      )}
-
-      {/* Overlay con gradiente suave para mejor visibilidad */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-950/55 via-slate-900/35 to-slate-950/55" />
-
-      {/* Contenido principal */}
-      <div className="relative z-10 h-full flex flex-col">
-        {/* Header superior con reloj */}
-        <div className="absolute top-4 right-4 z-20">
-          <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
-            <div className="flex items-center space-x-2">
-              <FaClock className="text-emerald-300 text-sm" />
-              <p className="text-xs md:text-sm font-mono font-medium text-white/90">
-                {fechaHora}
-              </p>
+      {/* Contenido principal scrolleable */}
+      <div className="relative z-10 px-4 py-6 md:px-6">
+        {/* Header Sticky - Mejorado */}
+        <motion.header
+          initial={{opacity: 0, y: -20}}
+          animate={{opacity: 1, y: 0}}
+          className="sticky top-0 z-40 bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-md border-b border-emerald-500/20 rounded-b-2xl mb-8 px-6 py-4 shadow-lg"
+        >
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+            {/* Reloj (Izquierda) */}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2 w-fit">
+                <FaClock className="text-emerald-400 text-sm" />
+                <p className="text-xs md:text-sm font-mono text-white/80 whitespace-nowrap">
+                  {fechaHora}
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Contenido central - mejor centrado */}
-        <div className="flex-1 flex flex-col items-center justify-center text-white px-4 py-8">
-          {/* Logo de la iglesia con efectos modernos */}
-          <div className="relative mb-6">
-            <div className="relative">
-              <img
-                src={
-                  configuracion.logoUrl && configuracion.logoUrl !== "undefined"
-                    ? configuracion.logoUrl
-                    : "/images/icon-256.png"
-                }
-                alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
-                className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-full border-2 border-white/20 object-cover"
-                onError={(e) => {
-                  console.log(
-                    "⚠️ [Inicio] Error cargando logo, usando fallback",
-                  );
-                  e.target.src = "/images/icon-256.png";
-                }}
-              />
-              <div className="absolute inset-0 rounded-full bg-gradient-to-t from-black/20 to-transparent"></div>
-            </div>
-          </div>
-
-          {/* Mensaje de bienvenida - solo si hay configuración */}
-          {configuracion.nombreIglesia && (
-            <div className="text-center mb-4 max-w-4xl w-full">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 text-white">
-                {mensaje}
-              </h1>
-
-              {/* Nombre de la iglesia - responsivo */}
-              <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-4 py-3 mb-4">
-                <h2 className="text-base md:text-lg lg:text-xl font-bold text-white flex items-center justify-center space-x-2 flex-wrap">
-                  <FaChurch className="text-emerald-300 text-lg" />
-                  <span className="text-center">
-                    Bienvenido a {configuracion.nombreIglesia}
-                  </span>
-                </h2>
-
-                {/* Eslogan - responsivo */}
-                {configuracion.eslogan && (
-                  <h3 className="text-sm md:text-base text-white/60 italic font-light mt-2">
-                    {configuracion.eslogan}
-                  </h3>
+            {/* Logo + Saludo (Derecha) */}
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm md:text-base font-semibold text-emerald-400">
+                  {mensaje}
+                </p>
+                {configuracion.nombreIglesia && (
+                  <p className="text-xs text-white/70">
+                    {configuracion.nombreIglesia}
+                  </p>
                 )}
               </div>
+              <div className="rounded-full p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
+                <img
+                  src={
+                    configuracion.logoUrl &&
+                    configuracion.logoUrl !== "undefined"
+                      ? configuracion.logoUrl
+                      : "/images/icon-256.png"
+                  }
+                  alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
+                  className="w-14 h-14 md:w-16 md:h-16 rounded-full object-cover"
+                  onError={(e) => {
+                    e.target.src = "/images/icon-256.png";
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </motion.header>
 
-              {/* Ubicación - responsiva */}
-              {configuracion.direccion && (
-                <div className="flex items-center justify-center space-x-2 text-white/60">
-                  <FaMapMarkerAlt className="text-emerald-300 text-sm" />
-                  <span className="text-sm font-medium">
-                    {configuracion.direccion}
-                  </span>
-                </div>
+        {/* Contenido Principal */}
+        <motion.main
+          className="max-w-6xl mx-auto"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {/* 1️⃣ SECCIÓN BIENVENIDA */}
+          <motion.section variants={itemVariants} className="mb-8">
+            <div className="rounded-2xl bg-gradient-to-br from-white/5 to-white/0 backdrop-blur-sm border border-white/10 p-6 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {mensaje}, 👋
+              </h2>
+              {configuracion.nombreIglesia && (
+                <>
+                  <p className="text-lg text-white/80 mb-2 flex items-center justify-center gap-2">
+                    <FaChurch className="text-emerald-400" />
+                    {configuracion.nombreIglesia}
+                  </p>
+                  {configuracion.eslogan && (
+                    <p className="text-white/60 italic mb-4">
+                      {configuracion.eslogan}
+                    </p>
+                  )}
+                  {configuracion.direccion && (
+                    <p className="text-white/50 flex items-center justify-center gap-2 text-sm">
+                      <FaMapMarkerAlt className="text-emerald-400" />
+                      {configuracion.direccion}
+                    </p>
+                  )}
+                </>
               )}
             </div>
-          )}
-        </div>
+          </motion.section>
 
-        {/* Efectos de partículas flotantes */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-white/10 rounded-full animate-pulse"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${3 + Math.random() * 2}s`,
-              }}
-            />
-          ))}
-        </div>
+          {/* 2️⃣ SECCIÓN ESTADÍSTICAS */}
+          <motion.section variants={itemVariants} className="mb-8">
+            <h3 className="text-xl font-semibold text-white mb-4">
+              Tu Actividad
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatWidget
+                icon={FaMusic}
+                value={estadisticas.totalHimnos}
+                label="Himnos Favoritos"
+                accentColor="emerald"
+              />
+              <StatWidget
+                icon={FaBook}
+                value={estadisticas.totalVidaCristiana}
+                label="Vida Cristiana"
+                accentColor="amber"
+              />
+              <StatWidget
+                icon={FaHeart}
+                value={estadisticas.totalFavoritos}
+                label="Otros Favoritos"
+                accentColor="rose"
+              />
+              <StatWidget
+                icon={FaFilm}
+                value={estadisticas.totalMultimedia}
+                label="Multimedia"
+                accentColor="indigo"
+              />
+            </div>
+          </motion.section>
+
+          {/* 3️⃣ SECCIÓN ACCESOS RÁPIDOS */}
+          <motion.section variants={itemVariants} className="mb-8">
+            <h3 className="text-xl font-semibold text-white mb-4">
+              Accesos Rápidos
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <QuickAccessButton
+                icon={FaMusic}
+                label="Himnos"
+                onClick={() => navigate("/himnos")}
+                color="emerald"
+              />
+              <QuickAccessButton
+                icon={FaBook}
+                label="Biblia"
+                onClick={() => navigate("/biblia")}
+                color="indigo"
+              />
+              <QuickAccessButton
+                icon={FaHeart}
+                label="Favoritos"
+                onClick={() => navigate("/favoritos")}
+                color="rose"
+              />
+              <QuickAccessButton
+                icon={FaFilm}
+                label="Multimedia"
+                onClick={() => navigate("/multimedia")}
+                color="amber"
+              />
+            </div>
+          </motion.section>
+
+          {/* 5️⃣ SECCIÓN REPRODUCTOR DESTACADO */}
+          {mediaContext?.currentMedia && (
+            <motion.section variants={itemVariants} className="mb-8">
+              <h3 className="text-xl font-semibold text-white mb-4">
+                Reproduciendo Ahora
+              </h3>
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+                <p className="text-white/80 text-center">
+                  {mediaContext.currentMedia.title || "Sin título"}
+                </p>
+              </div>
+            </motion.section>
+          )}
+
+          {/* Espacio final */}
+          <div className="h-8" />
+        </motion.main>
       </div>
     </div>
   );

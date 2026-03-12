@@ -134,12 +134,12 @@ const configuracionPorDefecto = {
     descripcion: "Ruta del logo de la iglesia"
   },
   colorPrimario: {
-    valor: "#fb923c",
+    valor: "#ffffff",
     tipo: "color",
     descripcion: "Color primario del tema"
   },
   colorSecundario: {
-    valor: "#ffffff",
+    valor: "#d1d5db",
     tipo: "color",
     descripcion: "Color secundario del tema"
   },
@@ -291,8 +291,8 @@ function guardarConfiguracion(configuracion) {
       ['email', configuracion.email || '', 'string', 'Email'],
       ['website', configuracion.website || '', 'string', 'Website'],
       ['logo', configuracion.logo || '', 'string', 'Logo'],
-      ['colorPrimario', configuracion.colorPrimario || '#fb923c', 'string', 'Color primario'],
-      ['colorSecundario', configuracion.colorSecundario || '#ffffff', 'string', 'Color secundario'],
+      ['colorPrimario', configuracion.colorPrimario || '#ffffff', 'string', 'Color primario'],
+      ['colorSecundario', configuracion.colorSecundario || '#d1d5db', 'string', 'Color secundario'],
       ['fontSizeTitulo', configuracion.fontSize.titulo || 'text-5xl', 'string', 'Tamaño de fuente título'],
       ['fontSizeParrafo', configuracion.fontSize.parrafo || 'text-6xl', 'string', 'Tamaño de fuente párrafo'],
       ['fontSizeEslogan', configuracion.fontSize.eslogan || 'text-2xl', 'string', 'Tamaño de fuente eslogan'],
@@ -744,13 +744,37 @@ function limpiarDuplicadosFondos() {
 
     let eliminados = 0;
 
+    // 🔧 PASO 0: Normalizar URLs absolutas locales a rutas relativas
+    // Ej: http://localhost:3001/fondos/imagen1.jpg -> /fondos/imagen1.jpg
+    // Esto evita duplicados "idénticos" en UI pero distintos en BD.
+    const fondosAbsolutos = db.prepare(`
+      SELECT id, url FROM fondos
+      WHERE url LIKE 'http://localhost:3001/%'
+         OR url LIKE 'https://localhost:3001/%'
+    `).all();
+
+    if (fondosAbsolutos.length > 0) {
+      const updateStmt = db.prepare('UPDATE fondos SET url = ? WHERE id = ?');
+      for (const fondo of fondosAbsolutos) {
+        try {
+          const pathname = new URL(fondo.url).pathname;
+          if (pathname && pathname.startsWith('/')) {
+            updateStmt.run(pathname, fondo.id);
+            console.log(`  🔄 Normalizada URL: ${fondo.url} -> ${pathname}`);
+          }
+        } catch (e) {
+          // Ignorar URLs inválidas
+        }
+      }
+    }
+
     // 🔥 PASO 1: Eliminar fondos con rutas incorrectas (migraciones antiguas)
-    // Solo mantener fondos que empiezan con /fondos/
+    // Solo mantener fondos que empiezan con /fondos/ para los archivos "de carpeta fondos"
     const fondosIncorrectos = db.prepare(`
       SELECT id, url FROM fondos 
       WHERE url NOT LIKE '/fondos/%' 
       AND (url LIKE '/images/%' OR url LIKE '/videos/%')
-      AND (url LIKE '%imagen%.jpg' OR url LIKE '%video%.mp4')
+      AND (url LIKE '%imagen%.jpg' OR url LIKE '%imagen%.png' OR url LIKE '%video%.mp4')
     `).all();
 
     if (fondosIncorrectos.length > 0) {
@@ -801,14 +825,38 @@ function inicializarFondosPorDefecto() {
     // Primero, limpiar duplicados existentes
     limpiarDuplicadosFondos();
 
-    // Fondos requeridos que deben existir
+    // 🔧 Normalizar rutas legacy (si antes se guardaron como .jpg pero ahora son .png)
+    // Mantener siempre las rutas canónicas que existen en public/fondos.
+    const legacyMappings = [
+      { oldUrl: '/fondos/imagen2.jpg', newUrl: '/fondos/imagen2.png' },
+      { oldUrl: '/fondos/imagen4.jpg', newUrl: '/fondos/imagen4.png' }
+    ];
+
+    for (const { oldUrl, newUrl } of legacyMappings) {
+      const oldRow = db.prepare('SELECT id FROM fondos WHERE url = ?').get(oldUrl);
+      if (!oldRow) continue;
+
+      const newRow = db.prepare('SELECT id FROM fondos WHERE url = ?').get(newUrl);
+      if (newRow) {
+        db.prepare('DELETE FROM fondos WHERE url = ?').run(oldUrl);
+        console.log(`  🗑️ [DB] Eliminada URL legacy duplicada: ${oldUrl}`);
+      } else {
+        db.prepare('UPDATE fondos SET url = ? WHERE url = ?').run(newUrl, oldUrl);
+        console.log(`  🔄 [DB] URL legacy actualizada: ${oldUrl} -> ${newUrl}`);
+      }
+    }
+
+    // Fondos requeridos que deben existir (4 videos + 4 imágenes)
+    // Deben coincidir con los archivos de la carpeta public/fondos
     const fondosRequeridos = [
       "/fondos/video1.mp4",
       "/fondos/video2.mp4",
       "/fondos/video3.mp4",
+      "/fondos/video4.mp4",
       "/fondos/imagen1.jpg",
-      "/fondos/imagen2.jpg",
-      "/fondos/imagen3.jpg"
+      "/fondos/imagen2.png",
+      "/fondos/imagen3.jpg",
+      "/fondos/imagen4.png"
     ];
 
     // Verificar cuántos de los fondos por defecto ya existen
@@ -858,7 +906,7 @@ function inicializarFondosPorDefecto() {
 
     console.log(`🆕 [DB] Insertando fondos por defecto (${fondosRequeridos.length} fondos)...`);
 
-    // Fondos por defecto de la aplicación - 3 videos y 3 imágenes
+    // Fondos por defecto de la aplicación - 4 videos y 4 imágenes
     const fondosPorDefecto = [
       // Videos
       {
@@ -879,6 +927,12 @@ function inicializarFondosPorDefecto() {
         nombre: "Video 3",
         activo: 0
       },
+      {
+        url: "/fondos/video4.mp4",
+        tipo: "video",
+        nombre: "Video 4",
+        activo: 0
+      },
       // Imágenes
       {
         url: "/fondos/imagen1.jpg",
@@ -887,7 +941,7 @@ function inicializarFondosPorDefecto() {
         activo: 0
       },
       {
-        url: "/fondos/imagen2.jpg",
+        url: "/fondos/imagen2.png",
         tipo: "imagen",
         nombre: "Imagen 2",
         activo: 0
@@ -896,6 +950,12 @@ function inicializarFondosPorDefecto() {
         url: "/fondos/imagen3.jpg",
         tipo: "imagen",
         nombre: "Imagen 3",
+        activo: 0
+      },
+      {
+        url: "/fondos/imagen4.png",
+        tipo: "imagen",
+        nombre: "Imagen 4",
         activo: 0
       }
     ];
@@ -1418,6 +1478,101 @@ function exportarPresentacion(id) {
 console.log("🔧 [DB] Iniciando migración de tabla presentaciones...");
 migrarTablaPresentaciones();
 
+// ==================================================
+// Helpers Multimedia (URLs / YouTube)
+// ==================================================
+
+function extraerYouTubeId(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+
+  // watch?v=, youtu.be/, embed/, shorts/
+  const match = raw.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/,
+  );
+  return match ? match[1] : "";
+}
+
+function normalizarUrlBasica(url) {
+  return String(url || "")
+    .trim()
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
+
+function obtenerClaveDedupeMultimedia(media) {
+  const tipo = String(media?.tipo || media?.type || "").trim().toLowerCase();
+  const url = String(media?.url || "").trim();
+  const ruta = String(media?.ruta_archivo || media?.rutaArchivo || "").trim();
+
+  const ytId = extraerYouTubeId(ruta) || extraerYouTubeId(url);
+  if (ytId || tipo === "youtube") return `yt:${ytId || normalizarUrlBasica(ruta || url)}`;
+
+  const candidate = url || ruta;
+  if (/^https?:\/\//i.test(candidate)) return `url:${normalizarUrlBasica(candidate)}`;
+
+  return `file:${String(ruta || url || "").trim()}`;
+}
+
+function asegurarIntegridadTablaMultimedia() {
+  try {
+    const tablaExiste = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='multimedia'",
+    ).get();
+    if (!tablaExiste) return;
+
+    const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
+    const nombresColumnas = columnas.map((col) => col.name);
+    const tieneRuta = nombresColumnas.includes("ruta_archivo");
+    const tieneUrl = nombresColumnas.includes("url");
+    if (!tieneRuta) return;
+
+    // 1) Si ruta_archivo está vacía pero hay url, rellenar ruta_archivo = url
+    if (tieneUrl) {
+      db.prepare(`
+        UPDATE multimedia
+        SET ruta_archivo = url
+        WHERE (ruta_archivo IS NULL OR TRIM(ruta_archivo) = '')
+          AND url IS NOT NULL AND TRIM(url) <> ''
+      `).run();
+    }
+
+    // 2) Eliminar filas inválidas (sin ruta)
+    db.prepare(`
+      DELETE FROM multimedia
+      WHERE ruta_archivo IS NULL OR TRIM(ruta_archivo) = ''
+    `).run();
+
+    // 3) Eliminar duplicados exactos por ruta_archivo (conservar el id más alto)
+    db.prepare(`
+      DELETE FROM multimedia
+      WHERE id NOT IN (
+        SELECT MAX(id)
+        FROM multimedia
+        GROUP BY TRIM(ruta_archivo)
+      )
+    `).run();
+
+    // 4) Crear índice único para evitar duplicados futuros
+    // Si aún existieran duplicados en instalaciones viejas, este CREATE puede fallar; no bloqueamos la app.
+    try {
+      db.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_multimedia_ruta_archivo_unique ON multimedia(ruta_archivo)",
+      ).run();
+    } catch (indexErr) {
+      console.warn(
+        "⚠️ [DB] No se pudo crear índice UNIQUE en multimedia(ruta_archivo):",
+        indexErr?.message || indexErr,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "⚠️ [DB] asegurarIntegridadTablaMultimedia falló:",
+      error?.message || error,
+    );
+  }
+}
+
 // ✨ FUNCIÓN PARA MIGRAR TABLA MULTIMEDIA
 function migrarTablaMultimedia() {
   try {
@@ -1503,65 +1658,114 @@ function migrarTablaMultimedia() {
   }
 }
 
-// Agregar nuevo archivo multimedia - CORREGIR FUNCIÓN
+// Agregar nuevo archivo multimedia (archivos o URLs)
 function agregarMultimedia(multimediaData) {
   try {
     console.log("💾 [DB] Agregando archivo multimedia:", multimediaData);
 
-    // ✨ CORREGIR VALIDACIÓN - usar 'url' en lugar de 'ruta_archivo'
-    if (!multimediaData.nombre || !multimediaData.tipo || !multimediaData.url) {
+    const nombre = String(multimediaData?.nombre || "").trim();
+    const tipo = String(multimediaData?.tipo || multimediaData?.type || "").trim();
+    const urlFinal = String(multimediaData?.url || "").trim();
+    const rutaArchivo = String(
+      multimediaData?.ruta_archivo ||
+      multimediaData?.rutaArchivo ||
+      multimediaData?.originalUrl ||
+      multimediaData?.url ||
+      "",
+    ).trim();
+
+    if (!nombre || !tipo || !urlFinal) {
       throw new Error("Nombre, tipo y url son requeridos");
     }
 
-    // Verificar columnas disponibles
-    const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    // Deduplicación: si ya existe por url/ruta (o por videoId si es YouTube), reutilizar.
+    const clave = obtenerClaveDedupeMultimedia({ tipo, url: urlFinal, ruta_archivo: rutaArchivo });
+    const ytId = clave.startsWith("yt:") ? clave.slice(3) : "";
 
-    // Si las nuevas columnas no existen, usar estructura básica
-    if (!nombresColumnas.includes('extension')) {
-      console.log("📋 [DB] Usando estructura básica de multimedia");
-      const stmt = db.prepare(`
-        INSERT INTO multimedia (nombre, tipo, tamaño, ruta_archivo, url)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      const info = stmt.run(
-        multimediaData.nombre,
-        multimediaData.tipo,
-        multimediaData.tamaño || null,
-        multimediaData.url, // ✨ usar url como ruta_archivo
-        multimediaData.url
-      );
-      return { success: true, id: info.lastInsertRowid };
+    let existente = null;
+    try {
+      existente = db
+        .prepare("SELECT id FROM multimedia WHERE url = ? LIMIT 1")
+        .get(urlFinal);
+      if (!existente && rutaArchivo) {
+        existente = db
+          .prepare("SELECT id FROM multimedia WHERE ruta_archivo = ? LIMIT 1")
+          .get(rutaArchivo);
+      }
+      if (!existente && ytId && ytId.length === 11) {
+        const like = `%${ytId}%`;
+        existente = db
+          .prepare(
+            "SELECT id FROM multimedia WHERE (url LIKE ? OR ruta_archivo LIKE ?) AND tipo = 'youtube' LIMIT 1",
+          )
+          .get(like, like);
+      }
+    } catch (e) {
+      console.warn("⚠️ [DB] No se pudo verificar duplicados:", e?.message);
     }
 
-    // Usar estructura completa
+    if (existente?.id) {
+      return { success: true, id: existente.id, deduplicated: true };
+    }
+
+    const tamaño =
+      multimediaData?.tamaño ??
+      multimediaData?.size ??
+      null;
+
+    // Insert completo (la migración crea todas las columnas)
     const stmt = db.prepare(`
-      INSERT INTO multimedia (
+      INSERT INTO multimedia(
         nombre, tipo, tamaño, ruta_archivo, url, extension, duracion,
         resolucion, miniatura, descripcion, tags, favorito, activo, reproducido
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = stmt.run(
-      multimediaData.nombre,
-      multimediaData.tipo,
-      multimediaData.tamaño || null,
-      multimediaData.url, // ✨ usar url como ruta_archivo
-      multimediaData.url,
-      multimediaData.extension || '',
-      multimediaData.duracion || '',
-      multimediaData.resolucion || '',
-      multimediaData.miniatura || '',
-      multimediaData.descripcion || '',
-      JSON.stringify(multimediaData.tags || []),
-      multimediaData.favorito ? 1 : 0,
-      multimediaData.activo ? 1 : 0,
-      0 // reproducido por defecto
-    );
+    const rutaFinal = rutaArchivo || urlFinal;
+    let info;
+    try {
+      info = stmt.run(
+        nombre,
+        tipo,
+        tamaño,
+        rutaFinal,
+        urlFinal,
+        multimediaData?.extension || "",
+        multimediaData?.duracion || "",
+        multimediaData?.resolucion || "",
+        multimediaData?.miniatura || "",
+        multimediaData?.descripcion || "",
+        JSON.stringify(multimediaData?.tags || []),
+        multimediaData?.favorito ? 1 : 0,
+        multimediaData?.activo ? 1 : 0,
+        0,
+      );
+    } catch (insertErr) {
+      const msg = String(insertErr?.message || "");
+      if (
+        msg.includes("UNIQUE") &&
+        (msg.includes("multimedia.ruta_archivo") || msg.includes("idx_multimedia_ruta_archivo_unique"))
+      ) {
+        const existentePorRuta = db
+          .prepare("SELECT id FROM multimedia WHERE ruta_archivo = ? LIMIT 1")
+          .get(rutaFinal);
+        if (existentePorRuta?.id) {
+          return { success: true, id: existentePorRuta.id, deduplicated: true };
+        }
+
+        const existentePorUrl = db
+          .prepare("SELECT id FROM multimedia WHERE url = ? LIMIT 1")
+          .get(urlFinal);
+        if (existentePorUrl?.id) {
+          return { success: true, id: existentePorUrl.id, deduplicated: true };
+        }
+      }
+
+      throw insertErr;
+    }
 
     console.log("✅ [DB] Archivo multimedia agregado con ID:", info.lastInsertRowid);
     return { success: true, id: info.lastInsertRowid };
-
   } catch (error) {
     console.error("❌ [DB] Error agregando archivo multimedia:", error);
     return { success: false, error: error.message };
@@ -1587,7 +1791,7 @@ function obtenerMultimedia() {
 
     for (const columna of columnasOpcionales) {
       if (nombresColumnas.includes(columna)) {
-        selectFields += `, ${columna}`;
+        selectFields += `, ${columna} `;
       }
     }
 
@@ -1617,8 +1821,18 @@ function obtenerMultimedia() {
       fecha_modificacion: archivo.fecha_modificacion || null
     }));
 
-    console.log("✅ [DB] Archivos multimedia obtenidos:", archivosNormalizados.length);
-    return archivosNormalizados;
+    // Deduplicar (mantener el más reciente por clave)
+    const seen = new Set();
+    const deduped = [];
+    for (const item of archivosNormalizados) {
+      const key = obtenerClaveDedupeMultimedia(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(item);
+    }
+
+    console.log("✅ [DB] Archivos multimedia obtenidos:", deduped.length);
+    return deduped;
 
   } catch (error) {
     console.error("❌ [DB] Error obteniendo archivos multimedia:", error);
@@ -1645,11 +1859,11 @@ function obtenerMultimediaPorId(id) {
 
     for (const columna of columnasOpcionales) {
       if (nombresColumnas.includes(columna)) {
-        selectFields += `, ${columna}`;
+        selectFields += `, ${columna} `;
       }
     }
 
-    const query = `SELECT ${selectFields} FROM multimedia WHERE id = ?`;
+    const query = `SELECT ${selectFields} FROM multimedia WHERE id = ? `;
     const stmt = db.prepare(query);
     const archivo = stmt.get(id);
 
@@ -1701,10 +1915,10 @@ function actualizarMultimedia(multimediaData) {
     if (!nombresColumnas.includes('extension')) {
       console.log("📋 [DB] Usando estructura básica para actualización");
       const stmt = db.prepare(`
-        UPDATE multimedia SET 
-          nombre = ?, tipo = ?, tamaño = ?, url = ?
+        UPDATE multimedia SET
+      nombre = ?, tipo = ?, tamaño = ?, url = ?
         WHERE id = ?
-      `);
+          `);
       const info = stmt.run(
         multimediaData.nombre,
         multimediaData.tipo,
@@ -1717,12 +1931,12 @@ function actualizarMultimedia(multimediaData) {
 
     // Usar estructura completa
     const stmt = db.prepare(`
-      UPDATE multimedia SET 
-        nombre = ?, tipo = ?, tamaño = ?, url = ?, extension = ?,
+      UPDATE multimedia SET
+      nombre = ?, tipo = ?, tamaño = ?, url = ?, extension = ?,
         duracion = ?, resolucion = ?, miniatura = ?, descripcion = ?,
         tags = ?, favorito = ?, activo = ?, fecha_modificacion = CURRENT_TIMESTAMP
       WHERE id = ?
-    `);
+        `);
 
     const info = stmt.run(
       multimediaData.nombre,
@@ -1857,7 +2071,7 @@ function obtenerMultimediaPorTipo(tipo) {
     const multimedia = obtenerMultimedia();
     const archivosPorTipo = multimedia.filter(item => item.tipo === tipo);
 
-    console.log(`✅ [DB] Archivos multimedia de tipo ${tipo} obtenidos:`, archivosPorTipo.length);
+    console.log(`✅[DB] Archivos multimedia de tipo ${tipo} obtenidos: `, archivosPorTipo.length);
     return archivosPorTipo;
 
   } catch (error) {
@@ -1884,7 +2098,7 @@ function incrementarReproducido(id) {
       UPDATE multimedia 
       SET reproducido = reproducido + 1, fecha_modificacion = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `);
+        `);
     const info = stmt.run(id);
 
     console.log("✅ [DB] Contador de reproducción incrementado, filas afectadas:", info.changes);
@@ -1899,6 +2113,7 @@ function incrementarReproducido(id) {
 // ✨ EJECUTAR MIGRACIÓN AL INICIALIZAR
 console.log("🔧 [DB] Iniciando migración de tabla multimedia...");
 migrarTablaMultimedia();
+asegurarIntegridadTablaMultimedia();
 
 // ✨ NUEVA FUNCIÓN: Verificar si un archivo ya existe
 function verificarArchivoDuplicado(nombre, tamaño, tipo) {
@@ -1909,7 +2124,7 @@ function verificarArchivoDuplicado(nombre, tamaño, tipo) {
       SELECT id, nombre, tamaño, tipo, url 
       FROM multimedia 
       WHERE nombre = ? AND tamaño = ? AND tipo = ?
-    `);
+        `);
 
     const resultado = stmt.get(nombre, tamaño, tipo);
 
@@ -1942,14 +2157,14 @@ function migrarTablaPresentacionesSlides() {
     // Verificar si la tabla existe
     const tablaExiste = db.prepare(`
       SELECT name FROM sqlite_master 
-      WHERE type='table' AND name='presentaciones_slides'
-    `).get();
+      WHERE type = 'table' AND name = 'presentaciones_slides'
+        `).get();
 
     if (!tablaExiste) {
       // Crear tabla nueva con estructura completa
       console.log("📋 [DB] Creando tabla presentaciones_slides nueva...");
       const createTable = db.prepare(`
-        CREATE TABLE presentaciones_slides (
+        CREATE TABLE presentaciones_slides(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           nombre TEXT NOT NULL,
           descripcion TEXT,
@@ -1993,16 +2208,16 @@ function migrarTablaPresentacionesSlides() {
 
     for (const columna of columnasRequeridas) {
       if (!nombresColumnas.includes(columna.nombre)) {
-        console.log(`➕ [DB] Agregando columna: ${columna.nombre}`);
+        console.log(`➕[DB] Agregando columna: ${columna.nombre} `);
         try {
           const alterTable = db.prepare(`
             ALTER TABLE presentaciones_slides 
             ADD COLUMN ${columna.nombre} ${columna.tipo}
-          `);
+      `);
           alterTable.run();
-          console.log(`✅ [DB] Columna ${columna.nombre} agregada`);
+          console.log(`✅[DB] Columna ${columna.nombre} agregada`);
         } catch (error) {
-          console.error(`❌ [DB] Error agregando columna ${columna.nombre}:`, error);
+          console.error(`❌[DB] Error agregando columna ${columna.nombre}: `, error);
         }
       }
     }
@@ -2032,12 +2247,12 @@ function agregarPresentacionSlides(presentacionData) {
     const totalSlides = slides.length;
 
     const stmt = db.prepare(`
-      INSERT INTO presentaciones_slides (
+      INSERT INTO presentaciones_slides(
         nombre, descripcion, slides, importado_desde, tipo_archivo,
         tamano_archivo, total_slides, slide_actual, configuracion,
         tags, favorito
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
     const info = stmt.run(
       presentacionData.nombre,
@@ -2074,7 +2289,7 @@ function obtenerPresentacionesSlides() {
     const stmt = db.prepare(`
       SELECT * FROM presentaciones_slides 
       ORDER BY updated_at DESC, created_at DESC
-    `);
+        `);
     const presentaciones = stmt.all();
 
     // Normalizar datos
@@ -2111,7 +2326,7 @@ function obtenerPresentacionSlidesPorId(id) {
 
     const stmt = db.prepare(`
       SELECT * FROM presentaciones_slides WHERE id = ?
-    `);
+        `);
     const presentacion = stmt.get(id);
 
     if (presentacion) {
@@ -2165,13 +2380,13 @@ function actualizarPresentacionSlides(presentacionData) {
     }
 
     const stmt = db.prepare(`
-      UPDATE presentaciones_slides SET 
-        nombre = ?, descripcion = ?, slides = ?, importado_desde = ?,
+      UPDATE presentaciones_slides SET
+      nombre = ?, descripcion = ?, slides = ?, importado_desde = ?,
         tipo_archivo = ?, tamano_archivo = ?, total_slides = ?,
         slide_actual = ?, configuracion = ?, tags = ?, favorito = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `);
+        `);
 
     // Obtener presentación actual para mantener datos existentes
     const presentacionActual = obtenerPresentacionSlidesPorId(presentacionData.id);
@@ -2268,7 +2483,7 @@ function actualizarFavoritoPresentacionSlides(id, favorito) {
       UPDATE presentaciones_slides 
       SET favorito = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `);
+        `);
     const info = stmt.run(favorito ? 1 : 0, id);
 
     console.log("✅ [DB] Favorito actualizado, filas afectadas:", info.changes);
@@ -2306,7 +2521,7 @@ function actualizarSlideActualPresentacion(id, slideIndex) {
       UPDATE presentaciones_slides 
       SET slide_actual = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `);
+        `);
     const info = stmt.run(slideIndex, id);
 
     console.log("✅ [DB] Slide actual actualizado, filas afectadas:", info.changes);
@@ -2397,8 +2612,8 @@ function obtenerEstadisticasPresentacionesSlides() {
     console.log("📊 [DB] Obteniendo estadísticas de presentaciones...");
 
     const stmt = db.prepare(`
-      SELECT 
-        COUNT(*) as total,
+      SELECT
+      COUNT(*) as total,
         COUNT(CASE WHEN favorito = 1 THEN 1 END) as favoritas,
         COUNT(CASE WHEN tipo_archivo = 'powerpoint' THEN 1 END) as powerpoint,
         COUNT(CASE WHEN tipo_archivo = 'image' THEN 1 END) as imagenes,
@@ -2406,7 +2621,7 @@ function obtenerEstadisticasPresentacionesSlides() {
         SUM(total_slides) as total_slides,
         AVG(total_slides) as promedio_slides
       FROM presentaciones_slides
-    `);
+        `);
 
     const estadisticas = stmt.get();
 

@@ -19,13 +19,48 @@ try {
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const { spawn } = require("child_process");
 const express = require("express");
 const cors = require("cors");
 const https = require("https");
 const http = require("http");
 const QRCode = require("qrcode");
+
+let FFMPEG_BIN = "ffmpeg";
+try {
+  // `ffmpeg-static` expone la ruta completa al binario.
+  const maybe = require("ffmpeg-static");
+  if (maybe && typeof maybe === "string") {
+    FFMPEG_BIN = maybe;
+  }
+} catch {
+  // Si no está instalado, usamos ffmpeg del sistema (si existe).
+}
 // Importar la nueva base de datos
 const dbNew = require("./db-new");
+
+// ==================================================
+// Estado de reproducción multimedia (para app móvil)
+// ==================================================
+// Se actualiza desde el Proyector.jsx y el reproductor (solo-audio) vía IPC.
+const multimediaPlaybackStatus = {
+  proyector: {
+    updatedAt: 0,
+    currentTime: 0,
+    duration: 0,
+    paused: true,
+    volume: null,
+    tipo: null,
+  },
+  pc: {
+    updatedAt: 0,
+    currentTime: 0,
+    duration: 0,
+    paused: true,
+    volume: null,
+    tipo: null,
+  },
+};
 
 // ==================================================
 // Bridge: Express -> Renderer (Biblia preview)
@@ -296,12 +331,21 @@ function iniciarServidorMultimedia() {
 
   expressApp.use("/multimedia", express.static(multimediaDir, {
     setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo
-      if (filePath.endsWith('.mp3') || filePath.endsWith('.wav')) {
+      // Configurar headers según el tipo de archivo.
+      // Nota: algunos archivos históricos se guardaron sin ".ext" (ej: ...video4mp4).
+      const name = String(path.basename(filePath || '')).toLowerCase();
+
+      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
         res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (filePath.endsWith('.mp4') || filePath.endsWith('.webm')) {
+      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+        res.setHeader('Content-Type', 'audio/wav');
+      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+        res.setHeader('Content-Type', 'video/webm');
+      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
         res.setHeader('Content-Type', 'video/mp4');
-      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.png')) {
+      } else if (name.endsWith('.png') || name.endsWith('png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
         res.setHeader('Content-Type', 'image/jpeg');
       }
       res.setHeader('Accept-Ranges', 'bytes');
@@ -311,12 +355,20 @@ function iniciarServidorMultimedia() {
   // ✨ SERVIR ARCHIVOS DE FONDOS
   expressApp.use("/fondos", express.static(fondosDir, {
     setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo
-      if (filePath.endsWith('.mp3') || filePath.endsWith('.wav')) {
+      // Configurar headers según el tipo de archivo.
+      const name = String(path.basename(filePath || '')).toLowerCase();
+
+      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
         res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (filePath.endsWith('.mp4') || filePath.endsWith('.webm')) {
+      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+        res.setHeader('Content-Type', 'audio/wav');
+      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+        res.setHeader('Content-Type', 'video/webm');
+      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
         res.setHeader('Content-Type', 'video/mp4');
-      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg')) {
+      } else if (name.endsWith('.png') || name.endsWith('png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
         res.setHeader('Content-Type', 'image/jpeg');
       }
       res.setHeader('Accept-Ranges', 'bytes');
@@ -326,12 +378,20 @@ function iniciarServidorMultimedia() {
   // También servir desde build/multimedia (modo producción)
   expressApp.use("/multimedia", express.static(buildMultimediaDir, {
     setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo
-      if (filePath.endsWith('.mp3') || filePath.endsWith('.wav')) {
+      // Configurar headers según el tipo de archivo.
+      const name = String(path.basename(filePath || '')).toLowerCase();
+
+      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
         res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (filePath.endsWith('.mp4') || filePath.endsWith('.webm')) {
+      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+        res.setHeader('Content-Type', 'audio/wav');
+      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+        res.setHeader('Content-Type', 'video/webm');
+      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
         res.setHeader('Content-Type', 'video/mp4');
-      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.png')) {
+      } else if (name.endsWith('.png') || name.endsWith('png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
         res.setHeader('Content-Type', 'image/jpeg');
       }
       res.setHeader('Accept-Ranges', 'bytes');
@@ -341,12 +401,20 @@ function iniciarServidorMultimedia() {
   // ✨ TAMBIÉN SERVIR FONDOS DESDE BUILD (MODO PRODUCCIÓN)
   expressApp.use("/fondos", express.static(buildFondosDir, {
     setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo
-      if (filePath.endsWith('.mp3') || filePath.endsWith('.wav')) {
+      // Configurar headers según el tipo de archivo.
+      const name = String(path.basename(filePath || '')).toLowerCase();
+
+      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
         res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (filePath.endsWith('.mp4') || filePath.endsWith('.webm')) {
+      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+        res.setHeader('Content-Type', 'audio/wav');
+      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+        res.setHeader('Content-Type', 'video/webm');
+      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
         res.setHeader('Content-Type', 'video/mp4');
-      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg')) {
+      } else if (name.endsWith('.png') || name.endsWith('png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
         res.setHeader('Content-Type', 'image/jpeg');
       }
       res.setHeader('Accept-Ranges', 'bytes');
@@ -502,9 +570,9 @@ function iniciarServidorMultimedia() {
   });
 
   // ✅ Catálogo de himnos para app móvil (siempre desde el escritorio)
-  // Query: ?tipo=moravo|vida
+  // Query: ?tipo=moravo|vida|personal
   // Respuesta: { ok:true, tipo, himnos:[{ id, numero, titulo, parrafos, fuente }] }
-  // Nota: incluye también los himnos creados en la BD (Agregar Himno) para reflejar cambios.
+  // Nota: moravo/vida devuelve solo el catálogo base; personal devuelve solo himnos creados por el usuario.
   const leerJsonHimnosSeguro = (filename) => {
     const candidatos = [
       // Producción: build (si el archivo fue copiado desde public/)
@@ -532,22 +600,114 @@ function iniciarServidorMultimedia() {
 
   expressApp.get('/api/himnos', async (req, res) => {
     try {
-      const tipo = String(req.query?.tipo || 'moravo').toLowerCase() === 'vida' ? 'vida' : 'moravo';
-      const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+      const tipoRaw = String(req.query?.tipo || 'moravo').toLowerCase();
+      const tipo = tipoRaw === 'vida' ? 'vida' : tipoRaw === 'personal' ? 'personal' : 'moravo';
 
-      const base = leerJsonHimnosSeguro(filename);
-      const baseNormalizados = base
-        .map((h) => ({
-          id: `base:${tipo}:${h?.numero ?? ''}`,
-          numero: h?.numero ?? '',
-          titulo: h?.titulo ?? '',
-          parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
-          fuente: tipo,
-        }))
-        .filter((h) => String(h.titulo || '').trim());
+      let baseNormalizados = [];
+      let dbNormalizados = [];
+
+      if (tipo !== 'personal') {
+        const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+
+        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+        let favoritosBaseIds = [];
+        try {
+          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
+        } catch {
+          favoritosBaseIds = [];
+        }
+
+        const base = leerJsonHimnosSeguro(filename);
+        baseNormalizados = base
+          .map((h) => ({
+            id: `base:${tipo}:${h?.numero ?? ''}`,
+            numero: h?.numero ?? '',
+            titulo: h?.titulo ?? '',
+            parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+            fuente: tipo,
+            favorito: favoritosBaseIds.includes(`base:${tipo}:${h?.numero ?? ''}`),
+          }))
+          .filter((h) => String(h.titulo || '').trim());
+      }
+
+      if (tipo === 'personal') {
+        const himnosDb = await dbNew.obtenerHimnos();
+        dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
+          .map((h) => {
+            let letra = [];
+            try {
+              letra = JSON.parse(h?.letra || '[]');
+            } catch {
+              letra = [];
+            }
+
+            return {
+              id: `db:${h?.id ?? ''}`,
+              numero: h?.numero ?? '',
+              titulo: h?.titulo ?? '',
+              parrafos: Array.isArray(letra) ? letra : [],
+              fuente: 'personal',
+              favorito: Boolean(h?.favorito),
+            };
+          })
+          .filter((h) => String(h.titulo || '').trim());
+      }
+
+      return res.json({
+        ok: true,
+        tipo,
+        himnos: tipo === 'personal' ? dbNormalizados : baseNormalizados,
+      });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/himnos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Favoritos de himnos (App móvil)
+  // Query: ?tipo=moravo|vida|all
+  // Respuesta: { ok:true, himnos:[{id,numero,titulo,parrafos,fuente,favorito}] }
+  expressApp.get('/api/himnos/favoritos', async (req, res) => {
+    try {
+      const tipoRaw = String(req.query?.tipo || 'all').toLowerCase();
+      const tipos = tipoRaw === 'vida' ? ['vida'] : tipoRaw === 'moravo' ? ['moravo'] : ['moravo', 'vida'];
+
+      const favoritos = [];
+
+      for (const t of tipos) {
+        const filename = t === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+        const keyFavoritos = t === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+
+        let favoritosBaseIds = [];
+        try {
+          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
+        } catch {
+          favoritosBaseIds = [];
+        }
+
+        if (favoritosBaseIds.length) {
+          const base = leerJsonHimnosSeguro(filename);
+          base
+            .map((h) => ({
+              id: `base:${t}:${h?.numero ?? ''}`,
+              numero: h?.numero ?? '',
+              titulo: h?.titulo ?? '',
+              parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+              fuente: t,
+              favorito: favoritosBaseIds.includes(`base:${t}:${h?.numero ?? ''}`),
+            }))
+            .filter((h) => h.favorito && String(h.titulo || '').trim())
+            .forEach((h) => favoritos.push(h));
+        }
+      }
 
       const himnosDb = await dbNew.obtenerHimnos();
-      const dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
+      (Array.isArray(himnosDb) ? himnosDb : [])
+        .filter((h) => Boolean(h?.favorito))
         .map((h) => {
           let letra = [];
           try {
@@ -562,17 +722,209 @@ function iniciarServidorMultimedia() {
             titulo: h?.titulo ?? '',
             parrafos: Array.isArray(letra) ? letra : [],
             fuente: 'personal',
+            favorito: true,
           };
         })
-        .filter((h) => String(h.titulo || '').trim());
+        .filter((h) => String(h.titulo || '').trim())
+        .forEach((h) => favoritos.push(h));
 
-      return res.json({
-        ok: true,
-        tipo,
-        himnos: [...baseNormalizados, ...dbNormalizados],
+      favoritos.sort((a, b) => {
+        const na = Number(a?.numero);
+        const nb = Number(b?.numero);
+        if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+        return String(a?.titulo || '').localeCompare(String(b?.titulo || ''), 'es');
       });
+
+      return res.json({ ok: true, himnos: favoritos });
     } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/himnos:', error);
+      console.error('❌ [MAIN] (API) Error /api/himnos/favoritos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Toggle favorito himno (App móvil)
+  // Body: { favorito:boolean }
+  expressApp.post('/api/himnos/:id/favorito', async (req, res) => {
+    try {
+      const id = String(req.params?.id || '').trim();
+      if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
+      const favorito = Boolean(req.body?.favorito);
+
+      if (id.startsWith('db:')) {
+        const raw = id.slice(3);
+        const dbId = Number(raw);
+        if (!Number.isFinite(dbId)) {
+          return res.status(400).json({ ok: false, error: 'id db inválido' });
+        }
+
+        const ok = await dbNew.actualizarFavoritoHimno(dbId, favorito);
+        if (!ok) {
+          return res.status(500).json({ ok: false, error: 'No se pudo actualizar favorito' });
+        }
+        return res.json({ ok: true });
+      }
+
+      if (id.startsWith('base:')) {
+        const parts = id.split(':');
+        const tipo = parts?.[1] === 'vida' ? 'vida' : 'moravo';
+        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+
+        let favoritosBaseIds = [];
+        try {
+          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
+        } catch {
+          favoritosBaseIds = [];
+        }
+
+        const set = new Set(favoritosBaseIds);
+        if (favorito) set.add(id);
+        else set.delete(id);
+
+        const ok = await dbNew.actualizarConfiguracion(keyFavoritos, JSON.stringify(Array.from(set)));
+        if (!ok) {
+          return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
+        }
+
+        return res.json({ ok: true });
+      }
+
+      return res.status(400).json({ ok: false, error: 'Formato de id no soportado' });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/himnos/:id/favorito:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Favoritos de Biblia (RV1960)
+  // Respuesta: { ok:true, favoritos:[{ id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn }] }
+  const BIBLIA_FAVORITOS_KEY = 'biblia_favoritos_rv1960';
+
+  const normalizarFavoritoBiblia = (raw) => {
+    if (!raw) return null;
+
+    // Compat: lista antigua de strings (ids)
+    if (typeof raw === 'string') {
+      const id = raw.trim();
+      if (!id) return null;
+      return {
+        id,
+        libroId: '',
+        libroNombre: '',
+        capitulo: null,
+        versiculo: null,
+        texto: '',
+        creadoEn: null,
+      };
+    }
+
+    if (typeof raw !== 'object') return null;
+
+    const id = String(raw.id || '').trim();
+    if (!id) return null;
+
+    const libroId = String(raw.libroId || '').trim();
+    const libroNombre = String(raw.libroNombre || '').trim();
+
+    const capituloNum = Number(raw.capitulo);
+    const versiculoNum = Number(raw.versiculo);
+
+    const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
+    const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
+
+    const texto = typeof raw.texto === 'string' ? raw.texto : '';
+
+    const creadoEnNum = Number(raw.creadoEn);
+    const creadoEn = Number.isFinite(creadoEnNum) && creadoEnNum > 0 ? creadoEnNum : null;
+
+    return { id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn };
+  };
+
+  const leerFavoritosBiblia = async () => {
+    try {
+      const raw = await dbNew.obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
+      const parsed = raw ? JSON.parse(String(raw)) : [];
+      const arr = Array.isArray(parsed) ? parsed : [];
+      const normalizados = arr.map(normalizarFavoritoBiblia).filter(Boolean);
+
+      // De-dup por id (último gana)
+      const map = new Map();
+      for (const f of normalizados) map.set(f.id, f);
+      return Array.from(map.values());
+    } catch {
+      return [];
+    }
+  };
+
+  const guardarFavoritosBiblia = async (favoritos) => {
+    return dbNew.actualizarConfiguracion(BIBLIA_FAVORITOS_KEY, JSON.stringify(favoritos));
+  };
+
+  expressApp.get('/api/biblia/favoritos', async (_req, res) => {
+    try {
+      const favoritos = await leerFavoritosBiblia();
+
+      favoritos.sort((a, b) => {
+        const ln = String(a?.libroNombre || '').localeCompare(String(b?.libroNombre || ''), 'es');
+        if (ln !== 0) return ln;
+        const ca = Number(a?.capitulo || 0);
+        const cb = Number(b?.capitulo || 0);
+        if (ca !== cb) return ca - cb;
+        const va = Number(a?.versiculo || 0);
+        const vb = Number(b?.versiculo || 0);
+        return va - vb;
+      });
+
+      return res.json({ ok: true, favoritos });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/biblia/favoritos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Toggle favorito de versículo
+  // Body: { favorito:boolean, libroId, libroNombre, capitulo:number, versiculo:number, texto:string }
+  expressApp.post('/api/biblia/:id/favorito', async (req, res) => {
+    try {
+      const id = String(req.params?.id || '').trim();
+      if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
+
+      const favorito = Boolean(req.body?.favorito);
+
+      const favoritos = await leerFavoritosBiblia();
+      const map = new Map(favoritos.map((f) => [f.id, f]));
+
+      if (favorito) {
+        const libroId = String(req.body?.libroId || '').trim();
+        const libroNombre = String(req.body?.libroNombre || '').trim();
+        const capituloNum = Number(req.body?.capitulo);
+        const versiculoNum = Number(req.body?.versiculo);
+        const texto = typeof req.body?.texto === 'string' ? req.body.texto : '';
+
+        const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
+        const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
+
+        const previo = map.get(id);
+        map.set(id, {
+          id,
+          libroId,
+          libroNombre,
+          capitulo,
+          versiculo,
+          texto,
+          creadoEn: previo?.creadoEn || Date.now(),
+        });
+      } else {
+        map.delete(id);
+      }
+
+      const ok = await guardarFavoritosBiblia(Array.from(map.values()));
+      if (!ok) return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
+
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/biblia/:id/favorito:', error);
       return res.status(500).json({ ok: false, error: error.message });
     }
   });
@@ -849,6 +1201,145 @@ function iniciarServidorMultimedia() {
       return res.json({ ok: true });
     } catch (error) {
       console.error('❌ [MAIN] (API) Error /api/control/multimedia/proyectar:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Controlar reproducción multimedia desde app móvil
+  // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
+  expressApp.post('/api/control/multimedia/control', async (req, res) => {
+    try {
+      const { action, time, volume } = req.body || {};
+      const finalAction = String(action || '').trim();
+
+      const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
+      if (!allowed.has(finalAction)) {
+        return res.status(400).json({ ok: false, error: 'Acción inválida' });
+      }
+
+      const payload = { action: finalAction };
+
+      if (finalAction === 'seek') {
+        const t = Number(time);
+        if (!Number.isFinite(t) || t < 0) {
+          return res.status(400).json({ ok: false, error: 'time inválido' });
+        }
+        payload.time = t;
+      }
+
+      if (finalAction === 'volume') {
+        const v = Number(volume);
+        if (!Number.isFinite(v) || v < 0 || v > 1) {
+          return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
+        }
+        payload.volume = v;
+      }
+
+      const proyector = await asegurarProyectorListo();
+      proyector.webContents.send('control-multimedia', payload);
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/multimedia/control:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Estado de reproducción multimedia (para app móvil)
+  // Query: ?destino=proyector|pc
+  // Respuesta: { ok:true, destino, status:{ updatedAt, currentTime, duration, paused, volume, tipo } }
+  expressApp.get('/api/control/multimedia/status', async (req, res) => {
+    try {
+      const destinoRaw = String(req.query?.destino || 'proyector').toLowerCase();
+      const destino = destinoRaw === 'pc' ? 'pc' : 'proyector';
+      const status = multimediaPlaybackStatus?.[destino] || null;
+      return res.json({ ok: true, destino, status });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/multimedia/status:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Reproducir multimedia como "solo audio" (en la app de escritorio, sin proyectar)
+  // Útil para música de fondo mientras se sigue mostrando texto en el proyector.
+  // Body esperado: { id?: number|string, url?: string, tipo?: 'youtube'|'video'|'audio', nombre?: string }
+  expressApp.post('/api/control/multimedia/solo-audio/play', async (req, res) => {
+    try {
+      const { id, url, tipo, nombre } = req.body || {};
+
+      let media = null;
+      if (id !== undefined && id !== null && String(id).trim() !== '') {
+        const all = await obtenerMultimedia();
+        const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
+        if (found) {
+          media = found;
+        }
+      }
+
+      const finalTipo = String(tipo || media?.tipo || '').trim();
+      const finalNombre = String(nombre || media?.nombre || '').trim();
+      const finalUrl = String(url || media?.url || '').trim();
+
+      if (!finalTipo || !finalUrl) {
+        return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
+      }
+
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
+      }
+
+      const payload = {
+        tipo: finalTipo,
+        url: toLocalhostUrl(finalUrl),
+        nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
+        soloAudio: true,
+      };
+
+      mainWindow.webContents.send('solo-audio-play', payload);
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/play:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Controlar "solo audio" (en la app de escritorio, sin proyectar)
+  // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
+  expressApp.post('/api/control/multimedia/solo-audio/control', async (req, res) => {
+    try {
+      const { action, volume, time } = req.body || {};
+      const finalAction = String(action || '').trim();
+
+      const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
+      if (!allowed.has(finalAction)) {
+        return res.status(400).json({ ok: false, error: 'Acción inválida' });
+      }
+
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
+      }
+
+      const payload = { action: finalAction };
+
+      if (finalAction === 'seek') {
+        const t = Number(time);
+        if (!Number.isFinite(t) || t < 0) {
+          return res.status(400).json({ ok: false, error: 'time inválido' });
+        }
+        payload.time = t;
+      }
+
+      if (finalAction === 'volume') {
+        const v = Number(volume);
+        if (!Number.isFinite(v) || v < 0 || v > 1) {
+          return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
+        }
+        payload.volume = v;
+      }
+
+      mainWindow.webContents.send('solo-audio-control', payload);
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/control:', error);
       return res.status(500).json({ ok: false, error: error.message });
     }
   });
@@ -1230,6 +1721,127 @@ function iniciarServidorMultimedia() {
     }
 
     res.status(404).json({ error: 'Archivo no encontrado', filename, searchedIn: directorios });
+  });
+
+  // ✅ Miniatura estática para videos (para la app móvil)
+  // Genera y cachea un JPG con ffmpeg (si existe en el sistema).
+  // GET /api/multimedia/:id/thumbnail
+  expressApp.get('/api/multimedia/:id/thumbnail', async (req, res) => {
+    try {
+      const id = String(req.params?.id || '').trim();
+      if (!id) return res.status(400).json({ ok: false, error: 'id requerido' });
+
+      const all = await obtenerMultimedia();
+      const item = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === id);
+      if (!item) return res.status(404).json({ ok: false, error: 'multimedia no encontrada' });
+
+      const tipo = String(item?.tipo || '').toLowerCase();
+      if (!tipo.includes('video')) {
+        return res.status(400).json({ ok: false, error: 'no es un video' });
+      }
+
+      const filenameRaw =
+        String(item?.ruta_archivo || '').trim() ||
+        String(item?.url || '').trim().split('/').pop() ||
+        '';
+      const filename = String(filenameRaw || '').split('?')[0].trim();
+      if (!filename) {
+        return res.status(404).json({ ok: false, error: 'archivo no encontrado (sin nombre)' });
+      }
+
+      const directorios = [multimediaDir, buildMultimediaDir];
+      let sourcePath = '';
+      for (const dir of directorios) {
+        try {
+          if (!fs.existsSync(dir)) continue;
+          const exact = path.join(dir, filename);
+          if (fs.existsSync(exact)) {
+            sourcePath = exact;
+            break;
+          }
+
+          // Si no hay coincidencia exacta, intentar por prefijo (casos sin extensión bien formada)
+          const archivos = fs.readdirSync(dir);
+          const found = archivos.find((f) => f === filename) || archivos.find((f) => f.startsWith(filename));
+          if (found) {
+            sourcePath = path.join(dir, found);
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        return res.status(404).json({ ok: false, error: 'archivo no encontrado', filename });
+      }
+
+      const thumbsDir = path.join(rutaBase, 'public', 'multimedia_thumbs');
+      try {
+        if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+      } catch {
+        // noop
+      }
+
+      const thumbPath = path.join(thumbsDir, `thumb_${id}.jpg`);
+
+      // Cache: si existe y es más nuevo que el video, servir
+      try {
+        if (fs.existsSync(thumbPath)) {
+          const thumbStat = fs.statSync(thumbPath);
+          const srcStat = fs.statSync(sourcePath);
+          if (thumbStat.mtimeMs >= srcStat.mtimeMs) {
+            res.setHeader('Content-Type', 'image/jpeg');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            return res.sendFile(thumbPath);
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // Generar miniatura con ffmpeg
+      const args = [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        // mover un poco el tiempo para evitar frames negros iniciales
+        '-ss',
+        '00:00:01',
+        '-i',
+        sourcePath,
+        '-vframes',
+        '1',
+        '-vf',
+        'scale=640:-2',
+        thumbPath,
+      ];
+
+      await new Promise((resolve, reject) => {
+        const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' });
+        proc.on('error', (err) => reject(err));
+        proc.on('close', (code) => {
+          if (code === 0) return resolve();
+          reject(new Error(`ffmpeg exit ${code}`));
+        });
+      });
+
+      if (!fs.existsSync(thumbPath)) {
+        return res.status(500).json({ ok: false, error: 'no se pudo generar miniatura' });
+      }
+
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.sendFile(thumbPath);
+    } catch (error) {
+      const msg = String(error?.message || error || 'error');
+      // ffmpeg puede no estar instalado: devolver 501 y dejar que el móvil caiga a placeholder.
+      const status = msg.includes('ENOENT') ? 501 : 500;
+      return res.status(status).json({ ok: false, error: msg });
+    }
   });
 
   // ✨ Proxy para imágenes de Pixabay
@@ -2332,14 +2944,18 @@ function registrarHandlers() {
         // Convertir la ruta de archivo local a URL del servidor Express
         let rutaURL = fondo.url;
 
-        // Si la ruta empieza con /fondos/, ya es una URL del servidor
-        if (!rutaURL.startsWith('http') && !rutaURL.startsWith('/fondos/')) {
-          // Si es una ruta local, convertirla a URL del servidor
-          const fileName = path.basename(rutaURL);
-          rutaURL = `http://localhost:3001/fondos/${fileName}`;
-        } else if (rutaURL.startsWith('/fondos/')) {
-          // Si ya tiene el prefijo /fondos/, agregar solo el protocolo y host
-          rutaURL = `http://localhost:3001${rutaURL}`;
+        // 1) Si ya es absoluta, dejarla tal cual
+        // 2) Si es una ruta relativa tipo "/fondos/..." o "/images/...", solo prefijar host
+        // 3) Si es una ruta local (filesystem) u otra forma, fallback a /fondos/<basename>
+        if (typeof rutaURL === 'string') {
+          if (rutaURL.startsWith('http')) {
+            // noop
+          } else if (rutaURL.startsWith('/')) {
+            rutaURL = `http://localhost:3001${rutaURL}`;
+          } else {
+            const fileName = path.basename(rutaURL);
+            rutaURL = `http://localhost:3001/fondos/${fileName}`;
+          }
         }
 
         return {
@@ -2357,6 +2973,21 @@ function registrarHandlers() {
     } catch (error) {
       console.error("❌ [Main] Error obteniendo fondos:", error);
       return [];
+    }
+  });
+
+  // Handler para actualizar fondo (persistir migraciones/correcciones)
+  ipcMain.handle("actualizar-fondo", async (event, fondoData) => {
+    try {
+      if (!fondoData || !fondoData.id) {
+        throw new Error('ID del fondo es requerido');
+      }
+
+      const ok = await dbNew.actualizarFondo(fondoData);
+      return ok;
+    } catch (error) {
+      console.error("❌ [Main] Error actualizando fondo:", error);
+      return false;
     }
   });
 
@@ -2973,40 +3604,40 @@ function registrarHandlers() {
 
   // ✨ HANDLERS PARA CONTROL REMOTO DEL PROYECTOR
   ipcMain.on("proyector-play", (event) => {
-    console.log("🎮 [Main] Comando play recibido para proyector");
+    console.warn("🎮 [Main] Comando play recibido para proyector");
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "play" });
-      console.log("▶️ [Main] Comando play enviado al proyector");
+      console.warn("▶️ [Main] Comando play enviado al proyector");
     } else {
       console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar PLAY");
     }
   });
 
   ipcMain.on("proyector-pause", (event) => {
-    console.log("🎮 [Main] Comando pause recibido para proyector");
+    console.warn("🎮 [Main] Comando pause recibido para proyector");
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "pause" });
-      console.log("⏸️ [Main] Comando pause enviado al proyector");
+      console.warn("⏸️ [Main] Comando pause enviado al proyector");
     } else {
       console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar PAUSE");
     }
   });
 
   ipcMain.on("proyector-stop", (event) => {
-    console.log("🎮 [Main] Comando stop recibido para proyector");
+    console.warn("🎮 [Main] Comando stop recibido para proyector");
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "stop" });
-      console.log("⏹️ [Main] Comando stop enviado al proyector");
+      console.warn("⏹️ [Main] Comando stop enviado al proyector");
     } else {
       console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar STOP");
     }
   });
 
   ipcMain.on("proyector-limpiar", (event) => {
-    console.log("🎮 [Main] Comando limpiar recibido para proyector");
+    console.warn("🎮 [Main] Comando limpiar recibido para proyector");
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "limpiar" });
-      console.log("🧹 [Main] Comando limpiar enviado al proyector");
+      console.warn("🧹 [Main] Comando limpiar enviado al proyector");
     } else {
       console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar LIMPIAR");
     }
@@ -3014,7 +3645,7 @@ function registrarHandlers() {
 
   // ✨ Handler genérico para controles adicionales (volumen/seek, etc.)
   ipcMain.on("proyector-control-multimedia", (event, payload) => {
-    console.log("🎮 [Main] Control multimedia genérico recibido:", payload);
+    console.warn("🎮 [Main] Control multimedia genérico recibido:", payload);
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", payload);
     } else {
@@ -3022,6 +3653,52 @@ function registrarHandlers() {
         "⚠️ [Main] No hay proyectorWindow activo para enviar control genérico:",
         payload,
       );
+    }
+  });
+
+  // ✨ Debug cableado: handshake y ACK desde proyector
+  ipcMain.on("proyector-ready", (event, data) => {
+    console.warn("✅ [Main] Proyector READY:", {
+      senderId: event?.sender?.id,
+      ...data,
+    });
+  });
+
+  ipcMain.on("proyector-control-ack", (event, data) => {
+    console.warn("📩 [Main] Proyector ACK control:", {
+      senderId: event?.sender?.id,
+      ...data,
+    });
+  });
+
+  // ✨ Estado de reproducción (para barra de progreso móvil)
+  ipcMain.on("multimedia-playback-status", (_event, payload) => {
+    try {
+      const destinoRaw = String(payload?.destino || payload?.target || 'proyector').toLowerCase();
+      const destino = destinoRaw === 'pc' ? 'pc' : 'proyector';
+
+      const currentTimeNum = Number(payload?.currentTime);
+      const durationNum = Number(payload?.duration);
+      const volumeNum = payload?.volume === null || payload?.volume === undefined ? null : Number(payload?.volume);
+
+      multimediaPlaybackStatus[destino] = {
+        updatedAt: Date.now(),
+        currentTime: Number.isFinite(currentTimeNum) && currentTimeNum >= 0 ? currentTimeNum : 0,
+        duration: Number.isFinite(durationNum) && durationNum >= 0 ? durationNum : 0,
+        paused: Boolean(payload?.paused),
+        volume: Number.isFinite(volumeNum) && volumeNum >= 0 ? Math.min(1, Math.max(0, volumeNum)) : null,
+        tipo: payload?.tipo ? String(payload.tipo) : null,
+      };
+    } catch {
+      // noop
+    }
+  });
+
+  ipcMain.on("debug-log", (_event, payload) => {
+    try {
+      console.warn("🧪 [Renderer]", payload?.message || "(sin mensaje)", payload);
+    } catch (error) {
+      console.warn("🧪 [Renderer] (error imprimiendo debug-log)", error);
     }
   });
 

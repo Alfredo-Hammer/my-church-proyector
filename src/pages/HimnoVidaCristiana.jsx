@@ -15,6 +15,8 @@ import {
 import vidacristianaData from "../data/vidacristiana.json";
 
 const HimnoVidaCristiana = () => {
+  const API_BASE = "http://localhost:3001";
+
   const [busqueda, setBusqueda] = useState("");
   const [himnos, setHimnos] = useState(vidacristianaData);
   const [vistaGrid, setVistaGrid] = useState(false);
@@ -35,18 +37,47 @@ const HimnoVidaCristiana = () => {
 
   useEffect(() => {
     const inicializar = async () => {
-      // Cargar favoritos del localStorage
-      const favoritosGuardados = JSON.parse(
-        localStorage.getItem("himnosVidaCristianaFavoritos") || "[]",
-      );
-      setFavoritos(new Set(favoritosGuardados));
-
-      // ✨ CARGAR CONFIGURACIÓN DE LA IGLESIA
-      await cargarConfiguracionIglesia();
+      await Promise.all([
+        cargarHimnosDesdeServidor(),
+        cargarConfiguracionIglesia(),
+      ]);
     };
 
     inicializar();
   }, []);
+
+  const cargarHimnosDesdeServidor = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/himnos?tipo=vida`, {
+        method: "GET",
+        headers: {Accept: "application/json"},
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok || !Array.isArray(json?.himnos)) {
+        throw new Error(json?.error || `Error HTTP ${res.status}`);
+      }
+
+      const normalizados = json.himnos
+        .map((h) => ({
+          id: h?.id,
+          numero: h?.numero,
+          titulo: h?.titulo,
+          parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+          favorito: Boolean(h?.favorito),
+          fuente: h?.fuente,
+        }))
+        .filter((h) => h?.titulo);
+
+      setHimnos(normalizados);
+      setFavoritos(
+        new Set(normalizados.filter((h) => h.favorito).map((h) => h.numero)),
+      );
+    } catch (error) {
+      console.warn("⚠️ No se pudo cargar himnos (vida) desde servidor:", error);
+      setHimnos(vidacristianaData);
+      setFavoritos(new Set());
+    }
+  };
 
   // ✨ FUNCIÓN PARA CARGAR CONFIGURACIÓN
   const cargarConfiguracionIglesia = async () => {
@@ -93,28 +124,58 @@ const HimnoVidaCristiana = () => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
 
-  const toggleFavorito = (numero) => {
-    const nuevosFavoritos = new Set(favoritos);
-    const himno = himnos.find((h) => h.numero === numero);
-    const esAgregar = !nuevosFavoritos.has(numero);
+  const toggleFavorito = async (himno) => {
+    const numero = himno?.numero;
+    const id = himno?.id || `base:vida:${String(numero)}`;
+    if (!numero) return;
 
-    if (nuevosFavoritos.has(numero)) {
-      nuevosFavoritos.delete(numero);
-    } else {
-      nuevosFavoritos.add(numero);
-    }
+    const prevFavoritos = new Set(favoritos);
+    const esAgregar = !prevFavoritos.has(numero);
+    const nuevosFavoritos = new Set(prevFavoritos);
+    if (esAgregar) nuevosFavoritos.add(numero);
+    else nuevosFavoritos.delete(numero);
 
+    // Optimista
     setFavoritos(nuevosFavoritos);
-    localStorage.setItem(
-      "himnosVidaCristianaFavoritos",
-      JSON.stringify([...nuevosFavoritos]),
+    setHimnos((prev) =>
+      (Array.isArray(prev) ? prev : []).map((h) =>
+        h?.numero === numero ? {...h, favorito: esAgregar} : h,
+      ),
     );
 
-    // ✨ MOSTRAR TOAST DE CONFIRMACIÓN
-    if (esAgregar) {
-      addToast(`❤️ "${himno?.titulo}" agregado a favoritos`, "success");
-    } else {
-      addToast(`💔 "${himno?.titulo}" removido de favoritos`, "info");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/himnos/${encodeURIComponent(String(id))}/favorito`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({favorito: esAgregar}),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Error HTTP ${res.status}`);
+      }
+
+      if (esAgregar) {
+        addToast(`❤️ "${himno?.titulo}" agregado a favoritos`, "success");
+      } else {
+        addToast(`💔 "${himno?.titulo}" removido de favoritos`, "info");
+      }
+    } catch (error) {
+      console.warn("❌ Error actualizando favorito (vida):", error);
+      setFavoritos(prevFavoritos);
+      setHimnos((prev) =>
+        (Array.isArray(prev) ? prev : []).map((h) =>
+          h?.numero === numero
+            ? {...h, favorito: prevFavoritos.has(numero)}
+            : h,
+        ),
+      );
+      addToast("❌ No se pudo actualizar favorito (servidor)", "info");
     }
   };
 
@@ -367,7 +428,7 @@ const HimnoVidaCristiana = () => {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        toggleFavorito(himno.numero);
+                        toggleFavorito(himno);
                       }}
                       className={`transition-colors ${
                         favoritos.has(himno.numero)
@@ -432,7 +493,7 @@ const HimnoVidaCristiana = () => {
                   </button>
 
                   <button
-                    onClick={() => toggleFavorito(himno.numero)}
+                    onClick={() => toggleFavorito(himno)}
                     className={`ml-4 p-2 rounded-full transition-colors ${
                       favoritos.has(himno.numero)
                         ? "text-red-400 hover:text-red-300"

@@ -13,9 +13,13 @@ import {
   FaArrowRight,
   FaBible,
   FaBookOpen,
+  FaStar,
+  FaRegStar,
 } from "react-icons/fa";
 import librosDeLaBiblia from "../utils/libros";
 import {cargarLibro} from "../utils/cargarLibro";
+
+const API_BASE = "http://localhost:3001";
 
 const Biblia = () => {
   const [libroSeleccionado, setLibroSeleccionado] = useState(null);
@@ -24,6 +28,8 @@ const Biblia = () => {
   const [capituloSeleccionado, setCapituloSeleccionado] = useState(null);
   const [versiculoSeleccionado, setVersiculoSeleccionado] = useState(null);
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
+
+  const [favoritosBibliaIds, setFavoritosBibliaIds] = useState(() => new Set());
 
   // Estado para logo de la iglesia
   const [logoIglesia, setLogoIglesia] = useState(null);
@@ -59,6 +65,97 @@ const Biblia = () => {
     };
     cargarLogoIglesia();
   }, []);
+
+  // Cargar favoritos de Biblia desde el backend local
+  useEffect(() => {
+    const cargarFavoritosBiblia = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/biblia/favoritos`, {
+          method: "GET",
+          headers: {Accept: "application/json"},
+        });
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.ok && Array.isArray(json?.favoritos)) {
+          const ids = new Set(
+            json.favoritos
+              .map((f) => String(f?.id || "").trim())
+              .filter(Boolean),
+          );
+          setFavoritosBibliaIds(ids);
+        }
+      } catch (error) {
+        console.warn("⚠️ Error cargando favoritos de Biblia:", error);
+      }
+    };
+
+    cargarFavoritosBiblia();
+  }, []);
+
+  const obtenerLibroNombreActual = useCallback(() => {
+    const libro = librosDeLaBiblia.antiguoTestamento
+      .concat(librosDeLaBiblia.nuevoTestamento)
+      .find((l) => l.id === libroSeleccionado);
+    return libro?.nombre || "";
+  }, [libroSeleccionado]);
+
+  const idVersiculoActual =
+    libroSeleccionado && capituloSeleccionado && versiculoSeleccionado
+      ? `rv60:${libroSeleccionado}:${capituloSeleccionado}:${versiculoSeleccionado}`
+      : "";
+
+  const esFavoritoActual =
+    Boolean(idVersiculoActual) && favoritosBibliaIds.has(idVersiculoActual);
+
+  const toggleFavoritoActual = useCallback(async () => {
+    if (!idVersiculoActual || !capituloSeleccionado || !versiculoSeleccionado)
+      return;
+
+    const nuevoValor = !favoritosBibliaIds.has(idVersiculoActual);
+    const libroNombre = obtenerLibroNombreActual();
+    const texto = versiculos[versiculoSeleccionado - 1] || "";
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/biblia/${encodeURIComponent(idVersiculoActual)}/favorito`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            favorito: nuevoValor,
+            libroId: libroSeleccionado,
+            libroNombre,
+            capitulo: capituloSeleccionado,
+            versiculo: versiculoSeleccionado,
+            texto,
+          }),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Error HTTP ${res.status}`);
+      }
+
+      setFavoritosBibliaIds((prev) => {
+        const next = new Set(prev);
+        if (nuevoValor) next.add(idVersiculoActual);
+        else next.delete(idVersiculoActual);
+        return next;
+      });
+    } catch (error) {
+      console.error("❌ Error guardando favorito de Biblia:", error);
+    }
+  }, [
+    capituloSeleccionado,
+    idVersiculoActual,
+    libroSeleccionado,
+    favoritosBibliaIds,
+    obtenerLibroNombreActual,
+    versiculoSeleccionado,
+    versiculos,
+  ]);
 
   useEffect(() => {
     if (libroSeleccionado) {
@@ -113,6 +210,34 @@ const Biblia = () => {
     libroSeleccionado,
     capituloSeleccionado,
   ]);
+
+  const enviarVersiculoA = useCallback(
+    (nuevoVersiculo) => {
+      setVersiculoSeleccionado(nuevoVersiculo);
+
+      window.electron.enviarVersiculo({
+        parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
+        titulo: librosDeLaBiblia.antiguoTestamento
+          .concat(librosDeLaBiblia.nuevoTestamento)
+          .find((libro) => libro.id === libroSeleccionado)?.nombre,
+        numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
+        origen: "biblia",
+      });
+    },
+    [versiculos, libroSeleccionado, capituloSeleccionado],
+  );
+
+  const irAnterior = useCallback(() => {
+    if (versiculoSeleccionado > 1) {
+      enviarVersiculoA(versiculoSeleccionado - 1);
+    }
+  }, [versiculoSeleccionado, enviarVersiculoA]);
+
+  const irSiguiente = useCallback(() => {
+    if (versiculoSeleccionado < versiculos.length) {
+      enviarVersiculoA(versiculoSeleccionado + 1);
+    }
+  }, [versiculoSeleccionado, versiculos.length, enviarVersiculoA]);
 
   const manejarSeleccionarLibro = (libroId) => {
     setLibroSeleccionado(libroId);
@@ -177,7 +302,7 @@ const Biblia = () => {
           ) {
             resultados.push({
               tipo: "libro",
-              libro: libro,
+              libro,
               titulo: libro.nombre,
               descripcion: `Libro del ${
                 librosDeLaBiblia.antiguoTestamento.includes(libro)
@@ -192,10 +317,9 @@ const Biblia = () => {
         try {
           const data = await cargarLibro(libroSeleccionadoBuscador.id);
 
-          const numeroCapitulo = parseInt(termino);
-
+          const numeroCapitulo = parseInt(termino, 10);
           if (
-            !isNaN(numeroCapitulo) &&
+            !Number.isNaN(numeroCapitulo) &&
             numeroCapitulo > 0 &&
             numeroCapitulo <= data.length
           ) {
@@ -203,9 +327,7 @@ const Biblia = () => {
               tipo: "capitulo",
               capitulo: numeroCapitulo,
               titulo: `Capítulo ${numeroCapitulo}`,
-              descripcion: `${
-                data[numeroCapitulo - 1]?.length || 0
-              } versículos`,
+              descripcion: `${data[numeroCapitulo - 1]?.length || 0} versículos`,
             });
           }
 
@@ -220,7 +342,7 @@ const Biblia = () => {
                 tipo: "capitulo",
                 capitulo: numCap,
                 titulo: `Capítulo ${numCap}`,
-                descripcion: `${cap.length} versículos`,
+                descripcion: `${cap?.length || 0} versículos`,
               });
             }
           });
@@ -238,34 +360,34 @@ const Biblia = () => {
           const versiculosCapitulo =
             data[capituloSeleccionadoBuscador - 1] || [];
 
-          const numeroVersiculo = parseInt(termino);
-
+          const numeroVersiculo = parseInt(termino, 10);
           if (
-            !isNaN(numeroVersiculo) &&
+            !Number.isNaN(numeroVersiculo) &&
             numeroVersiculo > 0 &&
             numeroVersiculo <= versiculosCapitulo.length
           ) {
+            const texto = versiculosCapitulo[numeroVersiculo - 1] || "";
             resultados.push({
               tipo: "versiculo",
               versiculo: numeroVersiculo,
               titulo: `Versículo ${numeroVersiculo}`,
               descripcion:
-                versiculosCapitulo[numeroVersiculo - 1]?.substring(0, 100) +
-                "...",
+                (texto?.substring(0, 100) || "") +
+                (texto?.length > 100 ? "..." : ""),
             });
           }
 
           // También buscar por contenido
-          versiculosCapitulo.forEach((versiculo, index) => {
-            if (
-              versiculo.toLowerCase().includes(terminoLower) &&
-              index + 1 !== numeroVersiculo
-            ) {
+          versiculosCapitulo.forEach((texto, index) => {
+            const t = (texto || "").toLowerCase();
+            if (t.includes(terminoLower)) {
               resultados.push({
                 tipo: "versiculo",
                 versiculo: index + 1,
                 titulo: `Versículo ${index + 1}`,
-                descripcion: versiculo.substring(0, 100) + "...",
+                descripcion:
+                  (texto?.substring(0, 100) || "") +
+                  (texto?.length > 100 ? "..." : ""),
               });
             }
           });
@@ -795,19 +917,90 @@ const Biblia = () => {
 
             {/* Contenido del versículo */}
             <div className="p-8">
-              <div className="text-center mb-8">
-                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-indigo-500/20 rounded-2xl p-8">
-                  <p className="text-2xl text-white leading-relaxed font-medium">
-                    "{versiculos[versiculoSeleccionado - 1] || "No disponible"}"
-                  </p>
-                  <div className="mt-4 text-indigo-300 font-semibold">
-                    —{" "}
-                    {
-                      librosDeLaBiblia.antiguoTestamento
-                        .concat(librosDeLaBiblia.nuevoTestamento)
-                        .find((libro) => libro.id === libroSeleccionado)?.nombre
-                    }{" "}
-                    {capituloSeleccionado}:{versiculoSeleccionado} —
+              {/* Vista previa (anterior / actual / siguiente) */}
+              <div className="mb-8">
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-3 md:p-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    {/* Anterior */}
+                    <button
+                      type="button"
+                      disabled={versiculoSeleccionado <= 1}
+                      onClick={irAnterior}
+                      className="text-left rounded-2xl p-5 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-500/20 transition-all duration-200 disabled:opacity-40 disabled:hover:bg-white/5 disabled:hover:border-white/10"
+                      title="Anterior"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <span className="text-xs text-slate-400 font-semibold tracking-wide">
+                          ANTERIOR
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {capituloSeleccionado}:
+                          {Math.max(1, (versiculoSeleccionado || 1) - 1)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-200/80 leading-relaxed h-20 overflow-hidden">
+                        {versiculoSeleccionado > 1
+                          ? `“${versiculos[versiculoSeleccionado - 2] || "No disponible"}”`
+                          : "—"}
+                      </p>
+                    </button>
+
+                    {/* Actual */}
+                    <div className="rounded-2xl p-6 border border-indigo-500/25 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm">
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <span className="text-xs text-indigo-300 font-semibold tracking-wide">
+                          ACTUAL
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {capituloSeleccionado}:{versiculoSeleccionado}
+                        </span>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto pr-1">
+                        <p className="text-2xl text-white leading-relaxed font-medium text-center">
+                          "
+                          {versiculos[versiculoSeleccionado - 1] ||
+                            "No disponible"}
+                          "
+                        </p>
+                      </div>
+                      <div className="mt-4 text-indigo-300 font-semibold text-center">
+                        —{" "}
+                        {
+                          librosDeLaBiblia.antiguoTestamento
+                            .concat(librosDeLaBiblia.nuevoTestamento)
+                            .find((libro) => libro.id === libroSeleccionado)
+                            ?.nombre
+                        }{" "}
+                        {capituloSeleccionado}:{versiculoSeleccionado} —
+                      </div>
+                    </div>
+
+                    {/* Siguiente */}
+                    <button
+                      type="button"
+                      disabled={versiculoSeleccionado >= versiculos.length}
+                      onClick={irSiguiente}
+                      className="text-left rounded-2xl p-5 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-500/20 transition-all duration-200 disabled:opacity-40 disabled:hover:bg-white/5 disabled:hover:border-white/10"
+                      title="Siguiente"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <span className="text-xs text-slate-400 font-semibold tracking-wide">
+                          SIGUIENTE
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {capituloSeleccionado}:
+                          {Math.min(
+                            versiculos.length,
+                            (versiculoSeleccionado || 1) + 1,
+                          )}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-200/80 leading-relaxed h-20 overflow-hidden">
+                        {versiculoSeleccionado < versiculos.length
+                          ? `“${versiculos[versiculoSeleccionado] || "No disponible"}”`
+                          : "—"}
+                      </p>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -853,6 +1046,23 @@ const Biblia = () => {
                 >
                   <FaTimes />
                   <span>Limpiar</span>
+                </button>
+
+                <button
+                  onClick={toggleFavoritoActual}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105 border ${
+                    esFavoritoActual
+                      ? "bg-yellow-500/20 border-yellow-400/30 text-yellow-200"
+                      : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                  }`}
+                  title={
+                    esFavoritoActual
+                      ? "Quitar de favoritos"
+                      : "Agregar a favoritos"
+                  }
+                >
+                  {esFavoritoActual ? <FaStar /> : <FaRegStar />}
+                  <span>{esFavoritoActual ? "Favorito" : "Favorito"}</span>
                 </button>
 
                 <button

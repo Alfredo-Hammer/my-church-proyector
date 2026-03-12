@@ -49,28 +49,57 @@ const HimnoDetalle = () => {
   const [posicionHistorial, setPosicionHistorial] = useState(0);
   const [toasts, setToasts] = useState([]);
 
+  const API_BASE = "http://localhost:3001";
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    cargarFavoritos();
-  }, []);
+    const cargarEstadoFavoritos = async () => {
+      try {
+        // Himnos personalizados (DB): se lee desde SQLite vía IPC
+        if (id) {
+          const himnoDB = await window.electron?.obtenerHimnoPorId?.(id);
+          if (himnoDB) {
+            setFavoritos(
+              Boolean(himnoDB.favorito)
+                ? new Set([Number(himnoDB.numero)])
+                : new Set(),
+            );
+          } else {
+            setFavoritos(new Set());
+          }
+          return;
+        }
 
-  const cargarFavoritos = () => {
-    try {
-      // Determinar qué tipo de favoritos cargar según el himno
-      const tipoFavoritos =
-        state?.tipo === "vidaCristiana"
-          ? "himnosVidaCristianaFavoritos"
-          : "himnosFavoritos";
+        // Himnos base (Moravo / Vida): se lee desde backend (config)
+        const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : "moravo";
+        const res = await fetch(
+          `${API_BASE}/api/himnos/favoritos?tipo=${tipoApi}`,
+          {
+            method: "GET",
+            headers: {Accept: "application/json"},
+          },
+        );
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok || !Array.isArray(json?.himnos)) {
+          throw new Error(json?.error || `Error HTTP ${res.status}`);
+        }
+        setFavoritos(
+          new Set(
+            json.himnos
+              .map((h) => h?.numero)
+              .filter((n) => n !== undefined && n !== null),
+          ),
+        );
+      } catch (error) {
+        console.warn("⚠️ Error cargando favoritos de himnos (backend):", error);
+        setFavoritos(new Set());
+      }
+    };
 
-      const favoritosGuardados = JSON.parse(
-        localStorage.getItem(tipoFavoritos) || "[]",
-      );
-      setFavoritos(new Set(favoritosGuardados));
-    } catch (error) {
-      console.error("Error al cargar favoritos:", error);
-    }
-  };
+    cargarEstadoFavoritos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, state?.tipo]);
 
   // ✨ FUNCIÓN PARA TOASTS
   const addToast = (message, type = "success", duration = 3000) => {
@@ -219,34 +248,53 @@ const HimnoDetalle = () => {
     }
   };
 
-  // ✨ TOGGLE FAVORITOS CON LOCALSTORAGE
-  const toggleFavorito = () => {
+  // ✨ Toggle de favoritos sincronizado (escritorio <-> móvil)
+  const toggleFavorito = async () => {
     if (!himno) return;
 
-    const tipoFavoritos =
-      state?.tipo === "vidaCristiana"
-        ? "himnosVidaCristianaFavoritos"
-        : "himnosFavoritos";
+    const prev = new Set(favoritos);
+    const esAgregar = !prev.has(himno.numero);
+    const next = new Set(prev);
+    if (esAgregar) next.add(himno.numero);
+    else next.delete(himno.numero);
+    setFavoritos(next);
 
-    const nuevosFavoritos = new Set(favoritos);
-    const esAgregar = !nuevosFavoritos.has(himno.numero);
+    try {
+      // Himno personalizado (DB): IPC
+      if (id) {
+        if (!window.electron?.marcarFavorito)
+          throw new Error("IPC no disponible");
+        await window.electron.marcarFavorito(id, esAgregar);
+      } else {
+        // Himno base: backend
+        const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : "moravo";
+        const himnoId = `base:${tipoApi}:${String(himno.numero)}`;
+        const res = await fetch(
+          `${API_BASE}/api/himnos/${encodeURIComponent(himnoId)}/favorito`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({favorito: esAgregar}),
+          },
+        );
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error || `Error HTTP ${res.status}`);
+        }
+      }
 
-    if (nuevosFavoritos.has(himno.numero)) {
-      nuevosFavoritos.delete(himno.numero);
-    } else {
-      nuevosFavoritos.add(himno.numero);
-    }
-
-    setFavoritos(nuevosFavoritos);
-
-    // Guardar en localStorage
-    localStorage.setItem(tipoFavoritos, JSON.stringify([...nuevosFavoritos]));
-
-    // Mostrar toast de confirmación
-    if (esAgregar) {
-      addToast(`❤️ "${himno.titulo}" agregado a favoritos`, "success");
-    } else {
-      addToast(`💔 "${himno.titulo}" removido de favoritos`, "info");
+      if (esAgregar) {
+        addToast(`❤️ "${himno.titulo}" agregado a favoritos`, "success");
+      } else {
+        addToast(`💔 "${himno.titulo}" removido de favoritos`, "info");
+      }
+    } catch (error) {
+      console.warn("❌ Error actualizando favorito:", error);
+      setFavoritos(prev);
+      addToast("❌ No se pudo actualizar favorito", "error");
     }
   };
 

@@ -86,6 +86,22 @@ const GlobalMediaPlayer = () => {
     }
   }, [isPlaying, currentMedia?.url, canControlYouTube]);
 
+  // Mantener YouTube sincronizado con volumen/mute
+  useEffect(() => {
+    if (!currentMedia) return;
+    if (!canControlYouTube) return;
+
+    const vol = Math.max(0, Math.min(100, Number(volume)));
+    if (!Number.isFinite(vol)) return;
+
+    sendYouTubeCommand("setVolume", [vol]);
+    if (vol === 0) {
+      sendYouTubeCommand("mute");
+    } else {
+      sendYouTubeCommand("unMute");
+    }
+  }, [volume, currentMedia?.url, canControlYouTube]);
+
   // Recalcular posición del iframe/video cuando cambiamos de página o cambia el tamaño
   useEffect(() => {
     if (!currentMedia?.isYoutube && tipoActual !== "video") return;
@@ -387,8 +403,22 @@ const GlobalMediaPlayer = () => {
             title="YouTube Video"
             onLoad={() => {
               // Asegurar que no quede reproduciendo por estados previos
-              if (!useInvidious && !isPlaying) {
-                sendYouTubeCommand("pauseVideo");
+              if (!useInvidious) {
+                if (isPlaying) {
+                  sendYouTubeCommand("playVideo");
+                } else {
+                  sendYouTubeCommand("pauseVideo");
+                }
+
+                const vol = Math.max(0, Math.min(100, Number(volume)));
+                if (Number.isFinite(vol)) {
+                  sendYouTubeCommand("setVolume", [vol]);
+                  if (vol === 0) {
+                    sendYouTubeCommand("mute");
+                  } else {
+                    sendYouTubeCommand("unMute");
+                  }
+                }
               }
             }}
             onError={() => {

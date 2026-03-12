@@ -249,12 +249,15 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     }
 
     embedUrl.searchParams.set("autoplay", "0");
-    embedUrl.searchParams.set("controls", "0");
+    embedUrl.searchParams.set("controls", "1");
     embedUrl.searchParams.set("rel", "0");
     embedUrl.searchParams.set("modestbranding", "1");
     embedUrl.searchParams.set("fs", "1");
     embedUrl.searchParams.set("playsinline", "1");
-    embedUrl.searchParams.set("mute", "1");
+    // No forzar mute por defecto: si el usuario presiona "Play" desde el control
+    // remoto, esperamos que se escuche audio (y si el navegador lo bloquea,
+    // el usuario puede usar los controles de volumen/mute desde el móvil).
+    embedUrl.searchParams.set("mute", "0");
     embedUrl.searchParams.set("enablejsapi", "1");
     if (origin && origin !== "null") {
       embedUrl.searchParams.set("origin", origin);
@@ -284,6 +287,13 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   ) {
     tipoReal = "youtube";
     const urlOriginal = url || originalUrl;
+    urlReal = getYouTubeEmbedUrl(urlOriginal);
+  }
+
+  // IMPORTANTE: si el backend ya marcó tipo="youtube", igual necesitamos
+  // normalizar la URL para asegurar enablejsapi=1 y parámetros requeridos.
+  if (tipoReal === "youtube") {
+    const urlOriginal = urlReal || url || originalUrl;
     urlReal = getYouTubeEmbedUrl(urlOriginal);
   }
 

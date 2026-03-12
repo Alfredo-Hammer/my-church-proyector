@@ -146,6 +146,416 @@ const Proyector = () => {
 
   // ✨ NUEVOS ESTADOS PARA MULTIMEDIA
   const [multimediaActiva, setMultimediaActiva] = useState(null);
+
+  // ====================================
+  // Estado reproducción -> main (API móvil)
+  // ====================================
+  const lastPlaybackStatusSentAtRef = useRef(0);
+  const youtubePlayerRef = useRef(null);
+  const youtubeApiLoadingRef = useRef(false);
+  const youtubeInfoRef = useRef({
+    currentTime: 0,
+    duration: 0,
+    playerState: null,
+    volume: null,
+    muted: null,
+    lastUpdateAt: 0,
+  });
+
+  const emitPlaybackStatus = (payload) => {
+    try {
+      if (!window.electron?.send) return;
+      const now = Date.now();
+      if (now - (lastPlaybackStatusSentAtRef.current || 0) < 250) return;
+      lastPlaybackStatusSentAtRef.current = now;
+
+      window.electron.send("multimedia-playback-status", {
+        destino: "proyector",
+        ...payload,
+      });
+    } catch {
+      // noop
+    }
+  };
+
+  useEffect(() => {
+    if (!multimediaActiva) {
+      emitPlaybackStatus({
+        currentTime: 0,
+        duration: 0,
+        paused: true,
+        volume: null,
+        tipo: null,
+      });
+      return;
+    }
+
+    const multimediaTipo = String(
+      multimediaActiva?.tipo || multimediaActiva?.type || "",
+    )
+      .trim()
+      .toLowerCase();
+    const multimediaUrl = String(multimediaActiva?.url || "").toLowerCase();
+    const isYouTube =
+      multimediaTipo === "youtube" ||
+      multimediaTipo === "yt" ||
+      multimediaUrl.includes("youtube.com") ||
+      multimediaUrl.includes("youtu.be");
+
+    // Reset de info de YouTube al cambiar media
+    youtubeInfoRef.current = {
+      currentTime: 0,
+      duration: 0,
+      playerState: null,
+      volume: null,
+      muted: null,
+      lastUpdateAt: 0,
+    };
+
+    // Limpieza defensiva del player anterior
+    try {
+      if (!isYouTube && youtubePlayerRef.current?.destroy) {
+        youtubePlayerRef.current.destroy();
+      }
+    } catch {
+      // noop
+    }
+    if (!isYouTube) {
+      youtubePlayerRef.current = null;
+      youtubeApiLoadingRef.current = false;
+    }
+
+    // Detectar HTML5 media real por DOM (más robusto que confiar en multimediaActiva.tipo)
+    const selector = "video.multimedia-video, audio.multimedia-audio";
+    let el = null;
+    let canceled = false;
+    let retryTimer = null;
+
+    // --- YouTube status (para barra/seek del móvil) ---
+    let ytIframe = null;
+    let ytDetachMessageListener = null;
+    let ytPollTimer = null;
+    let ytAttachTimer = null;
+
+    const parseMaybeJson = (value) => {
+      if (!value) return null;
+      if (typeof value === "object") return value;
+      if (typeof value !== "string") return null;
+      const raw = value.trim();
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+
+    const mapYouTubePaused = (playerState) => {
+      // https://developers.google.com/youtube/iframe_api_reference#Playback_status
+      // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 video cued
+      if (playerState === 1) return false;
+      if (playerState === 3) return false;
+      return true;
+    };
+
+    const emitYouTubeFromRef = () => {
+      const info = youtubeInfoRef.current || {};
+      const currentTime = Number(info.currentTime);
+      const duration = Number(info.duration);
+      const playerState =
+        info.playerState == null ? null : Number(info.playerState);
+      const volRaw = Number(info.volume);
+      const muted =
+        info.muted == null ? null : Boolean(info.muted) || volRaw === 0;
+      const volume = Number.isFinite(volRaw)
+        ? Math.max(0, Math.min(1, volRaw / 100))
+        : null;
+
+      emitPlaybackStatus({
+        currentTime:
+          Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : 0,
+        duration: Number.isFinite(duration) && duration >= 0 ? duration : 0,
+        paused: mapYouTubePaused(playerState),
+        volume: muted ? 0 : volume,
+        tipo: "youtube",
+      });
+    };
+
+    const loadYouTubeIframeApi = () => {
+      if (youtubeApiLoadingRef.current) return;
+      youtubeApiLoadingRef.current = true;
+
+      try {
+        if (window.YT?.Player) return;
+
+        // Evitar inyectar 2 veces
+        const existing = document.getElementById("yt-iframe-api");
+        if (existing) return;
+
+        const tag = document.createElement("script");
+        tag.id = "yt-iframe-api";
+        tag.src = "https://www.youtube.com/iframe_api";
+        tag.async = true;
+        document.head.appendChild(tag);
+      } catch {
+        // noop
+      }
+    };
+
+    const initYouTubePlayer = async () => {
+      if (!ytIframe) return;
+      if (youtubePlayerRef.current) return;
+
+      loadYouTubeIframeApi();
+
+      // Esperar un rato a que cargue la API
+      const start = Date.now();
+      while (!canceled && Date.now() - start < 6000) {
+        if (window.YT?.Player) break;
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      if (canceled) return;
+      if (!window.YT?.Player) return;
+
+      try {
+        // Crear player sobre el iframe existente
+        youtubePlayerRef.current = new window.YT.Player(ytIframe, {
+          events: {
+            onReady: () => {
+              try {
+                youtubeInfoRef.current.lastUpdateAt = Date.now();
+                youtubeInfoRef.current.duration = Number(
+                  youtubePlayerRef.current?.getDuration?.() || 0,
+                );
+                youtubeInfoRef.current.volume = Number(
+                  youtubePlayerRef.current?.getVolume?.() || 0,
+                );
+                youtubeInfoRef.current.muted = Boolean(
+                  youtubePlayerRef.current?.isMuted?.() || false,
+                );
+                emitYouTubeFromRef();
+              } catch {
+                // noop
+              }
+            },
+            onStateChange: (ev) => {
+              try {
+                youtubeInfoRef.current.playerState = ev?.data;
+                youtubeInfoRef.current.lastUpdateAt = Date.now();
+                emitYouTubeFromRef();
+              } catch {
+                // noop
+              }
+            },
+          },
+        });
+      } catch {
+        youtubePlayerRef.current = null;
+      }
+    };
+
+    const readAndEmit = () => {
+      try {
+        if (!el) return;
+        const currentTime = Number(el.currentTime);
+        const duration = Number(el.duration);
+        const volume = Number(el.volume);
+
+        const tipo =
+          String(el.tagName || "").toLowerCase() === "audio"
+            ? "audio"
+            : String(el.tagName || "").toLowerCase() === "video"
+              ? "video"
+              : String(
+                  multimediaActiva?.tipo || multimediaActiva?.type || "",
+                ).trim() || null;
+
+        emitPlaybackStatus({
+          currentTime:
+            Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : 0,
+          duration: Number.isFinite(duration) && duration >= 0 ? duration : 0,
+          paused: Boolean(el.paused),
+          volume: Number.isFinite(volume) ? volume : null,
+          tipo,
+        });
+      } catch {
+        // noop
+      }
+    };
+
+    const attach = () => {
+      if (canceled) return;
+
+      // Si es YouTube, no intentamos buscar <video>/<audio> (no existe)
+      if (isYouTube) {
+        const tryAttachYouTube = () => {
+          if (canceled) return;
+          ytIframe = document.getElementById("youtube-player");
+          if (!ytIframe) {
+            ytAttachTimer = setTimeout(tryAttachYouTube, 200);
+            return;
+          }
+
+          const onMessage = (ev) => {
+            try {
+              if (!ytIframe?.contentWindow) return;
+              if (ev?.source !== ytIframe.contentWindow) return;
+
+              const msg = parseMaybeJson(ev?.data);
+              if (!msg || typeof msg !== "object") return;
+
+              if (msg.event === "infoDelivery" && msg.info) {
+                const info = msg.info;
+                const ct = Number(info.currentTime);
+                const dur = Number(info.duration);
+                const vol = Number(info.volume);
+                const muted = info.muted == null ? null : Boolean(info.muted);
+
+                if (Number.isFinite(ct))
+                  youtubeInfoRef.current.currentTime = ct;
+                if (Number.isFinite(dur) && dur > 0)
+                  youtubeInfoRef.current.duration = dur;
+                if (Number.isFinite(vol)) youtubeInfoRef.current.volume = vol;
+                if (muted != null) youtubeInfoRef.current.muted = muted;
+                youtubeInfoRef.current.lastUpdateAt = Date.now();
+                emitYouTubeFromRef();
+              }
+
+              if (msg.event === "onStateChange") {
+                // En postMessage API, msg.info suele traer el state
+                youtubeInfoRef.current.playerState = msg.info;
+                youtubeInfoRef.current.lastUpdateAt = Date.now();
+                emitYouTubeFromRef();
+              }
+            } catch {
+              // noop
+            }
+          };
+
+          window.addEventListener("message", onMessage);
+          ytDetachMessageListener = () =>
+            window.removeEventListener("message", onMessage);
+
+          // Pedir a YouTube que empiece a enviar eventos
+          try {
+            ytIframe.contentWindow.postMessage(
+              JSON.stringify({event: "listening", id: "youtube-player"}),
+              "*",
+            );
+            ytIframe.contentWindow.postMessage(
+              JSON.stringify({
+                event: "command",
+                func: "addEventListener",
+                args: ["onStateChange"],
+              }),
+              "*",
+            );
+          } catch {
+            // noop
+          }
+
+          // Poll por si no llegan infoDelivery (o estando pausado)
+          ytPollTimer = setInterval(() => {
+            try {
+              if (youtubePlayerRef.current?.getCurrentTime) {
+                youtubeInfoRef.current.currentTime = Number(
+                  youtubePlayerRef.current.getCurrentTime() || 0,
+                );
+                youtubeInfoRef.current.duration = Number(
+                  youtubePlayerRef.current.getDuration() || 0,
+                );
+                youtubeInfoRef.current.volume = Number(
+                  youtubePlayerRef.current.getVolume() || 0,
+                );
+                youtubeInfoRef.current.muted = Boolean(
+                  youtubePlayerRef.current.isMuted?.() || false,
+                );
+                youtubeInfoRef.current.playerState = Number(
+                  youtubePlayerRef.current.getPlayerState?.() ??
+                    youtubeInfoRef.current.playerState,
+                );
+                youtubeInfoRef.current.lastUpdateAt = Date.now();
+              }
+            } catch {
+              // noop
+            }
+
+            emitYouTubeFromRef();
+          }, 500);
+
+          // Inicializar IFrame API si está disponible (mejora fiabilidad de seek/status)
+          initYouTubePlayer();
+        };
+
+        tryAttachYouTube();
+
+        return () => {
+          try {
+            if (ytAttachTimer) clearTimeout(ytAttachTimer);
+            if (ytPollTimer) clearInterval(ytPollTimer);
+            if (typeof ytDetachMessageListener === "function")
+              ytDetachMessageListener();
+          } catch {
+            // noop
+          }
+
+          try {
+            youtubePlayerRef.current?.destroy?.();
+          } catch {
+            // noop
+          }
+
+          youtubePlayerRef.current = null;
+          youtubeApiLoadingRef.current = false;
+        };
+      }
+
+      el = document.querySelector(selector);
+      if (!el) {
+        retryTimer = setTimeout(attach, 200);
+        return;
+      }
+
+      const handler = () => readAndEmit();
+      el.addEventListener("timeupdate", handler);
+      el.addEventListener("loadedmetadata", handler);
+      el.addEventListener("durationchange", handler);
+      el.addEventListener("play", handler);
+      el.addEventListener("pause", handler);
+      el.addEventListener("ended", handler);
+      el.addEventListener("seeked", handler);
+      el.addEventListener("volumechange", handler);
+
+      // Estado inicial
+      readAndEmit();
+
+      return () => {
+        try {
+          el?.removeEventListener("timeupdate", handler);
+          el?.removeEventListener("loadedmetadata", handler);
+          el?.removeEventListener("durationchange", handler);
+          el?.removeEventListener("play", handler);
+          el?.removeEventListener("pause", handler);
+          el?.removeEventListener("ended", handler);
+          el?.removeEventListener("seeked", handler);
+          el?.removeEventListener("volumechange", handler);
+        } catch {
+          // noop
+        }
+      };
+    };
+
+    let detach = attach();
+
+    return () => {
+      canceled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (typeof detach === "function") detach();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multimediaActiva]);
   const [modoProyector, setModoProyector] = useState("bienvenida"); // Iniciar en bienvenida
 
   // Evitar closures stale en listeners IPC registrados 1 sola vez.
@@ -153,6 +563,8 @@ const Proyector = () => {
   const modoProyectorRef = useRef("bienvenida");
   const pendingMultimediaControlRef = useRef(null);
   const pendingMultimediaControlRetriesRef = useRef(0);
+  const multimediaMountedAtRef = useRef(Date.now());
+  const youtubeForcedAutoplayRef = useRef(false);
 
   useEffect(() => {
     multimediaActivaRef.current = multimediaActiva;
@@ -164,6 +576,8 @@ const Proyector = () => {
     // no vuelvan a intentar al proyectar un nuevo YouTube.
     pendingMultimediaControlRef.current = null;
     pendingMultimediaControlRetriesRef.current = 0;
+    multimediaMountedAtRef.current = Date.now();
+    youtubeForcedAutoplayRef.current = false;
   }, [multimediaActiva?.id, multimediaActiva?.url, multimediaActiva?.tipo]);
 
   useEffect(() => {
@@ -175,7 +589,7 @@ const Proyector = () => {
 
   // ✨ ESTADOS PARA FONDOS DINÁMICOS
   const [fondoActivo, setFondoActivo] = useState(null);
-  const [fondoActual, setFondoActual] = useState("/videos/video3.mp4");
+  const [fondoActual, setFondoActual] = useState("/videos/video1.mp4");
   const [usandoFondoDefecto, setUsandoFondoDefecto] = useState(true);
 
   // ✨ NUEVOS ESTADOS PARA EFECTOS
@@ -1118,7 +1532,7 @@ const Proyector = () => {
       }
     };
 
-    const handleControlMultimedia = (event, payload) => {
+    const handleControlMultimedia = (event, payload, meta = {}) => {
       const {action, mediaId, time, volume} = payload || {};
       console.log("🎮 [Proyector] Control multimedia recibido:", {
         action,
@@ -1126,6 +1540,20 @@ const Proyector = () => {
         time,
         volume,
       });
+
+      // ✨ ACK hacia el main para confirmar que el proyector SÍ recibió el control.
+      try {
+        // No enviar ACK en reintentos internos; solo en eventos “reales”.
+        if (!meta?.isRetry && window.electron?.send && action) {
+          window.electron.send("proyector-control-ack", {
+            action,
+            source: meta?.source || "ipc",
+            ts: Date.now(),
+          });
+        }
+      } catch {
+        // noop
+      }
 
       const multimedia = multimediaActivaRef.current;
       if (!multimedia) {
@@ -1140,7 +1568,10 @@ const Proyector = () => {
             setTimeout(() => {
               const pending = pendingMultimediaControlRef.current;
               if (!pending) return;
-              handleControlMultimedia(null, pending);
+              handleControlMultimedia(null, pending, {
+                isRetry: true,
+                source: meta?.source || "retry",
+              });
             }, 200);
           }
         }
@@ -1158,7 +1589,14 @@ const Proyector = () => {
             ? document.querySelector(".multimedia-audio")
             : null;
 
+      const ytPlayer = youtubePlayerRef.current;
+
       const youtubeIframe = document.getElementById("youtube-player");
+
+      // El iframe puede existir antes de que el Player API esté listo.
+      // ModernMultimediaRenderer marca dataset.ready="1" en onLoad.
+      const youtubeReady =
+        !!youtubeIframe && String(youtubeIframe?.dataset?.ready || "") === "1";
 
       const canPostMessageYouTube =
         !!youtubeIframe &&
@@ -1181,17 +1619,77 @@ const Proyector = () => {
         }
       };
 
+      const tryYouTubePlayerCall = (method, ...args) => {
+        try {
+          if (!ytPlayer) return false;
+          const fn = ytPlayer?.[method];
+          if (typeof fn !== "function") return false;
+          fn.apply(ytPlayer, args);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
       const scheduleRetry = () => {
         // Reintento corto para carreras: el control puede llegar antes de que el DOM tenga el video.
         pendingMultimediaControlRef.current = payload;
         const retries = pendingMultimediaControlRetriesRef.current;
-        if (retries >= 12) return; // ~2.4s
+        const MAX_RETRIES = 40; // ~8-15s con backoff
+        if (retries >= MAX_RETRIES) return;
         pendingMultimediaControlRetriesRef.current = retries + 1;
+        const delay = Math.min(800, 200 + retries * 50);
         setTimeout(() => {
           const pending = pendingMultimediaControlRef.current;
           if (!pending) return;
-          handleControlMultimedia(null, pending);
-        }, 200);
+          handleControlMultimedia(null, pending, {
+            isRetry: true,
+            source: meta?.source || "retry",
+          });
+        }, delay);
+      };
+
+      const forceYouTubeAutoplay = () => {
+        if (!youtubeIframe?.src) return false;
+        try {
+          const u = new URL(youtubeIframe.src);
+          u.searchParams.set("autoplay", "1");
+          u.searchParams.set("mute", "1");
+          // En algunos entornos, setear origin inválido hace que ignore comandos.
+          // No forzamos origin aquí; respetamos lo que ya viene en la URL.
+          youtubeIframe.src = u.toString();
+          console.log(
+            "🔁 [Proyector] Forzando autoplay YouTube (reload iframe)",
+          );
+
+          // Intentar recuperar audio después del reload (si el entorno lo permite).
+          setTimeout(() => {
+            try {
+              sendYouTubeCommand("unMute", []);
+            } catch {
+              // noop
+            }
+          }, 1400);
+          return true;
+        } catch (e) {
+          console.warn("⚠️ [Proyector] No se pudo forzar autoplay YouTube:", e);
+          return false;
+        }
+      };
+
+      const isProbablyYouTube =
+        mediaType === "youtube" ||
+        mediaType === "yt" ||
+        String(multimedia?.url || "").includes("youtube") ||
+        String(multimedia?.url || "").includes("youtu.be");
+
+      const reinforceYouTubeEarly = () => {
+        if (!isProbablyYouTube) return;
+        // Aun con postMessage exitoso, YouTube a veces ignora comandos tempranos.
+        const msSinceMount = Date.now() - (multimediaMountedAtRef.current || 0);
+        if (!youtubeReady || msSinceMount < 8000) {
+          scheduleRetry();
+        }
       };
 
       try {
@@ -1208,17 +1706,31 @@ const Proyector = () => {
                 "▶️ [Proyector] Reproduciendo multimedia (video/audio)",
               );
             } else if (
-              sendYouTubeCommand("mute", []) ||
-              sendYouTubeCommand("playVideo", [])
+              tryYouTubePlayerCall("playVideo") ||
+              tryYouTubePlayerCall("unMute") ||
+              sendYouTubeCommand("playVideo", []) ||
+              sendYouTubeCommand("unMute", [])
             ) {
-              // YouTube suele bloquear autoplay con sonido; arrancamos muteado.
-              // No dependemos de dataset.ready; si aún no está listo, YouTube ignorará
-              // el comando y el retry lo reenviará.
-              sendYouTubeCommand("mute", []);
+              // No forzar mute: el usuario espera audio al presionar Play.
+              // Si YouTube ignora comandos tempranos, reinforce/retry se encarga.
+              tryYouTubePlayerCall("unMute");
+              tryYouTubePlayerCall("playVideo");
               sendYouTubeCommand("playVideo", []);
-              console.log(
-                "▶️ [Proyector] Reproduciendo multimedia (YouTube, iniciando en mute)",
-              );
+              sendYouTubeCommand("unMute", []);
+              console.log("▶️ [Proyector] Reproduciendo multimedia (YouTube)");
+              reinforceYouTubeEarly();
+
+              // Fallback fuerte: si tras varios reintentos YouTube sigue ignorando,
+              // recargar el iframe con autoplay=1 (muteado) una sola vez.
+              if (
+                meta?.isRetry &&
+                pendingMultimediaControlRetriesRef.current >= 12 &&
+                !youtubeForcedAutoplayRef.current
+              ) {
+                if (forceYouTubeAutoplay()) {
+                  youtubeForcedAutoplayRef.current = true;
+                }
+              }
             } else {
               console.log(
                 "⚠️ [Proyector] No se encontró elemento multimedia para play",
@@ -1230,8 +1742,12 @@ const Proyector = () => {
             if (mediaElement) {
               mediaElement.pause();
               console.log("⏸️ [Proyector] Pausando multimedia (video/audio)");
-            } else if (sendYouTubeCommand("pauseVideo", [])) {
+            } else if (
+              tryYouTubePlayerCall("pauseVideo") ||
+              sendYouTubeCommand("pauseVideo", [])
+            ) {
               console.log("⏸️ [Proyector] Pausando multimedia (YouTube)");
+              reinforceYouTubeEarly();
             } else {
               console.log(
                 "⚠️ [Proyector] No se encontró elemento multimedia para pause",
@@ -1242,12 +1758,17 @@ const Proyector = () => {
           case "stop":
             if (mediaElement) {
               mediaElement.pause();
-              mediaElement.currentTime = 0;
-              console.log("⏹️ [Proyector] Deteniendo multimedia (video/audio)");
-            } else if (sendYouTubeCommand("stopVideo", [])) {
-              // "stop" en YouTube no siempre deja en 0 visualmente; reforzamos con seekTo.
-              sendYouTubeCommand("seekTo", [0, true]);
-              console.log("⏹️ [Proyector] Deteniendo multimedia (YouTube)");
+              console.log(
+                "⏹️ [Proyector] Deteniendo multimedia (video/audio) (pause sin reiniciar)",
+              );
+            } else if (
+              tryYouTubePlayerCall("pauseVideo") ||
+              sendYouTubeCommand("pauseVideo", [])
+            ) {
+              console.log(
+                "⏹️ [Proyector] Deteniendo multimedia (YouTube) (pause sin reiniciar)",
+              );
+              reinforceYouTubeEarly();
             } else {
               console.log(
                 "⚠️ [Proyector] No se encontró elemento multimedia para stop",
@@ -1264,8 +1785,12 @@ const Proyector = () => {
             if (mediaElement) {
               mediaElement.currentTime = time;
               console.log("⏩ [Proyector] Seek aplicado (video/audio):", time);
-            } else if (sendYouTubeCommand("seekTo", [time, true])) {
+            } else if (
+              tryYouTubePlayerCall("seekTo", time, true) ||
+              sendYouTubeCommand("seekTo", [time, true])
+            ) {
               console.log("⏩ [Proyector] Seek aplicado (YouTube):", time);
+              reinforceYouTubeEarly();
             } else {
               console.log(
                 "⚠️ [Proyector] No se encontró elemento multimedia para seek",
@@ -1290,17 +1815,23 @@ const Proyector = () => {
               const youtubeVol = Math.round(
                 Math.max(0, Math.min(1, volume)) * 100,
               );
-              if (sendYouTubeCommand("setVolume", [youtubeVol])) {
+              const ok =
+                tryYouTubePlayerCall("setVolume", youtubeVol) ||
+                sendYouTubeCommand("setVolume", [youtubeVol]);
+              if (ok) {
                 // Mantener mute/unmute sincronizado con volumen.
                 if (youtubeVol === 0) {
+                  tryYouTubePlayerCall("mute");
                   sendYouTubeCommand("mute", []);
                 } else {
+                  tryYouTubePlayerCall("unMute");
                   sendYouTubeCommand("unMute", []);
                 }
                 console.log(
                   "🔊 [Proyector] Volumen aplicado (YouTube):",
                   youtubeVol,
                 );
+                reinforceYouTubeEarly();
               } else {
                 console.log(
                   "⚠️ [Proyector] No se encontró elemento multimedia para volume",
@@ -1310,15 +1841,10 @@ const Proyector = () => {
             }
             break;
           case "limpiar":
-            setModoProyector("welcome");
-            setMultimediaActiva(null);
-            setParrafo("");
-            setTitulo("");
-            setNumero("");
-            setShowContent(false);
             console.log(
-              "🧹 [Proyector] Limpiando multimedia desde control remoto",
+              "🧹 [Proyector] Limpiar recibido desde control remoto (limpieza total)",
             );
+            limpiarProyector();
             break;
           default:
             console.log("❌ [Proyector] Acción no reconocida:", action);
@@ -1327,6 +1853,38 @@ const Proyector = () => {
         console.error("❌ [Proyector] Error controlando multimedia:", error);
       }
     };
+
+    // ✨ FALLBACK: controles entre ventanas sin IPC (BroadcastChannel)
+    let bc = null;
+    const handleBroadcastMessage = (ev) => {
+      try {
+        const payload = ev?.data;
+        if (!payload || !payload.action) return;
+        console.log(
+          "📡 [Proyector] Control recibido por BroadcastChannel:",
+          payload,
+        );
+        handleControlMultimedia(null, payload, {source: "broadcast"});
+      } catch (error) {
+        console.warn(
+          "⚠️ [Proyector] Error procesando BroadcastChannel:",
+          error,
+        );
+      }
+    };
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel("gloryview-proyector-control");
+        bc.addEventListener("message", handleBroadcastMessage);
+        console.log("✅ [Proyector] BroadcastChannel de control activo");
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ [Proyector] No se pudo iniciar BroadcastChannel:",
+        error,
+      );
+    }
 
     // ✨ REGISTRAR TODOS LOS LISTENERS
     if (window.electron?.on) {
@@ -1345,44 +1903,27 @@ const Proyector = () => {
       );
       window.electron.on("fondo-seleccionado", handleFondoSeleccionado);
 
-      // ✨ LISTENERS PARA MULTIMEDIA ACTIVA (IPC DIRECTO - CAMBIO CRÍTICO)
-      console.log(
-        "🎬 [Proyector] Registrando listeners para multimedia activa con ipcRenderer...",
+      // ✨ LISTENERS PARA MULTIMEDIA ACTIVA Y CONTROLES (vía preload allowlist)
+      window.electron.on(
+        "actualizar-multimedia-activa",
+        handleActualizarMultimediaActiva,
       );
-      if (window.electron.ipcRenderer) {
-        // ✨ LOG DE DEBUGGING CRÍTICO
-        console.log(
-          "🔧 [PROYECTOR DEBUG] ipcRenderer disponible, registrando listeners...",
-        );
+      window.electron.on(
+        "limpiar-multimedia-activa",
+        handleLimpiarMultimediaActiva,
+      );
+      window.electron.on("control-multimedia", handleControlMultimedia);
 
-        window.electron.ipcRenderer.on(
-          "actualizar-multimedia-activa",
-          handleActualizarMultimediaActiva,
-        );
-        window.electron.ipcRenderer.on(
-          "limpiar-multimedia-activa",
-          handleLimpiarMultimediaActiva,
-        );
-        window.electron.ipcRenderer.on(
-          "control-multimedia",
-          handleControlMultimedia,
-        );
-
-        console.log(
-          "✅ [Proyector] Listeners de multimedia activa registrados con ipcRenderer",
-        );
-
-        // ✨ TESTING: Enviar un mensaje de prueba para confirmar que está funcionando
-        console.log("🧪 [PROYECTOR DEBUG] Enviando mensaje de prueba...");
-        setTimeout(() => {
-          console.log(
-            "🧪 [PROYECTOR DEBUG] Proyector.jsx completamente cargado y listeners registrados",
-          );
-        }, 1000);
-      } else {
-        console.error(
-          "❌ [Proyector] ipcRenderer no disponible para multimedia activa",
-        );
+      // ✨ Handshake hacia main: el proyector está listo y con listeners activos.
+      try {
+        if (window.electron?.send) {
+          window.electron.send("proyector-ready", {
+            ts: Date.now(),
+            hasIpcRenderer: false,
+          });
+        }
+      } catch {
+        // noop
       }
 
       console.log("✅ [Proyector] Todos los listeners registrados");
@@ -1467,6 +2008,15 @@ const Proyector = () => {
       console.log("🧹 [Proyector] Limpiando listeners...");
       window.removeEventListener("keydown", handleKeyDown);
 
+      if (bc) {
+        try {
+          bc.removeEventListener("message", handleBroadcastMessage);
+          bc.close();
+        } catch {
+          // noop
+        }
+      }
+
       if (window.electron?.removeListener) {
         window.electron.removeListener("mostrar-himno", handleMostrarHimno);
         window.electron.removeListener(
@@ -1502,27 +2052,18 @@ const Proyector = () => {
           handleFondoSeleccionado,
         );
 
-        // ✨ LIMPIAR LISTENERS DE MULTIMEDIA ACTIVA (IPC DIRECTO)
-        if (window.electron.ipcRenderer) {
-          console.log(
-            "🧹 [Proyector] Limpiando listeners de multimedia activa...",
-          );
-          window.electron.ipcRenderer.off(
-            "actualizar-multimedia-activa",
-            handleActualizarMultimediaActiva,
-          );
-          window.electron.ipcRenderer.off(
-            "limpiar-multimedia-activa",
-            handleLimpiarMultimediaActiva,
-          );
-          window.electron.ipcRenderer.off(
-            "control-multimedia",
-            handleControlMultimedia,
-          );
-          console.log(
-            "✅ [Proyector] Listeners de multimedia activa limpiados",
-          );
-        }
+        window.electron.removeListener(
+          "actualizar-multimedia-activa",
+          handleActualizarMultimediaActiva,
+        );
+        window.electron.removeListener(
+          "limpiar-multimedia-activa",
+          handleLimpiarMultimediaActiva,
+        );
+        window.electron.removeListener(
+          "control-multimedia",
+          handleControlMultimedia,
+        );
       }
     };
   }, []); // ✨ DEPENDENCIAS VACÍAS PARA EVITAR REINICIALIZACIONES

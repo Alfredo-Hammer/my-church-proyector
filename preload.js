@@ -111,6 +111,15 @@ contextBridge.exposeInMainWorld("electron", {
   obtenerEstadisticasPresentacionesSlides: () => ipcRenderer.invoke("obtener-estadisticas-presentaciones-slides"),
 
   // ====================================
+  // PowerPoint -> Imágenes (preserva diseño)
+  // ====================================
+  convertirPptxAImagenes: (sourcePath) =>
+    ipcRenderer.invoke("convertir-pptx-a-imagenes", sourcePath),
+
+  convertirPptxBufferAImagenes: (fileName, data) =>
+    ipcRenderer.invoke("convertir-pptx-buffer-a-imagenes", { fileName, data }),
+
+  // ====================================
   // APIs DEL PROYECTOR - NUEVAS
   // ====================================
   proyectarSlide: (slideData) => ipcRenderer.invoke("proyectar-slide", slideData),

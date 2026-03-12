@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from "react";
+import React, {useState, useEffect} from "react";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
 import {
   FaUpload,
@@ -120,36 +120,8 @@ const Multimedia = () => {
   // Estado para control remoto del proyector
   const [proyectingMedia, setProyectingMedia] = useState(null);
 
-  // ✨ Ref para controlar el video local (cuando está en la página Multimedia)
-  const videoRef = useRef(null);
-
-  // Auto-reproducir videos locales al seleccionarlos desde la biblioteca.
-  // El reproductor global (contexto) no reproduce videos por sí mismo.
-  useEffect(() => {
-    if (!currentMedia) return;
-
-    const mediaType = currentMedia?.tipo || currentMedia?.type;
-    if (mediaType !== "video") return;
-
-    // Intentar reproducir después de que React actualice el src del <video>
-    const id = setTimeout(() => {
-      const el = videoRef.current;
-      if (!el) return;
-      try {
-        const p = el.play();
-        if (p && typeof p.catch === "function") {
-          p.catch(() => {
-            // Autoplay puede fallar dependiendo del estado del elemento/codec.
-            // El usuario aún puede presionar Play manualmente.
-          });
-        }
-      } catch {
-        // noop
-      }
-    }, 0);
-
-    return () => clearTimeout(id);
-  }, [currentMedia]);
+  // Estado de conectividad a internet
+  const [hayInternet, setHayInternet] = useState(navigator.onLine);
 
   // ✨ VERIFICAR Y CONFIGURAR ELECTRON API AL INICIO
   useEffect(() => {
@@ -191,6 +163,31 @@ const Multimedia = () => {
     }
 
     loadMediaFromDB();
+  }, []);
+
+  // Monitorear conectividad a internet
+  useEffect(() => {
+    const handleOnline = () => {
+      setHayInternet(true);
+      showSuccess("✅ Conexión a Internet restaurada", 3000);
+    };
+
+    const handleOffline = () => {
+      setHayInternet(false);
+      showWarning(
+        "⚠️ Sin conexión a Internet. Contenido en línea (YouTube) no disponible.",
+        5000,
+      );
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ✨ FUNCIONES MEJORADAS PARA NOTIFICACIONES
@@ -678,11 +675,20 @@ const Multimedia = () => {
   // ✨ FUNCIÓN MEJORADA PARA REPRODUCIR MEDIA
   const playMedia = async (media) => {
     try {
-      console.log("▶️ [Multimedia] Iniciando reproducción de media:", media);
-      console.log(
-        "📊 [Multimedia] currentMedia antes de reproducir:",
-        currentMedia,
-      );
+      // ✅ VALIDAR SI ES YOUTUBE Y HAY INTERNET
+      const esYoutube =
+        media.isYoutube ||
+        isYouTubeUrl(media.url) ||
+        isYouTubeUrl(media.ruta_archivo) ||
+        media.tipo === "youtube";
+
+      if (esYoutube && !hayInternet) {
+        showError(
+          "⚠️ <strong>Se requiere conexión a Internet</strong><br/>Los videos de YouTube necesitan una conexión activa para reproducirse.",
+          6000,
+        );
+        return;
+      }
 
       // ✨ VALIDAR ANTES DE REPRODUCIR
       const validacion = await validarMultimediaAntes(media);
@@ -773,21 +779,8 @@ const Multimedia = () => {
       return;
     }
 
-    const mediaType = currentMedia?.tipo || currentMedia?.type;
-
-    if (mediaType === "video" && videoRef.current) {
-      // Para videos, controlar el elemento video local
-      if (isPlaying) {
-        videoRef.current.pause();
-        pause(); // Actualizar el estado del contexto
-      } else {
-        videoRef.current.play();
-        resume(); // Actualizar el estado del contexto
-      }
-    } else {
-      // Para audio e imágenes, usar el contexto global
-      togglePlayPause();
-    }
+    // Usar el contexto global para todos los tipos de media
+    togglePlayPause();
   };
 
   // ✨ FUNCIÓN DE PRUEBA SIMPLIFICADA PARA PROYECCIÓN
@@ -1922,19 +1915,6 @@ const Multimedia = () => {
         }
       }
 
-      const mediaItem = {
-        id: Date.now(),
-        nombre: title,
-        url: finalUrl,
-        originalUrl: url,
-        tipo: type,
-        tamaño: "URL",
-        favorito: false,
-        reproducido: 0,
-        isUrl: true,
-        isYoutube: isYouTubeUrl(url),
-      };
-
       // Guardar también en BD para que aparezca en la app móvil (/api/multimedia)
       let guardadoEnBD = false;
       try {
@@ -1999,7 +1979,7 @@ const Multimedia = () => {
       // Refrescar biblioteca desde BD (incluye la URL recién agregada)
       await loadMediaFromDB();
 
-      playMediaGlobal(mediaItem); // Reproducir automáticamente la URL agregada
+      // ✅ No reproducir automáticamente - el usuario debe hacer clic en reproducir
 
       if (guardadoEnBD) {
         showSuccess(`<strong>URL agregada:</strong><br/>📺 ${title}`);
@@ -2237,6 +2217,22 @@ const Multimedia = () => {
             </div>
           </div>
 
+          {/* Advertencia de Internet */}
+          {!hayInternet && (
+            <div className="bg-yellow-900/20 border border-yellow-500/40 rounded-xl p-4 mb-4 flex items-center gap-3">
+              <FaExclamationTriangle className="text-yellow-400 text-xl flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-yellow-200 font-semibold text-sm">
+                  Sin conexión a Internet
+                </p>
+                <p className="text-yellow-300/80 text-xs mt-1">
+                  El contenido en línea como YouTube no estará disponible hasta
+                  que se restaure la conexión.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Barra de búsqueda y controles */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center gap-4 mb-4">
@@ -2438,17 +2434,18 @@ const Multimedia = () => {
                   {/* Vista previa */}
                   <div
                     id="multimedia-preview-container"
-                    className="bg-black rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative"
+                    className={`rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative ${
+                      isMediaForPlayerYouTube ||
+                      getMediaType(mediaForPlayer) === "video"
+                        ? "bg-transparent"
+                        : "bg-black"
+                    }`}
                   >
-                    {isMediaForPlayerYouTube ? (
-                      <iframe
-                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
-                        className="w-full h-full"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        title="YouTube Video Player"
-                      />
+                    {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
+                    {isMediaForPlayerYouTube ||
+                    getMediaType(mediaForPlayer) === "video" ? (
+                      // Área vacía donde se posicionará el GlobalMediaPlayer
+                      <div className="w-full h-full" />
                     ) : getMediaType(mediaForPlayer) === "audio" ? (
                       <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
                         <FaMusic className="text-green-400 text-6xl mb-6" />
@@ -2485,33 +2482,9 @@ const Multimedia = () => {
                           );
                         }}
                       />
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
-                        controls
-                        className="w-full h-full"
-                        onLoadStart={() => console.log("🎥 Cargando video...")}
-                        onCanPlay={() =>
-                          console.log("✅ Video listo para reproducir")
-                        }
-                        onError={(e) => {
-                          console.error("❌ Error cargando video:", e);
-                          const mensaje = `Error cargando video: ${getMediaName(
-                            mediaForPlayer,
-                          )}`;
-                          console.error(
-                            "📁 URL problemática:",
-                            mediaForPlayer.url,
-                          );
-                          showError(
-                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
-                          );
-                        }}
-                        onPlay={resume}
-                        onPause={pause}
-                      />
-                    )}
+                    ) : getMediaType(mediaForPlayer) === "video" ? (
+                      <div className="w-full h-full" />
+                    ) : null}
                   </div>
 
                   {/* Controles principales */}
@@ -2667,35 +2640,6 @@ const Multimedia = () => {
                 </button>
               </div>
 
-              {/* ✨ CONTROLES RÁPIDOS - Formato Horizontal */}
-              <div className="mb-6 bg-gray-700/30 rounded-xl p-4 border border-gray-600/50">
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={clearProjector}
-                    className="flex-1 min-w-[180px] bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 text-sm font-medium"
-                  >
-                    <FaTimes className="text-base" />
-                    Limpiar Proyector
-                  </button>
-                  <button
-                    onClick={loadMediaFromDB}
-                    className="flex-1 min-w-[180px] bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 text-sm font-medium"
-                  >
-                    <FaDownload className="text-base" />
-                    Actualizar Biblioteca
-                  </button>
-                  {currentMedia && (
-                    <button
-                      onClick={() => projectToScreenNew(currentMedia)}
-                      className="flex-1 min-w-[180px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 text-sm font-medium"
-                    >
-                      <FaExpand className="text-base" />
-                      Proyectar Actual
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {loading && mediaFiles.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-4"></div>
@@ -2813,6 +2757,13 @@ const Multimedia = () => {
                                     YT
                                   </div>
                                 )}
+                                {getMediaType(media) === "youtube" &&
+                                  !hayInternet && (
+                                    <div className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                      <FaExclamationTriangle className="text-[10px]" />
+                                      SIN INTERNET
+                                    </div>
+                                  )}
                               </div>
 
                               <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
@@ -2913,6 +2864,13 @@ const Multimedia = () => {
                                   {getMediaType(media) === "youtube" && (
                                     <FaYoutube className="text-red-500" />
                                   )}
+                                  {getMediaType(media) === "youtube" &&
+                                    !hayInternet && (
+                                      <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
+                                        <FaExclamationTriangle className="text-[10px]" />
+                                        SIN INTERNET
+                                      </span>
+                                    )}
                                 </div>
                               </div>
                             </div>

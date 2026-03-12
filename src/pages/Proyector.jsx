@@ -181,6 +181,8 @@ const Proyector = () => {
   useEffect(() => {
     if (!multimediaActiva) {
       emitPlaybackStatus({
+        id: null,
+        nombre: null,
         currentTime: 0,
         duration: 0,
         paused: true,
@@ -272,6 +274,8 @@ const Proyector = () => {
         : null;
 
       emitPlaybackStatus({
+        id: multimediaActiva?.id ?? null,
+        nombre: multimediaActiva?.nombre ?? null,
         currentTime:
           Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : 0,
         duration: Number.isFinite(duration) && duration >= 0 ? duration : 0,
@@ -373,6 +377,8 @@ const Proyector = () => {
                 ).trim() || null;
 
         emitPlaybackStatus({
+          id: multimediaActiva?.id ?? null,
+          nombre: multimediaActiva?.nombre ?? null,
           currentTime:
             Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : 0,
           duration: Number.isFinite(duration) && duration >= 0 ? duration : 0,
@@ -2291,13 +2297,26 @@ const Proyector = () => {
 
                       return `url(${optimizedUrl})`;
                     })(),
-                    backgroundSize: "cover",
+                    backgroundSize:
+                      presentacionActiva.slides?.[slideActual]?.renderMode ===
+                        "pptx" ||
+                      presentacionActiva.slides?.[slideActual]?.layout ===
+                        "pptx-image"
+                        ? "contain"
+                        : "cover",
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
                   }}
                 >
-                  {/* Overlay para mejorar legibilidad */}
-                  <div className="absolute inset-0 bg-black/30 backdrop-blur-sm rounded-xl"></div>
+                  {/* Overlay para mejorar legibilidad (no aplicar a PPTX renderizado) */}
+                  {!(
+                    presentacionActiva.slides?.[slideActual]?.renderMode ===
+                      "pptx" ||
+                    presentacionActiva.slides?.[slideActual]?.layout ===
+                      "pptx-image"
+                  ) && (
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm rounded-xl"></div>
+                  )}
 
                   {/* Indicador de carga de imagen */}
                   {imagenCargando && (
@@ -2372,30 +2391,38 @@ const Proyector = () => {
                     )}
                   </div>
 
-                  {/* Indicador de slide */}
-                  <motion.div
-                    className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 0.6}}
-                  >
-                    <p className="text-sm font-medium">
-                      {slideActual + 1} /{" "}
-                      {presentacionActiva.slides?.length || 0}
-                    </p>
-                  </motion.div>
+                  {/* Indicador / nombre (no mostrar en PPTX renderizado) */}
+                  {!(
+                    presentacionActiva.slides?.[slideActual]?.renderMode ===
+                      "pptx" ||
+                    presentacionActiva.slides?.[slideActual]?.layout ===
+                      "pptx-image"
+                  ) && (
+                    <>
+                      <motion.div
+                        className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
+                        initial={{opacity: 0}}
+                        animate={{opacity: 1}}
+                        transition={{delay: 0.6}}
+                      >
+                        <p className="text-sm font-medium">
+                          {slideActual + 1} /{" "}
+                          {presentacionActiva.slides?.length || 0}
+                        </p>
+                      </motion.div>
 
-                  {/* Nombre de la presentación */}
-                  <motion.div
-                    className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 0.6}}
-                  >
-                    <p className="text-sm font-medium">
-                      📊 {presentacionActiva.name}
-                    </p>
-                  </motion.div>
+                      <motion.div
+                        className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
+                        initial={{opacity: 0}}
+                        animate={{opacity: 1}}
+                        transition={{delay: 0.6}}
+                      >
+                        <p className="text-sm font-medium">
+                          📊 {presentacionActiva.name}
+                        </p>
+                      </motion.div>
+                    </>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -2424,13 +2451,22 @@ const Proyector = () => {
                         slideData.slide.backgroundImage,
                       )})`
                     : "none",
-                  backgroundSize: "cover",
+                  backgroundSize:
+                    slideData.slide?.renderMode === "pptx" ||
+                    slideData.slide?.layout === "pptx-image"
+                      ? "contain"
+                      : "cover",
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                 }}
               >
-                {/* Overlay para mejorar legibilidad */}
-                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+                {/* Overlay para mejorar legibilidad (no aplicar a PPTX renderizado) */}
+                {!(
+                  slideData.slide?.renderMode === "pptx" ||
+                  slideData.slide?.layout === "pptx-image"
+                ) && (
+                  <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+                )}
 
                 {/* Contenido de la slide */}
                 <div className="relative z-10 w-full h-full flex flex-col items-center justify-center px-8 py-4 max-h-screen overflow-hidden">
@@ -2486,33 +2522,41 @@ const Proyector = () => {
                 </div>
 
                 {/* Indicador de slide */}
-                {slideData.presentation && (
-                  <motion.div
-                    className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 0.6}}
-                  >
-                    <p className="text-sm font-medium">
-                      {slideData.presentation.currentIndex + 1} /{" "}
-                      {slideData.presentation.totalSlides || 1}
-                    </p>
-                  </motion.div>
-                )}
+                {slideData.presentation &&
+                  !(
+                    slideData.slide?.renderMode === "pptx" ||
+                    slideData.slide?.layout === "pptx-image"
+                  ) && (
+                    <motion.div
+                      className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
+                      initial={{opacity: 0}}
+                      animate={{opacity: 1}}
+                      transition={{delay: 0.6}}
+                    >
+                      <p className="text-sm font-medium">
+                        {slideData.presentation.currentIndex + 1} /{" "}
+                        {slideData.presentation.totalSlides || 1}
+                      </p>
+                    </motion.div>
+                  )}
 
                 {/* Nombre de la presentación */}
-                {slideData.presentation?.name && (
-                  <motion.div
-                    className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 0.6}}
-                  >
-                    <p className="text-sm font-medium">
-                      📊 {slideData.presentation.name}
-                    </p>
-                  </motion.div>
-                )}
+                {slideData.presentation?.name &&
+                  !(
+                    slideData.slide?.renderMode === "pptx" ||
+                    slideData.slide?.layout === "pptx-image"
+                  ) && (
+                    <motion.div
+                      className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
+                      initial={{opacity: 0}}
+                      animate={{opacity: 1}}
+                      transition={{delay: 0.6}}
+                    >
+                      <p className="text-sm font-medium">
+                        📊 {slideData.presentation.name}
+                      </p>
+                    </motion.div>
+                  )}
               </div>
             </motion.div>
           )}

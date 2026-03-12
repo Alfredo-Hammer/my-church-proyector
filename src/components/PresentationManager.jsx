@@ -43,6 +43,19 @@ const PresentationManager = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const withTimeout = (promise, ms, message) => {
+    const timeoutMs = Number.isFinite(ms) ? ms : 60000;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        const t = setTimeout(() => {
+          clearTimeout(t);
+          reject(new Error(message || `Timeout después de ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  };
+
   // Estados principales
   const [presentations, setPresentations] = useState([]);
   const [currentPresentation, setCurrentPresentation] = useState(null);
@@ -51,6 +64,8 @@ const PresentationManager = () => {
   const [notifications, setNotifications] = useState([]);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const isRenderedPptxSlide = (slide) =>
+    slide?.renderMode === "pptx" || slide?.layout === "pptx-image";
 
   // ✨ Estados para funcionalidades mejoradas
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,10 +86,10 @@ const PresentationManager = () => {
   const saveToLocalStorage = (presentation) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]"
+        localStorage.getItem("presentations") || "[]",
       );
       const existingIndex = localData.findIndex(
-        (p) => p.id === presentation.id
+        (p) => p.id === presentation.id,
       );
 
       if (existingIndex >= 0) {
@@ -94,10 +109,10 @@ const PresentationManager = () => {
   const updateInLocalStorage = (presentation) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]"
+        localStorage.getItem("presentations") || "[]",
       );
       const updatedData = localData.map((p) =>
-        p.id === presentation.id ? presentation : p
+        p.id === presentation.id ? presentation : p,
       );
       localStorage.setItem("presentations", JSON.stringify(updatedData));
     } catch (error) {
@@ -108,7 +123,7 @@ const PresentationManager = () => {
   const deleteFromLocalStorage = (presentationId) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]"
+        localStorage.getItem("presentations") || "[]",
       );
       const filteredData = localData.filter((p) => p.id !== presentationId);
       localStorage.setItem("presentations", JSON.stringify(filteredData));
@@ -162,7 +177,7 @@ const PresentationManager = () => {
 
       setSaveTimeout(newTimeout);
     },
-    [saveTimeout, autoSaveEnabled, dbAvailable]
+    [saveTimeout, autoSaveEnabled, dbAvailable],
   );
 
   // ✨ Escuchar imagen seleccionada desde Gestor de Fondos
@@ -185,14 +200,14 @@ const PresentationManager = () => {
     console.log("📷 ========================================");
     console.log(
       "📷 [PresentationManager] ✅ Imagen recibida del Gestor de Fondos:",
-      imagenSeleccionada
+      imagenSeleccionada,
     );
     console.log("📋 isLoading:", isLoading);
     console.log("📋 presentations.length:", presentations.length);
     console.log("📋 currentPresentation?.name:", currentPresentation?.name);
     console.log(
       "📋 currentPresentation?.slides.length:",
-      currentPresentation?.slides?.length
+      currentPresentation?.slides?.length,
     );
     console.log("📋 currentSlideIndex (estado):", currentSlideIndex);
     console.log("📋 preserveSlideIndex (de navegación):", preservedIndex);
@@ -296,11 +311,11 @@ const PresentationManager = () => {
           // Después de recargar, restaurar la presentación y el índice
           setPresentations((prevPresentations) => {
             const refreshedPresentation = prevPresentations.find(
-              (p) => p.id === presentationId
+              (p) => p.id === presentationId,
             );
             if (refreshedPresentation) {
               console.log(
-                "🔄 [RECARGA] Actualizando presentación actual desde BD"
+                "🔄 [RECARGA] Actualizando presentación actual desde BD",
               );
               setCurrentPresentation(refreshedPresentation);
               setCurrentSlideIndex(targetSlideIndex);
@@ -346,7 +361,7 @@ const PresentationManager = () => {
 
         // Si no hay presentaciones, crear una de ejemplo
         const currentPresentations = JSON.parse(
-          localStorage.getItem("presentations") || "[]"
+          localStorage.getItem("presentations") || "[]",
         );
         if (currentPresentations.length === 0) {
           await createDefaultPresentation();
@@ -404,7 +419,7 @@ const PresentationManager = () => {
           ) {
             console.warn(
               "🧹 Removiendo URL antigua de proxy en backgroundImage:",
-              cleanedSlide.backgroundImage
+              cleanedSlide.backgroundImage,
             );
             cleanedSlide.backgroundImage = null;
           }
@@ -420,18 +435,18 @@ const PresentationManager = () => {
                 if (url && url.includes("pixabay-proxy")) {
                   console.warn(
                     "🧹 Removiendo URL antigua de proxy en slideImages:",
-                    url
+                    url,
                   );
                   return false;
                 }
                 return true;
-              }
+              },
             );
             if (cleanedSlide.slideImages.length < originalLength) {
               console.log(
                 `✂️ Limpiadas ${
                   originalLength - cleanedSlide.slideImages.length
-                } URLs antiguas de slideImages`
+                } URLs antiguas de slideImages`,
               );
             }
           }
@@ -444,7 +459,7 @@ const PresentationManager = () => {
         id: dbPresentation.id,
         name: dbPresentation.nombre || "Sin nombre",
         slides: cleanOldProxyUrls(
-          Array.isArray(dbPresentation.slides) ? dbPresentation.slides : []
+          Array.isArray(dbPresentation.slides) ? dbPresentation.slides : [],
         ),
         createdAt: dbPresentation.created_at,
         lastModified: dbPresentation.updated_at,
@@ -462,7 +477,7 @@ const PresentationManager = () => {
 
       setPresentations(convertedPresentations);
       console.log(
-        `✅ ${convertedPresentations.length} presentaciones cargadas desde DB`
+        `✅ ${convertedPresentations.length} presentaciones cargadas desde DB`,
       );
 
       // ✨ Auto-seleccionar primera presentación si no hay una seleccionada
@@ -475,7 +490,7 @@ const PresentationManager = () => {
 
       if (convertedPresentations.length > 0) {
         showSuccess(
-          `📋 ${convertedPresentations.length} presentaciones cargadas`
+          `📋 ${convertedPresentations.length} presentaciones cargadas`,
         );
       }
     } catch (error) {
@@ -490,13 +505,13 @@ const PresentationManager = () => {
     try {
       console.log(
         "💾 [savePresentationToDB] Intentando guardar:",
-        presentation.name
+        presentation.name,
       );
       console.log("🔌 [savePresentationToDB] DB disponible:", dbAvailable);
 
       if (!dbAvailable) {
         console.log(
-          "⚠️ [savePresentationToDB] DB no disponible, usando localStorage"
+          "⚠️ [savePresentationToDB] DB no disponible, usando localStorage",
         );
         return saveToLocalStorage(presentation);
       }
@@ -514,11 +529,10 @@ const PresentationManager = () => {
       };
 
       console.log(
-        "📤 [savePresentationToDB] Llamando agregarPresentacionSlides..."
+        "📤 [savePresentationToDB] Llamando agregarPresentacionSlides...",
       );
-      const result = await window.electron.agregarPresentacionSlides(
-        presentationData
-      );
+      const result =
+        await window.electron.agregarPresentacionSlides(presentationData);
 
       console.log("📨 [savePresentationToDB] Resultado de BD:", result);
 
@@ -526,13 +540,13 @@ const PresentationManager = () => {
         const savedPresentation = {...presentation, id: result.id};
         console.log(
           "✅ [savePresentationToDB] Guardado exitoso con ID:",
-          result.id
+          result.id,
         );
         saveToLocalStorage(savedPresentation);
         return savedPresentation;
       } else {
         console.log(
-          "⚠️ [savePresentationToDB] Sin ID en resultado, usando localStorage"
+          "⚠️ [savePresentationToDB] Sin ID en resultado, usando localStorage",
         );
         return saveToLocalStorage(presentation);
       }
@@ -547,7 +561,7 @@ const PresentationManager = () => {
     try {
       console.log(
         "📦 [PresentationManager] Creando presentación desde modal:",
-        presentationData
+        presentationData,
       );
 
       const newPresentation = {
@@ -563,11 +577,11 @@ const PresentationManager = () => {
 
       console.log(
         "✅ [PresentationManager] Presentación guardada:",
-        savedPresentation
+        savedPresentation,
       );
       console.log(
         "🔑 [PresentationManager] ID obtenido:",
-        savedPresentation?.id
+        savedPresentation?.id,
       );
 
       if (savedPresentation) {
@@ -576,18 +590,18 @@ const PresentationManager = () => {
         setCurrentSlideIndex(0);
         setShowCreateModal(false);
         showSuccess(
-          `✅ Presentación "${savedPresentation.name}" creada exitosamente`
+          `✅ Presentación "${savedPresentation.name}" creada exitosamente`,
         );
       } else {
         console.error(
-          "⚠️ [PresentationManager] savedPresentation es null/undefined"
+          "⚠️ [PresentationManager] savedPresentation es null/undefined",
         );
         showError("❌ Error al guardar la presentación en la base de datos");
       }
     } catch (error) {
       console.error(
         "❌ [PresentationManager] Error creando presentación:",
-        error
+        error,
       );
       console.error("❌ Stack:", error.stack);
       showError(`❌ Error al crear la presentación: ${error.message}`);
@@ -615,9 +629,8 @@ const PresentationManager = () => {
         slide_actual: presentation.slideActual || 0,
       };
 
-      const result = await window.electron.actualizarPresentacionSlides(
-        presentationData
-      );
+      const result =
+        await window.electron.actualizarPresentacionSlides(presentationData);
 
       if (result?.success) {
         updateInLocalStorage(presentation);
@@ -744,7 +757,7 @@ const PresentationManager = () => {
         window.electron?.duplicarPresentacionSlides
       ) {
         const result = await window.electron.duplicarPresentacionSlides(
-          presentation.id
+          presentation.id,
         );
 
         if (result?.success) {
@@ -803,7 +816,7 @@ const PresentationManager = () => {
       ) {
         await window.electron.actualizarFavoritoPresentacionSlides(
           presentation.id,
-          newFavoriteStatus
+          newFavoriteStatus,
         );
       }
 
@@ -813,7 +826,7 @@ const PresentationManager = () => {
       };
 
       setPresentations((prev) =>
-        prev.map((p) => (p.id === presentation.id ? updatedPresentation : p))
+        prev.map((p) => (p.id === presentation.id ? updatedPresentation : p)),
       );
 
       if (currentPresentation?.id === presentation.id) {
@@ -824,7 +837,7 @@ const PresentationManager = () => {
       showSuccess(
         newFavoriteStatus
           ? "⭐ Agregado a favoritos"
-          : "❌ Removido de favoritos"
+          : "❌ Removido de favoritos",
       );
     } catch (error) {
       console.error("❌ Error actualizando favorito:", error);
@@ -888,7 +901,7 @@ const PresentationManager = () => {
       try {
         await window.electron.actualizarSlideActualPresentacion(
           currentPresentation.id,
-          newIndex
+          newIndex,
         );
         const updatedPresentation = {
           ...currentPresentation,
@@ -929,7 +942,7 @@ const PresentationManager = () => {
 
           console.log(
             "📺 [PresentationManager] GoToSlideAndProject:",
-            slideData
+            slideData,
           );
 
           let proyectionExitosa = false;
@@ -942,7 +955,7 @@ const PresentationManager = () => {
               if (!result?.success) {
                 console.warn(
                   "⚠️ No se pudo abrir el proyector:",
-                  result?.error
+                  result?.error,
                 );
               }
               await new Promise((resolve) => setTimeout(resolve, 500));
@@ -970,9 +983,8 @@ const PresentationManager = () => {
           // Método 2: proyectarMultimedia
           if (window.electron?.proyectarMultimedia && !proyectionExitosa) {
             try {
-              const resultado = await window.electron.proyectarMultimedia(
-                slideData
-              );
+              const resultado =
+                await window.electron.proyectarMultimedia(slideData);
               if (resultado?.success) {
                 proyectionExitosa = true;
                 setIsProjecting(true);
@@ -991,7 +1003,7 @@ const PresentationManager = () => {
               // Usar localStorage como fallback
               localStorage.setItem(
                 "proyector-slide-data",
-                JSON.stringify(slideData)
+                JSON.stringify(slideData),
               );
 
               // Intentar abrir proyector en nueva ventana si no existe
@@ -999,13 +1011,13 @@ const PresentationManager = () => {
                 const projectionWindow = window.open(
                   "/proyector",
                   "proyector",
-                  "fullscreen=yes"
+                  "fullscreen=yes",
                 );
                 if (projectionWindow) {
                   proyectionExitosa = true;
                   setIsProjecting(true);
                   showSuccess(
-                    `🎯 Proyectando diapositiva ${index + 1} (modo web)`
+                    `🎯 Proyectando diapositiva ${index + 1} (modo web)`,
                   );
                 }
               } else {
@@ -1014,12 +1026,12 @@ const PresentationManager = () => {
                   new StorageEvent("storage", {
                     key: "proyector-slide-data",
                     newValue: JSON.stringify(slideData),
-                  })
+                  }),
                 );
                 proyectionExitosa = true;
                 setIsProjecting(true);
                 showSuccess(
-                  `🎯 Proyectando diapositiva ${index + 1} (fallback)`
+                  `🎯 Proyectando diapositiva ${index + 1} (fallback)`,
                 );
               }
             } catch (fallbackError) {
@@ -1031,10 +1043,10 @@ const PresentationManager = () => {
           if (!proyectionExitosa) {
             console.error(
               "❌ [PresentationManager] Todos los métodos de proyección fallaron:",
-              errorDetails
+              errorDetails,
             );
             showError(
-              `❌ Error proyectando diapositiva: ${errorDetails.join(", ")}`
+              `❌ Error proyectando diapositiva: ${errorDetails.join(", ")}`,
             );
           }
         } catch (error) {
@@ -1093,7 +1105,7 @@ const PresentationManager = () => {
 
     if (window.confirm("¿Eliminar esta diapositiva?")) {
       const updatedSlides = currentPresentation.slides.filter(
-        (_, index) => index !== currentSlideIndex
+        (_, index) => index !== currentSlideIndex,
       );
       const updatedPresentation = {
         ...currentPresentation,
@@ -1123,7 +1135,7 @@ const PresentationManager = () => {
       !currentPresentation.slides[currentSlideIndex]
     ) {
       console.error(
-        "❌ [updateCurrentSlide] No hay presentación o slide actual"
+        "❌ [updateCurrentSlide] No hay presentación o slide actual",
       );
       return;
     }
@@ -1136,11 +1148,11 @@ const PresentationManager = () => {
 
     console.log(
       "📋 [updateCurrentSlide] Slide actualizado:",
-      updatedSlides[currentSlideIndex]
+      updatedSlides[currentSlideIndex],
     );
     console.log(
       "📋 [updateCurrentSlide] slideImages del slide:",
-      updatedSlides[currentSlideIndex].slideImages
+      updatedSlides[currentSlideIndex].slideImages,
     );
 
     const updatedPresentation = {
@@ -1192,8 +1204,8 @@ const PresentationManager = () => {
   const updatePresentationInList = (updatedPresentation) => {
     setPresentations((prev) =>
       prev.map((p) =>
-        p.id === updatedPresentation.id ? updatedPresentation : p
-      )
+        p.id === updatedPresentation.id ? updatedPresentation : p,
+      ),
     );
 
     // También actualizar en localStorage como backup
@@ -1236,7 +1248,7 @@ const PresentationManager = () => {
     try {
       if (dbAvailable && window.electron?.exportarPresentacionSlides) {
         const result = await window.electron.exportarPresentacionSlides(
-          presentation.id
+          presentation.id,
         );
 
         if (result?.success && result?.data) {
@@ -1308,6 +1320,177 @@ const PresentationManager = () => {
         if (isValidPowerPointFile(file)) {
           try {
             showInfo(`🔄 Procesando PowerPoint: ${file.name}...`);
+
+            // 1) Intentar conversión fiel a imágenes (preserva diseño)
+            const filePath = file?.path;
+            const PPTX_TIMEOUT_MS = 125000;
+            if (window.electron?.convertirPptxAImagenes && filePath) {
+              let result;
+              let conversionErrorNotified = false;
+              try {
+                result = await withTimeout(
+                  window.electron.convertirPptxAImagenes(filePath),
+                  PPTX_TIMEOUT_MS,
+                  "La conversión de PowerPoint tardó demasiado. Intentando modo compatibilidad…",
+                );
+              } catch (conversionError) {
+                console.warn(
+                  "⚠️ Conversión PPTX→PNG no respondió a tiempo:",
+                  conversionError,
+                );
+                conversionErrorNotified = true;
+                result = {
+                  success: false,
+                  error: conversionError?.message || String(conversionError),
+                };
+                showInfo(`⚠️ ${result.error} Intentando modo compatibilidad…`);
+              }
+
+              if (result?.success && Array.isArray(result.imageUrls)) {
+                const slides = result.imageUrls.map((imageUrl, index) => ({
+                  id: Date.now() + index + Math.random(),
+                  title: "",
+                  content: "",
+                  backgroundColor: "#000000",
+                  textColor: "#ffffff",
+                  fontSize: "32px",
+                  titleFontSize: "48px",
+                  backgroundImage: imageUrl,
+                  layout: "pptx-image",
+                  textAlign: "center",
+                  renderMode: "pptx",
+                }));
+
+                const newPresentation = {
+                  id: null,
+                  name: file.name.replace(/\.(ppt|pptx)$/i, ""),
+                  slides,
+                  createdAt: new Date().toISOString(),
+                  lastModified: new Date().toISOString(),
+                  description: `Presentación importada desde PowerPoint (diseño original): ${file.name}`,
+                  importedFrom: file.name,
+                  fileType: "powerpoint",
+                  fileSize: file.size,
+                  favorito: false,
+                  tags: ["powerpoint", "importada"],
+                  configuracion: {},
+                  slideActual: 0,
+                };
+
+                const savedPresentation =
+                  await savePresentationToDB(newPresentation);
+                if (savedPresentation) {
+                  setPresentations((prev) => [...prev, savedPresentation]);
+                  setCurrentPresentation(savedPresentation);
+                  setCurrentSlideIndex(0);
+                  showSuccess(
+                    `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
+                  );
+                }
+
+                continue;
+              }
+
+              if (result?.success === false && result?.error) {
+                console.warn(
+                  "⚠️ Conversión PPTX→PNG falló, usando fallback:",
+                  result.error,
+                );
+                if (!conversionErrorNotified) {
+                  showInfo(
+                    `⚠️ No se pudo conservar el diseño automáticamente: ${result.error}. Intentando modo compatibilidad…`,
+                  );
+                }
+              }
+            }
+
+            // 1b) Si no hay ruta del archivo (file.path), convertir desde ArrayBuffer vía IPC
+            // (también preserva el diseño original)
+            if (window.electron?.convertirPptxBufferAImagenes && !filePath) {
+              const arrayBuffer = await file.arrayBuffer();
+              let result;
+              let conversionErrorNotified = false;
+              try {
+                result = await withTimeout(
+                  window.electron.convertirPptxBufferAImagenes(
+                    file.name,
+                    arrayBuffer,
+                  ),
+                  PPTX_TIMEOUT_MS,
+                  "La conversión de PowerPoint tardó demasiado. Intentando modo compatibilidad…",
+                );
+              } catch (conversionError) {
+                console.warn(
+                  "⚠️ Conversión PPTX (buffer) no respondió a tiempo:",
+                  conversionError,
+                );
+                conversionErrorNotified = true;
+                result = {
+                  success: false,
+                  error: conversionError?.message || String(conversionError),
+                };
+                showInfo(`⚠️ ${result.error} Intentando modo compatibilidad…`);
+              }
+
+              if (result?.success && Array.isArray(result.imageUrls)) {
+                const slides = result.imageUrls.map((imageUrl, index) => ({
+                  id: Date.now() + index + Math.random(),
+                  title: "",
+                  content: "",
+                  backgroundColor: "#000000",
+                  textColor: "#ffffff",
+                  fontSize: "32px",
+                  titleFontSize: "48px",
+                  backgroundImage: imageUrl,
+                  layout: "pptx-image",
+                  textAlign: "center",
+                  renderMode: "pptx",
+                }));
+
+                const newPresentation = {
+                  id: null,
+                  name: file.name.replace(/\.(ppt|pptx)$/i, ""),
+                  slides,
+                  createdAt: new Date().toISOString(),
+                  lastModified: new Date().toISOString(),
+                  description: `Presentación importada desde PowerPoint (diseño original): ${file.name}`,
+                  importedFrom: file.name,
+                  fileType: "powerpoint",
+                  fileSize: file.size,
+                  favorito: false,
+                  tags: ["powerpoint", "importada"],
+                  configuracion: {},
+                  slideActual: 0,
+                };
+
+                const savedPresentation =
+                  await savePresentationToDB(newPresentation);
+                if (savedPresentation) {
+                  setPresentations((prev) => [...prev, savedPresentation]);
+                  setCurrentPresentation(savedPresentation);
+                  setCurrentSlideIndex(0);
+                  showSuccess(
+                    `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
+                  );
+                }
+
+                continue;
+              }
+
+              if (result?.success === false && result?.error) {
+                console.warn(
+                  "⚠️ Conversión PPTX (buffer) falló, usando fallback:",
+                  result.error,
+                );
+                if (!conversionErrorNotified) {
+                  showInfo(
+                    `⚠️ No se pudo conservar el diseño automáticamente: ${result.error}. Intentando modo compatibilidad…`,
+                  );
+                }
+              }
+            }
+
+            // 2) Fallback: parser (puede perder fidelidad)
             const slides = await processPowerPointFile(file);
 
             if (slides && slides.length > 0) {
@@ -1327,20 +1510,19 @@ const PresentationManager = () => {
                 slideActual: 0,
               };
 
-              const savedPresentation = await savePresentationToDB(
-                newPresentation
-              );
+              const savedPresentation =
+                await savePresentationToDB(newPresentation);
               if (savedPresentation) {
                 setPresentations((prev) => [...prev, savedPresentation]);
                 setCurrentPresentation(savedPresentation);
                 setCurrentSlideIndex(0);
                 showSuccess(
-                  `✅ PowerPoint importado: ${slides.length} diapositivas`
+                  `✅ PowerPoint importado: ${slides.length} diapositivas`,
                 );
               }
             } else {
               showError(
-                `❌ No se pudieron extraer diapositivas de ${file.name}`
+                `❌ No se pudieron extraer diapositivas de ${file.name}`,
               );
             }
           } catch (pptError) {
@@ -1378,13 +1560,12 @@ const PresentationManager = () => {
               slideActual: 0,
             };
 
-            const savedFallback = await savePresentationToDB(
-              fallbackPresentation
-            );
+            const savedFallback =
+              await savePresentationToDB(fallbackPresentation);
             if (savedFallback) {
               setPresentations((prev) => [...prev, savedFallback]);
               showInfo(
-                "⚠️ PowerPoint importado parcialmente - revisa el contenido"
+                "⚠️ PowerPoint importado parcialmente - revisa el contenido",
               );
             }
           }
@@ -1427,9 +1608,8 @@ const PresentationManager = () => {
                 slideActual: 0,
               };
 
-              const savedPresentation = await savePresentationToDB(
-                newPresentation
-              );
+              const savedPresentation =
+                await savePresentationToDB(newPresentation);
               if (savedPresentation) {
                 setPresentations((prev) => [...prev, savedPresentation]);
                 showSuccess(`✅ Imagen ${file.name} convertida a presentación`);
@@ -1473,7 +1653,7 @@ const PresentationManager = () => {
 
       console.log(
         "📺 [PresentationManager] Proyectando diapositiva:",
-        slideData
+        slideData,
       );
 
       let proyectionExitosa = false;
@@ -1497,13 +1677,13 @@ const PresentationManager = () => {
             console.log("✅ [PresentationManager] proyectarSlide exitoso");
           } else {
             errorDetails.push(
-              `proyectarSlide: ${resultado?.error || "Sin respuesta exitosa"}`
+              `proyectarSlide: ${resultado?.error || "Sin respuesta exitosa"}`,
             );
           }
         } catch (error) {
           console.error(
             "❌ [PresentationManager] Error en proyectarSlide:",
-            error
+            error,
           );
           errorDetails.push(`proyectarSlide: ${error.message}`);
         }
@@ -1513,9 +1693,8 @@ const PresentationManager = () => {
       if (window.electron?.proyectarMultimedia && !proyectionExitosa) {
         try {
           console.log("📺 [PresentationManager] Método 2: proyectarMultimedia");
-          const resultado = await window.electron.proyectarMultimedia(
-            slideData
-          );
+          const resultado =
+            await window.electron.proyectarMultimedia(slideData);
 
           if (resultado?.success) {
             proyectionExitosa = true;
@@ -1524,13 +1703,13 @@ const PresentationManager = () => {
             errorDetails.push(
               `proyectarMultimedia: ${
                 resultado?.error || "Sin respuesta exitosa"
-              }`
+              }`,
             );
           }
         } catch (error) {
           console.error(
             "❌ [PresentationManager] Error en proyectarMultimedia:",
-            error
+            error,
           );
           errorDetails.push(`proyectarMultimedia: ${error.message}`);
         }
@@ -1540,34 +1719,34 @@ const PresentationManager = () => {
       if (!proyectionExitosa) {
         try {
           console.log(
-            "📺 [PresentationManager] Método 3: localStorage fallback"
+            "📺 [PresentationManager] Método 3: localStorage fallback",
           );
 
           localStorage.setItem(
             "currentProjectionSlide",
-            JSON.stringify(slideData)
+            JSON.stringify(slideData),
           );
 
           const projectionWindow = window.open(
             "/proyector.html",
             "proyector",
-            "fullscreen=yes,width=1920,height=1080,toolbar=no,menubar=no,location=no,status=no,resizable=yes"
+            "fullscreen=yes,width=1920,height=1080,toolbar=no,menubar=no,location=no,status=no,resizable=yes",
           );
 
           if (projectionWindow) {
             proyectionExitosa = true;
             console.log(
-              "✅ [PresentationManager] localStorage fallback exitoso"
+              "✅ [PresentationManager] localStorage fallback exitoso",
             );
           } else {
             errorDetails.push(
-              "localStorage: No se pudo abrir ventana de proyección"
+              "localStorage: No se pudo abrir ventana de proyección",
             );
           }
         } catch (error) {
           console.error(
             "❌ [PresentationManager] Error en localStorage fallback:",
-            error
+            error,
           );
           errorDetails.push(`localStorage: ${error.message}`);
         }
@@ -1578,11 +1757,11 @@ const PresentationManager = () => {
         showSuccess(
           `🎥 Proyectando: ${
             currentSlide.title || `Diapositiva ${currentSlideIndex + 1}`
-          }`
+          }`,
         );
       } else {
         throw new Error(
-          `Todos los métodos fallaron: ${errorDetails.join(", ")}`
+          `Todos los métodos fallaron: ${errorDetails.join(", ")}`,
         );
       }
     } catch (error) {
@@ -1602,7 +1781,7 @@ const PresentationManager = () => {
 
   // ✨ Render component
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900">
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* ✨ Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {notifications.map((notification) => (
@@ -1612,8 +1791,8 @@ const PresentationManager = () => {
               notification.type === "success"
                 ? "bg-green-500"
                 : notification.type === "error"
-                ? "bg-red-500"
-                : "bg-blue-500"
+                  ? "bg-red-500"
+                  : "bg-blue-500"
             }`}
           >
             <div className="flex items-center gap-2">
@@ -1883,7 +2062,15 @@ const PresentationManager = () => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setIsEditing(!isEditing)}
+                      onClick={() => {
+                        if (isRenderedPptxSlide(currentSlide)) {
+                          showInfo(
+                            "ℹ️ Este PowerPoint se muestra como imagen para conservar el diseño (no editable).",
+                          );
+                          return;
+                        }
+                        setIsEditing(!isEditing);
+                      }}
                       className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
                         isEditing
                           ? "bg-orange-600 hover:bg-orange-700"
@@ -1917,11 +2104,11 @@ const PresentationManager = () => {
                     <button
                       onClick={() => {
                         console.log(
-                          "🔵 [NAVEGACIÓN] Navegando a GestionFondos"
+                          "🔵 [NAVEGACIÓN] Navegando a GestionFondos",
                         );
                         console.log(
                           "🔵 currentSlideIndex antes de navegar:",
-                          currentSlideIndex
+                          currentSlideIndex,
                         );
                         navigate("/gestion-fondos", {
                           state: {
@@ -1970,24 +2157,30 @@ const PresentationManager = () => {
                           backgroundColor: currentSlide.backgroundColor,
                           backgroundImage: (() => {
                             const bgUrl = convertPixabayUrlToProxy(
-                              currentSlide.backgroundImage
+                              currentSlide.backgroundImage,
                             );
                             return bgUrl ? `url(${bgUrl})` : "none";
                           })(),
-                          backgroundSize: "cover",
+                          backgroundSize: isRenderedPptxSlide(currentSlide)
+                            ? "contain"
+                            : "cover",
                           backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
                           textAlign: currentSlide.textAlign,
                         }}
                       >
-                        {currentSlide.backgroundImage &&
+                        {!isRenderedPptxSlide(currentSlide) &&
+                          currentSlide.backgroundImage &&
                           convertPixabayUrlToProxy(
-                            currentSlide.backgroundImage
+                            currentSlide.backgroundImage,
                           ) && (
                             <div className="absolute inset-0 bg-black/30"></div>
                           )}
 
                         <div className="relative z-10 w-full h-full flex flex-col justify-center">
-                          {isEditing ? (
+                          {isRenderedPptxSlide(
+                            currentSlide,
+                          ) ? null : isEditing ? (
                             <div className="space-y-4">
                               <input
                                 type="text"
@@ -2049,9 +2242,9 @@ const PresentationManager = () => {
                                         currentSlide.slideImages.length === 1
                                           ? "1fr"
                                           : currentSlide.slideImages.length ===
-                                            2
-                                          ? "1fr 1fr"
-                                          : "repeat(auto-fit, minmax(150px, 1fr))",
+                                              2
+                                            ? "1fr 1fr"
+                                            : "repeat(auto-fit, minmax(150px, 1fr))",
                                     }}
                                   >
                                     {currentSlide.slideImages.map(
@@ -2079,14 +2272,14 @@ const PresentationManager = () => {
                                               onError={(e) => {
                                                 console.warn(
                                                   "Error cargando imagen de PowerPoint:",
-                                                  imageUrl
+                                                  imageUrl,
                                                 );
                                                 e.target.style.display = "none";
                                               }}
                                             />
                                           </div>
                                         );
-                                      }
+                                      },
                                     )}
                                   </div>
                                 )}
@@ -2375,7 +2568,7 @@ const PresentationManager = () => {
                           backgroundColor: slide.backgroundColor || "#1e293b",
                           backgroundImage: (() => {
                             const bgUrl = convertPixabayUrlToProxy(
-                              slide.backgroundImage
+                              slide.backgroundImage,
                             );
                             return bgUrl ? `url(${bgUrl})` : "none";
                           })(),
@@ -2390,11 +2583,11 @@ const PresentationManager = () => {
                             {slide.slideImages &&
                               slide.slideImages.length > 0 &&
                               !convertPixabayUrlToProxy(
-                                slide.backgroundImage
+                                slide.backgroundImage,
                               ) &&
                               (() => {
                                 const slideImgUrl = convertPixabayUrlToProxy(
-                                  slide.slideImages[0]
+                                  slide.slideImages[0],
                                 );
                                 return slideImgUrl ? (
                                   <img

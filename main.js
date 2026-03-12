@@ -19,7 +19,7 @@ try {
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const express = require("express");
 const cors = require("cors");
 const https = require("https");
@@ -46,6 +46,8 @@ const dbNew = require("./db-new");
 const multimediaPlaybackStatus = {
   proyector: {
     updatedAt: 0,
+    id: null,
+    nombre: null,
     currentTime: 0,
     duration: 0,
     paused: true,
@@ -54,6 +56,8 @@ const multimediaPlaybackStatus = {
   },
   pc: {
     updatedAt: 0,
+    id: null,
+    nombre: null,
     currentTime: 0,
     duration: 0,
     paused: true,
@@ -163,6 +167,10 @@ const limpiarHandlers = () => {
     ipcMain.removeHandler("proyectar-slide");
     ipcMain.removeHandler("limpiar-proyector");
 
+    // ✨ PowerPoint (conversión fiel a imágenes)
+    ipcMain.removeHandler("convertir-pptx-a-imagenes");
+    ipcMain.removeHandler("convertir-pptx-buffer-a-imagenes");
+
     // ✨ Limpiar handlers multimedia
     ipcMain.removeHandler("procesar-archivo-multimedia");
     ipcMain.removeHandler("db-obtener-multimedia");
@@ -175,6 +183,130 @@ const limpiarHandlers = () => {
     // Los handlers no existían, está bien
   }
 };
+
+// ==================================================
+// PowerPoint -> Imágenes (preserva diseño)
+// ==================================================
+function encontrarLibreOfficeBin() {
+  // Importante: NO devolver "soffice" sin comprobar.
+  // En apps GUI de macOS el PATH suele ser limitado y `spawn('soffice')` puede quedarse fallando.
+  const candidatosAbsolutos = [
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice.bin",
+
+    // Homebrew (Apple Silicon / Intel)
+    "/opt/homebrew/bin/soffice",
+    "/usr/local/bin/soffice",
+  ];
+
+  for (const candidato of candidatosAbsolutos) {
+    try {
+      if (fs.existsSync(candidato)) return candidato;
+    } catch {
+      // ignorar
+    }
+  }
+
+  // Intentar resolver por PATH
+  try {
+    const res = spawnSync("which", ["soffice"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const salida = String(res.stdout || "").trim();
+    const candidato = salida.split("\n").map((s) => s.trim()).filter(Boolean)[0];
+    if (res.status === 0 && candidato && fs.existsSync(candidato)) {
+      return candidato;
+    }
+  } catch {
+    // ignorar
+  }
+
+  return null;
+}
+
+function spawnConPromise(cmd, args, opts = {}) {
+  const timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : 120000;
+  const cwd = opts.cwd || undefined;
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // ignore
+      }
+      reject(new Error(`Timeout ejecutando ${cmd}`));
+    }, timeoutMs);
+
+    child.stdout.on("data", (d) => {
+      stdout += String(d);
+    });
+    child.stderr.on("data", (d) => {
+      stderr += String(d);
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve({ code, stdout, stderr });
+      } else {
+        const msg = (stderr || stdout || "").trim();
+        reject(new Error(msg || `Proceso ${cmd} terminó con código ${code}`));
+      }
+    });
+  });
+}
+
+function ordenarPngPorSlide(files) {
+  // Orden natural por sufijo numérico si existe.
+  const parse = (name) => {
+    const m = String(name).match(/(\d+)(?=\.png$)/i);
+    return m ? Number(m[1]) : Number.POSITIVE_INFINITY;
+  };
+
+  return [...files].sort((a, b) => {
+    const na = parse(a);
+    const nb = parse(b);
+    if (na !== nb) return na - nb;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+async function convertirPptxAImagenesEnDirectorio({ libreOfficeBin, sourcePath, outDir }) {
+  const args = [
+    "--headless",
+    "--nologo",
+    "--nolockcheck",
+    "--nodefault",
+    "--norestore",
+    "--convert-to",
+    "png",
+    "--outdir",
+    outDir,
+    sourcePath,
+  ];
+
+  await spawnConPromise(libreOfficeBin, args, { timeoutMs: 120000 });
+
+  const archivos = fs
+    .readdirSync(outDir)
+    .filter((f) => String(f).toLowerCase().endsWith(".png"));
+
+  return ordenarPngPorSlide(archivos);
+}
 
 // ✨ FUNCIÓN CSP ACTUALIZADA PARA YOUTUBE Y PIXABAY
 function obtenerCSP() {
@@ -454,8 +586,14 @@ function iniciarServidorMultimedia() {
   const uploadsDir = path.join(obtenerRutaBase(), "public", "uploads");
   expressApp.use("/uploads", express.static(uploadsDir, {
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg')) {
+      const name = String(path.basename(filePath || '')).toLowerCase();
+
+      if (name.endsWith('.png') || name.endsWith('png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
         res.setHeader('Content-Type', 'image/jpeg');
+      } else if (name.endsWith('.webp') || name.endsWith('webp')) {
+        res.setHeader('Content-Type', 'image/webp');
       }
       res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1198,6 +1336,17 @@ function iniciarServidorMultimedia() {
       };
 
       proyector.webContents.send('mostrar-multimedia', payload);
+
+      // Guardar id/nombre inmediatamente para que todos los clientes puedan
+      // ver el estado sin esperar al IPC de playback-status del renderer.
+      const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
+        ? id
+        : null;
+      multimediaPlaybackStatus['proyector'].id = numericId;
+      multimediaPlaybackStatus['proyector'].nombre = payload.nombre || null;
+      multimediaPlaybackStatus['proyector'].paused = false;
+      multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+
       return res.json({ ok: true });
     } catch (error) {
       console.error('❌ [MAIN] (API) Error /api/control/multimedia/proyectar:', error);
@@ -1287,7 +1436,12 @@ function iniciarServidorMultimedia() {
         return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
       }
 
+      const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
+        ? id
+        : (media?.id ?? null);
+
       const payload = {
+        id: numericId,
         tipo: finalTipo,
         url: toLocalhostUrl(finalUrl),
         nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
@@ -1295,6 +1449,14 @@ function iniciarServidorMultimedia() {
       };
 
       mainWindow.webContents.send('solo-audio-play', payload);
+
+      // Guardar id/nombre inmediatamente para que todos los clientes puedan
+      // ver el estado sin esperar al IPC de playback-status del renderer.
+      multimediaPlaybackStatus['pc'].id = numericId;
+      multimediaPlaybackStatus['pc'].nombre = payload.nombre;
+      multimediaPlaybackStatus['pc'].paused = false;
+      multimediaPlaybackStatus['pc'].updatedAt = Date.now();
+
       return res.json({ ok: true });
     } catch (error) {
       console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/play:', error);
@@ -3683,6 +3845,8 @@ function registrarHandlers() {
 
       multimediaPlaybackStatus[destino] = {
         updatedAt: Date.now(),
+        id: ('id' in payload) ? payload.id : (multimediaPlaybackStatus[destino]?.id ?? null),
+        nombre: ('nombre' in payload) ? (payload.nombre ? String(payload.nombre) : null) : (multimediaPlaybackStatus[destino]?.nombre ?? null),
         currentTime: Number.isFinite(currentTimeNum) && currentTimeNum >= 0 ? currentTimeNum : 0,
         duration: Number.isFinite(durationNum) && durationNum >= 0 ? durationNum : 0,
         paused: Boolean(payload?.paused),
@@ -4024,6 +4188,142 @@ function registrarHandlers() {
       };
     }
   });
+
+  // ====================================
+  // HANDLER: PowerPoint -> PNG (preservar diseño)
+  // ====================================
+
+  ipcMain.handle("convertir-pptx-a-imagenes", async (event, sourcePath) => {
+    try {
+      if (!sourcePath || typeof sourcePath !== "string") {
+        return { success: false, error: "Ruta de archivo inválida" };
+      }
+
+      const ext = path.extname(sourcePath).toLowerCase();
+      if (ext !== ".pptx" && ext !== ".ppt") {
+        return { success: false, error: "El archivo debe ser .ppt o .pptx" };
+      }
+
+      if (!fs.existsSync(sourcePath)) {
+        return { success: false, error: "El archivo no existe" };
+      }
+
+      const libreOfficeBin = encontrarLibreOfficeBin();
+      if (!libreOfficeBin) {
+        return {
+          success: false,
+          error:
+            "LibreOffice no está disponible. Instálalo para importar PowerPoint conservando el diseño.",
+        };
+      }
+
+      const rutaBase = obtenerRutaBase();
+      const uploadsBaseDir = path.join(rutaBase, "public", "uploads");
+      const jobId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const outDir = path.join(uploadsBaseDir, "pptx", jobId);
+      fs.mkdirSync(outDir, { recursive: true });
+
+      // Convertir a PNG (una imagen por slide)
+      const ordenados = await convertirPptxAImagenesEnDirectorio({
+        libreOfficeBin,
+        sourcePath,
+        outDir,
+      });
+      if (ordenados.length === 0) {
+        return {
+          success: false,
+          error:
+            "No se generaron imágenes. Verifica que el PPTX no esté protegido o dañado.",
+        };
+      }
+
+      // Construir URLs servidas por el servidor local (puerto 3001)
+      const baseUrl = "http://localhost:3001/uploads";
+      const imageUrls = ordenados.map(
+        (fileName) => `${baseUrl}/pptx/${jobId}/${encodeURIComponent(fileName)}`,
+      );
+
+      return {
+        success: true,
+        jobId,
+        imageUrls,
+      };
+    } catch (error) {
+      console.error("❌ [MAIN] Error convertir-pptx-a-imagenes:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Alternativa: convertir PPTX desde buffer (cuando File.path no está disponible)
+  ipcMain.handle(
+    "convertir-pptx-buffer-a-imagenes",
+    async (event, payload) => {
+      try {
+        const fileName = String(payload?.fileName || "Presentacion.pptx");
+        const data = payload?.data;
+
+        const ext = path.extname(fileName).toLowerCase();
+        if (ext !== ".pptx" && ext !== ".ppt") {
+          return { success: false, error: "El archivo debe ser .ppt o .pptx" };
+        }
+
+        if (!data) {
+          return { success: false, error: "No se recibió contenido del archivo" };
+        }
+
+        const libreOfficeBin = encontrarLibreOfficeBin();
+        if (!libreOfficeBin) {
+          return {
+            success: false,
+            error:
+              "LibreOffice no está disponible. Instálalo para importar PowerPoint conservando el diseño.",
+          };
+        }
+
+        const rutaBase = obtenerRutaBase();
+        const uploadsBaseDir = path.join(rutaBase, "public", "uploads");
+        const jobId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const outDir = path.join(uploadsBaseDir, "pptx", jobId);
+        fs.mkdirSync(outDir, { recursive: true });
+
+        const safeInputName = `__input${ext}`;
+        const inputPath = path.join(outDir, safeInputName);
+        const buffer = Buffer.isBuffer(data)
+          ? data
+          : data instanceof ArrayBuffer
+            ? Buffer.from(new Uint8Array(data))
+            : Buffer.from(data);
+        fs.writeFileSync(inputPath, buffer);
+
+        const ordenados = await convertirPptxAImagenesEnDirectorio({
+          libreOfficeBin,
+          sourcePath: inputPath,
+          outDir,
+        });
+
+        if (ordenados.length === 0) {
+          return {
+            success: false,
+            error:
+              "No se generaron imágenes. Verifica que el PPTX no esté protegido o dañado.",
+          };
+        }
+
+        const baseUrl = "http://localhost:3001/uploads";
+        const imageUrls = ordenados.map(
+          (pngName) => `${baseUrl}/pptx/${jobId}/${encodeURIComponent(pngName)}`,
+        );
+
+        return { success: true, jobId, imageUrls };
+      } catch (error) {
+        console.error(
+          "❌ [MAIN] Error convertir-pptx-buffer-a-imagenes:",
+          error,
+        );
+        return { success: false, error: error.message };
+      }
+    },
+  );
 
   // ====================================
   // HANDLERS DEL PROYECTOR

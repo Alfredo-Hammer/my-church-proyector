@@ -560,10 +560,7 @@ const GestionFondos = () => {
       "📷 [GestionFondos] Imagen seleccionada para presentación:",
       imagenUrl,
     );
-    console.log(
-      "📷 [GestionFondos] Volver a:",
-      volverA || "/presentacion-manager",
-    );
+    console.log("📷 [GestionFondos] Volver a:", volverA || "/");
 
     const timestamp = Date.now();
     const navigationState = {
@@ -587,9 +584,9 @@ const GestionFondos = () => {
       console.log("🔄 [GestionFondos] Navegando a:", volverA);
       navigate(volverA, {state: navigationState});
     } else {
-      // Fallback: volver a presentation-manager
-      console.log("🔄 [GestionFondos] Navegando a: /presentacion-manager");
-      navigate("/presentacion-manager", {state: navigationState});
+      // Fallback: volver a inicio
+      console.log("🔄 [GestionFondos] Navegando a: /");
+      navigate("/", {state: navigationState});
     }
     console.log("📷 [GestionFondos] ========================================");
   };
@@ -735,7 +732,7 @@ const GestionFondos = () => {
         <div className="flex items-center gap-3">
           {modoSeleccion && (
             <button
-              onClick={() => navigate(volverA || "/presentacion-manager")}
+              onClick={() => navigate(volverA || "/")}
               className="bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-xl flex items-center gap-2 transition-colors"
               title="Volver sin seleccionar"
             >

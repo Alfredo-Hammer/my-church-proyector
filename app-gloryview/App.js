@@ -7,7 +7,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import {
+  Animated,
+  AppState,
   ActivityIndicator,
   FlatList,
   Image,
@@ -30,6 +33,8 @@ import vidaCristianaData from './src/data/vidacristiana.json';
 import librosBiblia from './src/data/librosBiblia';
 
 const STORAGE_KEY_LAST_URL = 'gloryview:lastServerBaseUrl';
+const STORAGE_KEY_MULTIMEDIA_SESION = 'gloryview:multimediaSesion';
+const STORAGE_KEY_ESTADO_REPRODUCCION = 'gloryview:estadoReproduccion';
 
 const IS_EXPO_GO = Constants?.appOwnership === 'expo';
 
@@ -130,6 +135,45 @@ const normalizarTipoMultimedia = (item) => {
   return raw;
 };
 
+const AnimatedSoundBars = () => {
+  const bars = [
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.8)).current,
+    useRef(new Animated.Value(0.5)).current,
+    useRef(new Animated.Value(1.0)).current,
+  ];
+
+  useEffect(() => {
+    const durations = [320, 480, 260, 410];
+    const animations = bars.map((bar, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bar, { toValue: 1.0, duration: durations[i], useNativeDriver: false }),
+          Animated.timing(bar, { toValue: 0.2, duration: durations[i], useNativeDriver: false }),
+        ])
+      )
+    );
+    animations.forEach((a) => a.start());
+    return () => animations.forEach((a) => a.stop());
+  }, []);
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 14, gap: 2 }}>
+      {bars.map((bar, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 3,
+            borderRadius: 2,
+            backgroundColor: '#34d399',
+            height: bar.interpolate({ inputRange: [0, 1], outputRange: [3, 14] }),
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
 const getThumbCandidatesForItem = (item) => {
   const kind = normalizarTipoMultimedia(item);
 
@@ -157,7 +201,7 @@ const getThumbCandidatesForItem = (item) => {
 };
 
 export default function App() {
-  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'presentaciones' | 'fondos' | 'favoritos'
+  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos'
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   const [serverBaseUrl, setServerBaseUrl] = useState('');
@@ -193,6 +237,9 @@ export default function App() {
   const [proyectandoBiblia, setProyectandoBiblia] = useState(false);
   const [bibliaPreview, setBibliaPreview] = useState(null);
   const [cargandoBibliaPreview, setCargandoBibliaPreview] = useState(false);
+  const [capitulosDisponibles, setCapitulosDisponibles] = useState([]);
+  const [versiculosDisponibles, setVersiculosDisponibles] = useState([]);
+  const [cargandoVersiculos, setCargandoVersiculos] = useState(false);
 
   const [multimediaFiles, setMultimediaFiles] = useState([]);
   const [cargandoMultimedia, setCargandoMultimedia] = useState(false);
@@ -213,6 +260,7 @@ export default function App() {
   const multimediaControlInFlightRef = useRef(false);
   const soloAudioControlInFlightRef = useRef(false);
   const pendingMultimediaVolumeRef = useRef(null); // { volume }
+  const pendingMultimediaActionRef = useRef(null); // 'play' | 'pause' | 'stop'
   const pendingSoloAudioVolumeRef = useRef(null); // { volume }
   const [multimediaError, setMultimediaError] = useState('');
   const [thumbErrores, setThumbErrores] = useState({});
@@ -227,6 +275,7 @@ export default function App() {
     volume: null,
     tipo: null,
   });
+  const [multimediaActiva, setMultimediaActiva] = useState(null); // { id, nombre, tipo, destino, isPlaying }
   const [seekBarWidth, setSeekBarWidth] = useState(1);
   const [scrubbing, setScrubbing] = useState(false);
   const scrubbingRef = useRef(false);
@@ -241,6 +290,10 @@ export default function App() {
   const [cargandoFondos, setCargandoFondos] = useState(false);
   const [fondoActivoId, setFondoActivoId] = useState(null);
   const [estableciendoFondo, setEstableciendoFondo] = useState(false);
+
+  // Estado de conectividad a internet
+  const [hayInternet, setHayInternet] = useState(true);
+  const [tipoConexion, setTipoConexion] = useState(null); // 'wifi' | 'cellular' | 'none' | null
 
   const conectado = estado.status === 'success';
 
@@ -441,7 +494,7 @@ export default function App() {
           nativeControls={false}
         />
         {isLoading && (
-          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)' }]}>
+          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
             <ActivityIndicator color="#ffffff" />
           </View>
         )}
@@ -492,7 +545,7 @@ export default function App() {
           }}
         />
         {loading && (
-          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.25)' }]}>
+          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
             <ActivityIndicator color="#ffffff" />
           </View>
         )}
@@ -500,13 +553,13 @@ export default function App() {
     );
   };
 
-  const cargarMultimediaPlaybackStatus = async () => {
+  const cargarMultimediaPlaybackStatus = async ({ ignoreModalCheck = false } = {}) => {
     if (!multimediaStatusApiUrl) return;
     if (!conectado) return;
-    if (!modalControlMultimediaVisible) return;
-    if (!multimediaSeleccionada) return;
+    if (!ignoreModalCheck && !modalControlMultimediaVisible) return;
+    if (!multimediaSeleccionada && !ignoreModalCheck) return;
 
-    const kind = normalizarTipoMultimedia(multimediaSeleccionada);
+    const kind = multimediaSeleccionada ? normalizarTipoMultimedia(multimediaSeleccionada) : null;
     if (kind === 'imagen') return;
 
     const controller = new AbortController();
@@ -526,8 +579,16 @@ export default function App() {
         ...prev,
         ...(json.status || {}),
       }));
+
+      // Sincronizar estado de reproducción desde el servidor
+      const st = json.status;
+      if (st?.state === 'playing') setEstadoReproduccion('playing');
+      else if (st?.state === 'paused') setEstadoReproduccion('paused');
+      else if (st?.state === 'stopped') setEstadoReproduccion('stopped');
+      else if (st?.paused === true) setEstadoReproduccion('paused');
+      else if (st?.paused === false && st?.currentTime != null) setEstadoReproduccion('playing');
     } catch {
-      // Silencioso: no queremos desconectar por esto.
+      // Silencioso
     } finally {
       clearTimeout(timeout);
     }
@@ -736,22 +797,225 @@ export default function App() {
         if (cancelado) return;
         if (saved && String(saved).trim()) {
           setServerBaseUrl(String(saved));
-          // Intentar conectar automáticamente
           setTimeout(() => {
-            if (!cancelado) {
-              probarConexion(String(saved));
-            }
+            if (!cancelado) probarConexion(String(saved));
           }, 80);
+        }
+
+        const savedSesion = await AsyncStorage.getItem(STORAGE_KEY_MULTIMEDIA_SESION);
+        if (!cancelado && savedSesion) {
+          try { setMultimediaSesion(JSON.parse(savedSesion)); } catch { /* ignorar */ }
+        }
+
+        const savedEstado = await AsyncStorage.getItem(STORAGE_KEY_ESTADO_REPRODUCCION);
+        if (!cancelado && savedEstado) {
+          const s = String(savedEstado);
+          if (s === 'playing' || s === 'paused' || s === 'stopped') {
+            setEstadoReproduccion(s);
+          }
         }
       } catch {
         // Ignorar errores de storage
       }
     })();
-    return () => {
-      cancelado = true;
-    };
+    return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persistir sesión multimedia en cada cambio
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_KEY_MULTIMEDIA_SESION, JSON.stringify(multimediaSesion)).catch(() => { });
+  }, [multimediaSesion]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_KEY_ESTADO_REPRODUCCION, estadoReproduccion).catch(() => { });
+  }, [estadoReproduccion]);
+
+  // Monitorear conectividad a internet
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const isConnected = Boolean(state?.isConnected && state?.isInternetReachable !== false);
+      setHayInternet(isConnected);
+
+      const connectionType = state?.type || null;
+      setTipoConexion(connectionType);
+    });
+
+    // Verificar estado inicial
+    NetInfo.fetch().then((state) => {
+      const isConnected = Boolean(state?.isConnected && state?.isInternetReachable !== false);
+      setHayInternet(isConnected);
+      setTipoConexion(state?.type || null);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Re-sincronizar estado desde el servidor cuando la app vuelve a primer plano
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && conectado) {
+        cargarMultimediaPlaybackStatus({ ignoreModalCheck: true });
+        cargarEstadoMultimediaInicial();
+      }
+    });
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conectado]);
+
+  // ✅ Cargar estado inicial de multimedia al conectarse
+  const cargarEstadoMultimediaInicial = async () => {
+    if (!conectado) return;
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+
+    try {
+      const [resP, resPC] = await Promise.all([
+        fetch(`${base}/api/control/multimedia/status?destino=proyector`, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+        }).then((r) => r.json()).catch(() => null),
+        fetch(`${base}/api/control/multimedia/status?destino=pc`, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+        }).then((r) => r.json()).catch(() => null),
+      ]);
+
+      const stP = resP?.ok ? resP.status : null;
+      const stPC = resPC?.ok ? resPC.status : null;
+
+      // Preferir el que está reproduciendo activamente
+      const activo = (!stP?.paused && stP?.id != null)
+        ? { st: stP, destino: 'proyector' }
+        : (!stPC?.paused && stPC?.id != null)
+          ? { st: stPC, destino: 'pc' }
+          : (stP?.id != null)
+            ? { st: stP, destino: 'proyector' }
+            : (stPC?.id != null)
+              ? { st: stPC, destino: 'pc' }
+              : null;
+
+      if (activo) {
+        const { st, destino } = activo;
+        setMultimediaActiva({
+          id: st.id,
+          nombre: st.nombre || 'Sin nombre',
+          tipo: st.tipo || 'desconocido',
+          destino,
+          isPlaying: !st.paused,
+        });
+
+        setMultimediaSesion({ id: st.id, destino });
+        setDestinoControlMultimedia(destino);
+
+        if (!st.paused) {
+          setEstadoReproduccion('playing');
+        } else {
+          setEstadoReproduccion('paused');
+        }
+      } else {
+        setMultimediaActiva(null);
+        setMultimediaSesion(null);
+        setEstadoReproduccion('stopped');
+      }
+    } catch {
+      // silencioso
+    }
+  };
+
+  // Cargar estado inicial al conectarse exitosamente
+  useEffect(() => {
+    if (conectado) {
+      cargarEstadoMultimediaInicial();
+    } else {
+      setMultimediaActiva(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conectado]);
+
+  // Polling global: sincroniza el estado de reproducción de ambos destinos
+  // cada 3 segundos para reflejar lo que ocurra en el PC o en otro celular.
+  useEffect(() => {
+    if (!conectado) return;
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+
+    let cancelado = false;
+
+    const poll = async () => {
+      if (cancelado) return;
+      try {
+        const [resP, resPC] = await Promise.all([
+          fetch(`${base}/api/control/multimedia/status?destino=proyector`, {
+            headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+          }).then((r) => r.json()).catch(() => null),
+          fetch(`${base}/api/control/multimedia/status?destino=pc`, {
+            headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+          }).then((r) => r.json()).catch(() => null),
+        ]);
+
+        if (cancelado) return;
+
+        // Escoger el destino activo: preferir el que está reproduciendo
+        const stP = resP?.ok ? resP.status : null;
+        const stPC = resPC?.ok ? resPC.status : null;
+
+        const activo = (!stP?.paused && stP?.id != null)
+          ? { st: stP, destino: 'proyector' }
+          : (!stPC?.paused && stPC?.id != null)
+            ? { st: stPC, destino: 'pc' }
+            : (stP?.id != null)
+              ? { st: stP, destino: 'proyector' }
+              : (stPC?.id != null)
+                ? { st: stPC, destino: 'pc' }
+                : null;
+
+        if (!activo) {
+          // El servidor respondió y no hay nada activo → limpiar indicador
+          const serverResponded = resP?.ok || resPC?.ok;
+          if (serverResponded) {
+            setMultimediaSesion(null);
+            setEstadoReproduccion('stopped');
+          }
+          return;
+        }
+
+        const { st, destino } = activo;
+        setMultimediaSesion((prev) => {
+          if (String(prev?.id) === String(st.id) && prev?.destino === destino) return prev;
+          return { id: st.id, destino };
+        });
+
+        if (st.state === 'playing' || (!st.paused && st.currentTime != null)) {
+          setEstadoReproduccion('playing');
+        } else if (st.state === 'paused' || st.paused) {
+          setEstadoReproduccion('paused');
+        }
+
+        if (!scrubbingRef.current) {
+          setMultimediaPlaybackStatus((prev) => ({ ...prev, ...(st || {}) }));
+        }
+
+        // Actualizar estado de multimedia activa
+        setMultimediaActiva({
+          id: st.id,
+          nombre: st.nombre || 'Sin nombre',
+          tipo: st.tipo || 'desconocido',
+          destino,
+          isPlaying: !st.paused,
+        });
+      } catch {
+        // silencioso
+      }
+    };
+
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => { cancelado = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conectado, serverBaseUrl]);
 
   const librosFiltrados = useMemo(() => {
     const q = (bibliaBusqueda || '').trim().toLowerCase();
@@ -852,11 +1116,21 @@ export default function App() {
   };
 
   const onQrScanned = async (result) => {
-    if (qrBloqueado) return;
+    console.log('QR escaneado:', result);
+    console.log('QR data:', result?.data);
+    console.log('QR bloqueado?:', qrBloqueado);
+
+    if (qrBloqueado) {
+      console.log('QR bloqueado, ignorando');
+      return;
+    }
     setQrBloqueado(true);
 
     const url = extraerUrlDeQr(result?.data);
+    console.log('URL extraída:', url);
+
     if (!url) {
+      console.log('URL inválida');
       setEstado((prev) => ({
         ...prev,
         status: 'error',
@@ -866,11 +1140,13 @@ export default function App() {
       return;
     }
 
+    console.log('Cerrando modal y conectando...');
     setModalQrVisible(false);
     setServerBaseUrl(url);
     setSeccion('conexion');
 
     setTimeout(() => {
+      setQrBloqueado(false);
       probarConexion(url);
     }, 80);
   };
@@ -970,6 +1246,40 @@ export default function App() {
       clearTimeout(timeout);
     }
   };
+
+  // Cargar capítulos cuando se selecciona un libro
+  useEffect(() => {
+    if (!libroSeleccionado?.id) {
+      setCapitulosDisponibles([]);
+      setVersiculosDisponibles([]);
+      setCapitulo('');
+      setVersiculo('');
+      return;
+    }
+
+    // Estimación de capítulos por libro (simplificado)
+    const numCapitulos =
+      libroSeleccionado.id === 'salmos' ? 150 :
+        libroSeleccionado.id === 'genesis' ? 50 :
+          libroSeleccionado.id === 'mateo' ? 28 :
+            libroSeleccionado.id === 'lucas' ? 24 :
+              libroSeleccionado.id === 'juan' ? 21 : 50;
+
+    setCapitulosDisponibles(Array.from({ length: numCapitulos }, (_, i) => i + 1));
+    setVersiculo('');
+  }, [libroSeleccionado?.id]);
+
+  // Cargar versículos cuando se selecciona un capítulo
+  useEffect(() => {
+    if (!libroSeleccionado?.id || !capitulo) {
+      setVersiculosDisponibles([]);
+      setVersiculo('');
+      return;
+    }
+
+    // Por defecto mostramos 50 versículos (la mayoría de capítulos tienen menos)
+    setVersiculosDisponibles(Array.from({ length: 50 }, (_, i) => i + 1));
+  }, [libroSeleccionado?.id, capitulo]);
 
   useEffect(() => {
     let cancelado = false;
@@ -1380,6 +1690,9 @@ export default function App() {
         throw new Error(json?.error || `Error HTTP ${res.status}`);
       }
       setMultimediaFiles(json.multimedia);
+
+      // Cargar estado de reproducción actual al actualizar la lista
+      cargarEstadoMultimediaInicial();
     } catch (err) {
       setMultimediaFiles([]);
       const msg =
@@ -1456,6 +1769,8 @@ export default function App() {
     if (multimediaControlInFlightRef.current) {
       if (action === 'volume' && typeof extraPayload?.volume === 'number') {
         pendingMultimediaVolumeRef.current = { volume: Number(extraPayload.volume) };
+      } else if (action === 'play' || action === 'pause' || action === 'stop') {
+        pendingMultimediaActionRef.current = action;
       }
       return;
     }
@@ -1568,13 +1883,19 @@ export default function App() {
       multimediaControlInFlightRef.current = false;
       setControlandoMultimedia(false);
 
-      const pending = pendingMultimediaVolumeRef.current;
-      pendingMultimediaVolumeRef.current = null;
-      if (pending && typeof pending.volume === 'number') {
-        // Ejecutar en el próximo tick para evitar competir con el setState.
-        setTimeout(() => {
-          controlarMultimedia('volume', pending);
-        }, 0);
+      const pendingAction = pendingMultimediaActionRef.current;
+      pendingMultimediaActionRef.current = null;
+      if (pendingAction) {
+        setTimeout(() => { controlarMultimedia(pendingAction); }, 0);
+      } else {
+        const pending = pendingMultimediaVolumeRef.current;
+        pendingMultimediaVolumeRef.current = null;
+        if (pending && typeof pending.volume === 'number') {
+          // Ejecutar en el próximo tick para evitar competir con el setState.
+          setTimeout(() => {
+            controlarMultimedia('volume', pending);
+          }, 0);
+        }
       }
     }
   };
@@ -2074,14 +2395,18 @@ export default function App() {
   const multimediaFiltrada = useMemo(() => {
     const term = (multimediaBusqueda || '').trim().toLowerCase();
     const base = Array.isArray(multimediaFiles) ? multimediaFiles : [];
-    return base.filter((m) => {
-      if (multimediaFiltro !== 'all' && normalizarTipoMultimedia(m) !== multimediaFiltro) return false;
-      if (!term) return true;
-      const nombre = String(m?.nombre || '').toLowerCase();
-      const tipo = String(m?.tipo || '').toLowerCase();
-      const tipoNorm = normalizarTipoMultimedia(m);
-      return nombre.includes(term) || tipo.includes(term) || String(tipoNorm).includes(term);
-    });
+    return base
+      .filter((m) => {
+        if (multimediaFiltro !== 'all' && normalizarTipoMultimedia(m) !== multimediaFiltro) return false;
+        if (!term) return true;
+        const nombre = String(m?.nombre || '').toLowerCase();
+        const tipo = String(m?.tipo || '').toLowerCase();
+        const tipoNorm = normalizarTipoMultimedia(m);
+        return nombre.includes(term) || tipo.includes(term) || String(tipoNorm).includes(term);
+      })
+      .sort((a, b) =>
+        String(a?.nombre || '').toLowerCase().localeCompare(String(b?.nombre || '').toLowerCase())
+      );
   }, [multimediaBusqueda, multimediaFiles, multimediaFiltro]);
 
   const favoritosMultimedia = useMemo(
@@ -2112,15 +2437,11 @@ export default function App() {
     if (seccion === 'multimedia') {
       cargarMultimedia();
     }
-    if (seccion === 'presentaciones') {
-      cargarPresentacionesSlides();
-    }
     if (seccion === 'fondos') {
       cargarFondos();
     }
     if (seccion === 'favoritos') {
       if (!multimediaFiles.length) cargarMultimedia();
-      if (!presentacionesSlides.length) cargarPresentacionesSlides();
       cargarFavoritosHimnos();
       cargarFavoritosBiblia();
     }
@@ -2153,7 +2474,7 @@ export default function App() {
             </Pressable>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>GloryView Remote</Text>
+              <Text style={styles.title}>GloryView</Text>
               <Text style={styles.subtitle}>
                 {conectado ? 'Conectado al PC' : 'Sin conexión'}
               </Text>
@@ -2164,6 +2485,12 @@ export default function App() {
                 conectado ? styles.badgeSuccess : styles.badgeMuted,
               ]}
             >
+              <Ionicons
+                name={conectado ? 'wifi' : 'wifi-outline'}
+                size={14}
+                color={conectado ? '#10b981' : '#94a3b8'}
+                style={{ marginRight: 4 }}
+              />
               <Text
                 style={[
                   styles.badgeText,
@@ -2184,8 +2511,34 @@ export default function App() {
               ]}
               hitSlop={10}
             >
-              <Text style={styles.limpiarButtonText}>Limpiar</Text>
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={conectado ? '#f43f5e' : '#94a3b8'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.limpiarButtonText, conectado && { color: '#f43f5e' }]}>Limpiar</Text>
             </Pressable>
+
+            {seccion !== 'inicio' && (
+              <Pressable
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setSeccion('inicio');
+                }}
+                style={({ pressed }) => [
+                  styles.homeIconButton,
+                  pressed && styles.buttonPressed,
+                ]}
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="home"
+                  size={20}
+                  color="#10b981"
+                />
+              </Pressable>
+            )}
           </View>
 
           {menuAbierto && (
@@ -2193,7 +2546,7 @@ export default function App() {
               <View style={styles.drawer}>
                 <Text style={styles.drawerTitle}>Menú</Text>
 
-                <ScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+                <ScrollView contentContainerStyle={{ paddingBottom: 12, flex: 1 }}>
                   <Pressable
                     onPress={() => {
                       setSeccion('inicio');
@@ -2201,11 +2554,17 @@ export default function App() {
                     }}
                     style={({ pressed }) => [
                       styles.drawerItem,
-                      seccion === 'inicio' && styles.drawerItemActive,
+                      seccion === 'inicio' && { backgroundColor: 'rgba(16,185,129,0.16)', borderColor: 'rgba(16,185,129,0.35)' },
                       pressed && styles.parrafoPressed,
                     ]}
                   >
-                    <Text style={[styles.drawerItemText, seccion === 'inicio' && styles.drawerItemTextActive]}>
+                    <Ionicons
+                      name="home"
+                      size={20}
+                      color={seccion === 'inicio' ? '#10b981' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'inicio' && { color: '#10b981' }]}>
                       Inicio
                     </Text>
                   </Pressable>
@@ -2217,11 +2576,17 @@ export default function App() {
                     }}
                     style={({ pressed }) => [
                       styles.drawerItem,
-                      seccion === 'conexion' && styles.drawerItemActive,
+                      seccion === 'conexion' && { backgroundColor: 'rgba(59,130,246,0.16)', borderColor: 'rgba(59,130,246,0.35)' },
                       pressed && styles.parrafoPressed,
                     ]}
                   >
-                    <Text style={[styles.drawerItemText, seccion === 'conexion' && styles.drawerItemTextActive]}>
+                    <Ionicons
+                      name="wifi"
+                      size={20}
+                      color={seccion === 'conexion' ? '#60a5fa' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'conexion' && { color: '#60a5fa' }]}>
                       Conexión
                     </Text>
                   </Pressable>
@@ -2233,11 +2598,17 @@ export default function App() {
                     }}
                     style={({ pressed }) => [
                       styles.drawerItem,
-                      seccion === 'himnos' && styles.drawerItemActive,
+                      seccion === 'himnos' && { backgroundColor: 'rgba(16,185,129,0.16)', borderColor: 'rgba(16,185,129,0.35)' },
                       pressed && styles.parrafoPressed,
                     ]}
                   >
-                    <Text style={[styles.drawerItemText, seccion === 'himnos' && styles.drawerItemTextActive]}>
+                    <Ionicons
+                      name="musical-notes"
+                      size={20}
+                      color={seccion === 'himnos' ? '#10b981' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'himnos' && { color: '#10b981' }]}>
                       Himnos
                     </Text>
                   </Pressable>
@@ -2249,14 +2620,100 @@ export default function App() {
                     }}
                     style={({ pressed }) => [
                       styles.drawerItem,
-                      seccion === 'biblia' && styles.drawerItemActive,
+                      seccion === 'biblia' && { backgroundColor: 'rgba(99,102,241,0.16)', borderColor: 'rgba(99,102,241,0.35)' },
                       pressed && styles.parrafoPressed,
                     ]}
                   >
-                    <Text style={[styles.drawerItemText, seccion === 'biblia' && styles.drawerItemTextActive]}>
+                    <Ionicons
+                      name="book"
+                      size={20}
+                      color={seccion === 'biblia' ? '#6366f1' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'biblia' && { color: '#6366f1' }]}>
                       Biblia
                     </Text>
                   </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setSeccion('multimedia');
+                      setMenuAbierto(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'multimedia' && { backgroundColor: 'rgba(245,158,11,0.16)', borderColor: 'rgba(245,158,11,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="play-circle"
+                      size={20}
+                      color={seccion === 'multimedia' ? '#f59e0b' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'multimedia' && { color: '#f59e0b' }]}>
+                      Multimedia
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setSeccion('fondos');
+                      setMenuAbierto(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'fondos' && { backgroundColor: 'rgba(168,85,247,0.16)', borderColor: 'rgba(168,85,247,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="image"
+                      size={20}
+                      color={seccion === 'fondos' ? '#a855f7' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'fondos' && { color: '#a855f7' }]}>
+                      Fondos
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setSeccion('favoritos');
+                      setMenuAbierto(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'favoritos' && { backgroundColor: 'rgba(244,63,94,0.16)', borderColor: 'rgba(244,63,94,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="heart"
+                      size={20}
+                      color={seccion === 'favoritos' ? '#f43f5e' : '#cbd5e1'}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={[styles.drawerItemText, seccion === 'favoritos' && { color: '#f43f5e' }]}>
+                      Favoritos
+                    </Text>
+                  </Pressable>
+
+                  <View style={{ flex: 1 }} />
+
+                  <View style={styles.drawerFooter}>
+                    <View style={styles.drawerVersion}>
+                      <Ionicons name="information-circle-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                      <Text style={styles.drawerVersionText}>Versión 1.0.0</Text>
+                    </View>
+                    <View style={styles.drawerDeveloper}>
+                      <Ionicons name="code-slash" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                      <Text style={styles.drawerDeveloperText}>Desarrollado por</Text>
+                    </View>
+                    <Text style={styles.drawerDeveloperName}>Alfredo Hammer</Text>
+                  </View>
                 </ScrollView>
               </View>
 
@@ -2269,147 +2726,117 @@ export default function App() {
 
           <View style={styles.content}>
             {seccion === 'inicio' && (
-              <ScrollView contentContainerStyle={{ paddingBottom: 14 }} keyboardShouldPersistTaps="handled">
-                <View style={styles.card}>
-                  <Text style={styles.sectionTitle}>Inicio</Text>
-                  <Text style={styles.smallText}>Accesos rápidos a las funciones principales.</Text>
-
-                  <View style={styles.homeGrid}>
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('conexion');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+              <View style={styles.homeContainer}>
+                <View style={styles.homeGrid}>
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('conexion');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(59,130,246,0.18)', 'rgba(59,130,246,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(255,255,255,0.08)', 'rgba(148,163,184,0.10)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Conexión</Text>
-                        <Text style={styles.homeCardSubtitle}>Escanear QR, pegar IP y probar servidor.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
+                      <Ionicons name="wifi" size={48} color="#60a5fa" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Conexión</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('himnos');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('himnos');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(16,185,129,0.18)', 'rgba(16,185,129,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(16,185,129,0.22)', 'rgba(16,185,129,0.12)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Himnos</Text>
-                        <Text style={styles.homeCardSubtitle}>Buscar y proyectar párrafos rápidamente.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
+                      <Ionicons name="musical-notes" size={48} color="#10b981" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Himnos</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('biblia');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('biblia');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(99,102,241,0.18)', 'rgba(99,102,241,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(59,130,246,0.22)', 'rgba(59,130,246,0.10)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Biblia</Text>
-                        <Text style={styles.homeCardSubtitle}>Referencia + vista previa (anterior/actual/siguiente).</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
+                      <Ionicons name="book" size={48} color="#6366f1" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Biblia</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('multimedia');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('multimedia');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(245,158,11,0.18)', 'rgba(245,158,11,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(16,185,129,0.18)', 'rgba(255,255,255,0.06)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Multimedia</Text>
-                        <Text style={styles.homeCardSubtitle}>Proyectar videos, audios e imágenes.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
+                      <Ionicons name="play-circle" size={48} color="#f59e0b" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Multimedia</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('presentaciones');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('fondos');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(59,130,246,0.18)', 'rgba(255,255,255,0.06)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Presentaciones</Text>
-                        <Text style={styles.homeCardSubtitle}>Proyectar y controlar slides.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
+                      <Ionicons name="image" size={48} color="#a855f7" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Fondos</Text>
+                    </LinearGradient>
+                  </Pressable>
 
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('fondos');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSeccion('favoritos');
+                    }}
+                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(244,63,94,0.18)', 'rgba(244,63,94,0.08)', 'rgba(0,0,0,0.10)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.homeCardGradient}
                     >
-                      <LinearGradient
-                        colors={['rgba(255,255,255,0.10)', 'rgba(148,163,184,0.10)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Fondos</Text>
-                        <Text style={styles.homeCardSubtitle}>Cambiar el fondo del proyector.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('favoritos');
-                      }}
-                      style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                    >
-                      <LinearGradient
-                        colors={['rgba(16,185,129,0.16)', 'rgba(59,130,246,0.10)', 'rgba(0,0,0,0.18)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.homeCardGradient}
-                      >
-                        <Text style={styles.homeCardTitle}>Favoritos</Text>
-                        <Text style={styles.homeCardSubtitle}>Accesos rápidos a tus elementos guardados.</Text>
-                        <Text style={styles.homeCardCta}>Abrir</Text>
-                      </LinearGradient>
-                    </Pressable>
-                  </View>
+                      <Ionicons name="heart" size={48} color="#f43f5e" style={{ marginBottom: 12 }} />
+                      <Text style={styles.homeCardTitle}>Favoritos</Text>
+                    </LinearGradient>
+                  </Pressable>
                 </View>
-              </ScrollView>
+              </View>
             )}
 
             {seccion === 'conexion' && (
@@ -2735,96 +3162,137 @@ export default function App() {
                       <View style={styles.rowBetween}>
                         <Text style={styles.sectionTitle} numberOfLines={1}>
                           {libroSeleccionado.nombre}
+                          {capitulo && ` - Cap. ${capitulo}`}
                         </Text>
                         <Pressable
                           onPress={() => {
                             Keyboard.dismiss();
-                            setLibroSeleccionado(null);
+                            if (capitulo) {
+                              setCapitulo('');
+                              setVersiculo('');
+                            } else {
+                              setLibroSeleccionado(null);
+                            }
                           }}
                           style={({ pressed }) => [
                             styles.smallButton,
                             pressed && styles.buttonPressed,
                           ]}
                         >
-                          <Text style={styles.smallButtonText}>Cambiar</Text>
+                          <Text style={styles.smallButtonText}>
+                            {capitulo ? 'Cambiar Cap.' : 'Cambiar Libro'}
+                          </Text>
                         </Pressable>
                       </View>
 
-                      <View style={styles.formRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.label}>Capítulo</Text>
-                          <TextInput
-                            value={capitulo}
-                            onChangeText={setCapitulo}
-                            placeholder="1"
-                            placeholderTextColor="#7c7c7c"
-                            keyboardType="number-pad"
-                            returnKeyType="done"
-                            blurOnSubmit
-                            onSubmitEditing={() => Keyboard.dismiss()}
-                            style={styles.input}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.label}>Versículo</Text>
-                          <TextInput
-                            value={versiculo}
-                            onChangeText={setVersiculo}
-                            placeholder="1"
-                            placeholderTextColor="#7c7c7c"
-                            keyboardType="number-pad"
-                            returnKeyType="done"
-                            blurOnSubmit
-                            onSubmitEditing={() => Keyboard.dismiss()}
-                            style={styles.input}
-                          />
-                        </View>
-                      </View>
-
-                      <View style={{ marginTop: 4 }}>
-                        <Text style={styles.smallText}>
-                          Vista previa (anterior / actual / siguiente)
-                        </Text>
-
-                        {cargandoBibliaPreview && (
-                          <View style={[styles.row, { marginTop: 8 }]}
+                      {/* Mostrar botones de capítulos si no hay capítulo seleccionado */}
+                      {!capitulo && (
+                        <>
+                          <Text style={styles.label}>Selecciona un capítulo:</Text>
+                          <ScrollView
+                            style={{ maxHeight: 280, marginTop: 8 }}
+                            showsVerticalScrollIndicator={true}
                           >
-                            <ActivityIndicator color="#ffffff" />
-                            <Text style={styles.smallText}>Cargando…</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 }}>
+                              {capitulosDisponibles.map((numCap) => (
+                                <Pressable
+                                  key={numCap}
+                                  onPress={() => {
+                                    setCapitulo(String(numCap));
+                                    setVersiculo('');
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.bibliaButton,
+                                    pressed && styles.bibliaButtonPressed,
+                                  ]}
+                                >
+                                  <Text style={styles.bibliaButtonText}>
+                                    {numCap}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          </ScrollView>
+                        </>
+                      )}
+
+                      {/* Mostrar botones de versículos si hay capítulo seleccionado */}
+                      {capitulo && (
+                        <>
+                          <Text style={styles.label}>Selecciona un versículo:</Text>
+                          <ScrollView
+                            style={{ maxHeight: 200, marginTop: 8 }}
+                            showsVerticalScrollIndicator={true}
+                          >
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 }}>
+                              {versiculosDisponibles.map((numVer) => (
+                                <Pressable
+                                  key={numVer}
+                                  onPress={() => {
+                                    setVersiculo(String(numVer));
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.bibliaButton,
+                                    versiculo === String(numVer) && styles.bibliaButtonActive,
+                                    pressed && styles.bibliaButtonPressed,
+                                  ]}
+                                >
+                                  <Text style={[
+                                    styles.bibliaButtonText,
+                                    versiculo === String(numVer) && styles.bibliaButtonTextActive,
+                                  ]}>
+                                    {numVer}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          </ScrollView>
+
+                          <View style={{ marginTop: 12 }}>
+                            <Text style={styles.smallText}>
+                              Vista previa (anterior / actual / siguiente)
+                            </Text>
+
+                            {cargandoBibliaPreview && (
+                              <View style={[styles.row, { marginTop: 8 }]}>
+                                <ActivityIndicator color="#ffffff" />
+                                <Text style={styles.smallText}>Cargando…</Text>
+                              </View>
+                            )}
+
+                            {!!bibliaPreview && (
+                              <View style={{ marginTop: 8 }}>
+                                <View style={styles.bibliaPreviewCard}>
+                                  <Text style={styles.bibliaPreviewLabel}>Anterior</Text>
+                                  <Text style={styles.bibliaPreviewText}>
+                                    {bibliaPreview?.prev?.texto
+                                      ? `${bibliaPreview.prev.numero}. ${bibliaPreview.prev.texto}`
+                                      : '—'}
+                                  </Text>
+                                </View>
+
+                                <View style={[styles.bibliaPreviewCard, styles.bibliaPreviewCardCurrent]}>
+                                  <Text style={styles.bibliaPreviewLabel}>Actual</Text>
+                                  <Text style={styles.bibliaPreviewText}>
+                                    {bibliaPreview?.current?.texto
+                                      ? `${bibliaPreview.current.numero}. ${bibliaPreview.current.texto}`
+                                      : `${Number(versiculo) || ''}. No disponible`}
+                                  </Text>
+                                </View>
+
+                                <View style={styles.bibliaPreviewCard}>
+                                  <Text style={styles.bibliaPreviewLabel}>Siguiente</Text>
+                                  <Text style={styles.bibliaPreviewText}>
+                                    {bibliaPreview?.next?.texto
+                                      ? `${bibliaPreview.next.numero}. ${bibliaPreview.next.texto}`
+                                      : '—'}
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
                           </View>
-                        )}
-
-                        {!!bibliaPreview && (
-                          <View style={{ marginTop: 8 }}>
-                            <View style={styles.bibliaPreviewCard}>
-                              <Text style={styles.bibliaPreviewLabel}>Anterior</Text>
-                              <Text style={styles.bibliaPreviewText}>
-                                {bibliaPreview?.prev?.texto
-                                  ? `${bibliaPreview.prev.numero}. ${bibliaPreview.prev.texto}`
-                                  : '—'}
-                              </Text>
-                            </View>
-
-                            <View style={[styles.bibliaPreviewCard, styles.bibliaPreviewCardCurrent]}>
-                              <Text style={styles.bibliaPreviewLabel}>Actual</Text>
-                              <Text style={styles.bibliaPreviewText}>
-                                {bibliaPreview?.current?.texto
-                                  ? `${bibliaPreview.current.numero}. ${bibliaPreview.current.texto}`
-                                  : `${Number(versiculo) || ''}. No disponible`}
-                              </Text>
-                            </View>
-
-                            <View style={styles.bibliaPreviewCard}>
-                              <Text style={styles.bibliaPreviewLabel}>Siguiente</Text>
-                              <Text style={styles.bibliaPreviewText}>
-                                {bibliaPreview?.next?.texto
-                                  ? `${bibliaPreview.next.numero}. ${bibliaPreview.next.texto}`
-                                  : '—'}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-                      </View>
+                        </>
+                      )}
 
                       <View style={styles.formRow}>
                         <Pressable
@@ -2955,12 +3423,88 @@ export default function App() {
                     <Text style={styles.smallText}>Tip: ve a Conexión para confirmar el servidor.</Text>
                   )}
 
+                  {!hayInternet && (
+                    <View
+                      style={{
+                        backgroundColor: 'rgba(245,158,11,0.12)',
+                        borderColor: 'rgba(245,158,11,0.3)',
+                        borderWidth: 1,
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <Ionicons name="wifi-outline" size={20} color="#f59e0b" />
+                      <Text style={{ color: '#fbbf24', fontSize: 13, flex: 1 }}>
+                        Sin conexión a Internet. Contenido en línea (YouTube) no estará disponible.
+                      </Text>
+                    </View>
+                  )}
+
                   {!!multimediaError && (
                     <View style={styles.statusBox}>
                       <Text style={[styles.statusText, styles.statusError]}>{multimediaError}</Text>
                       {!!multimediaApiUrl && <Text style={styles.smallText}>Endpoint: {multimediaApiUrl}</Text>}
                     </View>
                   )}
+
+                  {multimediaActiva ? (
+                    <Pressable
+                      key={`multimedia-banner-${multimediaActiva.id || 'active'}`}
+                      onPress={() => {
+                        const item = multimediaFiles.find((m) => String(m?.id) === String(multimediaActiva.id));
+                        if (item) {
+                          abrirModalMultimedia(item);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: multimediaActiva.isPlaying ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                          borderColor: multimediaActiva.isPlaying ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)',
+                          borderWidth: 1,
+                          borderRadius: 12,
+                          padding: 12,
+                          marginBottom: 12,
+                        },
+                        pressed && { opacity: 0.8 },
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: multimediaActiva.isPlaying ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {multimediaActiva.isPlaying ? (
+                            <View key="playing" style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                              <AnimatedSoundBars />
+                            </View>
+                          ) : (
+                            <View key="paused" style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                              <Ionicons name="pause" size={20} color="#f59e0b" />
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600', marginBottom: 2 }} numberOfLines={1}>
+                            {multimediaActiva.isPlaying ? '▶ Reproduciendo' : '⏸ En pausa'}
+                          </Text>
+                          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }} numberOfLines={1}>
+                            {multimediaActiva.nombre} · {multimediaActiva.destino === 'pc' ? 'PC (audio)' : 'Proyector'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
+                      </View>
+                    </Pressable>
+                  ) : null}
 
                   <TextInput
                     value={multimediaBusqueda}
@@ -3029,8 +3573,23 @@ export default function App() {
 
                       const fallbackLabel =
                         kind === 'audio' ? '♪' : kind === 'imagen' ? 'IMG' : '▶';
+
+                      const isItemActivo = multimediaActiva && String(multimediaActiva.id) === String(item?.id || '');
+
+                      // Detectar si requiere internet (YouTube)
+                      const ytId = getYouTubeIdFromItem(item);
+                      const isYouTubeVideo = Boolean(ytId);
+                      const requiereInternet = isYouTubeVideo;
+
                       return (
-                        <View style={styles.itemRow}>
+                        <View style={[
+                          styles.itemRow,
+                          isItemActivo && {
+                            backgroundColor: multimediaActiva.isPlaying ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)',
+                            borderColor: multimediaActiva.isPlaying ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)',
+                            borderWidth: 1,
+                          }
+                        ]}>
                           <Pressable
                             onPress={() => abrirModalMultimedia(item)}
                             disabled={!conectado}
@@ -3072,57 +3631,52 @@ export default function App() {
                               <Text style={styles.itemTitle} numberOfLines={1}>
                                 {String(item?.nombre || 'Sin nombre')}
                               </Text>
-                              <View style={[styles.row, { gap: 8, flexWrap: 'wrap' }]}>
-                                <Text style={styles.itemMeta} numberOfLines={1}>
-                                  {String(item?.tipo || '—')}
-                                </Text>
-
-                                {String(multimediaSesion?.id || '') === String(item?.id || '') && (
-                                  <View
-                                    style={[
-                                      styles.badge,
-                                      estadoReproduccion === 'playing'
-                                        ? styles.badgeSuccess
-                                        : styles.badgeMuted,
-                                    ]}
-                                  >
-                                    <View style={[styles.row, { gap: 6 }]}>
-                                      <Ionicons
-                                        name={estadoReproduccion === 'playing' ? 'play' : 'pause'}
-                                        size={12}
-                                        color={estadoReproduccion === 'playing' ? '#34d399' : '#94a3b8'}
-                                      />
-                                      <Text
-                                        style={[
-                                          styles.badgeText,
-                                          estadoReproduccion === 'playing'
-                                            ? styles.badgeTextSuccess
-                                            : styles.badgeTextMuted,
-                                        ]}
-                                      >
-                                        {estadoReproduccion === 'playing' ? 'REPRODUCIENDO' : 'PAUSADO'}
-                                        {multimediaSesion?.destino === 'pc' ? ' · PC' : ' · TV'}
-                                      </Text>
-                                    </View>
-                                  </View>
-                                )}
-                              </View>
+                              <Text style={styles.itemMeta} numberOfLines={1}>
+                                {String(item?.tipo || '—')}
+                              </Text>
                             </View>
                           </Pressable>
 
-                          <Pressable
-                            onPress={() => toggleFavoritoMultimedia(item)}
-                            disabled={!conectado}
-                            style={({ pressed }) => [
-                              styles.iconButton,
-                              !conectado && styles.buttonDisabled,
-                              pressed && conectado && styles.buttonPressed,
-                            ]}
-                          >
-                            <Text style={[styles.iconButtonText, item?.favorito && styles.iconButtonTextActive]}>
-                              {item?.favorito ? '★' : '☆'}
-                            </Text>
-                          </Pressable>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            {requiereInternet && !hayInternet && (
+                              <View
+                                style={{
+                                  backgroundColor: 'rgba(245,158,11,0.18)',
+                                  borderWidth: 1,
+                                  borderColor: 'rgba(245,158,11,0.35)',
+                                  borderRadius: 8,
+                                  padding: 4,
+                                }}
+                                key={`wifi-${item?.id}`}
+                              >
+                                <Ionicons name="wifi-outline" size={16} color="#f59e0b" />
+                              </View>
+                            )}
+                            {String(multimediaSesion?.id || '') === String(item?.id || '') && (
+                              <View key={`status-${item?.id}`} style={{ minWidth: 24, alignItems: 'center', justifyContent: 'center' }}>
+                                {estadoReproduccion === 'playing' ? (
+                                  <AnimatedSoundBars />
+                                ) : (
+                                  <View style={{ backgroundColor: 'rgba(220,38,38,0.18)', borderWidth: 1, borderColor: 'rgba(220,38,38,0.35)', borderRadius: 8, padding: 4 }}>
+                                    <Ionicons name="pause" size={16} color="#f87171" />
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                            <Pressable
+                              onPress={() => toggleFavoritoMultimedia(item)}
+                              disabled={!conectado}
+                              style={({ pressed }) => [
+                                styles.iconButton,
+                                !conectado && styles.buttonDisabled,
+                                pressed && conectado && styles.buttonPressed,
+                              ]}
+                            >
+                              <Text style={[styles.iconButtonText, item?.favorito && styles.iconButtonTextActive]}>
+                                {item?.favorito ? '★' : '☆'}
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
                       );
                     }}
@@ -3132,174 +3686,6 @@ export default function App() {
                       ) : null
                     }
                   />
-                </View>
-              </View>
-            )}
-
-            {seccion === 'presentaciones' && (
-              <View style={{ flex: 1, minHeight: 0 }}>
-                <View style={[styles.card, { flex: 1, minHeight: 0 }]}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.sectionTitle}>Presentaciones</Text>
-                    <View style={styles.row}>
-                      <Pressable
-                        onPress={cargarPresentacionesSlides}
-                        disabled={!conectado || cargandoPresentaciones}
-                        style={({ pressed }) => [
-                          styles.smallButton,
-                          (!conectado || cargandoPresentaciones) && styles.buttonDisabled,
-                          pressed && conectado && styles.buttonPressed,
-                        ]}
-                      >
-                        <Text style={styles.smallButtonText}>Actualizar</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          setPresentacionSeleccionada(null);
-                          setSeccion('inicio');
-                        }}
-                        style={({ pressed }) => [styles.smallButton, pressed && styles.buttonPressed]}
-                      >
-                        <Text style={styles.smallButtonText}>Inicio</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <Text style={styles.smallText}>Proyecta y controla la presentación (anterior/siguiente).</Text>
-                  {!conectado && (
-                    <Text style={styles.smallText}>Tip: ve a Conexión para confirmar el servidor.</Text>
-                  )}
-
-                  {cargandoPresentaciones && (
-                    <View style={[styles.row, { marginTop: 6, marginBottom: 6 }]}>
-                      <ActivityIndicator color="#ffffff" />
-                      <Text style={styles.smallText}>Cargando…</Text>
-                    </View>
-                  )}
-
-                  {!presentacionSeleccionada ? (
-                    <FlatList
-                      data={presentacionesSlides}
-                      keyExtractor={(item, index) => String(item?.id ?? index)}
-                      keyboardDismissMode="on-drag"
-                      keyboardShouldPersistTaps="handled"
-                      contentContainerStyle={styles.listContent}
-                      renderItem={({ item }) => (
-                        <Pressable
-                          onPress={() => {
-                            Keyboard.dismiss();
-                            setPresentacionSeleccionada(item);
-                          }}
-                          style={({ pressed }) => [styles.himnoRow, pressed && styles.parrafoPressed]}
-                        >
-                          <View style={styles.rowBetween}>
-                            <View style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={styles.himnoTitle} numberOfLines={1}>
-                                {String(item?.nombre || 'Presentación')}
-                              </Text>
-                              <Text style={styles.himnoSub} numberOfLines={1}>
-                                {typeof item?.slide_actual === 'number'
-                                  ? `Slide actual: ${Number(item.slide_actual) + 1}`
-                                  : 'Toca para abrir'}
-                              </Text>
-                            </View>
-                            <Pressable
-                              onPress={() => toggleFavoritoPresentacion(item)}
-                              style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-                            >
-                              <Text style={[styles.iconButtonText, item?.favorito && styles.iconButtonTextActive]}>
-                                {item?.favorito ? '★' : '☆'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </Pressable>
-                      )}
-                      ListEmptyComponent={
-                        !cargandoPresentaciones ? (
-                          <Text style={styles.smallText}>No hay presentaciones para mostrar.</Text>
-                        ) : null
-                      }
-                    />
-                  ) : (
-                    <View style={{ flex: 1, minHeight: 0 }}>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.sectionTitle} numberOfLines={1}>
-                          {String(presentacionSeleccionada?.nombre || 'Presentación')}
-                        </Text>
-                        <View style={styles.row}>
-                          <Pressable
-                            onPress={() => toggleFavoritoPresentacion(presentacionSeleccionada)}
-                            style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-                          >
-                            <Text style={[styles.iconButtonText, presentacionSeleccionada?.favorito && styles.iconButtonTextActive]}>
-                              {presentacionSeleccionada?.favorito ? '★' : '☆'}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => setPresentacionSeleccionada(null)}
-                            style={({ pressed }) => [styles.smallButton, pressed && styles.buttonPressed]}
-                          >
-                            <Text style={styles.smallButtonText}>Volver</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-
-                      <Text style={styles.smallText}>
-                        {typeof presentacionSeleccionada?.slide_actual === 'number'
-                          ? `Slide actual: ${Number(presentacionSeleccionada.slide_actual) + 1}`
-                          : 'Slide actual: —'}
-                      </Text>
-
-                      <View style={[styles.formRow, { marginTop: 12 }]}>
-                        <Pressable
-                          onPress={anteriorSlidePresentacion}
-                          disabled={!conectado || controlandoPresentacion}
-                          style={({ pressed }) => [
-                            styles.buttonSecondaryCompact,
-                            { flex: 1 },
-                            (!conectado || controlandoPresentacion) && styles.buttonDisabled,
-                            pressed && conectado && styles.buttonPressed,
-                          ]}
-                        >
-                          <Text style={styles.buttonSecondaryText}>Anterior</Text>
-                        </Pressable>
-
-                        <Pressable
-                          onPress={proyectarPresentacion}
-                          disabled={!conectado || controlandoPresentacion}
-                          style={({ pressed }) => [
-                            styles.button,
-                            { flex: 1 },
-                            (!conectado || controlandoPresentacion) && styles.buttonDisabled,
-                            pressed && conectado && styles.buttonPressed,
-                          ]}
-                        >
-                          {controlandoPresentacion ? (
-                            <View style={styles.row}>
-                              <ActivityIndicator color="#ffffff" />
-                              <Text style={styles.buttonText}>…</Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.buttonText}>Proyectar</Text>
-                          )}
-                        </Pressable>
-
-                        <Pressable
-                          onPress={siguienteSlidePresentacion}
-                          disabled={!conectado || controlandoPresentacion}
-                          style={({ pressed }) => [
-                            styles.buttonSecondaryCompact,
-                            { flex: 1 },
-                            (!conectado || controlandoPresentacion) && styles.buttonDisabled,
-                            pressed && conectado && styles.buttonPressed,
-                          ]}
-                        >
-                          <Text style={styles.buttonSecondaryText}>Siguiente</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  )}
                 </View>
               </View>
             )}
@@ -3392,20 +3778,8 @@ export default function App() {
             {seccion === 'favoritos' && (
               <ScrollView contentContainerStyle={{ paddingBottom: 14 }} keyboardShouldPersistTaps="handled">
                 <View style={styles.card}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.sectionTitle}>Favoritos</Text>
-                    <Pressable
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setSeccion('inicio');
-                      }}
-                      style={({ pressed }) => [styles.smallButton, pressed && styles.buttonPressed]}
-                    >
-                      <Text style={styles.smallButtonText}>Inicio</Text>
-                    </Pressable>
-                  </View>
-
-                  <Text style={styles.smallText}>Acceso rápido a himnos, multimedia y presentaciones guardadas.</Text>
+                  <Text style={styles.sectionTitle}>Favoritos</Text>
+                  <Text style={styles.smallText}>Acceso rápido a himnos y multimedia guardados.</Text>
                   <Text style={styles.smallText}>Incluye favoritos de Biblia.</Text>
                   {!conectado && (
                     <Text style={styles.smallText}>Tip: ve a Conexión para confirmar el servidor.</Text>
@@ -3582,43 +3956,6 @@ export default function App() {
                     ))
                   )}
 
-                  <Text style={[styles.sectionTitle, { marginTop: 14 }]}>Presentaciones</Text>
-                  {favoritosPresentaciones.length === 0 ? (
-                    <Text style={styles.smallText}>Sin favoritos de presentaciones.</Text>
-                  ) : (
-                    favoritosPresentaciones.map((p) => (
-                      <View key={`pf-${p.id}`} style={styles.itemRow}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.itemTitle} numberOfLines={1}>
-                            {String(p?.nombre || 'Presentación')}
-                          </Text>
-                          <Text style={styles.itemMeta} numberOfLines={1}>
-                            {typeof p?.slide_actual === 'number'
-                              ? `Slide actual: ${Number(p.slide_actual) + 1}`
-                              : '—'}
-                          </Text>
-                        </View>
-
-                        <Pressable
-                          onPress={() => toggleFavoritoPresentacion(p)}
-                          style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-                        >
-                          <Text style={[styles.iconButtonText, styles.iconButtonTextActive]}>★</Text>
-                        </Pressable>
-
-                        <Pressable
-                          onPress={() => {
-                            Keyboard.dismiss();
-                            setPresentacionSeleccionada(p);
-                            setSeccion('presentaciones');
-                          }}
-                          style={({ pressed }) => [styles.smallButtonPrimary, pressed && styles.buttonPressed]}
-                        >
-                          <Text style={styles.smallButtonPrimaryText}>Abrir</Text>
-                        </Pressable>
-                      </View>
-                    ))
-                  )}
                 </View>
               </ScrollView>
             )}
@@ -3645,7 +3982,7 @@ export default function App() {
                       width: '100%',
                       maxWidth: 520,
                       alignSelf: 'center',
-                      backgroundColor: '#0b1220',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
                     },
                   ]}
                 >
@@ -3709,10 +4046,20 @@ export default function App() {
                           ? 'Pausado'
                           : 'Detenido';
 
+                    // Determinar si requiere internet
+                    const requiereInternet = isYouTubeVideo;
+                    const mostrarAdvertenciaInternet = requiereInternet && !hayInternet;
+
                     const onPressPrimary = async () => {
                       if (!item) return;
                       if (!conectado) return;
                       if (ocupado) return;
+
+                      // Validar si requiere internet y no hay conexión
+                      if (requiereInternet && !hayInternet) {
+                        // No hacer nada, el mensaje de advertencia ya está visible
+                        return;
+                      }
 
                       const prevEstadoReproduccion = estadoReproduccion;
                       const prevMultimediaSesion = multimediaSesion;
@@ -3818,7 +4165,7 @@ export default function App() {
 
                     const primaryEnabled = isImagen
                       ? conectado && !controlandoMultimedia
-                      : puedeControlarPlaybackAuto;
+                      : puedeControlarPlaybackAuto && !(requiereInternet && !hayInternet);
 
                     const durationSec = Math.max(0, Number(multimediaPlaybackStatus?.duration || 0));
                     const currentSecRaw = Number(multimediaPlaybackStatus?.currentTime || 0);
@@ -3856,9 +4203,16 @@ export default function App() {
                             <Text style={styles.sectionTitle} numberOfLines={1}>
                               {tituloItem}
                             </Text>
-                            <Text style={styles.playerSubtitle} numberOfLines={1}>
-                              {tipoItem} · {isImagen ? 'Proyector' : esPC ? 'PC (audio)' : 'Proyector'} · {estadoLabel}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                              <Text style={[styles.playerSubtitle, { marginTop: 0, flex: 1 }]} numberOfLines={1}>
+                                {tipoItem} · {isImagen ? 'Proyector' : esPC ? 'PC (audio)' : 'Proyector'} · {estadoLabel}
+                              </Text>
+                              {estadoDestino === 'playing' && (
+                                <View key="player-sound-bars" style={{ minWidth: 24, height: 14 }}>
+                                  <AnimatedSoundBars />
+                                </View>
+                              )}
+                            </View>
                           </View>
                           <Pressable
                             accessibilityLabel="Cerrar"
@@ -3868,6 +4222,31 @@ export default function App() {
                             <Ionicons name="close" size={20} color="#e2e8f0" />
                           </Pressable>
                         </View>
+
+                        {mostrarAdvertenciaInternet && (
+                          <View
+                            style={{
+                              backgroundColor: 'rgba(245,158,11,0.15)',
+                              borderColor: 'rgba(245,158,11,0.35)',
+                              borderWidth: 1,
+                              borderRadius: 12,
+                              padding: 12,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                              <Ionicons name="wifi-outline" size={24} color="#f59e0b" />
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '600', marginBottom: 2 }}>
+                                  Se requiere conexión a Internet
+                                </Text>
+                                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
+                                  {isYouTubeVideo ? 'YouTube necesita conexión activa para reproducir.' : 'Este contenido requiere Internet.'}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        )}
 
                         <View
                           style={{
@@ -3963,7 +4342,7 @@ export default function App() {
                               <Ionicons
                                 name="tv-outline"
                                 size={18}
-                                color={destinoControlMultimedia === 'proyector' ? '#34d399' : '#e2e8f0'}
+                                color={destinoControlMultimedia === 'proyector' ? '#10b981' : '#e2e8f0'}
                               />
                             </Pressable>
 
@@ -3979,7 +4358,7 @@ export default function App() {
                               <Ionicons
                                 name="laptop-outline"
                                 size={18}
-                                color={destinoControlMultimedia === 'pc' ? '#34d399' : '#e2e8f0'}
+                                color={destinoControlMultimedia === 'pc' ? '#10b981' : '#e2e8f0'}
                               />
                             </Pressable>
                           </View>
@@ -3992,14 +4371,15 @@ export default function App() {
                             disabled={!primaryEnabled}
                             style={({ pressed }) => [
                               styles.playerPrimaryButton,
+                              primaryIcon === 'pause' && styles.playerPrimaryButtonPause,
                               !primaryEnabled && styles.playerPrimaryButtonDisabled,
                               pressed && primaryEnabled && styles.buttonPressed,
                             ]}
                           >
                             <Ionicons
                               name={primaryIcon}
-                              size={36}
-                              color={primaryEnabled ? '#0b1220' : '#94a3b8'}
+                              size={primaryIcon === 'pause' ? 42 : 36}
+                              color={primaryEnabled ? '#ffffff' : '#94a3b8'}
                             />
                           </Pressable>
 
@@ -4136,7 +4516,7 @@ export default function App() {
             animationType="slide"
             onRequestClose={() => setModalQrVisible(false)}
           >
-            <SafeAreaView style={[styles.safe, { backgroundColor: '#0b1220' }]}>
+            <SafeAreaView style={styles.safe}>
               <View style={[styles.header, { paddingBottom: 6 }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>Escanear QR</Text>
@@ -4181,12 +4561,12 @@ export default function App() {
           </Modal>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </SafeAreaProvider>
+    </SafeAreaProvider >
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0b1220' },
+  safe: { flex: 1, backgroundColor: '#0f172a' },
   container: { flex: 1 },
   header: {
     paddingHorizontal: 18,
@@ -4203,7 +4583,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderColor: 'rgba(255,255,255,0.10)',
     borderWidth: 1,
   },
@@ -4215,7 +4595,7 @@ const styles = StyleSheet.create({
   },
   subtitle: { color: '#94a3b8', marginTop: 4 },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderColor: 'rgba(255,255,255,0.10)',
     borderWidth: 1,
     borderRadius: 14,
@@ -4233,7 +4613,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: 'rgba(16,185,129,0.85)',
+    backgroundColor: '#10b981',
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
@@ -4277,8 +4657,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusText: { color: '#e2e8f0' },
-  statusSuccess: { color: '#34d399' },
-  statusError: { color: '#fb7185' },
+  statusSuccess: { color: '#10b981' },
+  statusError: { color: '#f43f5e' },
   smallText: { color: '#94a3b8', marginTop: 6, fontSize: 12 },
   sectionTitle: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
 
@@ -4293,34 +4673,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tabPillActive: {
-    backgroundColor: 'rgba(16,185,129,0.20)',
+    backgroundColor: 'rgba(16,185,129,0.15)',
     borderColor: 'rgba(16,185,129,0.40)',
   },
   tabText: { color: '#e2e8f0', fontWeight: '700' },
-  tabTextActive: { color: '#34d399' },
+  tabTextActive: { color: '#10b981' },
+
+  homeContainer: {
+    flex: 1,
+    padding: 16,
+  },
 
   homeGrid: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 12,
+    justifyContent: 'space-between',
+    alignContent: 'space-between',
+    gap: 16,
   },
 
   homeCard: {
-    width: '48%',
-    borderRadius: 16,
+    width: '46%',
+    height: '29%',
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  homeCardPressed: { opacity: 0.92 },
+  homeCardPressed: { opacity: 0.88 },
   homeCardGradient: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    flex: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  homeCardTitle: { color: '#ffffff', fontSize: 16, fontWeight: '900' },
-  homeCardSubtitle: { color: '#e2e8f0', marginTop: 6, lineHeight: 20 },
-  homeCardCta: { color: '#94a3b8', marginTop: 10, fontWeight: '900', fontSize: 12 },
+  homeCardTitle: { color: '#ffffff', fontSize: 18, fontWeight: '900', textAlign: 'center' },
 
   filterRow: {
     flexDirection: 'row',
@@ -4337,18 +4726,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterPillActive: {
-    backgroundColor: 'rgba(16,185,129,0.18)',
-    borderColor: 'rgba(16,185,129,0.40)',
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderColor: 'rgba(245,158,11,0.40)',
   },
   filterText: { color: '#e2e8f0', fontWeight: '800', fontSize: 12 },
-  filterTextActive: { color: '#34d399' },
+  filterTextActive: { color: '#fbbf24' },
 
   listContent: { paddingVertical: 10 },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
+    gap: 14,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: 'rgba(0,0,0,0.20)',
@@ -4360,8 +4749,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16,185,129,0.14)',
     borderColor: 'rgba(16,185,129,0.32)',
   },
-  itemTitle: { color: '#ffffff', fontWeight: '800' },
-  itemMeta: { color: '#94a3b8', marginTop: 4, fontSize: 12 },
+  itemTitle: { color: '#ffffff', fontWeight: '800', fontSize: 14, lineHeight: 18 },
+  itemMeta: { color: '#94a3b8', marginTop: 5, fontSize: 12 },
 
   thumbWrap: {
     width: 92,
@@ -4415,14 +4804,14 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.90)',
+    backgroundColor: 'rgba(16,185,129,0.85)',
   },
   seekBarKnob: {
     position: 'absolute',
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#10b981',
   },
 
   iconButton: {
@@ -4469,11 +4858,38 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   bibliaPreviewCardCurrent: {
-    backgroundColor: 'rgba(16,185,129,0.14)',
-    borderColor: 'rgba(16,185,129,0.32)',
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: 'rgba(99,102,241,0.35)',
   },
   bibliaPreviewLabel: { color: '#94a3b8', fontSize: 12, fontWeight: '800', marginBottom: 6 },
   bibliaPreviewText: { color: '#e2e8f0', lineHeight: 20 },
+
+  bibliaButton: {
+    minWidth: 50,
+    height: 42,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(99,102,241,0.12)',
+    borderColor: 'rgba(99,102,241,0.30)',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bibliaButtonActive: {
+    backgroundColor: 'rgba(99,102,241,0.35)',
+    borderColor: 'rgba(99,102,241,0.70)',
+  },
+  bibliaButtonPressed: {
+    opacity: 0.7,
+  },
+  bibliaButtonText: {
+    color: '#c7d2fe',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  bibliaButtonTextActive: {
+    color: '#ffffff',
+  },
 
   parrafoCard: {
     paddingVertical: 12,
@@ -4523,8 +4939,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.20)',
-    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
   },
   playerSegmentActive: {
@@ -4544,13 +4960,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(16,185,129,0.92)',
+    backgroundColor: '#10b981',
     borderColor: 'rgba(16,185,129,0.35)',
     borderWidth: 1,
   },
   playerPrimaryButtonDisabled: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderColor: 'rgba(255,255,255,0.10)',
+  },
+  playerPrimaryButtonPause: {
+    width: 82,
+    height: 82,
+    backgroundColor: '#dc2626',
+    borderColor: 'rgba(220,38,38,0.45)',
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   playerActionsRow: {
     flexDirection: 'row',
@@ -4565,11 +4992,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(255,255,255,0.20)',
     borderWidth: 1,
   },
-  playerIconButtonDisabled: { opacity: 0.55 },
+  playerIconButtonDisabled: { opacity: 0.4 },
   playerVolumeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4580,6 +5007,8 @@ const styles = StyleSheet.create({
   playerVolumeText: { color: '#94a3b8', fontSize: 12, fontWeight: '900', minWidth: 56, textAlign: 'center' },
 
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -4588,10 +5017,24 @@ const styles = StyleSheet.create({
   badgeSuccess: { backgroundColor: 'rgba(16,185,129,0.18)', borderColor: 'rgba(16,185,129,0.35)' },
   badgeMuted: { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)' },
   badgeText: { fontWeight: '900', fontSize: 11, letterSpacing: 0.6 },
-  badgeTextSuccess: { color: '#34d399' },
+  badgeTextSuccess: { color: '#10b981' },
   badgeTextMuted: { color: '#94a3b8' },
 
+  homeIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16,185,129,0.16)',
+    borderColor: 'rgba(16,185,129,0.35)',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
   limpiarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -4617,14 +5060,17 @@ const styles = StyleSheet.create({
   drawer: {
     width: 280,
     maxWidth: '80%',
-    backgroundColor: '#0b1220',
+    backgroundColor: '#1e293b',
     borderRightWidth: 1,
     borderRightColor: 'rgba(255,255,255,0.10)',
     paddingHorizontal: 14,
     paddingTop: 18,
+    paddingBottom: 18,
   },
   drawerTitle: { color: '#ffffff', fontSize: 16, fontWeight: '900', marginBottom: 10 },
   drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -4633,10 +5079,37 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
     marginBottom: 10,
   },
-  drawerItemActive: {
-    backgroundColor: 'rgba(16,185,129,0.16)',
-    borderColor: 'rgba(16,185,129,0.35)',
+  drawerItemText: { color: '#cbd5e1', fontWeight: '900', flex: 1 },
+  drawerFooter: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
-  drawerItemText: { color: '#cbd5e1', fontWeight: '900' },
-  drawerItemTextActive: { color: '#34d399' },
+  drawerVersion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  drawerVersionText: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  drawerDeveloper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  drawerDeveloperText: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  drawerDeveloperName: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '900',
+    marginLeft: 20,
+  },
 });

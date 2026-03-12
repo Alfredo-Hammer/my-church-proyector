@@ -23,6 +23,7 @@ export const MediaPlayerProvider = ({children}) => {
   const [currentMedia, setCurrentMedia] = useState(null);
   const [lastPlayedMedia, setLastPlayedMedia] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
   const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -32,6 +33,7 @@ export const MediaPlayerProvider = ({children}) => {
   const videoRef = useRef(null);
 
   const lastPcStatusSentAtRef = useRef(0);
+  const currentMediaRef = useRef(null);
 
   const broadcastRef = useRef(null);
 
@@ -63,8 +65,11 @@ export const MediaPlayerProvider = ({children}) => {
         if (now - (lastPcStatusSentAtRef.current || 0) < 250) return;
         lastPcStatusSentAtRef.current = now;
 
+        const cm = currentMediaRef.current;
         window.electron.send("multimedia-playback-status", {
           destino: "pc",
+          id: cm?.id ?? null,
+          nombre: cm?.nombre ?? null,
           currentTime: Number.isFinite(Number(audio.currentTime))
             ? audio.currentTime
             : 0,
@@ -188,14 +193,14 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const playMedia = (media) => {
-    console.log("🎵 [MediaPlayer] Reproduciendo:", media);
-
     // Detener reproducción actual
     if (audioRef.current) {
       audioRef.current.pause();
     }
 
+    currentMediaRef.current = media;
     setCurrentMedia(media);
+    setIsPlaying(true); // ✅ Establecer isPlaying inmediatamente para todos los tipos
 
     // Guardar como "última reproducción" para que la UI no quede vacía
     try {
@@ -214,6 +219,7 @@ export const MediaPlayerProvider = ({children}) => {
       audioRef.current.src = url;
       audioRef.current.play().catch((err) => {
         console.error("❌ Error reproduciendo audio:", err);
+        setIsPlaying(false); // Si falla, marcar como no reproduciendo
       });
       if (!soloAudio) {
         sendProjectorControl({action: "play"});
@@ -221,7 +227,6 @@ export const MediaPlayerProvider = ({children}) => {
     }
     // Para video, YouTube e imágenes, se renderizarán en el componente
     else {
-      setIsPlaying(true);
       if (!soloAudio) {
         sendProjectorControl({action: "play"});
       }
@@ -251,15 +256,44 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const stop = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    // ⚠️ IMPORTANTE: Pausar ANTES de limpiar currentMedia
+    // Primero poner isPlaying en false para que los useEffect lo detecten
     setIsPlaying(false);
-    setCurrentTime(0);
-    if (!currentMedia?.soloAudio) {
+
+    // Dar tiempo para que los useEffect procesen isPlaying=false
+    setTimeout(() => {
+      // Guardar el media actual en lastPlayedMedia antes de limpiarlo
+      if (currentMedia) {
+        setLastPlayedMedia(currentMedia);
+      }
+
+      // Detener audio
+      try {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+      } catch (error) {
+        // Silenciar error
+      }
+
+      // Detener video local
+      try {
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+        }
+      } catch (error) {
+        // Silenciar error
+      }
+
+      // Resetear estados de reproducción
+      setCurrentTime(0);
+      setCurrentMedia(null); // Esto oculta los controles del header
+
+      // Enviar comando de stop al proyector
       sendProjectorControl({action: "stop"});
-    }
+    }, 50); // Esperar 50ms para que React procese isPlaying=false
   };
 
   const togglePlayPause = () => {
@@ -295,7 +329,12 @@ export const MediaPlayerProvider = ({children}) => {
     }
   };
 
+  const toggleLoop = () => {
+    setIsLooping((prev) => !prev);
+  };
+
   const limpiarLocal = () => {
+    currentMediaRef.current = null;
     try {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -322,6 +361,7 @@ export const MediaPlayerProvider = ({children}) => {
         const tipo = String(payload?.tipo || payload?.type || "").trim();
         const url = String(payload?.url || "").trim();
         const nombre = String(payload?.nombre || payload?.name || "Multimedia");
+        const id = payload?.id ?? null;
         if (!tipo || !url) return;
 
         const isYoutube =
@@ -331,6 +371,7 @@ export const MediaPlayerProvider = ({children}) => {
           url.includes("youtube.com/embed");
 
         playMedia({
+          id,
           tipo,
           url,
           nombre,
@@ -389,6 +430,9 @@ export const MediaPlayerProvider = ({children}) => {
     currentMedia,
     lastPlayedMedia,
     isPlaying,
+    setIsPlaying, // Exportar para sincronización con YouTube
+    isLooping,
+    toggleLoop,
     volume,
     currentTime,
     duration,

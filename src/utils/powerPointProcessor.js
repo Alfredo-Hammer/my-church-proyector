@@ -122,8 +122,43 @@ const extractSlideContent = (slideXml, slideIndex, images = {}, relationships = 
  */
 const extractRelationships = (zip, relationships, images) => {
   try {
-    // Buscar archivos de relaciones para cada diapositiva
+    console.log("🔗 Iniciando extracción de relaciones...");
+
+    // PASO 1: Procesar relaciones globales (presentation.xml.rels)
+    try {
+      const globalRelsPath = 'ppt/_rels/presentation.xml.rels';
+      const globalRelsFile = zip.files[globalRelsPath];
+
+      if (globalRelsFile) {
+        const globalRelsXml = globalRelsFile.asText();
+        const relationMatches = globalRelsXml.match(/<Relationship[^>]*>/g) || [];
+
+        relationMatches.forEach(match => {
+          const idMatch = match.match(/Id="([^"]*)"/);
+          const targetMatch = match.match(/Target="([^"]*)"/);
+
+          if (idMatch && targetMatch) {
+            const id = idMatch[1];
+            const target = targetMatch[1];
+
+            // Buscar imágenes en varias formas posibles de referencia
+            if (target.includes('media/')) {
+              const fileName = target.split('/').pop();
+              if (images[fileName]) {
+                relationships[id] = images[fileName];
+                console.log(`🖼️ Relación global encontrada: ${id} -> ${fileName}`);
+              }
+            }
+          }
+        });
+      }
+    } catch (globalError) {
+      console.warn("⚠️ Error procesando relaciones globales:", globalError);
+    }
+
+    // PASO 2: Procesar relaciones de cada diapositiva
     let slideIndex = 1;
+    let foundRels = 0;
 
     while (true) {
       const relsPath = `ppt/slides/_rels/slide${slideIndex}.xml.rels`;
@@ -147,11 +182,14 @@ const extractRelationships = (zip, relationships, images) => {
             const id = idMatch[1];
             const target = targetMatch[1];
 
-            // Si el target es una imagen en media/
-            if (target.includes('../media/')) {
+            // Buscar imágenes en varias formas posibles de referencia
+            // Puede ser '../media/' o 'media/' o incluso con rutas absolutas
+            if (target.includes('media/')) {
               const fileName = target.split('/').pop();
               if (images[fileName]) {
                 relationships[id] = images[fileName];
+                foundRels++;
+                console.log(`🖼️ Relación encontrada en slide ${slideIndex}: ${id} -> ${fileName}`);
               }
             }
           }
@@ -162,6 +200,8 @@ const extractRelationships = (zip, relationships, images) => {
 
       slideIndex++;
     }
+
+    console.log(`✅ Total de relaciones encontradas: ${foundRels + Object.keys(relationships).length}`);
   } catch (error) {
     console.warn("⚠️ Error extrayendo relaciones:", error);
   }

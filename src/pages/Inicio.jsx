@@ -1,18 +1,163 @@
 import React, {useState, useEffect} from "react";
 import {useNavigate} from "react-router-dom";
 import {
-  FaClock,
   FaMapMarkerAlt,
   FaChurch,
   FaMusic,
   FaBook,
   FaHeart,
   FaFilm,
+  FaPlay,
+  FaPause,
+  FaStop,
+  FaVolumeUp,
+  FaVolumeMute,
+  FaTimes,
+  FaVideo,
+  FaYoutube,
 } from "react-icons/fa";
 import {motion} from "framer-motion";
 import StatWidget from "../components/StatWidget";
 import QuickAccessButton from "../components/QuickAccessButton";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
+
+// Componente de barras animadas de reproducción
+const AnimatedSoundBars = () => {
+  return (
+    <div className="flex items-end gap-0.5 h-3.5">
+      <div
+        className="w-0.5 bg-green-400 rounded-full"
+        style={{
+          animation: "soundBar 320ms ease-in-out infinite alternate",
+          animationDelay: "0ms",
+        }}
+      />
+      <div
+        className="w-0.5 bg-green-400 rounded-full"
+        style={{
+          animation: "soundBar 480ms ease-in-out infinite alternate",
+          animationDelay: "100ms",
+        }}
+      />
+      <div
+        className="w-0.5 bg-green-400 rounded-full"
+        style={{
+          animation: "soundBar 260ms ease-in-out infinite alternate",
+          animationDelay: "200ms",
+        }}
+      />
+      <div
+        className="w-0.5 bg-green-400 rounded-full"
+        style={{
+          animation: "soundBar 410ms ease-in-out infinite alternate",
+          animationDelay: "300ms",
+        }}
+      />
+      <style>{`
+        @keyframes soundBar {
+          0% { height: 0.2rem; }
+          100% { height: 0.875rem; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// ✨ CITAS BÍBLICAS DIARIAS
+const CITAS_BIBLICAS = [
+  {
+    texto:
+      "Confía en el Señor de todo corazón y no dependas de tu propia inteligencia.",
+    referencia: "Proverbios 3:5",
+  },
+  {
+    texto:
+      "Porque Dios no nos ha dado espíritu de cobardía, sino de poder, de amor y de dominio propio.",
+    referencia: "2 Timoteo 1:7",
+  },
+  {
+    texto:
+      "He aquí, yo estoy con vosotros todos los días, hasta el fin del mundo.",
+    referencia: "Mateo 28:20",
+  },
+  {
+    texto:
+      "Venid a mí, todos los que estáis trabajados y cargados, y yo os haré descansar.",
+    referencia: "Mateo 11:28",
+  },
+  {
+    texto:
+      "Porque por gracia sois salvos por medio de la fe; y esto no de vosotros, pues es don de Dios.",
+    referencia: "Efesios 2:8",
+  },
+  {
+    texto: "El Señor es mi luz y mi salvación; ¿de quién temeré?",
+    referencia: "Salmos 27:1",
+  },
+  {
+    texto:
+      "Deléitarte en el Señor, y he te concederá los deseos de tu corazón.",
+    referencia: "Salmos 37:4",
+  },
+  {
+    texto:
+      "Dios es amor; y el que permanece en amor, permanece en Dios, y Dios en él.",
+    referencia: "1 Juan 4:16",
+  },
+  {
+    texto: "Todo lo puedo en Cristo que me fortalece.",
+    referencia: "Filipenses 4:13",
+  },
+  {
+    texto: "La paz os dejo, mi paz os doy; no os la doy como el mundo la da.",
+    referencia: "Juan 14:27",
+  },
+  {
+    texto:
+      "Porque sabemos que a los que aman a Dios, todas las cosas les ayudan a bien.",
+    referencia: "Romanos 8:28",
+  },
+  {
+    texto: "Bienaventurados los que creen sin haber visto.",
+    referencia: "Juan 20:29",
+  },
+  {
+    texto:
+      "Llamaré a ti en los tiempos de angustia; te libraré, y tú me honrarás.",
+    referencia: "Salmos 50:15",
+  },
+  {
+    texto:
+      "Guarda tu corazón más que todas las cosas, porque de él mana la vida.",
+    referencia: "Proverbios 4:23",
+  },
+  {
+    texto: "Y conoceréis la verdad, y la verdad os hará libres.",
+    referencia: "Juan 8:32",
+  },
+  {
+    texto:
+      "Mejor es un poco con el temor del Señor, que mucho tesoro con turbación.",
+    referencia: "Proverbios 15:16",
+  },
+  {
+    texto: "Levanta tus ojos al cielo, ¿quién creó estas cosas?",
+    referencia: "Isaías 40:26",
+  },
+  {
+    texto: "Pero los que esperan en el Señor tendrán nuevas fuerzas.",
+    referencia: "Isaías 40:31",
+  },
+  {
+    texto:
+      "Engrandeceremos, porque grande es Jehová y digno de suprema alabanza.",
+    referencia: "Salmos 48:1",
+  },
+  {
+    texto: "La alegría del Señor es vuestra fortaleza.",
+    referencia: "Nehemías 8:10",
+  },
+];
 
 const Inicio = () => {
   const navigate = useNavigate();
@@ -24,9 +169,18 @@ const Inicio = () => {
     mediaContext = null;
   }
   const [mensaje, setMensaje] = useState("");
-  const [fechaHora, setFechaHora] = useState("");
+  const [citaDelDia, setCitaDelDia] = useState(null);
 
-  // ✨ ESTADOS PARA ESTADÍSTICAS
+  // ✨ FUNCIÓN PARA OBTENER CITA DEL DÍA
+  const obtenerCitaDelDia = () => {
+    const hoy = new Date();
+    const inicio = new Date(hoy.getFullYear(), 0, 1);
+    const diff = hoy - inicio;
+    const unDia = 1000 * 60 * 60 * 24;
+    const diaDelAno = Math.floor(diff / unDia);
+    const indice = diaDelAno % CITAS_BIBLICAS.length;
+    return CITAS_BIBLICAS[indice];
+  };
   const [estadisticas, setEstadisticas] = useState({
     totalHimnos: 0,
     totalFavoritos: 0,
@@ -123,24 +277,8 @@ const Inicio = () => {
     } else {
       setMensaje("Buenas noches");
     }
-  }, []);
-
-  // Actualizar la fecha y hora cada segundo
-  useEffect(() => {
-    const intervalo = setInterval(() => {
-      const ahora = new Date();
-      const opcionesFecha = {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      };
-      const fecha = ahora.toLocaleDateString("es-ES", opcionesFecha);
-      const hora = ahora.toLocaleTimeString("es-ES");
-      setFechaHora(`${fecha} - ${hora}`);
-    }, 1000);
-
-    return () => clearInterval(intervalo);
+    // Cargar cita del día
+    setCitaDelDia(obtenerCitaDelDia());
   }, []);
 
   // ✨ LOADER MODERNO
@@ -181,61 +319,250 @@ const Inicio = () => {
     visible: {opacity: 1, y: 0, transition: {duration: 0.4}},
   };
 
+  // Helper functions para controles de multimedia
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const getMediaIcon = () => {
+    const media = mediaContext?.currentMedia;
+    if (!media) return null;
+    const tipo = media.tipo || media.type;
+    switch (tipo) {
+      case "audio":
+        return <FaMusic className="text-green-400" size={16} />;
+      case "youtube":
+        return <FaYoutube className="text-red-400" size={16} />;
+      case "video":
+        return <FaVideo className="text-purple-400" size={16} />;
+      default:
+        return <FaMusic className="text-gray-400" size={16} />;
+    }
+  };
+
+  const getMediaName = () => {
+    const media = mediaContext?.currentMedia;
+    return media?.nombre || media?.name || "Sin título";
+  };
+
   return (
-    <div className="relative w-full h-screen overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-l border-white/5">
-      {/* Overlay suave para profundidad */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/25 pointer-events-none" />
+    <div className="relative w-full h-screen overflow-y-auto bg-slate-900 border-l border-white/5">
+      {/* Imagen de fondo */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0"
+        style={{backgroundImage: "url(/fondos/imagen4.png)"}}
+      />
 
-      {/* Contenido principal scrolleable */}
-      <div className="relative z-10 px-4 py-6 md:px-6">
-        {/* Header Sticky - Mejorado */}
-        <motion.header
-          initial={{opacity: 0, y: -20}}
-          animate={{opacity: 1, y: 0}}
-          className="sticky top-0 z-40 bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-md border-b border-emerald-500/20 rounded-b-2xl mb-8 px-6 py-4 shadow-lg"
-        >
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-            {/* Reloj (Izquierda) */}
-            <div className="flex-1">
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2 w-fit">
-                <FaClock className="text-emerald-400 text-sm" />
-                <p className="text-xs md:text-sm font-mono text-white/80 whitespace-nowrap">
-                  {fechaHora}
-                </p>
-              </div>
-            </div>
+      {/* Overlay oscuro para legibilidad */}
+      <div className="absolute inset-0 bg-black/60 pointer-events-none z-10" />
 
-            {/* Logo + Saludo (Derecha) */}
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm md:text-base font-semibold text-emerald-400">
-                  {mensaje}
-                </p>
-                {configuracion.nombreIglesia && (
-                  <p className="text-xs text-white/70">
-                    {configuracion.nombreIglesia}
-                  </p>
-                )}
+      {/* Header Sticky - Full Width */}
+      <motion.header
+        initial={{opacity: 0, y: -20}}
+        animate={{opacity: 1, y: 0}}
+        className="sticky top-0 z-50 backdrop-blur-md border-b border-emerald-500/20 shadow-lg overflow-hidden"
+      >
+        {/* Fondo base */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
+
+        {/* Fondo animado cuando se está reproduciendo */}
+        {mediaContext?.isPlaying && (
+          <>
+            <div
+              className="absolute inset-0 opacity-60"
+              style={{
+                background:
+                  "linear-gradient(45deg, rgba(239, 68, 68, 0.4), rgba(16, 185, 129, 0.4), rgba(59, 130, 246, 0.4), rgba(168, 85, 247, 0.4))",
+                backgroundSize: "400% 400%",
+                animation: "gradientShift 8s ease infinite",
+              }}
+            />
+            <style>{`
+              @keyframes gradientShift {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
+              }
+            `}</style>
+          </>
+        )}
+
+        <div className="relative z-10 grid grid-cols-3 items-center gap-4 px-6 py-3">
+          {/* Columna izquierda (vacía para balance) */}
+          <div />
+
+          {/* Controles de multimedia (centro) */}
+          {mediaContext?.currentMedia ? (
+            <div className="flex items-center gap-6 flex-1 min-w-0 justify-center">
+              {/* Info del media */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-2 rounded-lg border border-red-500/40">
+                  <div className="flex items-center gap-2">
+                    {getMediaIcon()}
+                    {mediaContext.isPlaying && <AnimatedSoundBars />}
+                  </div>
+                  {mediaContext.isPlaying && (
+                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-white font-semibold truncate text-xs">
+                    {getMediaName()}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <p className="text-gray-400 text-xs capitalize">
+                      {mediaContext.currentMedia?.tipo ||
+                        mediaContext.currentMedia?.type}
+                    </p>
+                    {mediaContext.isPlaying && (
+                      <span className="flex items-center gap-1 text-green-400 text-xs">
+                        <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
+                        Reproduciendo
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="rounded-full p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
-                <img
-                  src={
-                    configuracion.logoUrl &&
-                    configuracion.logoUrl !== "undefined"
-                      ? configuracion.logoUrl
-                      : "/images/icon-256.png"
+
+              {/* Controles de reproducción */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={mediaContext.togglePlayPause}
+                  className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all transform hover:scale-105 shadow-md"
+                  title={mediaContext.isPlaying ? "Pausar" : "Reproducir"}
+                >
+                  {mediaContext.isPlaying ? (
+                    <FaPause size={12} />
+                  ) : (
+                    <FaPlay size={12} />
+                  )}
+                </button>
+
+                <button
+                  onClick={mediaContext.stop}
+                  className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm"
+                  title="Detener"
+                >
+                  <FaStop size={12} />
+                </button>
+              </div>
+
+              {/* Barra de progreso (solo para audio) */}
+              {(mediaContext.currentMedia?.tipo === "audio" ||
+                mediaContext.currentMedia?.type === "audio") && (
+                <div className="flex items-center gap-2 flex-1 max-w-xs">
+                  <span className="text-xs text-gray-400 font-mono">
+                    {formatTime(mediaContext.currentTime)}
+                  </span>
+                  <div className="flex-1 relative group">
+                    <input
+                      type="range"
+                      min="0"
+                      max={mediaContext.duration || 0}
+                      value={mediaContext.currentTime}
+                      onChange={(e) =>
+                        mediaContext.seek(parseFloat(e.target.value))
+                      }
+                      className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer accent-red-500"
+                      style={{
+                        background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${
+                          (mediaContext.currentTime /
+                            (mediaContext.duration || 1)) *
+                          100
+                        }%, #374151 ${
+                          (mediaContext.currentTime /
+                            (mediaContext.duration || 1)) *
+                          100
+                        }%, #374151 100%)`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {formatTime(mediaContext.duration)}
+                  </span>
+                </div>
+              )}
+
+              {/* Control de volumen */}
+              <div className="flex items-center gap-3 bg-gray-700/30 rounded-lg px-3 py-2">
+                <button
+                  onClick={() =>
+                    mediaContext.setVolume(mediaContext.volume === 0 ? 50 : 0)
                   }
-                  alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
-                  className="w-14 h-14 md:w-16 md:h-16 rounded-full object-cover"
-                  onError={(e) => {
-                    e.target.src = "/images/icon-256.png";
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  {mediaContext.volume === 0 ? (
+                    <FaVolumeMute size={12} />
+                  ) : (
+                    <FaVolumeUp size={12} />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={mediaContext.volume}
+                  onChange={(e) =>
+                    mediaContext.setVolume(parseInt(e.target.value))
+                  }
+                  className="w-16 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer accent-red-500"
+                  style={{
+                    background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${mediaContext.volume}%, #4b5563 ${mediaContext.volume}%, #4b5563 100%)`,
                   }}
                 />
+                <span className="text-xs text-gray-400 font-mono w-6 text-center">
+                  {mediaContext.volume}%
+                </span>
               </div>
+
+              {/* Botón de cerrar */}
+              <button
+                onClick={mediaContext.stop}
+                className="text-gray-400 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
+                title="Detener y cerrar reproductor"
+              >
+                <FaTimes size={14} />
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {/* Logo + Saludo (Derecha) */}
+          <div className="flex items-center gap-4 justify-end">
+            <div className="text-right">
+              <p className="text-sm md:text-base font-semibold text-emerald-400">
+                {mensaje}
+              </p>
+              {configuracion.nombreIglesia && (
+                <p className="text-xs text-white/70">
+                  {configuracion.nombreIglesia}
+                </p>
+              )}
+            </div>
+            <div className="rounded-full p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
+              <img
+                src={
+                  configuracion.logoUrl && configuracion.logoUrl !== "undefined"
+                    ? configuracion.logoUrl
+                    : "/images/icon-256.png"
+                }
+                alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
+                className="w-12 h-12 rounded-full object-cover"
+                onError={(e) => {
+                  e.target.src = "/images/icon-256.png";
+                }}
+              />
             </div>
           </div>
-        </motion.header>
+        </div>
+      </motion.header>
 
+      {/* Contenido principal scrolleable */}
+      <div className="relative z-20 px-4 py-6 md:px-6">
         {/* Contenido Principal */}
         <motion.main
           className="max-w-6xl mx-auto"
@@ -243,7 +570,55 @@ const Inicio = () => {
           initial="hidden"
           animate="visible"
         >
-          {/* 2️⃣ SECCIÓN ESTADÍSTICAS */}
+          {/* 1️⃣ SECCIÓN INSPIRACIÓN - PRIMERO (SIN CUADRO) */}
+          <motion.section
+            variants={itemVariants}
+            className="mb-20 mt-8 text-center"
+          >
+            {citaDelDia && (
+              <>
+                <p className="text-xl md:text-2xl text-white/80 italic font-light leading-relaxed mb-3">
+                  "{citaDelDia.texto}"
+                </p>
+                <p className="text-sm text-white/60">{citaDelDia.referencia}</p>
+              </>
+            )}
+          </motion.section>
+
+          {/* 2️⃣ SECCIÓN ACCESOS RÁPIDOS */}
+          <motion.section variants={itemVariants} className="mb-16">
+            <h3 className="text-xl font-semibold text-white mb-4">
+              Accesos Rápidos
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <QuickAccessButton
+                icon={FaMusic}
+                label="Himnos"
+                onClick={() => navigate("/himnos")}
+                color="emerald"
+              />
+              <QuickAccessButton
+                icon={FaBook}
+                label="Biblia"
+                onClick={() => navigate("/biblia")}
+                color="indigo"
+              />
+              <QuickAccessButton
+                icon={FaHeart}
+                label="Favoritos"
+                onClick={() => navigate("/favoritos")}
+                color="rose"
+              />
+              <QuickAccessButton
+                icon={FaFilm}
+                label="Multimedia"
+                onClick={() => navigate("/multimedia")}
+                color="amber"
+              />
+            </div>
+          </motion.section>
+
+          {/* 3️⃣ SECCIÓN ESTADÍSTICAS - MÁS ABAJO */}
           <motion.section variants={itemVariants} className="mb-8">
             <h3 className="text-xl font-semibold text-white mb-4">
               Tu Actividad
@@ -276,55 +651,18 @@ const Inicio = () => {
             </div>
           </motion.section>
 
-          {/* 3️⃣ SECCIÓN ACCESOS RÁPIDOS */}
-          <motion.section variants={itemVariants} className="mb-8">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Accesos Rápidos
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <QuickAccessButton
-                icon={FaMusic}
-                label="Himnos"
-                onClick={() => navigate("/himnos")}
-                color="emerald"
-              />
-              <QuickAccessButton
-                icon={FaBook}
-                label="Biblia"
-                onClick={() => navigate("/biblia")}
-                color="indigo"
-              />
-              <QuickAccessButton
-                icon={FaHeart}
-                label="Favoritos"
-                onClick={() => navigate("/favoritos")}
-                color="rose"
-              />
-              <QuickAccessButton
-                icon={FaFilm}
-                label="Multimedia"
-                onClick={() => navigate("/multimedia")}
-                color="amber"
-              />
+          {/* Footer - Desarrollador */}
+          <motion.footer
+            variants={itemVariants}
+            className="mt-32 mb-8 text-center"
+          >
+            <div className="text-white/40 text-sm">
+              <p className="mb-1">Desarrollado con 💚 por</p>
+              <p className="font-semibold text-emerald-400/60">
+                Alfredo Hammer
+              </p>
             </div>
-          </motion.section>
-
-          {/* 5️⃣ SECCIÓN REPRODUCTOR DESTACADO */}
-          {mediaContext?.currentMedia && (
-            <motion.section variants={itemVariants} className="mb-8">
-              <h3 className="text-xl font-semibold text-white mb-4">
-                Reproduciendo Ahora
-              </h3>
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-                <p className="text-white/80 text-center">
-                  {mediaContext.currentMedia.title || "Sin título"}
-                </p>
-              </div>
-            </motion.section>
-          )}
-
-          {/* Espacio final */}
-          <div className="h-8" />
+          </motion.footer>
         </motion.main>
       </div>
     </div>

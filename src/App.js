@@ -1,6 +1,7 @@
 // src/App.jsx
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
 import Biblia from "./pages/Biblia";
 import Himnos from "./pages/Himnos";
 import Favoritos from "./pages/Favoritos";
@@ -15,7 +16,6 @@ import Multimedia from './pages/Multimedia';
 import HimnoVidaCristiana from "./pages/HimnoVidaCristiana";
 import Configuracion from "./pages/Configuracion";
 import AppMovil from "./pages/AppMovil";
-import PresentationManager from "./components/PresentationManager";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
 import GlobalMediaPlayer from "./components/GlobalMediaPlayer";
 import librosDeLaBiblia from "./utils/libros";
@@ -252,11 +252,15 @@ function MainLayout() {
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Para la página de inicio, no aplicar padding
+  // Para la página de inicio y multimedia, no aplicar padding top adicional
   const isInicio = location.pathname === '/';
+  const isMultimedia = location.pathname === '/multimedia';
+
   const mainClasses = isInicio
     ? `flex-1 overflow-hidden bg-gray-800 transition-all duration-300`
-    : `flex-1 overflow-y-auto bg-gray-800 p-4 transition-all duration-300`;
+    : isMultimedia
+      ? `flex-1 overflow-y-auto bg-gray-800 p-4 transition-all duration-300`
+      : `flex-1 overflow-y-auto bg-gray-800 p-4 transition-all duration-300`;
 
   return (
     <div className="flex h-screen">
@@ -265,6 +269,8 @@ function MainLayout() {
         setIsCollapsed={setIsSidebarCollapsed}
       />
       <main className={mainClasses}>
+        {/* Header para todas las páginas excepto Inicio */}
+        {!isInicio && <Header />}
         <Routes>
           <Route path="/" element={<Inicio />} />
           <Route path="/biblia" element={<Biblia />} />
@@ -278,7 +284,6 @@ function MainLayout() {
           <Route path="/configuracion" element={<Configuracion />} />
           <Route path="/app-movil" element={<AppMovil />} />
           <Route path="/multimedia" element={<Multimedia />} />
-          <Route path="/presentacion-manager" element={<PresentationManager />} />
           <Route path="/gestion-fondos" element={<GestionFondos />} />
         </Routes>
       </main>

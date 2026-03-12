@@ -12,7 +12,6 @@ import {
   FaDev,
   FaSteam,
   FaPlay,
-  FaFile,
   FaImage,
   FaBook,
 } from "react-icons/fa";
@@ -47,13 +46,6 @@ const menuItems = [
     path: "/biblia",
     icon: <FaBook />,
     label: "Biblia",
-  },
-  // ✨ NUEVA OPCIÓN PARA PRESENTACIONES
-  {
-    id: "presentaciones",
-    path: "/presentacion-manager",
-    icon: <FaFile />,
-    label: "Presentaciones",
   },
   {
     id: "multimedia",

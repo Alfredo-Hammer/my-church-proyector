@@ -82,6 +82,54 @@ const Multimedia = () => {
     return "http://localhost:3001";
   };
 
+  const encodePathSegments = (rawPath) => {
+    const pathStr = String(rawPath || "");
+    if (!pathStr) return "";
+    return pathStr
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+  };
+
+  const guessContentTypeFromUrl = (rawUrl) => {
+    const urlStr = String(rawUrl || "").toLowerCase();
+    if (urlStr.includes(".mp3") || urlStr.endsWith("mp3")) return "audio/mpeg";
+    if (urlStr.includes(".wav") || urlStr.endsWith("wav")) return "audio/wav";
+    if (urlStr.includes(".webm") || urlStr.endsWith("webm"))
+      return "video/webm";
+    if (
+      urlStr.includes(".mp4") ||
+      urlStr.endsWith("mp4") ||
+      urlStr.includes(".m4v") ||
+      urlStr.endsWith("m4v")
+    ) {
+      return "video/mp4";
+    }
+    if (urlStr.includes(".png") || urlStr.endsWith("png")) return "image/png";
+    if (
+      urlStr.includes(".jpg") ||
+      urlStr.endsWith("jpg") ||
+      urlStr.includes(".jpeg") ||
+      urlStr.endsWith("jpeg")
+    ) {
+      return "image/jpeg";
+    }
+    return null;
+  };
+
+  const isProbablyNetworkError = (error) => {
+    const name = String(error?.name || "");
+    const message = String(error?.message || "");
+    // En Chromium/Electron los fallos de red suelen ser TypeError("Failed to fetch")
+    // o mensajes tipo NetworkError / ERR_*
+    return (
+      name === "TypeError" ||
+      /Failed to fetch/i.test(message) ||
+      /NetworkError/i.test(message) ||
+      /ERR_/i.test(message)
+    );
+  };
+
   // ✨ Usar el reproductor global del contexto
   const {
     currentMedia,
@@ -222,8 +270,20 @@ const Multimedia = () => {
     }
 
     // Si falla, intentar con el endpoint de corrección
-    const nombreArchivo = url.split("/").pop();
-    const urlCorregida = `${getBaseURL()}/multimedia-fixed/${nombreArchivo}`;
+    const ultimoSegmento = String(url || "")
+      .split("/")
+      .pop();
+    const sinQuery = String(ultimoSegmento || "")
+      .split("?")[0]
+      .split("#")[0];
+    let nombreArchivoEncoded = "";
+    try {
+      nombreArchivoEncoded = encodeURIComponent(decodeURIComponent(sinQuery));
+    } catch {
+      nombreArchivoEncoded = encodeURIComponent(sinQuery);
+    }
+
+    const urlCorregida = `${getBaseURL()}/multimedia-fixed/${nombreArchivoEncoded}`;
 
     try {
       const response = await fetch(urlCorregida, {method: "HEAD"});
@@ -270,9 +330,9 @@ const Multimedia = () => {
       } else if (media.url) {
         const urlLimpia = media.url.replace(/^\/+/, "");
         if (urlLimpia.startsWith("multimedia/")) {
-          mediaUrl = `${getBaseURL()}/${urlLimpia}`;
+          mediaUrl = `${getBaseURL()}/${encodePathSegments(urlLimpia)}`;
         } else {
-          mediaUrl = `${getBaseURL()}/multimedia/${urlLimpia}`;
+          mediaUrl = `${getBaseURL()}/multimedia/${encodePathSegments(urlLimpia)}`;
         }
       } else if (media.ruta_archivo) {
         if (
@@ -285,13 +345,13 @@ const Multimedia = () => {
           if (media.ruta_archivo.includes("/multimedia/")) {
             const parteDespuesMultimedia =
               media.ruta_archivo.split("/multimedia/")[1];
-            mediaUrl = `${getBaseURL()}/multimedia/${parteDespuesMultimedia}`;
+            mediaUrl = `${getBaseURL()}/multimedia/${encodePathSegments(parteDespuesMultimedia)}`;
           } else {
-            mediaUrl = `${getBaseURL()}/multimedia/${archivoLimpio}`;
+            mediaUrl = `${getBaseURL()}/multimedia/${encodeURIComponent(archivoLimpio)}`;
           }
         }
       } else if (media.nombre) {
-        mediaUrl = `${getBaseURL()}/multimedia/${media.nombre}`;
+        mediaUrl = `${getBaseURL()}/multimedia/${encodeURIComponent(media.nombre)}`;
       } else {
         throw new Error("No se pudo determinar la URL del archivo");
       }
@@ -331,14 +391,25 @@ const Multimedia = () => {
       const urlValidada = await verificarYCorregirUrl(mediaUrl);
 
       // 5. Hacer una verificación final con HEAD request (con timeout de 10 segundos)
+      // Nota: en algunos entornos (Windows + antivirus/proxy) el HEAD puede fallar
+      // aunque el GET/stream sí funcione. Por eso hacemos fallback a GET Range.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
 
       try {
-        const response = await fetch(urlValidada, {
+        let response = await fetch(urlValidada, {
           method: "HEAD",
           signal: controller.signal,
         });
+
+        // Si HEAD no es soportado por el servidor (405/501), probar GET mínimo
+        if (!response.ok && [405, 501].includes(response.status)) {
+          response = await fetch(urlValidada, {
+            method: "GET",
+            headers: {Range: "bytes=0-0"},
+            signal: controller.signal,
+          });
+        }
 
         clearTimeout(timeoutId);
 
@@ -366,6 +437,23 @@ const Multimedia = () => {
             url: urlValidada,
             contentType: "video/mp4", // Asumir video
             warning: "Archivo muy grande, validación omitida",
+          };
+        }
+
+        // Si falla la validación por un error de red (no HTTP), permitir intentar reproducir.
+        // Esto evita falsos negativos en Windows (HEAD bloqueado) cuando el <audio>/<video>
+        // aún puede hacer streaming con GET.
+        if (isProbablyNetworkError(error)) {
+          console.warn(
+            "⚠️ [Validación] Fallo de red validando (HEAD/Range). Intentando reproducir igualmente:",
+            error,
+          );
+          return {
+            valid: true,
+            url: urlValidada,
+            contentType: guessContentTypeFromUrl(urlValidada),
+            warning:
+              "No se pudo validar por red; se intentará reproducir igualmente",
           };
         }
 
@@ -2527,324 +2615,247 @@ const Multimedia = () => {
             </div>
 
             {/* Reproductor (centro/derecha) */}
-            <div className="order-1 xl:order-2 xl:col-span-6 2xl:col-span-7 min-h-0">
-              {/* Estadísticas (sin contenedor padre, alineadas al ancho del reproductor) */}
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 mb-3">
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-white">
-                    {mediaFiles.length}
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    Total
-                  </div>
-                </div>
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-purple-400">
-                    {
-                      mediaFiles.filter(
-                        (m) =>
-                          getMediaType(m) === "video" ||
-                          getMediaType(m) === "youtube",
-                      ).length
-                    }
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    Videos
-                  </div>
-                </div>
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-green-400">
-                    {
-                      mediaFiles.filter((m) => getMediaType(m) === "audio")
-                        .length
-                    }
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    Audio
-                  </div>
-                </div>
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-pink-400">
-                    {
-                      mediaFiles.filter(
-                        (m) =>
-                          getMediaType(m) === "imagen" ||
-                          getMediaType(m) === "image",
-                      ).length
-                    }
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    Imágenes
-                  </div>
-                </div>
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-yellow-400 flex items-center justify-center gap-1">
-                    <FaStar className="text-[10px]" />
-                    {mediaFiles.filter((m) => m.favorito).length}
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    Favoritos
-                  </div>
-                </div>
-                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
-                  <div className="text-[15px] leading-5 font-bold text-blue-400 flex items-center justify-center gap-1">
-                    <FaLink className="text-[10px]" />
-                    {mediaFiles.filter((m) => m.isUrl).length}
-                  </div>
-                  <div className="text-[11px] leading-4 text-gray-400">
-                    URLs
-                  </div>
-                </div>
-              </div>
-
-              {/* Reproductor Principal */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl mb-6">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="bg-red-500/20 p-3 rounded-full">
-                    <FaPlay className="text-red-400 text-xl" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">
-                      Reproductor Principal
-                    </h2>
-                    <p className="text-white/60">
-                      Control de multimedia y reproducción
-                    </p>
-                  </div>
-                </div>
-
-                {mediaForPlayer ? (
-                  <div className="space-y-4">
-                    {/* Información del archivo actual */}
-                    <div className="bg-gray-700/50 p-4 rounded-xl">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-white truncate mb-1">
-                            {getMediaName(mediaForPlayer)}
-                          </h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <span className="capitalize">
-                              {getMediaType(mediaForPlayer)}
-                            </span>
-                            <span>•</span>
-                            <span>
-                              {mediaForPlayer.isUrl
-                                ? "URL"
-                                : `${getMediaSize(mediaForPlayer)} MB`}
-                            </span>
-                            {!currentMedia && (
-                              <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
-                                Última reproducción
-                              </span>
-                            )}
-                            {mediaForPlayer.favorito && (
-                              <FaStar className="text-yellow-400" />
-                            )}
-                            {mediaForPlayer.isUrl && (
-                              <FaLink className="text-blue-400" />
-                            )}
-                            {isMediaForPlayerYouTube && (
-                              <FaYoutube className="text-red-500" />
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => toggleFavorite(mediaForPlayer)}
-                          className={`p-2 rounded transition-colors ${
-                            mediaForPlayer.favorito
-                              ? "text-yellow-400"
-                              : "text-gray-400 hover:text-yellow-400"
-                          }`}
-                        >
-                          {mediaForPlayer.favorito ? <FaStar /> : <FaRegStar />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Vista previa */}
-                    <div
-                      id="multimedia-preview-container"
-                      className={`rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative ${
-                        isMediaForPlayerYouTube ||
-                        getMediaType(mediaForPlayer) === "video"
-                          ? "bg-transparent"
-                          : "bg-black"
-                      }`}
-                    >
-                      {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
-                      {isMediaForPlayerYouTube ||
-                      getMediaType(mediaForPlayer) === "video" ? (
-                        // Área vacía donde se posicionará el GlobalMediaPlayer
-                        <div className="w-full h-full" />
-                      ) : getMediaType(mediaForPlayer) === "audio" ? (
-                        <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
-                          <FaMusic className="text-green-400 text-6xl mb-6" />
-                          <h3 className="text-xl font-semibold text-white mb-4">
-                            {getMediaName(mediaForPlayer)}
-                          </h3>
-                          {/* Visualización del audio - El audio real se reproduce en el contexto global */}
-                          <div className="w-full max-w-md bg-gray-800/50 rounded-lg p-6 text-center">
-                            <p className="text-gray-300 text-sm mb-2">
-                              🎵 Audio reproduciéndose en el reproductor global
-                            </p>
-                            <p className="text-gray-400 text-xs">
-                              El control de audio aparece en la barra inferior
-                            </p>
-                          </div>
-                        </div>
-                      ) : getMediaType(mediaForPlayer) === "imagen" ? (
-                        <img
-                          src={
-                            mediaForPlayer.validatedUrl || mediaForPlayer.url
-                          }
-                          alt={getMediaName(mediaForPlayer)}
-                          className="max-w-full max-h-full object-contain"
-                          onLoad={() => console.log("✅ Imagen cargada")}
-                          onError={(e) => {
-                            console.error("❌ Error cargando imagen:", e);
-                            const mensaje = `Error cargando imagen: ${getMediaName(
-                              mediaForPlayer,
-                            )}`;
-                            console.error(
-                              "📁 URL problemática:",
-                              mediaForPlayer.url,
-                            );
-                            showError(
-                              `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
-                            );
-                          }}
-                        />
-                      ) : getMediaType(mediaForPlayer) === "video" ? (
-                        <div className="w-full h-full" />
-                      ) : null}
-                    </div>
-
-                    {/* Controles principales */}
-                    <div className="flex items-center justify-center space-x-3">
-                      {!isMediaForPlayerYouTube && (
-                        <>
-                          <button
-                            onClick={handleTogglePlayPause}
-                            className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
-                          >
-                            {isPlaying ? (
-                              <FaPause className="text-xl" />
-                            ) : (
-                              <FaPlay className="text-xl" />
-                            )}
-                          </button>
-                          <button
-                            onClick={stopGlobal}
-                            className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-                          >
-                            <FaStop />
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => projectToScreenNew(mediaForPlayer)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
-                        title="Proyectar en pantalla completa"
-                      >
-                        <FaExpand />
-                      </button>
-                      <button
-                        onClick={clearProjector}
-                        className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
-                        title="Limpiar proyector"
-                      >
-                        <FaTimes />
-                      </button>
-                      {mediaForPlayer.originalUrl && (
-                        <button
-                          onClick={() =>
-                            copyToClipboard(mediaForPlayer.originalUrl)
-                          }
-                          className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
-                          title="Copiar URL original"
-                        >
-                          <FaCopy />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Controles del proyector cuando hay multimedia proyectada */}
-                    {proyectingMedia && (
-                      <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mt-4">
-                        <div className="text-center mb-3">
-                          <h4 className="text-blue-300 font-medium mb-1">
-                            🎬 Control del Proyector
-                          </h4>
-                          <p className="text-blue-200 text-sm">
-                            Proyectando: {getMediaName(proyectingMedia)}
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-center space-x-3">
-                          <button
-                            onClick={playProyector}
-                            className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                            title="Reproducir en proyector"
-                          >
-                            <FaPlay className="text-lg" />
-                          </button>
-                          <button
-                            onClick={pauseProyector}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                            title="Pausar en proyector"
-                          >
-                            <FaPause className="text-lg" />
-                          </button>
-                          <button
-                            onClick={stopProyector}
-                            className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                            title="Detener en proyector"
-                          >
-                            <FaStop className="text-lg" />
-                          </button>
-                          <button
-                            onClick={limpiarProyectorRemoto}
-                            className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                            title="Limpiar proyector (ESC)"
-                          >
-                            <FaTimes className="text-lg" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Control de volumen (solo para no-YouTube) */}
-                    {!isMediaForPlayerYouTube && (
+            <div className="order-1 xl:order-2 xl:col-span-6 2xl:col-span-7 min-h-0 flex justify-center">
+              <div className="w-full max-w-4xl">
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl mb-6">
+                  {mediaForPlayer ? (
+                    <div className="space-y-4">
+                      {/* Información del archivo actual */}
                       <div className="bg-gray-700/50 p-4 rounded-xl">
-                        <div className="flex items-center space-x-3">
-                          <FaVolumeUp className="text-gray-300 flex-shrink-0" />
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={volume}
-                            onChange={(e) => setVolume(e.target.value)}
-                            className="flex-1 accent-red-400"
-                          />
-                          <span className="text-sm text-gray-300 w-12 text-center">
-                            {volume}%
-                          </span>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-white truncate mb-1">
+                              {getMediaName(mediaForPlayer)}
+                            </h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-400">
+                              <span className="capitalize">
+                                {getMediaType(mediaForPlayer)}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {mediaForPlayer.isUrl
+                                  ? "URL"
+                                  : `${getMediaSize(mediaForPlayer)} MB`}
+                              </span>
+                              {!currentMedia && (
+                                <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
+                                  Última reproducción
+                                </span>
+                              )}
+                              {mediaForPlayer.favorito && (
+                                <FaStar className="text-yellow-400" />
+                              )}
+                              {mediaForPlayer.isUrl && (
+                                <FaLink className="text-blue-400" />
+                              )}
+                              {isMediaForPlayerYouTube && (
+                                <FaYoutube className="text-red-500" />
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => toggleFavorite(mediaForPlayer)}
+                            className={`p-2 rounded transition-colors ${
+                              mediaForPlayer.favorito
+                                ? "text-yellow-400"
+                                : "text-gray-400 hover:text-yellow-400"
+                            }`}
+                          >
+                            {mediaForPlayer.favorito ? (
+                              <FaStar />
+                            ) : (
+                              <FaRegStar />
+                            )}
+                          </button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="bg-gray-700/50 p-8 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-                      <FaVideoSlash className="text-4xl text-gray-500" />
+
+                      {/* Vista previa */}
+                      <div
+                        id="multimedia-preview-container"
+                        className={`rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative ${
+                          isMediaForPlayerYouTube ||
+                          getMediaType(mediaForPlayer) === "video"
+                            ? "bg-transparent"
+                            : "bg-black"
+                        }`}
+                      >
+                        {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
+                        {isMediaForPlayerYouTube ||
+                        getMediaType(mediaForPlayer) === "video" ? (
+                          // Área vacía donde se posicionará el GlobalMediaPlayer
+                          <div className="w-full h-full" />
+                        ) : getMediaType(mediaForPlayer) === "audio" ? (
+                          <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
+                            <FaMusic className="text-green-400 text-6xl mb-6" />
+                            <h3 className="text-xl font-semibold text-white mb-4">
+                              {getMediaName(mediaForPlayer)}
+                            </h3>
+                            {/* Visualización del audio - El audio real se reproduce en el contexto global */}
+                            <div className="w-full max-w-md bg-gray-800/50 rounded-lg p-6 text-center">
+                              <p className="text-gray-300 text-sm mb-2">
+                                🎵 Audio reproduciéndose en el reproductor
+                                global
+                              </p>
+                              <p className="text-gray-400 text-xs">
+                                El control de audio aparece en la barra inferior
+                              </p>
+                            </div>
+                          </div>
+                        ) : getMediaType(mediaForPlayer) === "imagen" ? (
+                          <img
+                            src={
+                              mediaForPlayer.validatedUrl || mediaForPlayer.url
+                            }
+                            alt={getMediaName(mediaForPlayer)}
+                            className="max-w-full max-h-full object-contain"
+                            onLoad={() => console.log("✅ Imagen cargada")}
+                            onError={(e) => {
+                              console.error("❌ Error cargando imagen:", e);
+                              const mensaje = `Error cargando imagen: ${getMediaName(
+                                mediaForPlayer,
+                              )}`;
+                              console.error(
+                                "📁 URL problemática:",
+                                mediaForPlayer.url,
+                              );
+                              showError(
+                                `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
+                              );
+                            }}
+                          />
+                        ) : getMediaType(mediaForPlayer) === "video" ? (
+                          <div className="w-full h-full" />
+                        ) : null}
+                      </div>
+
+                      {/* Controles principales */}
+                      <div className="flex items-center justify-center space-x-3">
+                        {!isMediaForPlayerYouTube && (
+                          <>
+                            <button
+                              onClick={handleTogglePlayPause}
+                              className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                            >
+                              {isPlaying ? (
+                                <FaPause className="text-xl" />
+                              ) : (
+                                <FaPlay className="text-xl" />
+                              )}
+                            </button>
+                            <button
+                              onClick={stopGlobal}
+                              className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                            >
+                              <FaStop />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => projectToScreenNew(mediaForPlayer)}
+                          className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
+                          title="Proyectar en pantalla completa"
+                        >
+                          <FaExpand />
+                        </button>
+                        <button
+                          onClick={clearProjector}
+                          className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
+                          title="Limpiar proyector"
+                        >
+                          <FaTimes />
+                        </button>
+                        {mediaForPlayer.originalUrl && (
+                          <button
+                            onClick={() =>
+                              copyToClipboard(mediaForPlayer.originalUrl)
+                            }
+                            className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
+                            title="Copiar URL original"
+                          >
+                            <FaCopy />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Controles del proyector cuando hay multimedia proyectada */}
+                      {proyectingMedia && (
+                        <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mt-4">
+                          <div className="text-center mb-3">
+                            <h4 className="text-blue-300 font-medium mb-1">
+                              🎬 Control del Proyector
+                            </h4>
+                            <p className="text-blue-200 text-sm">
+                              Proyectando: {getMediaName(proyectingMedia)}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-center space-x-3">
+                            <button
+                              onClick={playProyector}
+                              className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                              title="Reproducir en proyector"
+                            >
+                              <FaPlay className="text-lg" />
+                            </button>
+                            <button
+                              onClick={pauseProyector}
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                              title="Pausar en proyector"
+                            >
+                              <FaPause className="text-lg" />
+                            </button>
+                            <button
+                              onClick={stopProyector}
+                              className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                              title="Detener en proyector"
+                            >
+                              <FaStop className="text-lg" />
+                            </button>
+                            <button
+                              onClick={limpiarProyectorRemoto}
+                              className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                              title="Limpiar proyector (ESC)"
+                            >
+                              <FaTimes className="text-lg" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Control de volumen (solo para no-YouTube) */}
+                      {!isMediaForPlayerYouTube && (
+                        <div className="bg-gray-700/50 p-4 rounded-xl">
+                          <div className="flex items-center space-x-3">
+                            <FaVolumeUp className="text-gray-300 flex-shrink-0" />
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={volume}
+                              onChange={(e) => setVolume(e.target.value)}
+                              className="flex-1 accent-red-400"
+                            />
+                            <span className="text-sm text-gray-300 w-12 text-center">
+                              {volume}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <h3 className="text-lg font-medium text-gray-400 mb-2">
-                      Sin contenido seleccionado
-                    </h3>
-                    <p className="text-gray-500 text-sm">
-                      Selecciona un archivo para reproducir o agrega una URL
-                    </p>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="bg-gray-700/50 p-8 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                        <FaVideoSlash className="text-4xl text-gray-500" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-400 mb-2">
+                        Sin contenido seleccionado
+                      </h3>
+                      <p className="text-gray-500 text-sm">
+                        Selecciona un archivo para reproducir o agrega una URL
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

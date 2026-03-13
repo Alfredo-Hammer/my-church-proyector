@@ -1,6 +1,6 @@
 {
   "name": "my-church-proyector",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "main": "main.js",
   "homepage": ".",
@@ -53,7 +53,9 @@
     "build-exe": "npm run build && electron-builder",
     "build-exe-win": "npm run build && electron-builder --win",
     "pack": "electron-builder --dir",
-    "release": "npm run build && electron-builder --publish=never"
+    "release": "npm run build && electron-builder --publish=never",
+    "neon-logo": "node scripts/neon-logo.js assets/icon-256.png assets/icon-256-neon.png",
+    "neon-logo-circulo": "node scripts/neon-lines-logo.js assets/logo-circulo.png assets/logo-circulo-neon.png #00F5FF 130 30"
   },
   "eslintConfig": {
     "extends": [
@@ -83,6 +85,7 @@
     "electron-packager": "^17.1.2",
     "electron-rebuild": "^3.2.9",
     "rcedit": "^4.0.1",
+    "sharp": "^0.34.3",
     "tailwindcss": "^3.4.17",
     "to-ico": "^1.1.5"
   },

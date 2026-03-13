@@ -49,7 +49,35 @@ const formatTimeSec = (sec) => {
   return `${m}:${String(s).padStart(2, '0')}`;
 };
 
-const normalizarBaseUrl = (value) => String(value || '').trim().replace(/\/+$/, '');
+const normalizarBaseUrl = (value) => {
+  let raw = String(value || '').trim();
+  if (!raw) return '';
+
+  // Quitar espacios internos (copiar/pegar) y slashes finales
+  raw = raw.replace(/\s+/g, '').replace(/\/+$/, '');
+
+  // Corregir errores comunes: "http//" o "https//" (faltó ':')
+  raw = raw.replace(/^(https?)\/\//i, '$1://');
+
+  // Si no tiene esquema, asumir http
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `http://${raw}`;
+  }
+
+  // Si no trae puerto, asumir :3001 (solo para conexiones LAN del proyector)
+  try {
+    const u = new URL(raw);
+    const hasPort = Boolean(String(u.port || '').trim());
+    const isRoot = !u.pathname || u.pathname === '/' || u.pathname === '';
+    if (!hasPort && isRoot) {
+      return `${u.protocol}//${u.hostname}:3001`;
+    }
+  } catch {
+    // Si no se puede parsear, devolver lo mejor que tengamos
+  }
+
+  return raw;
+};
 
 const extraerUrlDeQr = (data) => {
   const raw = String(data || '').trim();

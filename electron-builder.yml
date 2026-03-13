@@ -52,6 +52,7 @@ nsis:
   uninstallerIcon: assets/icon.ico
   installerHeader: assets/icon-256.png
   installerHeaderIcon: assets/icon.ico
+  artifactName: "${productName}-${version}-Installer.${ext}"
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   menuCategory: true

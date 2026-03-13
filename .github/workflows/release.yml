@@ -36,16 +36,10 @@ jobs:
         env:
           CI: false
       
-      - name: Compilar ejecutable Windows
-        run: npx electron-builder --win --x64
+      - name: Compilar instalador Windows (NSIS)
+        run: npx electron-builder --win nsis --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Crear ZIP portable
-        run: |
-          cd dist-installer
-          Compress-Archive -Path win-unpacked -DestinationPath GloryView-Proyector-Windows-Portable.zip
-        shell: powershell
       
       - name: Obtener versión
         id: get_version
@@ -67,9 +61,9 @@ jobs:
             
             ### 📦 Instalación
             
-            1. Descarga `GloryView-Proyector-Windows-Portable.zip`
-            2. Extrae el ZIP completo en una carpeta
-            3. Ejecuta `GloryViewProyector.exe`
+            1. Descarga el instalador `.exe`
+            2. Ejecuta el instalador (Siguiente → Instalar)
+            3. Abre **GloryView Proyector** desde el escritorio o el menú inicio
             
             ### 📋 Requisitos
             - Windows 10/11 (64-bit)
@@ -84,9 +78,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            dist-installer/GloryView-Proyector-Windows-Portable.zip
-            dist-installer/*.exe
-            INSTRUCCIONES-WINDOWS.txt
-            SOLUCIÓN-NO-ABRE-WINDOWS.txt
+            dist-installer/*-Installer.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

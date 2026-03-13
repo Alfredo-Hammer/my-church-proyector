@@ -162,7 +162,7 @@ const Header = () => {
         </>
       )}
 
-      <div className="relative grid grid-cols-3 items-center gap-4 px-6 py-3">
+      <div className="relative grid grid-cols-3 items-center gap-2 xl:gap-4 px-3 xl:px-6 py-2 xl:py-3">
         {/* Columna izquierda (vacía para balance) */}
         <div />
 
@@ -170,7 +170,7 @@ const Header = () => {
         {currentMedia ? (
           <div className="flex items-center gap-3 flex-1 min-w-0 justify-center">
             {/* Info del media (compacta) */}
-            <div className="flex items-center gap-2 min-w-0 max-w-[180px]">
+            <div className="flex items-center gap-2 min-w-0 max-w-[140px] lg:max-w-[180px] 2xl:max-w-[240px]">
               <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-1.5 rounded-lg border border-red-500/40">
                 {getMediaIcon()}
                 {isPlaying && (
@@ -178,11 +178,11 @@ const Header = () => {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-white font-medium truncate text-xs">
+                <h3 className="text-white font-medium truncate text-[10px] xl:text-xs">
                   {getMediaName()}
                 </h3>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-gray-400 text-[10px] capitalize truncate">
+                  <p className="text-gray-400 text-[9px] xl:text-[10px] capitalize truncate">
                     {tipoActual}
                   </p>
                   {isPlaying && <AnimatedSoundBars />}
@@ -210,8 +210,8 @@ const Header = () => {
 
             {/* Barra de progreso (solo para audio, compacta) */}
             {tipoActual === "audio" && (
-              <div className="flex items-center gap-1.5 flex-1 max-w-[200px]">
-                <span className="text-[10px] text-gray-400 font-mono min-w-[32px]">
+              <div className="flex items-center gap-1.5 flex-1 max-w-[160px] lg:max-w-[220px] 2xl:max-w-[300px]">
+                <span className="text-[9px] xl:text-[10px] text-gray-400 font-mono min-w-[28px] xl:min-w-[32px]">
                   {formatTime(currentTime)}
                 </span>
                 <div className="flex-1 relative group">
@@ -231,7 +231,7 @@ const Header = () => {
                     }}
                   />
                 </div>
-                <span className="text-[10px] text-gray-400 font-mono min-w-[32px]">
+                <span className="text-[9px] xl:text-[10px] text-gray-400 font-mono min-w-[28px] xl:min-w-[32px]">
                   {formatTime(duration)}
                 </span>
               </div>
@@ -256,7 +256,7 @@ const Header = () => {
                 max="100"
                 value={volume}
                 onChange={(e) => setVolume(parseInt(e.target.value))}
-                className="w-12 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer accent-red-500"
+                className="w-10 xl:w-14 2xl:w-16 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer accent-red-500"
                 style={{
                   background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${volume}%, #4b5563 ${volume}%, #4b5563 100%)`,
                 }}
@@ -295,16 +295,16 @@ const Header = () => {
         )}
 
         {/* Logo + Saludo (derecha) */}
-        <div className="flex items-center gap-4 justify-end">
-          <div className="text-right">
-            <p className="text-sm font-semibold text-emerald-400">{mensaje}</p>
+        <div className="flex items-center gap-2 xl:gap-4 justify-end">
+          <div className="text-right hidden lg:block">
+            <p className="text-xs xl:text-sm font-semibold text-emerald-400">{mensaje}</p>
             {configuracion.nombreIglesia && (
-              <p className="text-xs text-white/70">
+              <p className="text-[10px] xl:text-xs text-white/70 truncate max-w-[140px] xl:max-w-none">
                 {configuracion.nombreIglesia}
               </p>
             )}
           </div>
-          <div className="rounded-full p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
+          <div className="rounded-full p-0.5 xl:p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
             <img
               src={
                 configuracion.logoUrl && configuracion.logoUrl !== "undefined"
@@ -312,7 +312,7 @@ const Header = () => {
                   : "/images/icon-256.png"
               }
               alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
-              className="w-12 h-12 rounded-full object-cover"
+              className="w-9 h-9 xl:w-11 xl:h-11 2xl:w-12 2xl:h-12 rounded-full object-cover"
               onError={(e) => {
                 e.target.src = "/images/icon-256.png";
               }}

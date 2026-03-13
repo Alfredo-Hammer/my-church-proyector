@@ -169,7 +169,7 @@ const HimnoDetalle = () => {
     btnBase:
       "inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
     btnIcon:
-      "w-10 h-10 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+      "w-9 h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
     btnPrimary:
       "inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-600/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
     btnDanger:
@@ -420,7 +420,7 @@ const HimnoDetalle = () => {
 
       {/* Header limpio */}
       <header className="sticky top-0 z-30 bg-black/30 backdrop-blur border-b border-white/10">
-        <div className="max-w-[96vw] mx-auto px-3 py-3">
+        <div className="max-w-[96vw] mx-auto px-2 py-2 sm:px-3 sm:py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <button
@@ -473,7 +473,7 @@ const HimnoDetalle = () => {
 
               <button
                 onClick={limpiarProyeccion}
-                className={`${ui.btnDanger} w-10 h-10`}
+                className={`${ui.btnDanger} w-9 h-9 sm:w-10 sm:h-10`}
                 title="Limpiar (Esc)"
               >
                 <FaStop />
@@ -481,7 +481,7 @@ const HimnoDetalle = () => {
 
               <button
                 onClick={proyectarHimno}
-                className={`${ui.btnPrimary} w-10 h-10`}
+                className={`${ui.btnPrimary} w-9 h-9 sm:w-10 sm:h-10`}
                 title="Proyectar (Espacio)"
               >
                 <FaProjectDiagram />
@@ -504,124 +504,141 @@ const HimnoDetalle = () => {
       </header>
 
       <main className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 max-w-[96vw] mx-auto px-3 py-3 flex flex-col gap-3">
-          {/* Tarjeta principal */}
-          <section className="flex-1 min-h-0 w-full rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 sm:p-5 flex flex-col">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div className="text-sm text-white/60">
-                Párrafo{" "}
-                <span className="text-white/90">{selectedParrafo + 1}</span> de{" "}
-                <span className="text-white/90">{himno.parrafos.length}</span>
+        <div className="flex-1 min-h-0 max-w-[96vw] mx-auto px-2 py-2 sm:px-3 sm:py-3 grid grid-cols-1 md:grid-cols-12 gap-2 sm:gap-3">
+          {/* Mini-cards (izquierda) */}
+          <aside className="order-2 md:order-1 md:col-span-4 min-h-0">
+            <section className="h-full min-h-0 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 sm:p-4 flex flex-col">
+              <div className="flex items-center justify-between gap-4 mb-2 sm:mb-3">
+                <h2 className="text-sm font-semibold text-white/90 flex items-center gap-2">
+                  <FaMusic className="text-white/60" />
+                  Párrafos
+                </h2>
+                <span className="text-xs text-white/50">Clic para navegar</span>
               </div>
-              {isProyectando && (
-                <span className="px-2.5 py-1 rounded-md text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
-                  Proyectando
-                </span>
-              )}
-            </div>
 
-            <div className="flex-1 min-h-0 flex items-center justify-center">
-              <div className="w-full max-w-3xl mx-auto text-center">
-                <p className="whitespace-pre-line font-medium">
-                  <span className="text-3xl sm:text-4xl md:text-5xl leading-relaxed">
-                    {himno.parrafos[selectedParrafo]}
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent">
+                {himno.parrafos.map((parrafo, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => cambiarParrafo(index)}
+                    className={`w-full text-left rounded-xl border p-3 transition-colors ${
+                      selectedParrafo === index
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                      <span className="text-xs text-white/60">Párrafo</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-md border ${
+                          selectedParrafo === index
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                            : "border-white/10 bg-white/5 text-white/70"
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/90 line-clamp-3 leading-relaxed">
+                      {parrafo}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </aside>
+
+          {/* Letra principal (derecha) */}
+          <div className="order-1 md:order-2 md:col-span-8 min-h-0 flex flex-col gap-2 sm:gap-3">
+            {/* Tarjeta principal */}
+            <section className="flex-1 min-h-0 w-full rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 sm:p-4 flex flex-col">
+              <div className="flex items-center justify-between gap-4 mb-2 sm:mb-3">
+                <div className="text-sm text-white/60">
+                  Párrafo{" "}
+                  <span className="text-white/90">{selectedParrafo + 1}</span>{" "}
+                  de{" "}
+                  <span className="text-white/90">{himno.parrafos.length}</span>
+                </div>
+                {isProyectando && (
+                  <span className="px-2.5 py-1 rounded-md text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                    Proyectando
                   </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
-              <button
-                onClick={() => cambiarParrafo(Math.max(0, selectedParrafo - 1))}
-                disabled={selectedParrafo === 0}
-                className={ui.btnIcon}
-                title="Anterior"
-              >
-                <FaArrowLeft />
-              </button>
-
-              <div className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-white/70">
-                Atajos: <span className="text-white/90">Espacio</span> proyectar
-                · <span className="text-white/90">← →</span> cambiar ·{" "}
-                <span className="text-white/90">Esc</span> limpiar
+                )}
               </div>
 
-              <button
-                onClick={() =>
-                  cambiarParrafo(
-                    Math.min(himno.parrafos.length - 1, selectedParrafo + 1),
-                  )
-                }
-                disabled={selectedParrafo === himno.parrafos.length - 1}
-                className={ui.btnIcon}
-                title="Siguiente"
-              >
-                <FaArrowRight />
-              </button>
-            </div>
-          </section>
-
-          {/* Progreso */}
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden shrink-0">
-            <div
-              className="h-full bg-emerald-500/80 transition-all duration-300 ease-out"
-              style={{
-                width: `${
-                  ((selectedParrafo + 1) / Math.max(1, himno.parrafos.length)) *
-                  100
-                }%`,
-              }}
-            />
-          </div>
-
-          {/* Párrafos */}
-          <section className="mt-auto shrink-0 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="text-sm font-semibold text-white/90 flex items-center gap-2">
-                <FaMusic className="text-white/60" />
-                Párrafos
-              </h2>
-              <span className="text-xs text-white/50">Clic para navegar</span>
-            </div>
-
-            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent">
-              {himno.parrafos.map((parrafo, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => cambiarParrafo(index)}
-                  className={`min-w-[240px] text-left rounded-xl border p-4 transition-colors ${
-                    selectedParrafo === index
-                      ? "border-emerald-500/40 bg-emerald-500/10"
-                      : "border-white/10 bg-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-xs text-white/60">Párrafo</span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-md border ${
-                        selectedParrafo === index
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                          : "border-white/10 bg-white/5 text-white/70"
-                      }`}
-                    >
-                      {index + 1}
-                    </span>
+              <div className="flex-1 min-h-0 flex items-center justify-center">
+                <div className="w-full max-w-3xl mx-auto text-center">
+                  <div className="px-1 sm:px-2 py-2 sm:py-4 max-h-[52vh] md:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent pr-1">
+                    <div className="min-h-full flex items-center justify-center">
+                      <p className="whitespace-pre-line font-medium">
+                        <span className="text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-relaxed">
+                          {himno.parrafos[selectedParrafo]}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm text-white/90 line-clamp-4 leading-relaxed">
-                    {parrafo}
-                  </p>
-                </button>
-              ))}
+
+                  <div className="mt-1.5 sm:mt-2 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+                    <button
+                      onClick={() =>
+                        cambiarParrafo(Math.max(0, selectedParrafo - 1))
+                      }
+                      disabled={selectedParrafo === 0}
+                      className={ui.btnIcon}
+                      title="Anterior"
+                    >
+                      <FaArrowLeft />
+                    </button>
+
+                    <div className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs sm:text-sm text-white/70">
+                      Atajos: <span className="text-white/90">Espacio</span>{" "}
+                      proyectar · <span className="text-white/90">← →</span>{" "}
+                      cambiar · <span className="text-white/90">Esc</span>{" "}
+                      limpiar
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        cambiarParrafo(
+                          Math.min(
+                            himno.parrafos.length - 1,
+                            selectedParrafo + 1,
+                          ),
+                        )
+                      }
+                      disabled={selectedParrafo === himno.parrafos.length - 1}
+                      className={ui.btnIcon}
+                      title="Siguiente"
+                    >
+                      <FaArrowRight />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Progreso */}
+            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden shrink-0">
+              <div
+                className="h-full bg-emerald-500/80 transition-all duration-300 ease-out"
+                style={{
+                  width: `${
+                    ((selectedParrafo + 1) /
+                      Math.max(1, himno.parrafos.length)) *
+                    100
+                  }%`,
+                }}
+              />
             </div>
-          </section>
+          </div>
         </div>
       </main>
 
       <style jsx>{`
-        .line-clamp-4 {
+        .line-clamp-3 {
           display: -webkit-box;
-          -webkit-line-clamp: 4;
+          -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
         }

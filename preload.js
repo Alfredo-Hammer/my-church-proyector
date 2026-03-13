@@ -50,8 +50,27 @@ contextBridge.exposeInMainWorld("electron", {
   // ✨ NUEVA FUNCIÓN ESPECÍFICA PARA ENVIAR MULTIMEDIA
   enviarMultimedia: (mediaData) => ipcRenderer.send('proyectar-multimedia-directo', mediaData),
 
-  // ✨ MÉTODO SEND GENÉRICO PARA ENVÍO DIRECTO
-  send: (channel, data) => ipcRenderer.send(channel, data),
+  // Canales permitidos para send genérico (usado por renderer para IPC directo)
+  send: (channel, data) => {
+    const validChannels = [
+      'control-biblia-preview-response',
+      'multimedia-playback-status',
+      'proyector-control-multimedia',
+      'proyector-control-ack',
+      'proyector-ready',
+      'proyectar-multimedia-data',
+      'limpiar-proyector',
+      'proyector-play',
+      'proyector-pause',
+      'proyector-stop',
+      'proyector-limpiar',
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    } else {
+      console.warn(`[Preload] Canal send bloqueado: ${channel}`);
+    }
+  },
 
   // ====================================
   // APIs DE CONTROL MULTIMEDIA AL PROYECTOR
@@ -78,7 +97,6 @@ contextBridge.exposeInMainWorld("electron", {
   notificarFondoActivo: (fondo) => ipcRenderer.send("fondo-activo-cambiado", fondo),
   copiarArchivoAFondos: (sourcePath) => ipcRenderer.invoke("copiarArchivoAFondos", sourcePath),
   getAppPath: () => ipcRenderer.sendSync("get-app-path"), // Obtener ruta de la aplicación
-  joinPath: (...paths) => require("path").join(...paths),
 
   //Enviar versiculo
   enviarVersiculo: (versiculo) => ipcRenderer.send("proyectar-versiculo", versiculo),
@@ -126,8 +144,18 @@ contextBridge.exposeInMainWorld("electron", {
   limpiarProyectorSlides: () => ipcRenderer.invoke("limpiar-proyector"),
   abrirProyector: () => ipcRenderer.invoke("abrir-proyector"),
 
-  // ✨ Función genérica invoke para mayor flexibilidad
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  // Canales permitidos para invoke genérico (fallback usado por renderer)
+  invoke: (channel, ...args) => {
+    const validChannels = [
+      'proyectar-multimedia',
+      'limpiar-proyector',
+    ];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    console.warn(`[Preload] Canal invoke bloqueado: ${channel}`);
+    return Promise.reject(new Error(`Canal no permitido: ${channel}`));
+  },
 
   // ✨ NUEVAS FUNCIONES PARA EL MENÚ MEJORADO
   obtenerInfoApp: () => ipcRenderer.invoke("obtener-info-app"),

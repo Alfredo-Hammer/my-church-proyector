@@ -560,17 +560,17 @@ const Biblia = () => {
     <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 h-full overflow-hidden">
       {/* Header más compacto */}
       <div className="bg-black/30 backdrop-blur border-b border-white/10">
-        <div className="max-w-7xl mx-auto p-3">
+        <div className="max-w-7xl mx-auto p-3 xl:p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/5 border border-white/10 rounded-xl">
                 <FaBible className="text-lg" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold text-white">
+                <h1 className="text-xl xl:text-2xl font-semibold text-white">
                   Biblia Reina-Valera 1960
                 </h1>
-                <p className="text-white/60 text-sm">
+                <p className="text-white/60 text-xs xl:text-sm">
                   Busca y proyecta versículos de las Sagradas Escrituras
                 </p>
               </div>
@@ -606,7 +606,7 @@ const Biblia = () => {
                 <img
                   src={logoIglesia || "/images/icon-256.png"}
                   alt="Logo Iglesia"
-                  className="w-10 h-10 object-cover rounded-lg"
+                  className="w-8 h-8 xl:w-10 xl:h-10 object-cover rounded-lg"
                   onError={(e) => {
                     e.target.src = "/images/icon-256.png";
                   }}
@@ -650,7 +650,7 @@ const Biblia = () => {
       </div>
 
       {/* Contenido principal con altura fija */}
-      <div className="max-w-7xl mx-auto p-3 h-[calc(100vh-140px)] overflow-y-auto">
+      <div className="max-w-7xl mx-auto p-3 xl:p-4 h-[calc(100vh-130px)] xl:h-[calc(100vh-148px)] overflow-y-auto">
         {/* Sección de libros - Layout horizontal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           {/* Antiguo Testamento */}
@@ -667,7 +667,7 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
               {librosDeLaBiblia.antiguoTestamento.map((libro, index) => (
                 <div
                   key={libro.id}
@@ -710,7 +710,7 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
               {librosDeLaBiblia.nuevoTestamento.map((libro, index) => (
                 <div
                   key={libro.id}
@@ -766,9 +766,9 @@ const Biblia = () => {
                 </div>
               </div>
 
-              <div className="p-3 h-48 overflow-y-auto">
+              <div className="p-3 h-40 lg:h-48 xl:h-56 2xl:h-64 overflow-y-auto">
                 {capitulos.length > 0 ? (
-                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
+                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 xl:grid-cols-14 gap-1.5">
                     {capitulos.map((_, index) => (
                       <div
                         key={index}
@@ -818,9 +818,9 @@ const Biblia = () => {
                 </div>
               </div>
 
-              <div className="p-3 h-48 overflow-y-auto">
+              <div className="p-3 h-40 lg:h-48 xl:h-56 2xl:h-64 overflow-y-auto">
                 {versiculos.length > 0 ? (
-                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
+                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 xl:grid-cols-14 gap-1.5">
                     {versiculos.map((_, index) => (
                       <div
                         key={index}

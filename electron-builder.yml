@@ -27,6 +27,13 @@ extraResources:
     filter:
       - "**/*"
 
+# ============================================================
+# WINDOWS
+# Variables de entorno requeridas para code signing:
+#   WIN_CSC_LINK          → ruta al .pfx o base64 del certificado
+#   WIN_CSC_KEY_PASSWORD  → contraseña del certificado
+# Si las variables no están definidas, se omite la firma (build sin firma).
+# ============================================================
 win:
   target:
     - target: portable
@@ -36,9 +43,13 @@ win:
       arch:
         - x64
   icon: assets/icon.ico
-  verifyUpdateCodeSignature: false
+  verifyUpdateCodeSignature: true
   requestedExecutionLevel: asInvoker
   executableName: GloryViewProyector
+  # Firma con certificado si WIN_CSC_LINK está definido en el entorno
+  signingHashAlgorithms:
+    - sha256
+  signDlls: false
 
 nsis:
   oneClick: false
@@ -53,7 +64,7 @@ nsis:
   installerHeader: assets/icon-256.png
   installerHeaderIcon: assets/icon.ico
   artifactName: "${productName}-${version}-Installer.${ext}"
-  deleteAppDataOnUninstall: false
+  deleteAppDataOnUninstall: true
   runAfterFinish: true
   menuCategory: true
   license: LICENSE.txt
@@ -63,3 +74,33 @@ nsis:
 
 portable:
   artifactName: "${productName}-${version}-Portable.${ext}"
+
+# ============================================================
+# MACOS
+# Variables de entorno requeridas para code signing + notarización:
+#   CSC_LINK            → ruta al .p12 o base64 del certificado
+#   CSC_KEY_PASSWORD    → contraseña del certificado
+#   APPLE_ID            → tu Apple ID (correo)
+#   APPLE_APP_SPECIFIC_PASSWORD → contraseña específica de app (appleid.apple.com)
+#   APPLE_TEAM_ID       → Team ID de Apple Developer
+# ============================================================
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: assets/icon.icns
+  category: public.app-category.music
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.plist
+
+dmg:
+  artifactName: "${productName}-${version}.${ext}"
+  sign: false

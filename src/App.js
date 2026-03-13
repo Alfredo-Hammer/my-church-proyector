@@ -250,7 +250,7 @@ function AppContent() {
 // Componente para el layout principal que adapta el padding según la ruta
 function MainLayout() {
   const location = useLocation();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   // Para la página de inicio y multimedia, no aplicar padding top adicional
   const isInicio = location.pathname === '/';
@@ -259,8 +259,8 @@ function MainLayout() {
   const mainClasses = isInicio
     ? `flex-1 overflow-hidden bg-gray-800 transition-all duration-300`
     : isMultimedia
-      ? `flex-1 overflow-y-auto bg-gray-800 p-4 transition-all duration-300`
-      : `flex-1 overflow-y-auto bg-gray-800 p-4 transition-all duration-300`;
+      ? `flex-1 overflow-hidden bg-gray-800 p-2 lg:p-3 xl:p-4 transition-all duration-300`
+      : `flex-1 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5 transition-all duration-300`;
 
   return (
     <div className="flex h-screen">
@@ -270,7 +270,7 @@ function MainLayout() {
       />
       <main className={mainClasses}>
         {/* Header para todas las páginas excepto Inicio */}
-        {!isInicio && <Header />}
+        {!isInicio && !isMultimedia && <Header />}
         <Routes>
           <Route path="/" element={<Inicio />} />
           <Route path="/biblia" element={<Biblia />} />

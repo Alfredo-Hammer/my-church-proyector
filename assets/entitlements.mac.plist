@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Permite ejecutar código JIT (necesario para Chromium/Electron) -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Permite memoria ejecutable sin firma (necesario para Electron) -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Permite cargar librerías DYLIB sin firma de Apple -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Acceso a archivos del usuario (para abrir multimedia/fondos) -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- Acceso a red (para YouTube y Pixabay) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+  </dict>
+</plist>

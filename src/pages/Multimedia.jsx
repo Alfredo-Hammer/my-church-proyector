@@ -20,16 +20,13 @@ import {
   FaTimesCircle,
   FaInfoCircle,
   FaLink,
-  FaHistory,
   FaSearch,
   FaFilter,
   FaTh,
   FaList,
   FaDownload,
   FaEye,
-  FaShare,
   FaCopy,
-  FaGlobe,
   FaYoutube,
 } from "react-icons/fa";
 
@@ -62,7 +59,7 @@ const NotificationItem = ({notification}) => {
 
   return (
     <div
-      className={`${getBgColor()} backdrop-blur-sm border rounded-lg p-4 shadow-lg animate-slide-in-right`}
+      className={`${getBgColor()} backdrop-blur-sm border rounded-lg p-4 shadow-lg`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 mt-0.5">{getIcon()}</div>
@@ -95,8 +92,6 @@ const Multimedia = () => {
     playMedia: playMediaGlobal,
     togglePlayPause,
     stop: stopGlobal,
-    pause,
-    resume,
   } = useMediaPlayer();
 
   // Estados principales
@@ -109,12 +104,11 @@ const Multimedia = () => {
   const [customQuickLinks, setCustomQuickLinks] = useState([]);
   const [urlHistory, setUrlHistory] = useState([]);
   const [showUrlModal, setShowUrlModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Estados para UI
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("list");
   const [notifications, setNotifications] = useState([]);
 
   // Estado para control remoto del proyector
@@ -163,6 +157,7 @@ const Multimedia = () => {
     }
 
     loadMediaFromDB();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Monitorear conectividad a internet
@@ -243,47 +238,6 @@ const Multimedia = () => {
     return url; // Devolver la original si todo falla
   };
 
-  // ✨ FUNCIÓN DE VERIFICACIÓN DEL SERVIDOR MULTIMEDIA
-  const verificarServidorMultimedia = async () => {
-    try {
-      console.log("🔍 [Debug] Verificando servidor multimedia...");
-
-      // Probar conectividad básica
-      const response = await fetch(`${getBaseURL()}/debug/multimedia`, {
-        method: "GET",
-        timeout: 5000,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Servidor respondió con ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      console.log("✅ [Debug] Servidor multimedia funcionando:");
-      console.log(`  - Puerto: 3001`);
-      console.log(`  - Public dir: ${data.publicDir}`);
-      console.log(`  - Build dir: ${data.buildDir}`);
-      console.log(`  - Archivos public: ${data.publicFiles.length}`);
-      console.log(`  - Archivos build: ${data.buildFiles.length}`);
-
-      return {
-        working: true,
-        port: 3001,
-        filesCount: data.totalFiles.length,
-        directories: [data.publicDir, data.buildDir],
-        files: data.totalFiles,
-      };
-    } catch (error) {
-      console.error("❌ [Debug] Error verificando servidor multimedia:", error);
-      return {
-        working: false,
-        error: error.message,
-        port: 3001,
-      };
-    }
-  };
-
   // ✨ FUNCIÓN DE VALIDACIÓN COMPLETA DE MULTIMEDIA
   const validarMultimediaAntes = async (media) => {
     console.log("🔍 [Validación] ========== INICIO VALIDACIÓN ==========");
@@ -327,7 +281,7 @@ const Multimedia = () => {
         ) {
           mediaUrl = media.ruta_archivo;
         } else {
-          const archivoLimpio = media.ruta_archivo.replace(/^.*[\\\/]/, "");
+          const archivoLimpio = media.ruta_archivo.replace(/^.*[\\/]/, "");
           if (media.ruta_archivo.includes("/multimedia/")) {
             const parteDespuesMultimedia =
               media.ruta_archivo.split("/multimedia/")[1];
@@ -967,6 +921,7 @@ const Multimedia = () => {
   };
 
   // ✨ FUNCIÓN MEJORADA PARA PROYECTAR EN PANTALLA
+  // eslint-disable-next-line no-unused-vars
   const projectToScreen = async (media) => {
     try {
       console.log(
@@ -1045,7 +1000,7 @@ const Multimedia = () => {
             mediaUrl,
           );
         } else {
-          const archivoLimpio = media.ruta_archivo.replace(/^.*[\\\/]/, ""); // Solo el nombre del archivo
+          const archivoLimpio = media.ruta_archivo.replace(/^.*[\\/]/, ""); // Solo el nombre del archivo
           mediaUrl = `${getBaseURL()}/multimedia/${archivoLimpio}`;
           console.log(
             "🔗 [Multimedia] URL construida desde nombre de archivo:",
@@ -1829,7 +1784,7 @@ const Multimedia = () => {
   // Actualizar las funciones de YouTube
   const extractVideoId = (url) => {
     const regex =
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+      /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
   };
@@ -2042,41 +1997,6 @@ const Multimedia = () => {
     showSuccess(`▶️ Reproduciendo: ${link.name}`);
   };
 
-  const playFromHistory = (historyItem) => {
-    let finalUrl = historyItem.url;
-
-    if (historyItem.isYoutube || isYouTubeUrl(historyItem.url)) {
-      finalUrl = convertYouTubeToEmbedUrl(historyItem.url);
-    }
-
-    const mediaItem = {
-      id: Date.now(),
-      nombre: historyItem.title,
-      url: finalUrl,
-      originalUrl: historyItem.url,
-      tipo: historyItem.isYoutube ? "youtube" : "video",
-      tamaño: "URL",
-      favorito: false,
-      reproducido: 0,
-      isUrl: true,
-      isYoutube: historyItem.isYoutube || isYouTubeUrl(historyItem.url),
-    };
-
-    playMediaGlobal(mediaItem); // Reproducir desde historial
-    setShowHistoryModal(false);
-    showInfo(`<strong>Reproduciendo:</strong><br/>📺 ${historyItem.title}`);
-  };
-
-  const clearHistory = () => {
-    if (
-      window.confirm("¿Estás seguro de que quieres limpiar todo el historial?")
-    ) {
-      setUrlHistory([]);
-      localStorage.removeItem("multimedia-url-history");
-      showInfo("🗑️ Historial limpiado");
-    }
-  };
-
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     showSuccess("📋 Copiado al portapapeles");
@@ -2142,7 +2062,7 @@ const Multimedia = () => {
   });
 
   return (
-    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen overflow-y-auto">
+    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 h-full min-h-0 overflow-hidden flex flex-col">
       {/* ✨ CONTENEDOR DE NOTIFICACIONES */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
         {notifications.map((notification) => (
@@ -2152,17 +2072,17 @@ const Multimedia = () => {
 
       {/* ✨ HEADER MODERNO ESTILO YOUTUBE */}
       <div className="bg-black/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
-        <div className="max-w-full mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
-                <FaPlay className="text-2xl" />
+        <div className="max-w-full mx-auto px-4 xl:px-6 py-3 xl:py-4">
+          <div className="flex items-center justify-between mb-3 xl:mb-4">
+            <div className="flex items-center gap-3 xl:gap-4">
+              <div className="p-2 xl:p-3 bg-white/5 border border-white/10 rounded-xl">
+                <FaPlay className="text-xl xl:text-2xl" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-white">
+                <h1 className="text-2xl xl:text-3xl font-semibold text-white">
                   Glory Studio
                 </h1>
-                <p className="text-white/60">
+                <p className="text-white/60 text-sm xl:text-base">
                   Tu centro de contenido multimedia
                 </p>
               </div>
@@ -2171,7 +2091,7 @@ const Multimedia = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowUrlModal(true)}
-                className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl border border-white/10 transition-colors flex items-center gap-2"
+                className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl border border-white/10 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
               >
                 <FaLink />
                 <span>Agregar URL</span>
@@ -2185,7 +2105,7 @@ const Multimedia = () => {
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
                     : "bg-emerald-600/90 hover:bg-emerald-600"
-                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2`}
+                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
                 title="Recomendado para videos grandes"
               >
                 <FaUpload />
@@ -2199,7 +2119,7 @@ const Multimedia = () => {
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
                     : "bg-emerald-600/90 hover:bg-emerald-600 cursor-pointer"
-                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2`}
+                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
                 title="Para archivos pequeños"
               >
                 <FaUpload />
@@ -2232,575 +2152,341 @@ const Multimedia = () => {
               </div>
             </div>
           )}
-
-          {/* Barra de búsqueda y controles */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex-1 relative">
-                <FaSearch className="absolute left-3 top-3 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar multimedia..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white/10 border border-gray-600 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition-all duration-300"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <FaFilter className="text-gray-400" />
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="bg-white/10 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-400"
-                >
-                  <option value="all" className="bg-gray-800">
-                    Todos
-                  </option>
-                  <option value="video" className="bg-gray-800">
-                    Videos
-                  </option>
-                  <option value="youtube" className="bg-gray-800">
-                    YouTube
-                  </option>
-                  <option value="audio" className="bg-gray-800">
-                    Audio
-                  </option>
-                  <option value="imagen" className="bg-gray-800">
-                    ImágenesZ
-                  </option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === "grid"
-                      ? "bg-red-500 text-white"
-                      : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <FaTh />
-                </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === "list"
-                      ? "bg-red-500 text-white"
-                      : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <FaList />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-sm text-gray-400">
-              {filteredMedia.length} de {mediaFiles.length} archivos
-            </div>
-          </div>
-
-          {/* ✨ ESTADÍSTICAS - Ancho completo, cards más pequeñas */}
-          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-lg p-4 border border-gray-700/50">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-white">
-              <FaInfoCircle className="text-blue-400 text-sm" />
-              Estadísticas
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-white">
-                  {mediaFiles.length}
-                </div>
-                <div className="text-xs text-gray-400">Total</div>
-              </div>
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-purple-400">
-                  {
-                    mediaFiles.filter(
-                      (m) =>
-                        getMediaType(m) === "video" ||
-                        getMediaType(m) === "youtube",
-                    ).length
-                  }
-                </div>
-                <div className="text-xs text-gray-400">Videos</div>
-              </div>
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-green-400">
-                  {mediaFiles.filter((m) => getMediaType(m) === "audio").length}
-                </div>
-                <div className="text-xs text-gray-400">Audio</div>
-              </div>
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-pink-400">
-                  {
-                    mediaFiles.filter(
-                      (m) =>
-                        getMediaType(m) === "imagen" ||
-                        getMediaType(m) === "image",
-                    ).length
-                  }
-                </div>
-                <div className="text-xs text-gray-400">Imágenes</div>
-              </div>
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-yellow-400 flex items-center justify-center gap-1">
-                  <FaStar className="text-xs" />
-                  {mediaFiles.filter((m) => m.favorito).length}
-                </div>
-                <div className="text-xs text-gray-400">Favoritos</div>
-              </div>
-              <div className="bg-gray-700/30 rounded-lg p-2 text-center">
-                <div className="text-xl font-bold text-blue-400 flex items-center justify-center gap-1">
-                  <FaLink className="text-xs" />
-                  {mediaFiles.filter((m) => m.isUrl).length}
-                </div>
-                <div className="text-xs text-gray-400">URLs</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* Columna Izquierda: Reproductor */}
-          <div className="xl:col-span-2">
-            {/* Reproductor Principal */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl mb-6">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-red-500/20 p-3 rounded-full">
-                  <FaPlay className="text-red-400 text-xl" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Reproductor Principal
-                  </h2>
-                  <p className="text-gray-400">
-                    Control de multimedia y reproducción
-                  </p>
-                </div>
-              </div>
-
-              {mediaForPlayer ? (
-                <div className="space-y-4">
-                  {/* Información del archivo actual */}
-                  <div className="bg-gray-700/50 p-4 rounded-xl">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-white truncate mb-1">
-                          {getMediaName(mediaForPlayer)}
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <span className="capitalize">
-                            {getMediaType(mediaForPlayer)}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {mediaForPlayer.isUrl
-                              ? "URL"
-                              : `${getMediaSize(mediaForPlayer)} MB`}
-                          </span>
-                          {!currentMedia && (
-                            <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
-                              Última reproducción
-                            </span>
-                          )}
-                          {mediaForPlayer.favorito && (
-                            <FaStar className="text-yellow-400" />
-                          )}
-                          {mediaForPlayer.isUrl && (
-                            <FaLink className="text-blue-400" />
-                          )}
-                          {isMediaForPlayerYouTube && (
-                            <FaYoutube className="text-red-500" />
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => toggleFavorite(mediaForPlayer)}
-                        className={`p-2 rounded transition-colors ${
-                          mediaForPlayer.favorito
-                            ? "text-yellow-400"
-                            : "text-gray-400 hover:text-yellow-400"
-                        }`}
-                      >
-                        {mediaForPlayer.favorito ? <FaStar /> : <FaRegStar />}
-                      </button>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-screen-2xl mx-auto px-3 xl:px-4 py-4 xl:py-6 h-full min-h-0 flex flex-col">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 xl:gap-6 items-stretch flex-1 min-h-0">
+            {/* Biblioteca Multimedia (izquierda, vertical) */}
+            <div className="order-2 xl:order-1 xl:col-span-4 2xl:col-span-3 min-h-0">
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 xl:p-4 border border-white/10 shadow-xl h-full flex flex-col min-h-0">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="bg-red-500/20 p-2.5 rounded-full">
+                      <FaFolder className="text-red-400 text-lg" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-semibold text-white truncate">
+                        Biblioteca Multimedia
+                      </h2>
+                      <p className="text-xs text-white/60 truncate">
+                        {filteredMedia.length} de {mediaFiles.length}
+                      </p>
                     </div>
                   </div>
-
-                  {/* Vista previa */}
-                  <div
-                    id="multimedia-preview-container"
-                    className={`rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative ${
-                      isMediaForPlayerYouTube ||
-                      getMediaType(mediaForPlayer) === "video"
-                        ? "bg-transparent"
-                        : "bg-black"
-                    }`}
+                  <button
+                    onClick={loadMediaFromDB}
+                    className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                    title="Actualizar biblioteca"
                   >
-                    {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
-                    {isMediaForPlayerYouTube ||
-                    getMediaType(mediaForPlayer) === "video" ? (
-                      // Área vacía donde se posicionará el GlobalMediaPlayer
-                      <div className="w-full h-full" />
-                    ) : getMediaType(mediaForPlayer) === "audio" ? (
-                      <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
-                        <FaMusic className="text-green-400 text-6xl mb-6" />
-                        <h3 className="text-xl font-semibold text-white mb-4">
-                          {getMediaName(mediaForPlayer)}
-                        </h3>
-                        {/* Visualización del audio - El audio real se reproduce en el contexto global */}
-                        <div className="w-full max-w-md bg-gray-800/50 rounded-lg p-6 text-center">
-                          <p className="text-gray-300 text-sm mb-2">
-                            🎵 Audio reproduciéndose en el reproductor global
-                          </p>
-                          <p className="text-gray-400 text-xs">
-                            El control de audio aparece en la barra inferior
-                          </p>
-                        </div>
-                      </div>
-                    ) : getMediaType(mediaForPlayer) === "imagen" ? (
-                      <img
-                        src={mediaForPlayer.validatedUrl || mediaForPlayer.url}
-                        alt={getMediaName(mediaForPlayer)}
-                        className="max-w-full max-h-full object-contain"
-                        onLoad={() => console.log("✅ Imagen cargada")}
-                        onError={(e) => {
-                          console.error("❌ Error cargando imagen:", e);
-                          const mensaje = `Error cargando imagen: ${getMediaName(
-                            mediaForPlayer,
-                          )}`;
-                          console.error(
-                            "📁 URL problemática:",
-                            mediaForPlayer.url,
-                          );
-                          showError(
-                            `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
-                          );
-                        }}
-                      />
-                    ) : getMediaType(mediaForPlayer) === "video" ? (
-                      <div className="w-full h-full" />
-                    ) : null}
+                    <FaDownload className="text-base" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <FaFilter className="text-white/40" />
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="bg-white/10 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                    >
+                      <option value="all" className="bg-gray-800">
+                        Todos
+                      </option>
+                      <option value="video" className="bg-gray-800">
+                        Videos
+                      </option>
+                      <option value="youtube" className="bg-gray-800">
+                        YouTube
+                      </option>
+                      <option value="audio" className="bg-gray-800">
+                        Audio
+                      </option>
+                      <option value="imagen" className="bg-gray-800">
+                        Imágenes
+                      </option>
+                    </select>
                   </div>
 
-                  {/* Controles principales */}
-                  <div className="flex items-center justify-center space-x-3">
-                    {!isMediaForPlayerYouTube && (
-                      <>
-                        <button
-                          onClick={handleTogglePlayPause}
-                          className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-all duration-300 transform hover:scale-105"
-                        >
-                          {isPlaying ? (
-                            <FaPause className="text-xl" />
-                          ) : (
-                            <FaPlay className="text-xl" />
-                          )}
-                        </button>
-                        <button
-                          onClick={stopGlobal}
-                          className="bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full transition-all duration-300"
-                        >
-                          <FaStop />
-                        </button>
-                      </>
-                    )}
+                  <div className="flex-1 relative">
+                    <FaSearch className="absolute left-3 top-2.5 text-white/30 text-sm" />
+                    <input
+                      type="text"
+                      placeholder="Buscar..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => projectToScreenNew(mediaForPlayer)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-all duration-300"
-                      title="Proyectar en pantalla completa"
+                      onClick={() => setViewMode("list")}
+                      className={`p-2 rounded-lg transition-colors ${
+                        viewMode === "list"
+                          ? "bg-red-500 text-white"
+                          : "bg-white/10 text-white/60 hover:text-white"
+                      }`}
+                      title="Vista lista"
                     >
-                      <FaExpand />
+                      <FaList />
                     </button>
                     <button
-                      onClick={clearProjector}
-                      className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
-                      title="Limpiar proyector"
+                      onClick={() => setViewMode("grid")}
+                      className={`p-2 rounded-lg transition-colors ${
+                        viewMode === "grid"
+                          ? "bg-red-500 text-white"
+                          : "bg-white/10 text-white/60 hover:text-white"
+                      }`}
+                      title="Vista grid"
                     >
-                      <FaTimes />
+                      <FaTh />
                     </button>
-                    {mediaForPlayer.originalUrl && (
-                      <button
-                        onClick={() =>
-                          copyToClipboard(mediaForPlayer.originalUrl)
-                        }
-                        className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
-                        title="Copiar URL original"
-                      >
-                        <FaCopy />
-                      </button>
-                    )}
                   </div>
+                </div>
 
-                  {/* Controles del proyector cuando hay multimedia proyectada */}
-                  {proyectingMedia && (
-                    <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mt-4">
-                      <div className="text-center mb-3">
-                        <h4 className="text-blue-300 font-medium mb-1">
-                          🎬 Control del Proyector
-                        </h4>
-                        <p className="text-blue-200 text-sm">
-                          Proyectando: {getMediaName(proyectingMedia)}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-center space-x-3">
-                        <button
-                          onClick={playProyector}
-                          className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                          title="Reproducir en proyector"
-                        >
-                          <FaPlay className="text-lg" />
-                        </button>
-                        <button
-                          onClick={pauseProyector}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                          title="Pausar en proyector"
-                        >
-                          <FaPause className="text-lg" />
-                        </button>
-                        <button
-                          onClick={stopProyector}
-                          className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                          title="Detener en proyector"
-                        >
-                          <FaStop className="text-lg" />
-                        </button>
-                        <button
-                          onClick={limpiarProyectorRemoto}
-                          className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                          title="Limpiar proyector (ESC)"
-                        >
-                          <FaTimes className="text-lg" />
-                        </button>
-                      </div>
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                  {loading && mediaFiles.length === 0 ? (
+                    <div className="text-center py-10">
+                      <div className="animate-spin rounded-full h-10 w-10 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-3"></div>
+                      <p className="text-white/60 text-sm">
+                        Cargando biblioteca...
+                      </p>
                     </div>
-                  )}
-
-                  {/* Control de volumen (solo para no-YouTube) */}
-                  {!isMediaForPlayerYouTube && (
-                    <div className="bg-gray-700/50 p-4 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FaVolumeUp className="text-gray-300 flex-shrink-0" />
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={volume}
-                          onChange={(e) => setVolume(e.target.value)}
-                          className="flex-1 accent-red-400"
-                        />
-                        <span className="text-sm text-gray-300 w-12 text-center">
-                          {volume}%
-                        </span>
-                      </div>
+                  ) : filteredMedia.length === 0 ? (
+                    <div className="text-center py-10">
+                      <FaVideoSlash className="text-5xl text-white/25 mx-auto mb-3" />
+                      <h3 className="text-base font-semibold text-white/60 mb-1">
+                        {searchTerm
+                          ? "No se encontraron resultados"
+                          : "Biblioteca vacía"}
+                      </h3>
+                      <p className="text-white/40 text-sm">
+                        {searchTerm
+                          ? "Intenta con otros términos"
+                          : "Sube tu primer archivo multimedia"}
+                      </p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="bg-gray-700/50 p-8 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-                    <FaVideoSlash className="text-4xl text-gray-500" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-400 mb-2">
-                    Sin contenido seleccionado
-                  </h3>
-                  <p className="text-gray-500 text-sm">
-                    Selecciona un archivo para reproducir o agrega una URL
-                  </p>
-                </div>
-              )}
-            </div>
+                  ) : (
+                    <div
+                      className={`${
+                        viewMode === "grid"
+                          ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+                          : "space-y-2"
+                      }`}
+                    >
+                      {filteredMedia.map((media) => {
+                        const isCurrentlyPlaying =
+                          currentMedia?.id === media.id;
 
-            {/* Biblioteca de medios */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-red-500/20 p-3 rounded-full">
-                    <FaFolder className="text-red-400 text-xl" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">
-                      Biblioteca Multimedia
-                    </h2>
-                    <p className="text-gray-400">
-                      Gestiona tu contenido multimedia
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={loadMediaFromDB}
-                  className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/20 rounded-lg transition-all duration-300"
-                  title="Actualizar biblioteca"
-                >
-                  <FaDownload className="text-lg" />
-                </button>
-              </div>
-
-              {loading && mediaFiles.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-4"></div>
-                  <p className="text-gray-400">Cargando biblioteca...</p>
-                </div>
-              ) : filteredMedia.length === 0 ? (
-                <div className="text-center py-12">
-                  <FaVideoSlash className="text-6xl text-gray-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-400 mb-2">
-                    {searchTerm
-                      ? "No se encontraron resultados"
-                      : "Biblioteca vacía"}
-                  </h3>
-                  <p className="text-gray-500">
-                    {searchTerm
-                      ? "Intenta con otros términos de búsqueda"
-                      : "Sube tu primer archivo multimedia"}
-                  </p>
-                </div>
-              ) : (
-                <div
-                  className={`${
-                    viewMode === "grid"
-                      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-                      : "space-y-3"
-                  }`}
-                >
-                  {filteredMedia.map((media) => {
-                    const isCurrentlyPlaying = currentMedia?.id === media.id;
-
-                    return (
-                      <div
-                        key={media.id}
-                        className={`${
-                          viewMode === "grid"
-                            ? `bg-gray-700/50 rounded-xl overflow-hidden hover:bg-gray-600/50 transition-all duration-300 hover:scale-105 group cursor-pointer ${
-                                isCurrentlyPlaying
-                                  ? "ring-2 ring-green-500"
-                                  : ""
-                              }`
-                            : `flex items-center p-3 rounded-xl transition-all duration-300 hover:bg-gray-700/50 ${
-                                isCurrentlyPlaying
-                                  ? "bg-green-900/30 border-2 border-green-400"
-                                  : "bg-gray-700/30"
-                              }`
-                        }`}
-                        onClick={() => playMedia(media)}
-                      >
-                        {viewMode === "grid" ? (
-                          <>
-                            <div className="aspect-video bg-gray-800 relative overflow-hidden">
-                              {getMediaType(media) === "video" ? (
-                                <>
-                                  <video
-                                    src={media.url}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <FaPlay className="text-white text-3xl" />
-                                  </div>
-                                </>
-                              ) : getMediaType(media) === "youtube" ? (
-                                <div className="w-full h-full relative bg-black">
-                                  <img
-                                    src={getYouTubeThumbnail(
-                                      media.url || media.originalUrl,
-                                    )}
-                                    alt={getMediaName(media)}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      e.target.style.display = "none";
-                                      e.target.nextSibling.style.display =
-                                        "flex";
-                                    }}
-                                  />
-                                  <div className="hidden w-full h-full bg-gradient-to-br from-red-600/20 to-red-800/20 items-center justify-center">
-                                    <FaYoutube className="text-red-400 text-4xl" />
-                                  </div>
-                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <FaPlay className="text-white text-3xl" />
-                                  </div>
-                                </div>
-                              ) : getMediaType(media) === "audio" ? (
-                                <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex items-center justify-center">
-                                  <FaMusic className="text-green-400 text-4xl" />
-                                </div>
-                              ) : (
-                                <img
-                                  src={media.url}
-                                  alt={getMediaName(media)}
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-
-                              <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
-                                {isCurrentlyPlaying && (
-                                  <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
-                                    <FaPlay className="text-[10px]" />
-                                    REPRODUCIENDO
-                                  </div>
-                                )}
-                                {media.favorito && (
-                                  <div className="bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold">
-                                    <FaStar />
-                                  </div>
-                                )}
-                                {media.isUrl && (
-                                  <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                                    URL
-                                  </div>
-                                )}
-                                {getMediaType(media) === "youtube" && (
-                                  <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                                    YT
-                                  </div>
-                                )}
-                                {getMediaType(media) === "youtube" &&
-                                  !hayInternet && (
-                                    <div className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                                      <FaExclamationTriangle className="text-[10px]" />
-                                      SIN INTERNET
+                        return (
+                          <div
+                            key={media.id}
+                            className={`${
+                              viewMode === "grid"
+                                ? `bg-gray-700/50 rounded-xl overflow-hidden hover:bg-gray-600/50 transition-colors group cursor-pointer ${
+                                    isCurrentlyPlaying
+                                      ? "ring-2 ring-green-500"
+                                      : ""
+                                  }`
+                                : `flex items-center p-2 rounded-xl transition-colors hover:bg-gray-700/50 ${
+                                    isCurrentlyPlaying
+                                      ? "bg-green-900/30 border-2 border-green-400"
+                                      : "bg-gray-700/30"
+                                  }`
+                            }`}
+                            onClick={() => playMedia(media)}
+                          >
+                            {viewMode === "grid" ? (
+                              <>
+                                <div className="aspect-video bg-gray-800 relative overflow-hidden">
+                                  {getMediaType(media) === "video" ? (
+                                    <>
+                                      <video
+                                        src={media.url}
+                                        className="w-full h-full object-cover"
+                                        muted
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <FaPlay className="text-white text-3xl" />
+                                      </div>
+                                    </>
+                                  ) : getMediaType(media) === "youtube" ? (
+                                    <div className="w-full h-full relative bg-black">
+                                      <img
+                                        src={getYouTubeThumbnail(
+                                          media.url || media.originalUrl,
+                                        )}
+                                        alt={getMediaName(media)}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.target.style.display = "none";
+                                          e.target.nextSibling.style.display =
+                                            "flex";
+                                        }}
+                                      />
+                                      <div className="hidden w-full h-full bg-gradient-to-br from-red-600/20 to-red-800/20 items-center justify-center">
+                                        <FaYoutube className="text-red-400 text-4xl" />
+                                      </div>
+                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <FaPlay className="text-white text-3xl" />
+                                      </div>
                                     </div>
+                                  ) : getMediaType(media) === "audio" ? (
+                                    <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex items-center justify-center">
+                                      <FaMusic className="text-green-400 text-4xl" />
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={media.url}
+                                      alt={getMediaName(media)}
+                                      className="w-full h-full object-cover"
+                                    />
                                   )}
-                              </div>
 
-                              <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                                {media.isUrl
-                                  ? "URL"
-                                  : `${getMediaSize(media)} MB`}
-                              </div>
-                            </div>
+                                  <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                                    {isCurrentlyPlaying && (
+                                      <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
+                                        <FaPlay className="text-[10px]" />
+                                        REPRODUCIENDO
+                                      </div>
+                                    )}
+                                    {media.favorito && (
+                                      <div className="bg-yellow-500 text-black px-2 py-1 rounded-full text-xs font-bold">
+                                        <FaStar />
+                                      </div>
+                                    )}
+                                    {media.isUrl && (
+                                      <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                                        URL
+                                      </div>
+                                    )}
+                                    {getMediaType(media) === "youtube" && (
+                                      <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                                        YT
+                                      </div>
+                                    )}
+                                    {getMediaType(media) === "youtube" &&
+                                      !hayInternet && (
+                                        <div className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                          <FaExclamationTriangle className="text-[10px]" />
+                                          SIN INTERNET
+                                        </div>
+                                      )}
+                                  </div>
 
-                            <div className="p-4">
-                              <h3 className="font-semibold text-white truncate mb-1">
-                                {getMediaName(media)}
-                              </h3>
-                              <div className="flex items-center justify-between text-sm text-gray-400">
-                                <span className="capitalize">
-                                  {getMediaType(media)}
-                                </span>
-                                {media.reproducido > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <FaEye className="text-xs" />
-                                    {media.reproducido}
-                                  </span>
-                                )}
-                              </div>
+                                  <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                                    {media.isUrl
+                                      ? "URL"
+                                      : `${getMediaSize(media)} MB`}
+                                  </div>
+                                </div>
 
-                              <div className="flex justify-between items-center mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="flex gap-1">
+                                <div className="p-3">
+                                  <h3 className="font-semibold text-white truncate mb-1">
+                                    {getMediaName(media)}
+                                  </h3>
+                                  <div className="flex items-center justify-between text-sm text-gray-400">
+                                    <span className="capitalize">
+                                      {getMediaType(media)}
+                                    </span>
+                                    {media.reproducido > 0 && (
+                                      <span className="flex items-center gap-1">
+                                        <FaEye className="text-xs" />
+                                        {media.reproducido}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                  <div className="w-16 h-10 bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 relative">
+                                    {getMediaType(media) === "imagen" ||
+                                    getMediaType(media) === "image" ? (
+                                      <img
+                                        src={media.url}
+                                        alt={getMediaName(media)}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display =
+                                            "none";
+                                        }}
+                                      />
+                                    ) : getMediaType(media) === "youtube" ? (
+                                      <>
+                                        <img
+                                          src={getYouTubeThumbnail(
+                                            media.url || media.originalUrl,
+                                          )}
+                                          alt={getMediaName(media)}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display =
+                                              "none";
+                                          }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                          <FaYoutube className="text-red-500" />
+                                        </div>
+                                      </>
+                                    ) : getMediaType(media) === "video" ? (
+                                      <>
+                                        <video
+                                          src={media.url}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          playsInline
+                                          preload="metadata"
+                                        />
+                                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                          <FaPlay className="text-white/90 text-sm" />
+                                        </div>
+                                      </>
+                                    ) : (
+                                      getMediaIcon(getMediaType(media))
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="font-medium text-white truncate text-sm">
+                                      {getMediaName(media)}
+                                    </h3>
+                                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                                      <span className="capitalize">
+                                        {getMediaType(media)}
+                                      </span>
+                                      <span>
+                                        {media.isUrl
+                                          ? "URL"
+                                          : `${getMediaSize(media)} MB`}
+                                      </span>
+                                      {media.favorito && (
+                                        <FaStar className="text-yellow-400" />
+                                      )}
+                                      {getMediaType(media) === "youtube" && (
+                                        <FaYoutube className="text-red-500" />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex space-x-1">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       toggleFavorite(media);
                                     }}
-                                    className={`p-1 rounded transition-colors ${
+                                    className={`p-2 rounded transition-colors ${
                                       media.favorito
                                         ? "text-yellow-400"
                                         : "text-gray-400 hover:text-yellow-400"
                                     }`}
+                                    title={
+                                      media.favorito
+                                        ? "Quitar de favoritos"
+                                        : "Agregar a favoritos"
+                                    }
                                   >
                                     {media.favorito ? (
                                       <FaStar />
@@ -2813,178 +2499,396 @@ const Multimedia = () => {
                                       e.stopPropagation();
                                       projectToScreenNew(media);
                                     }}
-                                    className="p-1 text-gray-400 hover:text-blue-400 rounded transition-colors"
+                                    className="p-2 text-blue-400 hover:bg-blue-900/30 rounded transition-colors"
+                                    title="Proyectar"
                                   >
                                     <FaExpand />
                                   </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteMedia(media.id);
+                                    }}
+                                    className="p-2 text-red-400 hover:bg-red-900/30 rounded transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <FaTrash />
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteMedia(media.id);
-                                  }}
-                                  className="p-1 text-gray-400 hover:text-red-400 rounded transition-colors"
-                                >
-                                  <FaTrash />
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center space-x-4 flex-1 min-w-0">
-                              <div className="w-16 h-12 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
-                                {getMediaIcon(getMediaType(media))}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-white truncate">
-                                  {getMediaName(media)}
-                                </h3>
-                                <div className="flex items-center gap-3 text-sm text-gray-400">
-                                  <span className="capitalize">
-                                    {getMediaType(media)}
-                                  </span>
-                                  <span>
-                                    {media.isUrl
-                                      ? "URL"
-                                      : `${getMediaSize(media)} MB`}
-                                  </span>
-                                  {media.reproducido > 0 && (
-                                    <span className="flex items-center gap-1">
-                                      <FaEye className="text-xs" />
-                                      {media.reproducido}
-                                    </span>
-                                  )}
-                                  {media.favorito && (
-                                    <FaStar className="text-yellow-400" />
-                                  )}
-                                  {media.isUrl && (
-                                    <FaLink className="text-blue-400" />
-                                  )}
-                                  {getMediaType(media) === "youtube" && (
-                                    <FaYoutube className="text-red-500" />
-                                  )}
-                                  {getMediaType(media) === "youtube" &&
-                                    !hayInternet && (
-                                      <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
-                                        <FaExclamationTriangle className="text-[10px]" />
-                                        SIN INTERNET
-                                      </span>
-                                    )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(media);
-                                }}
-                                className={`p-2 rounded transition-colors ${
-                                  media.favorito
-                                    ? "text-yellow-400"
-                                    : "text-gray-400 hover:text-yellow-400"
-                                }`}
-                              >
-                                {media.favorito ? <FaStar /> : <FaRegStar />}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  projectToScreenNew(media);
-                                }}
-                                className="p-2 text-blue-400 hover:bg-blue-900/30 rounded transition-colors"
-                              >
-                                <FaExpand />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteMedia(media.id);
-                                }}
-                                className="p-2 text-red-400 hover:bg-red-900/30 rounded transition-colors"
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
 
-          {/* ✨ SIDEBAR CON ENLACES RÁPIDOS - MANTENER SOLO ESTA VERSIÓN */}
-          <div className="xl:col-span-1 space-y-6">
-            {/* Enlaces rápidos YouTube */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FaYoutube className="text-red-500" />
-                Accesos Rápidos
-              </h3>
+            {/* Reproductor (centro/derecha) */}
+            <div className="order-1 xl:order-2 xl:col-span-6 2xl:col-span-7 min-h-0">
+              {/* Estadísticas (sin contenedor padre, alineadas al ancho del reproductor) */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 mb-3">
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-white">
+                    {mediaFiles.length}
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    Total
+                  </div>
+                </div>
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-purple-400">
+                    {
+                      mediaFiles.filter(
+                        (m) =>
+                          getMediaType(m) === "video" ||
+                          getMediaType(m) === "youtube",
+                      ).length
+                    }
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    Videos
+                  </div>
+                </div>
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-green-400">
+                    {
+                      mediaFiles.filter((m) => getMediaType(m) === "audio")
+                        .length
+                    }
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    Audio
+                  </div>
+                </div>
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-pink-400">
+                    {
+                      mediaFiles.filter(
+                        (m) =>
+                          getMediaType(m) === "imagen" ||
+                          getMediaType(m) === "image",
+                      ).length
+                    }
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    Imágenes
+                  </div>
+                </div>
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-yellow-400 flex items-center justify-center gap-1">
+                    <FaStar className="text-[10px]" />
+                    {mediaFiles.filter((m) => m.favorito).length}
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    Favoritos
+                  </div>
+                </div>
+                <div className="bg-black/15 rounded-lg p-1 text-center border border-white/10">
+                  <div className="text-[15px] leading-5 font-bold text-blue-400 flex items-center justify-center gap-1">
+                    <FaLink className="text-[10px]" />
+                    {mediaFiles.filter((m) => m.isUrl).length}
+                  </div>
+                  <div className="text-[11px] leading-4 text-gray-400">
+                    URLs
+                  </div>
+                </div>
+              </div>
 
-              {/* Enlaces personalizados */}
-              {customQuickLinks.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <FaStar className="text-yellow-400" />
-                      Tus Enlaces Personalizados
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        customQuickLinks.length >= 18
-                          ? "bg-red-500/20 text-red-400"
-                          : "bg-blue-500/20 text-blue-400"
-                      }`}
-                    >
-                      {customQuickLinks.length}/20
-                    </span>
-                  </h4>
-                  {/* Mostrar primeros 10 sin scroll */}
-                  <div className="space-y-2">
-                    {customQuickLinks.slice(0, 10).map((link) => {
-                      const isLinkPlaying = currentMedia?.url === link.url;
+              {/* Reproductor Principal */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl mb-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="bg-red-500/20 p-3 rounded-full">
+                    <FaPlay className="text-red-400 text-xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">
+                      Reproductor Principal
+                    </h2>
+                    <p className="text-white/60">
+                      Control de multimedia y reproducción
+                    </p>
+                  </div>
+                </div>
 
-                      return (
-                        <div
-                          key={link.id}
-                          className={`group rounded-lg overflow-hidden transition-all duration-300 hover:scale-[1.02] ${
-                            isLinkPlaying
-                              ? "bg-green-700/40 ring-2 ring-green-500"
-                              : "bg-gray-700/30 hover:bg-gray-600/50"
+                {mediaForPlayer ? (
+                  <div className="space-y-4">
+                    {/* Información del archivo actual */}
+                    <div className="bg-gray-700/50 p-4 rounded-xl">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-white truncate mb-1">
+                            {getMediaName(mediaForPlayer)}
+                          </h3>
+                          <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <span className="capitalize">
+                              {getMediaType(mediaForPlayer)}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {mediaForPlayer.isUrl
+                                ? "URL"
+                                : `${getMediaSize(mediaForPlayer)} MB`}
+                            </span>
+                            {!currentMedia && (
+                              <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
+                                Última reproducción
+                              </span>
+                            )}
+                            {mediaForPlayer.favorito && (
+                              <FaStar className="text-yellow-400" />
+                            )}
+                            {mediaForPlayer.isUrl && (
+                              <FaLink className="text-blue-400" />
+                            )}
+                            {isMediaForPlayerYouTube && (
+                              <FaYoutube className="text-red-500" />
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => toggleFavorite(mediaForPlayer)}
+                          className={`p-2 rounded transition-colors ${
+                            mediaForPlayer.favorito
+                              ? "text-yellow-400"
+                              : "text-gray-400 hover:text-yellow-400"
                           }`}
                         >
-                          <div className="flex items-center gap-3 p-2">
-                            {/* Thumbnail o icono */}
-                            {link.isYoutube ? (
-                              <div className="relative w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
-                                <img
-                                  src={getYouTubeThumbnail(link.url)}
-                                  alt={link.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.style.display = "none";
-                                    e.target.nextSibling.style.display = "flex";
-                                  }}
-                                />
-                                <div className="hidden absolute inset-0 items-center justify-center bg-red-900/50">
-                                  <FaYoutube className="text-red-500 text-4xl" />
-                                </div>
-                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <FaPlay className="text-white text-2xl" />
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="w-20 h-20 flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">
-                                <FaLink className="text-blue-400 text-2xl" />
-                              </div>
-                            )}
+                          {mediaForPlayer.favorito ? <FaStar /> : <FaRegStar />}
+                        </button>
+                      </div>
+                    </div>
 
-                            {/* Información */}
+                    {/* Vista previa */}
+                    <div
+                      id="multimedia-preview-container"
+                      className={`rounded-xl aspect-video flex items-center justify-center border border-gray-600 overflow-hidden relative ${
+                        isMediaForPlayerYouTube ||
+                        getMediaType(mediaForPlayer) === "video"
+                          ? "bg-transparent"
+                          : "bg-black"
+                      }`}
+                    >
+                      {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
+                      {isMediaForPlayerYouTube ||
+                      getMediaType(mediaForPlayer) === "video" ? (
+                        // Área vacía donde se posicionará el GlobalMediaPlayer
+                        <div className="w-full h-full" />
+                      ) : getMediaType(mediaForPlayer) === "audio" ? (
+                        <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
+                          <FaMusic className="text-green-400 text-6xl mb-6" />
+                          <h3 className="text-xl font-semibold text-white mb-4">
+                            {getMediaName(mediaForPlayer)}
+                          </h3>
+                          {/* Visualización del audio - El audio real se reproduce en el contexto global */}
+                          <div className="w-full max-w-md bg-gray-800/50 rounded-lg p-6 text-center">
+                            <p className="text-gray-300 text-sm mb-2">
+                              🎵 Audio reproduciéndose en el reproductor global
+                            </p>
+                            <p className="text-gray-400 text-xs">
+                              El control de audio aparece en la barra inferior
+                            </p>
+                          </div>
+                        </div>
+                      ) : getMediaType(mediaForPlayer) === "imagen" ? (
+                        <img
+                          src={
+                            mediaForPlayer.validatedUrl || mediaForPlayer.url
+                          }
+                          alt={getMediaName(mediaForPlayer)}
+                          className="max-w-full max-h-full object-contain"
+                          onLoad={() => console.log("✅ Imagen cargada")}
+                          onError={(e) => {
+                            console.error("❌ Error cargando imagen:", e);
+                            const mensaje = `Error cargando imagen: ${getMediaName(
+                              mediaForPlayer,
+                            )}`;
+                            console.error(
+                              "📁 URL problemática:",
+                              mediaForPlayer.url,
+                            );
+                            showError(
+                              `${mensaje}<br/>📁 Verifique que el archivo existe en multimedia/`,
+                            );
+                          }}
+                        />
+                      ) : getMediaType(mediaForPlayer) === "video" ? (
+                        <div className="w-full h-full" />
+                      ) : null}
+                    </div>
+
+                    {/* Controles principales */}
+                    <div className="flex items-center justify-center space-x-3">
+                      {!isMediaForPlayerYouTube && (
+                        <>
+                          <button
+                            onClick={handleTogglePlayPause}
+                            className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                          >
+                            {isPlaying ? (
+                              <FaPause className="text-xl" />
+                            ) : (
+                              <FaPlay className="text-xl" />
+                            )}
+                          </button>
+                          <button
+                            onClick={stopGlobal}
+                            className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                          >
+                            <FaStop />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => projectToScreenNew(mediaForPlayer)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
+                        title="Proyectar en pantalla completa"
+                      >
+                        <FaExpand />
+                      </button>
+                      <button
+                        onClick={clearProjector}
+                        className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
+                        title="Limpiar proyector"
+                      >
+                        <FaTimes />
+                      </button>
+                      {mediaForPlayer.originalUrl && (
+                        <button
+                          onClick={() =>
+                            copyToClipboard(mediaForPlayer.originalUrl)
+                          }
+                          className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
+                          title="Copiar URL original"
+                        >
+                          <FaCopy />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Controles del proyector cuando hay multimedia proyectada */}
+                    {proyectingMedia && (
+                      <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mt-4">
+                        <div className="text-center mb-3">
+                          <h4 className="text-blue-300 font-medium mb-1">
+                            🎬 Control del Proyector
+                          </h4>
+                          <p className="text-blue-200 text-sm">
+                            Proyectando: {getMediaName(proyectingMedia)}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-center space-x-3">
+                          <button
+                            onClick={playProyector}
+                            className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                            title="Reproducir en proyector"
+                          >
+                            <FaPlay className="text-lg" />
+                          </button>
+                          <button
+                            onClick={pauseProyector}
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                            title="Pausar en proyector"
+                          >
+                            <FaPause className="text-lg" />
+                          </button>
+                          <button
+                            onClick={stopProyector}
+                            className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                            title="Detener en proyector"
+                          >
+                            <FaStop className="text-lg" />
+                          </button>
+                          <button
+                            onClick={limpiarProyectorRemoto}
+                            className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
+                            title="Limpiar proyector (ESC)"
+                          >
+                            <FaTimes className="text-lg" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Control de volumen (solo para no-YouTube) */}
+                    {!isMediaForPlayerYouTube && (
+                      <div className="bg-gray-700/50 p-4 rounded-xl">
+                        <div className="flex items-center space-x-3">
+                          <FaVolumeUp className="text-gray-300 flex-shrink-0" />
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={volume}
+                            onChange={(e) => setVolume(e.target.value)}
+                            className="flex-1 accent-red-400"
+                          />
+                          <span className="text-sm text-gray-300 w-12 text-center">
+                            {volume}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="bg-gray-700/50 p-8 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                      <FaVideoSlash className="text-4xl text-gray-500" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-400 mb-2">
+                      Sin contenido seleccionado
+                    </h3>
+                    <p className="text-gray-500 text-sm">
+                      Selecciona un archivo para reproducir o agrega una URL
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ✨ SIDEBAR CON ENLACES RÁPIDOS - MANTENER SOLO ESTA VERSIÓN */}
+            <div className="order-3 xl:col-span-2 min-h-0">
+              {/* Enlaces rápidos YouTube */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 xl:p-5 border border-white/10 shadow-xl h-full flex flex-col min-h-0">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FaYoutube className="text-red-500" />
+                  Accesos Rápidos
+                </h3>
+
+                {/* Enlaces personalizados */}
+                {customQuickLinks.length > 0 && (
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FaStar className="text-yellow-400" />
+                        Tus Enlaces Personalizados
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          customQuickLinks.length >= 18
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-blue-500/20 text-blue-400"
+                        }`}
+                      >
+                        {customQuickLinks.length}/20
+                      </span>
+                    </h4>
+                    {/* Mostrar primeros 10 sin scroll */}
+                    <div className="space-y-2">
+                      {customQuickLinks.slice(0, 10).map((link) => {
+                        const isLinkPlaying = currentMedia?.url === link.url;
+
+                        return (
+                          <div
+                            key={link.id}
+                            className={`group rounded-lg overflow-hidden transition-colors ${
+                              isLinkPlaying
+                                ? "bg-green-700/40 ring-2 ring-green-500"
+                                : "bg-gray-700/30 hover:bg-gray-600/50"
+                            }`}
+                          >
                             <div
                               role="button"
                               tabIndex={0}
@@ -2995,14 +2899,35 @@ const Multimedia = () => {
                                   handleQuickLinkClick(link);
                                 }
                               }}
-                              className="flex-1 text-left min-w-0"
+                              className="p-1.5"
                             >
+                              {/* Thumbnail full-width */}
+                              {link.isYoutube ? (
+                                <div className="relative w-full h-20 rounded-lg overflow-hidden bg-gray-800 mb-2">
+                                  <img
+                                    src={getYouTubeThumbnail(link.url)}
+                                    alt={link.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                    <FaYoutube className="text-red-500 text-xl" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-12 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center mb-2">
+                                  <FaLink className="text-blue-400 text-xl" />
+                                </div>
+                              )}
+
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
-                                  <h5 className="font-medium text-white truncate mb-1">
+                                  <h5 className="font-medium text-white text-xs leading-4 break-words mb-1">
                                     {link.name}
                                   </h5>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
                                     {link.isYoutube ? (
                                       <>
                                         <FaYoutube className="text-red-500 flex-shrink-0" />
@@ -3011,9 +2936,7 @@ const Multimedia = () => {
                                     ) : (
                                       <>
                                         <FaLink className="text-blue-400 flex-shrink-0" />
-                                        <span className="truncate">
-                                          URL externa
-                                        </span>
+                                        <span>URL externa</span>
                                       </>
                                     )}
                                   </div>
@@ -3031,60 +2954,32 @@ const Multimedia = () => {
                               </div>
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Mostrar enlaces adicionales (11-20) con scroll */}
+                    {customQuickLinks.length > 10 && (
+                      <div className="mt-4">
+                        <div className="text-xs text-gray-400 mb-2 flex items-center gap-2">
+                          <span>
+                            📜 Más enlaces ({customQuickLinks.length - 10})
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="space-y-2">
+                          {customQuickLinks.slice(10).map((link) => {
+                            const isLinkPlaying =
+                              currentMedia?.url === link.url;
 
-                  {/* Mostrar enlaces adicionales (11-20) con scroll */}
-                  {customQuickLinks.length > 10 && (
-                    <div className="mt-4">
-                      <div className="text-xs text-gray-400 mb-2 flex items-center gap-2">
-                        <span>
-                          📜 Más enlaces ({customQuickLinks.length - 10})
-                        </span>
-                      </div>
-                      <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                        {customQuickLinks.slice(10).map((link) => {
-                          const isLinkPlaying = currentMedia?.url === link.url;
-
-                          return (
-                            <div
-                              key={link.id}
-                              className={`group rounded-lg overflow-hidden transition-all duration-300 hover:scale-[1.02] ${
-                                isLinkPlaying
-                                  ? "bg-green-700/40 ring-2 ring-green-500"
-                                  : "bg-gray-700/30 hover:bg-gray-600/50"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 p-2">
-                                {/* Thumbnail o icono */}
-                                {link.isYoutube ? (
-                                  <div className="relative w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
-                                    <img
-                                      src={getYouTubeThumbnail(link.url)}
-                                      alt={link.name}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        e.target.style.display = "none";
-                                        e.target.nextSibling.style.display =
-                                          "flex";
-                                      }}
-                                    />
-                                    <div className="hidden absolute inset-0 items-center justify-center bg-red-900/50">
-                                      <FaYoutube className="text-red-500 text-4xl" />
-                                    </div>
-                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <FaPlay className="text-white text-2xl" />
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="w-20 h-20 flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">
-                                    <FaLink className="text-blue-400 text-2xl" />
-                                  </div>
-                                )}
-
-                                {/* Información */}
+                            return (
+                              <div
+                                key={link.id}
+                                className={`group rounded-lg overflow-hidden transition-colors ${
+                                  isLinkPlaying
+                                    ? "bg-green-700/40 ring-2 ring-green-500"
+                                    : "bg-gray-700/30 hover:bg-gray-600/50"
+                                }`}
+                              >
                                 <div
                                   role="button"
                                   tabIndex={0}
@@ -3095,14 +2990,36 @@ const Multimedia = () => {
                                       handleQuickLinkClick(link);
                                     }
                                   }}
-                                  className="flex-1 text-left min-w-0"
+                                  className="p-1.5"
                                 >
+                                  {/* Thumbnail full-width */}
+                                  {link.isYoutube ? (
+                                    <div className="relative w-full h-20 rounded-lg overflow-hidden bg-gray-800 mb-2">
+                                      <img
+                                        src={getYouTubeThumbnail(link.url)}
+                                        alt={link.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display =
+                                            "none";
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                        <FaYoutube className="text-red-500 text-xl" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-12 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center mb-2">
+                                      <FaLink className="text-blue-400 text-xl" />
+                                    </div>
+                                  )}
+
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
-                                      <h5 className="font-medium text-white truncate mb-1">
+                                      <h5 className="font-medium text-white text-xs leading-4 break-words mb-1">
                                         {link.name}
                                       </h5>
-                                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
                                         {link.isYoutube ? (
                                           <>
                                             <FaYoutube className="text-red-500 flex-shrink-0" />
@@ -3111,9 +3028,7 @@ const Multimedia = () => {
                                         ) : (
                                           <>
                                             <FaLink className="text-blue-400 flex-shrink-0" />
-                                            <span className="truncate">
-                                              URL externa
-                                            </span>
+                                            <span>URL externa</span>
                                           </>
                                         )}
                                       </div>
@@ -3131,82 +3046,13 @@ const Multimedia = () => {
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Separador visual si hay enlaces personalizados */}
-              {customQuickLinks.length > 0 && (
-                <div className="border-t border-gray-600/50 pt-4 mb-4">
-                  <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                    <FaGlobe className="text-blue-400" />
-                    Sugerencias
-                  </h4>
-                </div>
-              )}
-
-              {/* Enlaces predefinidos */}
-              <div className="space-y-3">
-                {[
-                  {
-                    name: "Música Cristiana",
-                    query: "música cristiana",
-                    icon: <FaMusic />,
-                  },
-                  {
-                    name: "Predicaciones",
-                    query: "predicaciones cristianas",
-                    icon: <FaGlobe />,
-                  },
-                  {
-                    name: "Himnos Clásicos",
-                    query: "himnos cristianos",
-                    icon: <FaMusic />,
-                  },
-                  {
-                    name: "Adoración",
-                    query: "música de adoración",
-                    icon: <FaMusic />,
-                  },
-                ].map((link, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                        link.query,
-                      )}`;
-                      window.open(youtubeSearchUrl, "_blank");
-                    }}
-                    className="w-full flex items-center gap-3 p-3 bg-gray-700/30 hover:bg-gray-600/50 rounded-lg transition-all duration-300 text-left group"
-                  >
-                    <div className="text-gray-400 group-hover:text-white transition-colors">
-                      {link.icon}
-                    </div>
-                    <span className="text-white group-hover:text-gray-100 transition-colors">
-                      {link.name}
-                    </span>
-                    <FaShare className="ml-auto text-gray-500 group-hover:text-gray-300 transition-colors" />
-                  </button>
-                ))}
-              </div>
-
-              {/* Información adicional */}
-              <div className="mt-6 p-4 bg-gray-700/30 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-300 mb-2">
-                  💡 Funciones disponibles:
-                </h4>
-                <ul className="text-xs text-gray-400 space-y-1">
-                  <li>• Agregar URLs de YouTube y multimedia</li>
-                  <li>• Historial de URLs agregadas</li>
-                  <li>• Enlaces rápidos personalizados</li>
-                  <li>• Búsqueda y filtros avanzados</li>
-                  <li>• Proyección en pantalla completa</li>
-                </ul>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

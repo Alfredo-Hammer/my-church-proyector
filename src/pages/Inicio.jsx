@@ -343,7 +343,7 @@ const Inicio = () => {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-y-auto bg-slate-900 border-l border-white/5">
+    <div className="relative w-full h-screen overflow-hidden bg-slate-900 border-l border-white/5 flex flex-col">
       {/* Imagen de fondo */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0"
@@ -384,7 +384,7 @@ const Inicio = () => {
           </>
         )}
 
-        <div className="relative z-10 grid grid-cols-3 items-center gap-4 px-6 py-3">
+        <div className="relative z-10 grid grid-cols-3 items-center gap-2 xl:gap-4 px-3 xl:px-6 py-2 xl:py-3">
           {/* Columna izquierda (vacía para balance) */}
           <div />
 
@@ -526,18 +526,18 @@ const Inicio = () => {
           )}
 
           {/* Logo + Saludo (Derecha) */}
-          <div className="flex items-center gap-4 justify-end">
-            <div className="text-right">
-              <p className="text-sm md:text-base font-semibold text-emerald-400">
+          <div className="flex items-center gap-2 xl:gap-4 justify-end">
+            <div className="text-right hidden lg:block">
+              <p className="text-xs xl:text-sm font-semibold text-emerald-400">
                 {mensaje}
               </p>
               {configuracion.nombreIglesia && (
-                <p className="text-xs text-white/70">
+                <p className="text-[10px] xl:text-xs text-white/70 truncate max-w-[140px] xl:max-w-none">
                   {configuracion.nombreIglesia}
                 </p>
               )}
             </div>
-            <div className="rounded-full p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
+            <div className="rounded-full p-0.5 xl:p-1 bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-emerald-500/30">
               <img
                 src={
                   configuracion.logoUrl && configuracion.logoUrl !== "undefined"
@@ -545,7 +545,7 @@ const Inicio = () => {
                     : "/images/icon-256.png"
                 }
                 alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
-                className="w-12 h-12 rounded-full object-cover"
+                className="w-9 h-9 xl:w-11 xl:h-11 2xl:w-12 2xl:h-12 rounded-full object-cover"
                 onError={(e) => {
                   e.target.src = "/images/icon-256.png";
                 }}
@@ -555,108 +555,113 @@ const Inicio = () => {
         </div>
       </motion.header>
 
-      {/* Contenido principal scrolleable */}
-      <div className="relative z-20 px-4 py-6 md:px-6">
-        {/* Contenido Principal */}
+      {/* Contenido principal (scroll interno arriba + botones siempre visibles) */}
+      <div className="relative z-20 flex-1 min-h-0 px-4 py-3 md:px-6 xl:px-10 xl:py-4 2xl:px-16 overflow-hidden">
         <motion.main
-          className="max-w-6xl mx-auto"
+          className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto h-full flex flex-col min-h-0"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
-          {/* 1️⃣ SECCIÓN INSPIRACIÓN - PRIMERO (SIN CUADRO) */}
-          <motion.section
-            variants={itemVariants}
-            className="mb-20 mt-8 text-center"
-          >
-            {citaDelDia && (
-              <>
-                <p className="text-xl md:text-2xl text-white/80 italic font-light leading-relaxed mb-3">
-                  "{citaDelDia.texto}"
+          {/* Parte superior fija: Inspiración + Accesos Rápidos (siempre visible) */}
+          <div className="shrink-0">
+            <motion.section
+              variants={itemVariants}
+              className="mt-2 sm:mt-6 text-center"
+            >
+              {citaDelDia && (
+                <div className="max-w-4xl mx-auto">
+                  <div className="max-h-24 sm:max-h-none overflow-y-auto pr-1">
+                    <p className="text-base sm:text-xl md:text-2xl xl:text-3xl text-white/80 italic font-light leading-relaxed mb-1.5">
+                      "{citaDelDia.texto}"
+                    </p>
+                    <p className="text-xs sm:text-sm text-white/60">
+                      {citaDelDia.referencia}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </motion.section>
+
+            <motion.section variants={itemVariants} className="pt-3 sm:pt-6">
+              <h3 className="text-base sm:text-lg xl:text-xl font-semibold text-white mb-3 sm:mb-4">
+                Accesos Rápidos
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 xl:gap-5">
+                <QuickAccessButton
+                  icon={FaMusic}
+                  label="Himnos"
+                  onClick={() => navigate("/himnos")}
+                  color="emerald"
+                />
+                <QuickAccessButton
+                  icon={FaBook}
+                  label="Biblia"
+                  onClick={() => navigate("/biblia")}
+                  color="indigo"
+                />
+                <QuickAccessButton
+                  icon={FaHeart}
+                  label="Favoritos"
+                  onClick={() => navigate("/favoritos")}
+                  color="rose"
+                />
+                <QuickAccessButton
+                  icon={FaFilm}
+                  label="Multimedia"
+                  onClick={() => navigate("/multimedia")}
+                  color="amber"
+                />
+              </div>
+            </motion.section>
+          </div>
+
+          {/* Scroll inferior: estadísticas + footer */}
+          <div className="flex-1 min-h-0 overflow-y-auto pt-4 sm:pt-6">
+            <motion.section variants={itemVariants} className="mb-8">
+              <h3 className="text-base sm:text-lg xl:text-xl font-semibold text-white mb-3 sm:mb-4">
+                Tu Actividad
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 xl:gap-5">
+                <StatWidget
+                  icon={FaMusic}
+                  value={estadisticas.totalHimnos}
+                  label="Himnos Favoritos"
+                  accentColor="emerald"
+                />
+                <StatWidget
+                  icon={FaBook}
+                  value={estadisticas.totalVidaCristiana}
+                  label="Vida Cristiana"
+                  accentColor="amber"
+                />
+                <StatWidget
+                  icon={FaHeart}
+                  value={estadisticas.totalFavoritos}
+                  label="Otros Favoritos"
+                  accentColor="rose"
+                />
+                <StatWidget
+                  icon={FaFilm}
+                  value={estadisticas.totalMultimedia}
+                  label="Multimedia"
+                  accentColor="indigo"
+                />
+              </div>
+            </motion.section>
+
+            <motion.footer
+              variants={itemVariants}
+              className="mt-10 sm:mt-24 mb-6 text-center"
+            >
+              <div className="text-white/40 text-sm">
+                <p className="mb-1">Desarrollado con 💚 por</p>
+                <p className="font-semibold text-emerald-400/60">
+                  Alfredo Hammer
                 </p>
-                <p className="text-sm text-white/60">{citaDelDia.referencia}</p>
-              </>
-            )}
-          </motion.section>
-
-          {/* 2️⃣ SECCIÓN ACCESOS RÁPIDOS */}
-          <motion.section variants={itemVariants} className="mb-16">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Accesos Rápidos
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <QuickAccessButton
-                icon={FaMusic}
-                label="Himnos"
-                onClick={() => navigate("/himnos")}
-                color="emerald"
-              />
-              <QuickAccessButton
-                icon={FaBook}
-                label="Biblia"
-                onClick={() => navigate("/biblia")}
-                color="indigo"
-              />
-              <QuickAccessButton
-                icon={FaHeart}
-                label="Favoritos"
-                onClick={() => navigate("/favoritos")}
-                color="rose"
-              />
-              <QuickAccessButton
-                icon={FaFilm}
-                label="Multimedia"
-                onClick={() => navigate("/multimedia")}
-                color="amber"
-              />
-            </div>
-          </motion.section>
-
-          {/* 3️⃣ SECCIÓN ESTADÍSTICAS - MÁS ABAJO */}
-          <motion.section variants={itemVariants} className="mb-8">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Tu Actividad
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatWidget
-                icon={FaMusic}
-                value={estadisticas.totalHimnos}
-                label="Himnos Favoritos"
-                accentColor="emerald"
-              />
-              <StatWidget
-                icon={FaBook}
-                value={estadisticas.totalVidaCristiana}
-                label="Vida Cristiana"
-                accentColor="amber"
-              />
-              <StatWidget
-                icon={FaHeart}
-                value={estadisticas.totalFavoritos}
-                label="Otros Favoritos"
-                accentColor="rose"
-              />
-              <StatWidget
-                icon={FaFilm}
-                value={estadisticas.totalMultimedia}
-                label="Multimedia"
-                accentColor="indigo"
-              />
-            </div>
-          </motion.section>
-
-          {/* Footer - Desarrollador */}
-          <motion.footer
-            variants={itemVariants}
-            className="mt-32 mb-8 text-center"
-          >
-            <div className="text-white/40 text-sm">
-              <p className="mb-1">Desarrollado con 💚 por</p>
-              <p className="font-semibold text-emerald-400/60">
-                Alfredo Hammer
-              </p>
-            </div>
-          </motion.footer>
+              </div>
+            </motion.footer>
+          </div>
         </motion.main>
       </div>
     </div>

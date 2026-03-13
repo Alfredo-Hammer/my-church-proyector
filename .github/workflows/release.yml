@@ -78,6 +78,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            dist-installer/*-Installer.exe
+            dist-installer/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

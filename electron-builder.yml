@@ -29,7 +29,12 @@ extraResources:
 
 win:
   target:
-    - nsis
+    - target: portable
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
   icon: assets/icon.ico
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker

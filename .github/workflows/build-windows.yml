@@ -1,0 +1,55 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:  # Permite ejecutar manualmente desde GitHub
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Instalar dependencias
+        run: npm ci
+      
+      - name: Compilar React (UI)
+        run: npm run build
+        env:
+          CI: false  # Ignorar warnings de ESLint
+      
+      - name: Compilar ejecutable Windows
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Subir ejecutable portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: GloryView-Windows-Portable
+          path: |
+            dist-installer/win-unpacked/**/*
+            dist-installer/*.exe
+          retention-days: 30
+      
+      - name: Subir instalador (si existe)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GloryView-Windows-Installer
+          path: |
+            dist-installer/*.exe
+            dist-installer/*.msi
+          retention-days: 30
+          if-no-files-found: ignore

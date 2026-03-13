@@ -161,13 +161,7 @@ const CITAS_BIBLICAS = [
 
 const Inicio = () => {
   const navigate = useNavigate();
-  let mediaContext = null;
-  try {
-    mediaContext = useMediaPlayer();
-  } catch {
-    // Si no estamos dentro de MediaPlayerProvider, mediaContext será null
-    mediaContext = null;
-  }
+  const mediaContext = useMediaPlayer(); // Hooks siempre deben llamarse en el nivel superior
   const [mensaje, setMensaje] = useState("");
   const [citaDelDia, setCitaDelDia] = useState(null);
 

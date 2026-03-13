@@ -1,0 +1,137 @@
+═══════════════════════════════════════════════════════════════════════════
+  SOLUCIÓN: GLORYVIEW NO ABRE EN WINDOWS - DIAGNÓSTICO
+═══════════════════════════════════════════════════════════════════════════
+
+🔍 PROBLEMA ACTUAL: La aplicación no abre y no muestra mensaje de error
+
+═══════════════════════════════════════════════════════════════════════════
+📋 CAUSAS COMUNES Y SOLUCION
+
+Causa más probable: ARCHIVOS BLOQUEADOS POR WINDOWS DEFENDER/SMARTSCREEN
+
+Windows bloquea archivos descargados de internet por seguridad.
+
+✅ SOLUCIÓN 1: Desbloquear archivos (MÁS IMPORTANTE)
+═══════════════════════════════════════════════════════════════════════════
+
+1. Haz clic derecho en el archivo ZIP descargado
+2. Selecciona "Propiedades"
+3. En la parte inferior, busca la opción "Seguridad"
+4. Marca la casilla "Desbloquear" ✓
+5. Haz clic en "Aplicar" y luego "Aceptar"
+6. Ahora sí, extrae el ZIP
+7. Ejecuta GloryViewProyector.exe
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 2: Ejecutar como Administrador
+═══════════════════════════════════════════════════════════════════════════
+
+1. Haz clic derecho en GloryViewProyector.exe
+2. Selecciona "Ejecutar como administrador"
+3. Si Windows SmartScreen aparece, haz clic en "Más información"
+4. Luego haz clic en "Ejecutar de todas formas"
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 3: Verificar Antivirus
+═══════════════════════════════════════════════════════════════════════════
+
+Algunos antivirus bloquean aplicaciones sin firma digital:
+
+1. Abre Windows Defender / Tu Antivirus
+2. Busca "Historial de protección" o "Cuarentena"
+3. Si encuentras GloryViewProyector.exe bloqueado:
+   - Marca como "Permitir en dispositivo"
+   - Agrega como excepción
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 4: Verificar requisitos del sistema
+═══════════════════════════════════════════════════════════════════════════
+
+Requisitos mínimos:
+  ✓ Windows 10 o 11 (64-bit)
+  ✓ 4 GB RAM mínimo
+  ✓ 500 MB espacio en disco
+
+Para verificar tu Windows:
+  1. Presiona Windows + Pause
+  2. Busca "Tipo de sistema"
+  3. Debe decir "Sistema operativo de 64 bits"
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 5: Revisar archivos de LOG (para errores internos)
+═══════════════════════════════════════════════════════════════════════════
+
+Si la app intenta abrir pero falla, revisa el archivo de log:
+
+Ubicación del log:
+  C:\Users\[TuUsuario]\AppData\Roaming\GloryView Proyector\gloryview-error.log
+
+Cómo llegar:
+  1. Presiona Windows + R
+  2. Escribe: %APPDATA%\GloryView Proyector
+  3. Presiona Enter
+  4. Busca el archivo gloryview-error.log
+  5. Ábrelo con Bloc de notas
+
+El log mostrará exactamente dónde falla la aplicación.
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 6: Reinstalar Visual C++ Redistributable
+═══════════════════════════════════════════════════════════════════════════
+
+La aplicación necesita Visual C++ Runtime:
+
+1. Descarga de Microsoft:
+   https://aka.ms/vs/17/release/vc_redist.x64.exe
+   
+2. Ejecuta el instalador
+3. Reinicia Windows
+4. Intenta ejecutar GloryView nuevamente
+
+═══════════════════════════════════════════════════════════════════════════
+✅ SOLUCIÓN 7: Verificar que la carpeta está completa
+═══════════════════════════════════════════════════════════════════════════
+
+La carpeta win-unpacked debe contener:
+
+  ✓ GloryViewProyector.exe ← El ejecutable principal
+  ✓ resources/ ← Carpeta con archivos de la app
+  ✓ locales/ ← Carpeta con traducciones
+  ✓ ffmpeg.dll
+  ✓ libEGL.dll, libGLESv2.dll
+  ✓ Y otros archivos .dll y .pak
+
+Si faltan archivos:
+  - Elimina la carpeta win-unpacked
+  - Extrae el ZIP nuevamente
+  - IMPORTANTE: Desbloquea el ZIP primero (ver Solución 1)
+
+═══════════════════════════════════════════════════════════════════════════
+🆘 SI NADA FUNCIONA
+═══════════════════════════════════════════════════════════════════════════
+
+1. Envía el archivo de log (si existe) a:
+   coderhammer70@gmail.com
+
+2. Incluye esta información:
+   - Versión de Windows (Win 10/11)
+   - 32 o 64 bits
+   - Si instalado algún antivirus
+   - Captura de pantalla al extraer el ZIP
+   - Mensaje de error (si aparece alguno)
+
+═══════════════════════════════════════════════════════════════════════════
+📝 PASOS RECOMENDADOS EN ORDEN
+═══════════════════════════════════════════════════════════════════════════
+
+1. ✅ Desbloquear el ZIP antes de extraer (SOLUCIÓN 1)
+2. ✅ Extraer en una carpeta sin caracteres especiales (C:\GloryView\)
+3. ✅ Ejecutar como Administrador (SOLUCIÓN 2)
+4. ✅ Permitir en Windows Defender si aparece advertencia
+5. ✅ Si falla, revisar LOG (SOLUCIÓN 5)
+6. ✅ Instalar Visual C++ Redistributable (SOLUCIÓN 6)
+
+═══════════════════════════════════════════════════════════════════════════
+
+Desarrollado por: Alfredo Hammer
+Email: coderhammer70@gmail.com

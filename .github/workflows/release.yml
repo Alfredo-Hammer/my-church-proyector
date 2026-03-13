@@ -1,0 +1,92 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Ejecutar cuando se cree un tag v1.0.0, v0.1.1, etc.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión del release (ej: v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    permissions:
+      contents: write  # Necesario para crear releases
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Instalar dependencias
+        run: npm ci
+      
+      - name: Compilar React (UI)
+        run: npm run build
+        env:
+          CI: false
+      
+      - name: Compilar ejecutable Windows
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Crear ZIP portable
+        run: |
+          cd dist-installer
+          Compress-Archive -Path win-unpacked -DestinationPath GloryView-Proyector-Windows-Portable.zip
+        shell: powershell
+      
+      - name: Obtener versión
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+      
+      - name: Crear Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: GloryView Proyector ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## 🎉 GloryView Proyector ${{ steps.get_version.outputs.VERSION }}
+            
+            ### 📦 Instalación
+            
+            1. Descarga `GloryView-Proyector-Windows-Portable.zip`
+            2. Extrae el ZIP completo en una carpeta
+            3. Ejecuta `GloryViewProyector.exe`
+            
+            ### 📋 Requisitos
+            - Windows 10/11 (64-bit)
+            - Visual C++ Redistributable 2015-2022
+            
+            ### 🔧 Solución de problemas
+            - Si no abre: Clic derecho → Ejecutar como administrador
+            - Revisa logs en: `%APPDATA%\GloryView Proyector\gloryview-error.log`
+            
+            ---
+            Compilado automáticamente con GitHub Actions
+          draft: false
+          prerelease: false
+          files: |
+            dist-installer/GloryView-Proyector-Windows-Portable.zip
+            dist-installer/*.exe
+            INSTRUCCIONES-WINDOWS.txt
+            SOLUCIÓN-NO-ABRE-WINDOWS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

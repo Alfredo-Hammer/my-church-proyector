@@ -1,3 +1,42 @@
+// ✨ IMPORTACIONES PRIMERO
+const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell, globalShortcut } = require("electron");
+const path = require("path");
+const fs = require("fs");
+
+// ✨ SISTEMA DE LOGS MEJORADO - Escribir errores en archivo para debugging
+const logFilePath = path.join(app.getPath("userData"), "gloryview-error.log");
+const writeLog = (message) => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  try {
+    fs.appendFileSync(logFilePath, logMessage);
+  } catch (e) {
+    // Si falla escribir el log, intentar mostrar en consola
+    console.error("Error escribiendo log:", e);
+  }
+};
+
+// Capturar errores no manejados
+process.on("uncaughtException", (error) => {
+  const errorMsg = `UNCAUGHT EXCEPTION: ${error.stack || error.message || error}`;
+  writeLog(errorMsg);
+  console.error(errorMsg);
+
+  // Mostrar diálogo de error al usuario
+  if (app.isReady()) {
+    dialog.showErrorBox(
+      "Error Crítico - GloryView Proyector",
+      `La aplicación encontró un error crítico:\n\n${error.message}\n\nRevise el archivo de log en:\n${logFilePath}`
+    );
+  }
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  const errorMsg = `UNHANDLED REJECTION: ${reason}`;
+  writeLog(errorMsg);
+  console.error(errorMsg);
+});
+
 // Silenciar logs verbosos por defecto (mantiene warn/error)
 // Para reactivar: DEBUG_LOGS=1
 const DEBUG_LOGS = process.env.DEBUG_LOGS === "1";
@@ -7,8 +46,6 @@ if (!DEBUG_LOGS) {
   console.debug = () => { };
 }
 
-const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell, globalShortcut } = require("electron");
-
 // Permitir reproducción sin gesto del usuario (necesario para controlar play/pause por IPC en el proyector).
 // No fuerza autoplay por sí mismo; solo evita que Chromium rechace `media.play()`.
 try {
@@ -16,8 +53,6 @@ try {
 } catch (error) {
   // No bloquear la app si Electron cambia esta API.
 }
-const path = require("path");
-const fs = require("fs");
 const os = require("os");
 const { spawn, spawnSync } = require("child_process");
 const express = require("express");
@@ -2972,90 +3007,158 @@ function createProyectorWindow() {
 
 // --- App Ready ---
 app.whenReady().then(async () => {
-  // ✨ CONFIGURAR NOMBRE DE LA APLICACIÓN
-  app.setName('GloryView');
-
-  // Inicializar la nueva base de datos
   try {
-    await dbNew.initializeDatabase();
-    console.log('Base de datos inicializada correctamente');
-  } catch (error) {
-    console.error('Error al inicializar la base de datos:', error);
-  }
+    writeLog("✅ Electron app ready - Iniciando GloryView Proyector");
 
-  // ✨ INICIALIZAR FONDOS POR DEFECTO
-  try {
-    inicializarFondosPorDefecto();
-    console.log('✅ Fondos por defecto inicializados');
-  } catch (error) {
-    console.error('❌ Error al inicializar fondos por defecto:', error);
-  }
+    // ✨ CONFIGURAR NOMBRE DE LA APLICACIÓN
+    app.setName('GloryView');
+    writeLog("✅ Nombre de aplicación configurado");
 
-  // ✨ LIMPIAR HANDLERS ANTES DE CREAR VENTANAS
-  limpiarHandlers();
+    // Inicializar la nueva base de datos
+    try {
+      writeLog("Inicializando base de datos...");
+      await dbNew.initializeDatabase();
+      writeLog('✅ Base de datos inicializada correctamente');
+      console.log('Base de datos inicializada correctamente');
+    } catch (error) {
+      writeLog(`❌ Error al inicializar la base de datos: ${error.message}`);
+      console.error('Error al inicializar la base de datos:', error);
+      // No bloquear la app, continuar
+    }
 
-  // ✨ REGISTRAR TODOS LOS HANDLERS DESPUÉS DE LIMPIAR
-  registrarHandlers();
+    // ✨ INICIALIZAR FONDOS POR DEFECTO
+    try {
+      writeLog("Inicializando fondos por defecto...");
+      inicializarFondosPorDefecto();
+      writeLog('✅ Fondos por defecto inicializados');
+      console.log('✅ Fondos por defecto inicializados');
+    } catch (error) {
+      writeLog(`❌ Error al inicializar fondos por defecto: ${error.message}`);
+      console.error('❌ Error al inicializar fondos por defecto:', error);
+      // No bloquear la app, continuar
+    }
 
-  createMainWindow();
+    // ✨ LIMPIAR HANDLERS ANTES DE CREAR VENTANAS
+    try {
+      writeLog("Limpiando handlers IPC...");
+      limpiarHandlers();
+      writeLog("✅ Handlers limpiados");
+    } catch (error) {
+      writeLog(`❌ Error limpiando handlers: ${error.message}`);
+      console.error("Error limpiando handlers:", error);
+    }
 
-  // ✨ Solo crear proyector automáticamente si hay segunda pantalla
-  const displays = screen.getAllDisplays();
-  const externalDisplay = displays.find((d) => d.bounds.x !== 0 || d.bounds.y !== 0);
+    // ✨ REGISTRAR TODOS LOS HANDLERS DESPUÉS DE LIMPIAR
+    try {
+      writeLog("Registrando handlers IPC...");
+      registrarHandlers();
+      writeLog("✅ Handlers registrados");
+    } catch (error) {
+      writeLog(`❌ Error registrando handlers: ${error.message}`);
+      console.error("Error registrando handlers:", error);
+      // Mostrar diálogo de error crítico
+      dialog.showErrorBox(
+        "Error Crítico - GloryView",
+        `No se pudieron registrar los handlers IPC:\n\n${error.message}\n\nLa aplicación puede no funcionar correctamente.`
+      );
+    }
 
-  if (externalDisplay) {
-    console.log("✅ [MAIN] Segunda pantalla detectada, creando proyector automáticamente");
-    createProyectorWindow();
-  } else {
-    console.log("⚠️ [MAIN] Solo una pantalla detectada, proyector se creará manualmente");
-  }
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    try {
+      writeLog("Creando ventana principal...");
       createMainWindow();
-      // No crear proyector automáticamente en activate
+      writeLog("✅ Ventana principal creada");
+    } catch (error) {
+      writeLog(`❌ ERROR CRÍTICO creando ventana principal: ${error.message}\n${error.stack}`);
+      console.error("ERROR CRÍTICO:", error);
+      dialog.showErrorBox(
+        "Error Crítico - GloryView",
+        `No se pudo crear la ventana principal:\n\n${error.message}\n\nRevise el archivo de log en:\n${logFilePath}`
+      );
+      app.quit();
+      return;
     }
-  });
 
-  // ✨ AGREGAR ATAJO PARA DEVTOOLS
-  globalShortcut.register('F12', () => {
-    const focusedWindow = BrowserWindow.getFocusedWindow();
-    if (focusedWindow) {
-      focusedWindow.webContents.toggleDevTools();
+    // ✨ Solo crear proyector automáticamente si hay segunda pantalla
+    try {
+      const displays = screen.getAllDisplays();
+      const externalDisplay = displays.find((d) => d.bounds.x !== 0 || d.bounds.y !== 0);
+
+      if (externalDisplay) {
+        writeLog("✅ Segunda pantalla detectada, creando proyector automáticamente");
+        console.log("✅ [MAIN] Segunda pantalla detectada, creando proyector automáticamente");
+        createProyectorWindow();
+      } else {
+        writeLog("⚠️ Solo una pantalla detectada, proyector se creará manualmente");
+        console.log("⚠️ [MAIN] Solo una pantalla detectada, proyector se creará manualmente");
+      }
+    } catch (error) {
+      writeLog(`⚠️ Error verificando pantallas: ${error.message}`);
+      console.warn("Error verificando pantallas:", error);
+      // No es crítico, continuar
     }
-  });
 
-  // También puedes usar Ctrl+Shift+I
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
-    const focusedWindow = BrowserWindow.getFocusedWindow();
-    if (focusedWindow) {
-      focusedWindow.webContents.toggleDevTools();
-    }
-  });
+    writeLog("✅ GloryView Proyector iniciado exitosamente");
 
-  // ✨ ATAJO ESPECÍFICO PARA CONSOLA DEL PROYECTOR
-  globalShortcut.register('CommandOrControl+Shift+P', () => {
-    console.log("🔧 [MAIN] Atajo para consola del proyector activado");
-    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-      console.log("🔧 [MAIN] Abriendo/cerrando DevTools del proyector...");
-      proyectorWindow.webContents.toggleDevTools();
-      proyectorWindow.focus();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+        // No crear proyector automáticamente en activate
+      }
+    });
 
-      // Si se está abriendo, enfocar después de un momento
-      setTimeout(() => {
-        const devTools = proyectorWindow.webContents.devToolsWebContents;
-        if (devTools) {
-          devTools.focus();
-          console.log("✅ [MAIN] DevTools del proyector enfocado");
-        }
-      }, 500);
-    } else {
-      console.log("⚠️ [MAIN] Proyector no disponible para abrir DevTools");
-    }
-  });
+    // ✨ AGREGAR ATAJO PARA DEVTOOLS
+    globalShortcut.register('F12', () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        focusedWindow.webContents.toggleDevTools();
+      }
+    });
 
-  // ✨ INICIAR SERVIDOR DE MULTIMEDIA
-  iniciarServidorMultimedia();
+    // También puedes usar Ctrl+Shift+I
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        focusedWindow.webContents.toggleDevTools();
+      }
+    });
+
+    // ✨ ATAJO ESPECÍFICO PARA CONSOLA DEL PROYECTOR
+    globalShortcut.register('CommandOrControl+Shift+P', () => {
+      console.log("🔧 [MAIN] Atajo para consola del proyector activado");
+      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+        console.log("🔧 [MAIN] Abriendo/cerrando DevTools del proyector...");
+        proyectorWindow.webContents.toggleDevTools();
+        proyectorWindow.focus();
+
+        // Si se está abriendo, enfocar después de un momento
+        setTimeout(() => {
+          const devTools = proyectorWindow.webContents.devToolsWebContents;
+          if (devTools) {
+            devTools.focus();
+            console.log("✅ [MAIN] DevTools del proyector enfocado");
+          }
+        }, 500);
+      } else {
+        console.log("⚠️ [MAIN] Proyector no disponible para abrir DevTools");
+      }
+    });
+
+    // ✨ INICIAR SERVIDOR DE MULTIMEDIA
+    iniciarServidorMultimedia();
+
+  } catch (error) {
+    // ✨ CAPTURA DE ERRORES GLOBAL DEL APP.WHENREADY
+    const errorMsg = `❌ ERROR FATAL en app.whenReady(): ${error.message}\n${error.stack}`;
+    writeLog(errorMsg);
+    console.error(errorMsg);
+
+    dialog.showErrorBox(
+      "Error Fatal - GloryView Proyector",
+      `La aplicación no pudo iniciar correctamente:\n\n${error.message}\n\nDetalles en:\n${logFilePath}\n\nPresione OK para cerrar.`
+    );
+
+    app.quit();
+  }
 });
 
 // ✨ Cerrar proyector cuando se cierra la ventana principal

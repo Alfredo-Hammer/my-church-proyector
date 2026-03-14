@@ -267,6 +267,7 @@ export default function App() {
   const [cargandoBibliaPreview, setCargandoBibliaPreview] = useState(false);
   const [capitulosDisponibles, setCapitulosDisponibles] = useState([]);
   const [versiculosDisponibles, setVersiculosDisponibles] = useState([]);
+  const [versiculosPorCapituloActual, setVersiculosPorCapituloActual] = useState([]);
   const [cargandoVersiculos, setCargandoVersiculos] = useState(false);
 
   const [multimediaFiles, setMultimediaFiles] = useState([]);
@@ -1275,29 +1276,39 @@ export default function App() {
     }
   };
 
-  // Cargar capítulos cuando se selecciona un libro
+  // Cargar estructura real del libro (capítulos + versículos por capítulo) desde el servidor
   useEffect(() => {
     if (!libroSeleccionado?.id) {
       setCapitulosDisponibles([]);
       setVersiculosDisponibles([]);
+      setVersiculosPorCapituloActual([]);
       setCapitulo('');
       setVersiculo('');
       return;
     }
 
-    // Estimación de capítulos por libro (simplificado)
-    const numCapitulos =
-      libroSeleccionado.id === 'salmos' ? 150 :
-        libroSeleccionado.id === 'genesis' ? 50 :
-          libroSeleccionado.id === 'mateo' ? 28 :
-            libroSeleccionado.id === 'lucas' ? 24 :
-              libroSeleccionado.id === 'juan' ? 21 : 50;
-
-    setCapitulosDisponibles(Array.from({ length: numCapitulos }, (_, i) => i + 1));
+    setCapitulo('');
     setVersiculo('');
-  }, [libroSeleccionado?.id]);
+    setVersiculosDisponibles([]);
+    setVersiculosPorCapituloActual([]);
 
-  // Cargar versículos cuando se selecciona un capítulo
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+
+    fetch(`${base}/api/biblia/estructura/${encodeURIComponent(libroSeleccionado.id)}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json?.ok && json.capitulos > 0) {
+          setCapitulosDisponibles(Array.from({ length: json.capitulos }, (_, i) => i + 1));
+          setVersiculosPorCapituloActual(json.versiculosPorCapitulo || []);
+        }
+      })
+      .catch(() => { /* error de red: dejar arrays vacíos */ });
+  }, [libroSeleccionado?.id, serverBaseUrl]);
+
+  // Actualizar versículos disponibles cuando cambia el capítulo
   useEffect(() => {
     if (!libroSeleccionado?.id || !capitulo) {
       setVersiculosDisponibles([]);
@@ -1305,9 +1316,15 @@ export default function App() {
       return;
     }
 
-    // Por defecto mostramos 50 versículos (la mayoría de capítulos tienen menos)
-    setVersiculosDisponibles(Array.from({ length: 50 }, (_, i) => i + 1));
-  }, [libroSeleccionado?.id, capitulo]);
+    const capIdx = Number(capitulo) - 1;
+    const numVersiculos = versiculosPorCapituloActual[capIdx];
+    if (numVersiculos > 0) {
+      setVersiculosDisponibles(Array.from({ length: numVersiculos }, (_, i) => i + 1));
+    } else {
+      setVersiculosDisponibles([]);
+    }
+    setVersiculo('');
+  }, [libroSeleccionado?.id, capitulo, versiculosPorCapituloActual]);
 
   useEffect(() => {
     let cancelado = false;

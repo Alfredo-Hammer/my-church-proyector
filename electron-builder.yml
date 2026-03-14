@@ -18,6 +18,7 @@ files:
   - assets/**/*
   - data/**/*
   - package.json
+  - INSTRUCCIONES-WINDOWS.txt
   - "!node_modules/@types/**/*"
   - "!node_modules/.cache/**/*"
 

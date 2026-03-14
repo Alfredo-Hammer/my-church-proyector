@@ -1,0 +1,181 @@
+═══════════════════════════════════════════════════════════════════
+  GLORYVIEW PROYECTOR - INSTRUCCIONES DE INSTALACIÓN PARA WINDOWS
+═══════════════════════════════════════════════════════════════════
+
+VERSIÓN: 0.1.4
+FECHA: Marzo 2026
+
+═══════════════════════════════════════════════════════════════════
+  1. REQUISITOS DEL SISTEMA
+═══════════════════════════════════════════════════════════════════
+
+- Windows 10 (64-bit) o superior
+- 4 GB RAM mínimo (8 GB recomendado)
+- 500 MB espacio libre en disco
+- Tarjeta gráfica compatible con aceleración de hardware
+
+═══════════════════════════════════════════════════════════════════
+  2. INSTALACIÓN
+═══════════════════════════════════════════════════════════════════
+
+2.1 PRIMERA INSTALACIÓN (RECOMENDADO):
+   
+   1. Haga clic derecho sobre el instalador:
+      "GloryView Proyector-0.1.4-Installer.exe"
+      
+   2. Seleccione "Ejecutar como administrador"
+   
+   3. Siga las instrucciones del asistente de instalación
+   
+   4. Al finalizar, la aplicación estará instalada en:
+      C:\Program Files\GloryView Proyector\
+
+═══════════════════════════════════════════════════════════════════
+  3. CONFIGURACIÓN DEL FIREWALL DE WINDOWS (IMPORTANTE)
+═══════════════════════════════════════════════════════════════════
+
+NOTA CRÍTICA: GloryView Proyector utiliza un servidor local en el 
+puerto 3001 para la comunicación interna entre ventanas. El Firewall 
+de Windows puede bloquear esta conexión.
+
+3.1 MÉTODO 1 - Ejecutar como Administrador (Primera vez):
+   
+   Al ejecutar la aplicación como administrador la primera vez,
+   Windows creará automáticamente las reglas del Firewall necesarias.
+   
+   Pasos:
+   1. Haga clic derecho en "GloryView Proyector"
+   2. Seleccione "Ejecutar como administrador"
+   3. Acepte el mensaje de Windows Firewall cuando aparezca
+
+3.2 MÉTODO 2 - Configuración Manual del Firewall:
+   
+   Si el Firewall sigue bloqueando la aplicación después de la 
+   instalación, debe configurarlo manualmente:
+   
+   Pasos:
+   1. Abra "Configuración de Windows" (Win + I)
+   2. Vaya a "Privacidad y seguridad" → "Seguridad de Windows"
+   3. Haga clic en "Firewall y protección de red"
+   4. Haga clic en "Permitir una aplicación a través del firewall"
+   5. Haga clic en "Cambiar configuración"
+   6. Busque "GloryView Proyector" en la lista
+   7. Marque las casillas de "Privada" y "Pública"
+   8. Haga clic en "Aceptar"
+   
+   Si no aparece en la lista:
+   1. Haga clic en "Permitir otra aplicación"
+   2. Haga clic en "Examinar"
+   3. Navegue a: C:\Program Files\GloryView Proyector\
+   4. Seleccione "GloryView Proyector.exe"
+   5. Haga clic en "Agregar"
+
+3.3 MÉTODO 3 - Regla Avanzada del Firewall:
+   
+   Para usuarios avanzados que necesitan configurar manualmente:
+   
+   1. Abra "Firewall de Windows Defender con seguridad avanzada"
+   2. Haga clic en "Reglas de entrada"
+   3. Haga clic en "Nueva regla" en el panel derecho
+   4. Seleccione "Programa" → Siguiente
+   5. Busque: C:\Program Files\GloryView Proyector\GloryView Proyector.exe
+   6. Seleccione "Permitir la conexión" → Siguiente
+   7. Marque todos los perfiles (Dominio, Privado, Público)
+   8. Nombre: "GloryView Proyector - Puerto 3001"
+   9. Finalizar
+
+═══════════════════════════════════════════════════════════════════
+  4. VERSIÓN PORTABLE (SIN INSTALACIÓN)
+═══════════════════════════════════════════════════════════════════
+
+También incluimos una versión portable que no requiere instalación:
+
+4.1 USO:
+   
+   1. Extraiga "GloryView Proyector-0.1.4-Portable.exe" en una 
+      carpeta de su elección
+      
+   2. Ejecute "GloryView Proyector.exe" directamente
+   
+   3. IMPORTANTE: La versión portable también requiere permisos
+      del Firewall. Siga las instrucciones de la sección 3.
+
+4.2 VENTAJAS:
+   - No requiere instalación
+   - Puede ejecutarse desde USB o disco externo
+   - No modifica el registro de Windows
+   - Ideal para uso en múltiples computadoras
+
+═══════════════════════════════════════════════════════════════════
+  5. DESINSTALACIÓN
+═══════════════════════════════════════════════════════════════════
+
+Para desinstalar GloryView Proyector:
+
+1. Abra "Configuración" (Win + I)
+2. Vaya a "Aplicaciones" → "Aplicaciones instaladas"
+3. Busque "GloryView Proyector"
+4. Haga clic en los tres puntos (...)
+5. Seleccione "Desinstalar"
+6. Confirme la desinstalación
+
+Datos de usuario:
+- Los datos de la aplicación (himnos, multimedia, configuración)
+  se guardan en:
+  C:\Users\[SuUsuario]\AppData\Roaming\GloryView Proyector\
+  
+- Estos datos NO se eliminan automáticamente al desinstalar
+- Para eliminarlos manualmente, borre la carpeta mencionada
+
+═══════════════════════════════════════════════════════════════════
+  6. SOLUCIÓN DE PROBLEMAS
+═══════════════════════════════════════════════════════════════════
+
+6.1 La aplicación no inicia:
+   - Ejecute como administrador
+   - Verifique que su sistema cumpla los requisitos mínimos
+   - Reinstale la aplicación
+
+6.2 El proyector no se muestra / pantalla negra:
+   - Verifique la configuración del Firewall (Sección 3)
+   - Reinicie la aplicación
+   - Intente con otra pantalla/proyector
+
+6.3 Error "Puerto 3001 en uso":
+   - Cierre otras aplicaciones que puedan usar el puerto 3001
+   - Reinicie la computadora
+   - Si persiste, contacte soporte técnico
+
+6.4 Problemas de rendimiento:
+   - Cierre otras aplicaciones en segundo plano
+   - Actualice los drivers de su tarjeta gráfica
+   - Verifique que tenga suficiente RAM disponible
+
+═══════════════════════════════════════════════════════════════════
+  7. ACTUALIZACIÓN
+═══════════════════════════════════════════════════════════════════
+
+Para actualizar a una nueva versión:
+
+1. Desinstale la versión anterior (Sección 5)
+2. Instale la nueva versión (Sección 2)
+3. Sus datos se conservarán automáticamente
+
+NOTA: No es necesario desinstalar si instala la nueva versión
+sobre la antigua. El instalador actualizará automáticamente.
+
+═══════════════════════════════════════════════════════════════════
+  8. SOPORTE
+═══════════════════════════════════════════════════════════════════
+
+Para reportar problemas o solicitar ayuda:
+
+Email: coderhammer70@gmail.com
+GitHub: https://github.com/Alfredo-Hammer/my-church-proyector
+
+═══════════════════════════════════════════════════════════════════
+
+© 2026 Alfredo Hammer - GloryView Proyector
+Todos los derechos reservados.
+
+═══════════════════════════════════════════════════════════════════

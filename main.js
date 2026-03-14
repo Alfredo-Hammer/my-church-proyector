@@ -357,10 +357,10 @@ function obtenerCSP() {
       "connect-src 'self' http://localhost:3000 http://localhost:3001 ws://localhost:3000 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "frame-src 'self' https://*.youtube.com https://www.youtube.com https://youtube.com https://*.google.com;";
   } else {
-    // PRODUCCIÓN: sin 'unsafe-eval' (bundles webpack no usan eval) ni 'unsafe-inline' en script-src
-    // NOTA: si TinyMCE u otra lib rompe, agregar 'unsafe-inline' solo a script-src y documentar por qué
+    // PRODUCCIÓN: sin 'unsafe-eval' (bundles webpack no usan eval)
+    // NOTA: 'unsafe-inline' se mantiene en script-src porque TinyMCE/Quill inyectan scripts inline
     return "default-src 'self' http://localhost:3001 https://*.youtube.com https://*.google.com; " +
-      "script-src 'self' https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
+      "script-src 'self' 'unsafe-inline' https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
       "style-src 'self' 'unsafe-inline' https://*.youtube.com https://*.ytimg.com https://*.google.com https://*.ggpht.com https://*.gstatic.com; " +
       "img-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "media-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.ggpht.com https://pixabay.com https://*.pixabay.com blob:; " +
@@ -469,7 +469,22 @@ function iniciarServidorMultimedia() {
       }
     }
 
-    return Array.from(new Set(ips));
+    const uniqueIps = Array.from(new Set(ips));
+
+    // Priorizar IPs de red real (Wi-Fi / Ethernet) sobre adaptadores virtuales.
+    // Windows retorna VMware/Hyper-V/WSL antes que el Wi-Fi, rompiendo el QR en producción.
+    const score = (ip) => {
+      // Rangos típicos de red local → mayor prioridad
+      if (/^192\.168\./.test(ip)) return 0;
+      if (/^10\./.test(ip)) return 1;
+      if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 2;
+      // Rangos típicos de adaptadores virtuales → menor prioridad
+      if (/^172\./.test(ip)) return 10;
+      if (/^169\.254\./.test(ip)) return 20; // APIPA / link-local
+      return 5;
+    };
+
+    return uniqueIps.sort((a, b) => score(a) - score(b));
   };
 
   const obtenerUrlPreferidaParaMovil = () => {
@@ -1054,6 +1069,56 @@ function iniciarServidorMultimedia() {
       return res.json({ ok: true, favoritos });
     } catch (error) {
       console.error('❌ [MAIN] (API) Error /api/biblia/favoritos:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ✅ Estructura de un libro: número de capítulos y versículos por capítulo
+  // Respuesta: { ok:true, libroId, capitulos:number, versiculosPorCapitulo:number[] }
+  // Usado por la app móvil para renderizar la grilla de capítulos/versículos correctamente.
+  expressApp.get('/api/biblia/estructura/:libroId', (req, res) => {
+    try {
+      const libroId = String(req.params?.libroId || '').trim();
+      // Validar: solo letras minúsculas, dígitos y guión bajo (evita path traversal)
+      if (!libroId || !/^[a-z0-9_]+$/.test(libroId)) {
+        return res.status(400).json({ ok: false, error: 'libroId inválido' });
+      }
+
+      const candidatos = [
+        path.join(buildDir, 'data', 'biblia', `${libroId}.js`),
+        path.join(__dirname, 'src', 'data', 'biblia', `${libroId}.js`),
+      ];
+
+      let ruta = null;
+      for (const c of candidatos) {
+        if (fs.existsSync(c)) { ruta = c; break; }
+      }
+
+      if (!ruta) {
+        return res.status(404).json({ ok: false, error: `Libro "${libroId}" no encontrado` });
+      }
+
+      // Leer como texto y evaluar con vm (evita problemas con import() de ESM en main process)
+      const vm = require('vm');
+      const contenido = fs.readFileSync(ruta, 'utf8');
+      // Quitar "export default" y evaluar el array literal JavaScript
+      const arrayStr = contenido.replace(/^\s*export\s+default\s+/, '').trim();
+      const data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
+
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(404).json({ ok: false, error: `Libro "${libroId}" vacío o inválido` });
+      }
+
+      const versiculosPorCapitulo = data.map((cap) => (Array.isArray(cap) ? cap.length : 0));
+
+      return res.json({
+        ok: true,
+        libroId,
+        capitulos: data.length,
+        versiculosPorCapitulo,
+      });
+    } catch (error) {
+      console.error('❌ [MAIN] (API) Error /api/biblia/estructura:', error);
       return res.status(500).json({ ok: false, error: error.message });
     }
   });
@@ -2286,11 +2351,35 @@ function iniciarServidorMultimedia() {
     }
   });
 
-  expressApp.listen(PORT, () => {
-    console.log(
-      `✅ [Servidor] Archivos multimedia disponibles en http://localhost:${PORT}`
+  // Escuchar en 0.0.0.0 explícitamente para aceptar conexiones de la red local (app móvil).
+  // Sin host explícito, en Windows con IPv6 preferido puede quedar solo en '::' y rechazar IPv4.
+  const servidor = expressApp.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ [Servidor] Escuchando en 0.0.0.0:${PORT} (LAN + localhost)`);
+  });
+
+  servidor.on('error', (err) => {
+    console.error(`❌ [Servidor] Error al iniciar en puerto ${PORT}:`, err.message);
+    const { dialog } = require('electron');
+    dialog.showErrorBox(
+      'Error de servidor',
+      `GloryView no pudo iniciar el servidor en el puerto ${PORT}.\n\nPosible causa: el puerto ya está en uso por otra aplicación.\n\nDetalle: ${err.message}`
     );
   });
+
+  // Windows: agregar regla de Firewall para que la app móvil pueda conectarse.
+  // En producción, el .exe empaquetado no hereda la excepción de node.exe en desarrollo.
+  if (app.isPackaged && process.platform === 'win32') {
+    const { exec } = require('child_process');
+    const ruleName = 'GloryView Proyector - Puerto 3001';
+    const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} program="${process.execPath}" enable=yes`;
+    exec(addRule, (err) => {
+      if (err) {
+        console.warn('[Firewall] No se pudo agregar regla automáticamente (puede requerir admin):', err.message);
+      } else {
+        console.log(`[Firewall] Regla creada: "${ruleName}"`);
+      }
+    });
+  }
 }
 
 // Crear la carpeta "assets/fondos" si no existe (solo desarrollo)
@@ -2345,7 +2434,7 @@ function createMainWindow() {
       webSecurity: true, // ✨ CAMBIAR A TRUE para seguridad
       allowRunningInsecureContent: false, // ✨ AGREGAR seguridad adicional
       experimentalFeatures: false, // ✨ AGREGAR seguridad adicional
-      sandbox: true,
+      sandbox: false, // Revertido: sandbox:true bloquea media API (new Audio) en app empaquetada
     },
   });
 
@@ -2914,7 +3003,7 @@ function createProyectorWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       allowRunningInsecureContent: false,
-      sandbox: true,
+      sandbox: false, // Revertido: sandbox:true bloquea media API en ventana proyector empaquetada
       // ✨ MEJORAS PARA ALTA CALIDAD
       hardwareAcceleration: true, // Acelerar hardware para mejor rendimiento
       enableBlinkFeatures: 'CSSBackdropFilter', // Mejor soporte para filtros CSS

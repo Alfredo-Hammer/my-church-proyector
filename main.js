@@ -46,45 +46,33 @@ if (!DEBUG_LOGS) {
   console.debug = () => { };
 }
 
-// ✅ INSTANCIA ÚNICA: evitar que el usuario abra varias copias de GloryView.
+// ✅ INSTANCIA ÚNICA: evitar múltiples copias de GloryView corriendo.
+// requestSingleInstanceLock() solo puede llamarse UNA vez por proceso.
 const gotLock = app.requestSingleInstanceLock();
+let _appShouldRun = gotLock;
+
 if (!gotLock) {
-  // Hay otra instancia corriendo (o un proceso fantasma del instalador anterior).
-  // Intentar matar los procesos Electron colgados antes de rendirse.
-  if (process.platform === 'win32') {
-    try {
-      require('child_process').execSync(
-        `taskkill /IM "${require('path').basename(process.execPath)}" /F /FI "PID ne ${process.pid}"`,
-        { timeout: 3000 }
-      );
-    } catch (_) { /* si falla, mostrar mensaje abajo */ }
-  }
-
-  // Reintentar el lock después de matar procesos
-  const retry = app.requestSingleInstanceLock();
-  if (!retry) {
-    // Aún no se puede — mostrar mensaje claro al usuario
-    app.whenReady().then(() => {
-      dialog.showMessageBoxSync({
-        type: 'warning',
-        title: 'GloryView ya está abierto',
-        message: 'GloryView Proyector ya está en ejecución.\n\nSi la ventana no está visible, búscala en la barra de tareas.\n\nSi el problema persiste, abre el Administrador de tareas y cierra todos los procesos "Electron" antes de volver a abrir GloryView.',
-        buttons: ['Aceptar'],
-      });
-      app.quit();
+  // Otra instancia ya tiene el lock → mostrar aviso y salir.
+  app.whenReady().then(() => {
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      title: 'GloryView ya está abierto',
+      message: 'GloryView Proyector ya está en ejecución.\n\nSi la ventana no está visible, búscala en la barra de tareas de Windows.\n\nSi el problema persiste, abre el Administrador de tareas, cierra todos los procesos "Electron" y vuelve a abrir GloryView.',
+      buttons: ['Aceptar'],
     });
-    return;
-  }
+    app.quit();
+  });
+} else {
+  // Esta es la instancia principal — si el usuario abre otra copia, enfocar esta.
+  app.on('second-instance', () => {
+    const wins = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed());
+    if (wins.length > 0) {
+      const main = wins[0];
+      if (main.isMinimized()) main.restore();
+      main.focus();
+    }
+  });
 }
-
-app.on('second-instance', () => {
-  const wins = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed());
-  if (wins.length > 0) {
-    const main = wins[0];
-    if (main.isMinimized()) main.restore();
-    main.focus();
-  }
-});
 
 // Permitir reproducción sin gesto del usuario (necesario para controlar play/pause por IPC en el proyector).
 // No fuerza autoplay por sí mismo; solo evita que Chromium rechace `media.play()`.
@@ -3184,6 +3172,7 @@ function createProyectorWindow() {
 
 // --- App Ready ---
 app.whenReady().then(async () => {
+  if (!_appShouldRun) return; // Segunda instancia: ya se mostró el aviso, no iniciar
   try {
     writeLog("✅ Electron app ready - Iniciando GloryView Proyector");
 

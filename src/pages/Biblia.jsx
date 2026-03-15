@@ -1,4 +1,4 @@
-import {useEffect, useState, useCallback} from "react";
+import {useEffect, useState, useCallback, useRef} from "react";
 import {
   IoSearch,
   IoClose,
@@ -31,8 +31,7 @@ const Biblia = () => {
 
   const [favoritosBibliaIds, setFavoritosBibliaIds] = useState(() => new Set());
 
-  // Estado para logo de la iglesia
-  const [logoIglesia, setLogoIglesia] = useState(null);
+  const inputBuscadorRef = useRef(null);
 
   // Estados para el buscador rápido
   const [busqueda, setBusqueda] = useState("");
@@ -47,24 +46,13 @@ const Biblia = () => {
     useState(null);
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
 
-  // Cargar logo de la iglesia
+  // Auto-focus en el input del buscador al abrirse
   useEffect(() => {
-    const cargarLogoIglesia = async () => {
-      try {
-        if (!window.electron?.obtenerConfiguracion) {
-          setLogoIglesia("/images/icon-256.png");
-          return;
-        }
-        const configuracion = await window.electron.obtenerConfiguracion();
-        const logo = configuracion?.logoUrl || "/images/icon-256.png";
-        setLogoIglesia(logo);
-      } catch (error) {
-        console.log("No se pudo cargar el logo:", error);
-        setLogoIglesia("/images/icon-256.png");
-      }
-    };
-    cargarLogoIglesia();
-  }, []);
+    if (mostrarBuscador) {
+      const t = setTimeout(() => inputBuscadorRef.current?.focus(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [mostrarBuscador]);
 
   // Cargar favoritos de Biblia desde el backend local
   useEffect(() => {
@@ -557,100 +545,40 @@ const Biblia = () => {
   }, [busqueda, realizarBusquedaRapida, mostrarBuscador]);
 
   return (
-    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 h-full overflow-hidden">
-      {/* Header más compacto */}
-      <div className="bg-black/30 backdrop-blur border-b border-white/10">
-        <div className="max-w-7xl mx-auto p-3 xl:p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/5 border border-white/10 rounded-xl">
-                <FaBible className="text-lg" />
-              </div>
-              <div>
-                <h1 className="text-xl xl:text-2xl font-semibold text-white">
-                  Biblia Reina-Valera 1960
-                </h1>
-                <p className="text-white/60 text-xs xl:text-sm">
-                  Busca y proyecta versículos de las Sagradas Escrituras
-                </p>
-              </div>
-            </div>
+    <div className="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden">
 
-            {/* Estadísticas más compactas */}
-            <div className="flex items-center gap-2">
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 border border-white/10">
-                <div className="text-center">
-                  <div className="text-sm font-semibold text-white">66</div>
-                  <div className="text-xs text-slate-400">Libros</div>
-                </div>
-              </div>
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 border border-white/10">
-                <div className="text-center">
-                  <div className="text-sm font-semibold text-white">
-                    {librosDeLaBiblia.antiguoTestamento.length}
-                  </div>
-                  <div className="text-xs text-slate-400">A.T.</div>
-                </div>
-              </div>
-              <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 border border-white/10">
-                <div className="text-center">
-                  <div className="text-sm font-semibold text-white">
-                    {librosDeLaBiblia.nuevoTestamento.length}
-                  </div>
-                  <div className="text-xs text-slate-400">N.T.</div>
-                </div>
-              </div>
-
-              {/* Logo de la iglesia - siempre visible */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 border border-white/20">
-                <img
-                  src={logoIglesia || "/images/icon-256.png"}
-                  alt="Logo Iglesia"
-                  className="w-8 h-8 xl:w-10 xl:h-10 object-cover rounded-lg"
-                  onError={(e) => {
-                    e.target.src = "/images/icon-256.png";
-                  }}
-                />
-              </div>
-            </div>
+      {/* ── Barra de herramientas compacta ── */}
+      <div className="shrink-0 bg-slate-900/98 backdrop-blur border-b border-slate-700/50 px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <FaBible className="text-indigo-400 text-sm" />
+            <span className="text-sm font-semibold text-white hidden sm:inline">Biblia RVR60</span>
           </div>
 
-          {/* Botones de acción más compactos */}
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setMostrarBuscador(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/90 hover:bg-emerald-600 border border-emerald-500/20 rounded-xl transition-colors text-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500/30 rounded-lg text-xs font-medium transition-colors"
             >
-              <IoSearch className="text-sm" />
+              <IoSearch className="text-xs" />
               <span>Búsqueda Rápida</span>
-              <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">
-                Ctrl+K
-              </span>
+              <kbd className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded">Ctrl+K</kbd>
             </button>
 
             <button
-              onClick={() => {
-                window.electron.enviarVersiculo({
-                  parrafo: "",
-                  titulo: "",
-                  numero: "",
-                  origen: "clear",
-                });
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-colors text-sm text-red-200"
+              onClick={() => window.electron.enviarVersiculo({parrafo:"",titulo:"",numero:"",origen:"clear"})}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-medium text-red-300 transition-colors"
             >
-              <FaTimes className="text-sm" />
-              <span>Limpiar Proyección</span>
-              <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">
-                Esc
-              </span>
+              <FaTimes className="text-xs" />
+              <span className="hidden sm:inline">Limpiar</span>
+              <kbd className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded hidden sm:inline">Esc</kbd>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Contenido principal con altura fija */}
-      <div className="max-w-7xl mx-auto p-3 xl:p-4 h-[calc(100vh-130px)] xl:h-[calc(100vh-148px)] overflow-y-auto">
+      {/* Contenido principal */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 xl:p-4">
         {/* Sección de libros - Layout horizontal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           {/* Antiguo Testamento */}
@@ -667,31 +595,27 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-1.5">
               {librosDeLaBiblia.antiguoTestamento.map((libro, index) => (
-                <div
+                <button
                   key={libro.id}
-                  className={`group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-amber-500/20 rounded-lg p-2 hover:border-amber-400/50 transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-amber-500/20 hover:scale-105 ${
-                    libroSeleccionado === libro.id
-                      ? "border-amber-400 shadow-lg shadow-amber-500/30"
-                      : ""
-                  }`}
+                  type="button"
                   onClick={() => manejarSeleccionarLibro(libro.id)}
-                  style={{animationDelay: `${index * 30}ms`}}
+                  className={`group text-left rounded-lg px-2 py-1.5 border transition-all duration-200 hover:scale-[1.02] ${
+                    libroSeleccionado === libro.id
+                      ? "border-amber-400/60 bg-amber-500/15 shadow-sm shadow-amber-500/20"
+                      : "border-amber-500/15 bg-white/4 hover:border-amber-400/35 hover:bg-amber-500/8"
+                  }`}
                 >
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-amber-300 mb-1">
-                      {libro.id.slice(0, 3).toUpperCase()}
-                    </div>
-                    <div className="text-xs text-slate-300 group-hover:text-amber-200 transition-colors leading-tight">
-                      {libro.nombre}
-                    </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className={`shrink-0 text-[9px] font-bold tabular-nums mt-0.5 w-4 ${
+                      libroSeleccionado === libro.id ? "text-amber-400" : "text-amber-600/60 group-hover:text-amber-500/80"
+                    }`}>{index + 1}</span>
+                    <span className={`text-[10px] xl:text-[11px] leading-tight font-medium ${
+                      libroSeleccionado === libro.id ? "text-amber-200" : "text-slate-300 group-hover:text-amber-200"
+                    }`}>{libro.nombre}</span>
                   </div>
-
-                  {libroSeleccionado === libro.id && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400/10 to-orange-400/10 rounded-lg"></div>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -710,702 +634,499 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-1.5">
               {librosDeLaBiblia.nuevoTestamento.map((libro, index) => (
-                <div
+                <button
                   key={libro.id}
-                  className={`group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm border border-emerald-500/20 rounded-lg p-2 hover:border-emerald-400/50 transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 ${
-                    libroSeleccionado === libro.id
-                      ? "border-emerald-400 shadow-lg shadow-emerald-500/30"
-                      : ""
-                  }`}
+                  type="button"
                   onClick={() => manejarSeleccionarLibro(libro.id)}
-                  style={{animationDelay: `${index * 30}ms`}}
+                  className={`group text-left rounded-lg px-2 py-1.5 border transition-all duration-200 hover:scale-[1.02] ${
+                    libroSeleccionado === libro.id
+                      ? "border-emerald-400/60 bg-emerald-500/15 shadow-sm shadow-emerald-500/20"
+                      : "border-emerald-500/15 bg-white/4 hover:border-emerald-400/35 hover:bg-emerald-500/8"
+                  }`}
                 >
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-emerald-300 mb-1">
-                      {libro.id.slice(0, 3).toUpperCase()}
-                    </div>
-                    <div className="text-xs text-slate-300 group-hover:text-emerald-200 transition-colors leading-tight">
-                      {libro.nombre}
-                    </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className={`shrink-0 text-[9px] font-bold tabular-nums mt-0.5 w-4 ${
+                      libroSeleccionado === libro.id ? "text-emerald-400" : "text-emerald-600/60 group-hover:text-emerald-500/80"
+                    }`}>{index + 1}</span>
+                    <span className={`text-[10px] xl:text-[11px] leading-tight font-medium ${
+                      libroSeleccionado === libro.id ? "text-emerald-200" : "text-slate-300 group-hover:text-emerald-200"
+                    }`}>{libro.nombre}</span>
                   </div>
-
-                  {libroSeleccionado === libro.id && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/10 to-green-400/10 rounded-lg"></div>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Sección de capítulos y versículos - Layout horizontal compacto */}
-        {libroSeleccionado ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {/* Capítulos */}
-            <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 backdrop-blur-sm border border-blue-500/20 rounded-lg overflow-hidden">
-              <div className="p-3 border-b border-blue-500/20">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-gradient-to-r from-blue-500/20 to-purple-600/20 rounded-lg">
-                    <IoGrid className="text-blue-400 text-sm" />
+        {/* ── Capítulos y Versículos ── */}
+        {libroSeleccionado ? (() => {
+          const nombreLibroActual = librosDeLaBiblia.antiguoTestamento
+            .concat(librosDeLaBiblia.nuevoTestamento)
+            .find((l) => l.id === libroSeleccionado)?.nombre || "";
+          const esAT = librosDeLaBiblia.antiguoTestamento.some((l) => l.id === libroSeleccionado);
+          return (
+            <div className="space-y-2">
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 px-0.5">
+                <IoBook className={esAT ? "text-amber-500/60" : "text-emerald-500/60"} />
+                <span className={`font-semibold ${esAT ? "text-amber-400/80" : "text-emerald-400/80"}`}>{nombreLibroActual}</span>
+                {capituloSeleccionado && (<><span className="text-slate-700">›</span><span className="text-indigo-400/80 font-semibold">Cap. {capituloSeleccionado}</span></>)}
+                {versiculoSeleccionado && (<><span className="text-slate-700">›</span><span className="text-violet-400/80 font-semibold">Vers. {versiculoSeleccionado}</span></>)}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {/* ── Capítulos ── */}
+                <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-md bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                        <IoGrid className="text-indigo-400 text-[9px]" />
+                      </div>
+                      <span className="text-xs font-semibold text-white">Capítulos</span>
+                      {capitulos.length > 0 && <span className="text-[10px] text-slate-600">{capitulos.length} caps.</span>}
+                    </div>
+                    {capituloSeleccionado && (
+                      <span className="text-[11px] font-bold text-indigo-300 bg-indigo-500/15 border border-indigo-500/25 px-2 py-0.5 rounded-full tabular-nums">
+                        Cap. {capituloSeleccionado}
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-blue-300">
-                      Capítulos
-                    </h3>
-                    <p className="text-slate-400 text-xs">
-                      {
-                        librosDeLaBiblia.antiguoTestamento
-                          .concat(librosDeLaBiblia.nuevoTestamento)
-                          .find((libro) => libro.id === libroSeleccionado)
-                          ?.nombre
-                      }
-                    </p>
+                  <div className="p-2.5 max-h-[24vh] lg:max-h-[30vh] overflow-y-auto">
+                    {capitulos.length > 0 ? (
+                      <div className="grid gap-1.5" style={{gridTemplateColumns: "repeat(auto-fill, minmax(2.1rem, 1fr))"}}>
+                        {capitulos.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => manejarSeleccionarCapitulo(index)}
+                            className={`aspect-square rounded-lg text-xs font-bold transition-all ${
+                              capituloSeleccionado === index + 1
+                                ? "bg-indigo-600 text-white border border-indigo-500/60 shadow-sm"
+                                : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:bg-slate-700 hover:text-white hover:border-indigo-500/40"
+                            }`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500 mx-auto mb-2" />
+                          <p className="text-slate-600 text-xs">Cargando...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Versículos ── */}
+                <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-md bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                        <FaBible className="text-violet-400 text-[9px]" />
+                      </div>
+                      <span className="text-xs font-semibold text-white">Versículos</span>
+                      {versiculos.length > 0 && <span className="text-[10px] text-slate-600">{versiculos.length} vers.</span>}
+                    </div>
+                    {versiculoSeleccionado && (
+                      <span className="text-[11px] font-bold text-violet-300 bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 rounded-full tabular-nums">
+                        {capituloSeleccionado}:{versiculoSeleccionado}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-2.5 max-h-[24vh] lg:max-h-[30vh] overflow-y-auto">
+                    {versiculos.length > 0 ? (
+                      <div className="grid gap-1.5" style={{gridTemplateColumns: "repeat(auto-fill, minmax(2.1rem, 1fr))"}}>
+                        {versiculos.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => manejarSeleccionarVersiculo(index)}
+                            className={`aspect-square rounded-lg text-xs font-bold transition-all ${
+                              versiculoSeleccionado === index + 1
+                                ? "bg-violet-600 text-white border border-violet-500/60 shadow-sm"
+                                : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:bg-slate-700 hover:text-white hover:border-violet-500/40"
+                            }`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="text-center">
+                          <FaBible className="text-xl text-slate-700 mx-auto mb-2" />
+                          <p className="text-slate-600 text-xs">
+                            {capituloSeleccionado ? "Elige un versículo" : "Primero selecciona un capítulo"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-
-              <div className="p-3 h-40 lg:h-48 xl:h-56 2xl:h-64 overflow-y-auto">
-                {capitulos.length > 0 ? (
-                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 xl:grid-cols-14 gap-1.5">
-                    {capitulos.map((_, index) => (
-                      <div
-                        key={index}
-                        className={`w-8 h-8 flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600 rounded-md cursor-pointer hover:shadow-md hover:shadow-blue-500/25 transition-all duration-300 hover:scale-105 ${
-                          capituloSeleccionado === index + 1
-                            ? "ring-2 ring-yellow-400 scale-105 shadow-md shadow-yellow-400/25"
-                            : ""
-                        }`}
-                        onClick={() => manejarSeleccionarCapitulo(index)}
-                      >
-                        <span className="text-xs font-bold text-white">
-                          {index + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400 mx-auto mb-2"></div>
-                      <p className="text-slate-400 text-xs">
-                        Cargando capítulos...
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-
-            {/* Versículos */}
-            <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 backdrop-blur-sm border border-purple-500/20 rounded-lg overflow-hidden">
-              <div className="p-3 border-b border-purple-500/20">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-gradient-to-r from-purple-500/20 to-pink-600/20 rounded-lg">
-                    <FaBible className="text-purple-400 text-sm" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-purple-300">
-                      Versículos
-                    </h3>
-                    <p className="text-slate-400 text-xs">
-                      {capituloSeleccionado
-                        ? `Capítulo ${capituloSeleccionado}`
-                        : "Selecciona un capítulo"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 h-40 lg:h-48 xl:h-56 2xl:h-64 overflow-y-auto">
-                {versiculos.length > 0 ? (
-                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 xl:grid-cols-14 gap-1.5">
-                    {versiculos.map((_, index) => (
-                      <div
-                        key={index}
-                        className={`w-8 h-8 flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-600 rounded-md cursor-pointer hover:shadow-md hover:shadow-purple-500/25 transition-all duration-300 hover:scale-105 ${
-                          versiculoSeleccionado === index + 1
-                            ? "ring-2 ring-yellow-400 scale-105 shadow-md shadow-yellow-400/25"
-                            : ""
-                        }`}
-                        onClick={() => manejarSeleccionarVersiculo(index)}
-                      >
-                        <span className="text-xs font-bold text-white">
-                          {index + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-center text-slate-400">
-                      <FaBible className="text-2xl mx-auto mb-2 text-slate-600" />
-                      <p className="text-xs">
-                        {capituloSeleccionado
-                          ? "Selecciona un capítulo para ver los versículos"
-                          : "Primero selecciona un capítulo"}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+          );
+        })() : (
+          /* Estado vacío */
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center mx-auto mb-4">
+              <FaBible className="text-xl text-slate-600" />
             </div>
-          </div>
-        ) : (
-          /* Estado vacío compacto */
-          <div className="text-center py-8">
-            <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-lg p-6 border border-indigo-500/20">
-              <FaBible className="text-3xl text-slate-600 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-slate-300 mb-2">
-                Selecciona un libro para comenzar
-              </h3>
-              <p className="text-slate-400 text-sm mb-4 max-w-md mx-auto">
-                Elige cualquier libro del Antiguo o Nuevo Testamento para
-                explorar sus capítulos y versículos
-              </p>
-              <button
-                onClick={() => setMostrarBuscador(true)}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg font-semibold hover:shadow-lg hover:shadow-indigo-500/25 transform hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto text-sm"
-              >
-                <IoSearch />
-                <span>Búsqueda Rápida</span>
-              </button>
-              <div className="mt-3 text-xs text-slate-500">
-                💡 <strong>Atajos:</strong> Ctrl/Cmd + K (buscador), Esc
-                (limpiar), ←→ (navegar versículos)
-              </div>
-            </div>
+            <h3 className="text-base font-semibold text-slate-400 mb-1">Selecciona un libro</h3>
+            <p className="text-slate-600 text-xs mb-4 max-w-xs">
+              Elige un libro del Antiguo o Nuevo Testamento para explorar sus capítulos y versículos
+            </p>
+            <button
+              onClick={() => setMostrarBuscador(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500/30 rounded-lg text-sm font-medium transition-colors"
+            >
+              <IoSearch className="text-sm" /> Búsqueda Rápida
+              <span className="text-[10px] bg-white/15 px-1.5 py-0.5 rounded">Ctrl+K</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Modal de detalle del versículo - REDISEÑADO */}
-      {mostrarDetalle && versiculoSeleccionado && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950/95 border border-white/10 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Header del modal */}
-            <div className="p-6 border-b border-indigo-500/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full">
-                    <FaBible className="text-xl" />
+      {/* ── Modal versículo ── */}
+      {mostrarDetalle && versiculoSeleccionado && (() => {
+        const nombreLibroModal = librosDeLaBiblia.antiguoTestamento
+          .concat(librosDeLaBiblia.nuevoTestamento)
+          .find((l) => l.id === libroSeleccionado)?.nombre || "";
+        return (
+          <div
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6"
+            onClick={() => setMostrarDetalle(false)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 shrink-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                    <FaBible className="text-indigo-400 text-[10px]" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                      {
-                        librosDeLaBiblia.antiguoTestamento
-                          .concat(librosDeLaBiblia.nuevoTestamento)
-                          .find((libro) => libro.id === libroSeleccionado)
-                          ?.nombre
-                      }
-                    </h2>
-                    <p className="text-slate-400">
-                      Capítulo {capituloSeleccionado}, Versículo{" "}
-                      {versiculoSeleccionado}
-                    </p>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Versículo</p>
+                    <h3 className="text-sm font-bold text-white truncate">{nombreLibroModal} {capituloSeleccionado}:{versiculoSeleccionado}</h3>
                   </div>
                 </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={toggleFavoritoActual}
+                    className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${esFavoritoActual ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-slate-800 border-slate-700/60 text-slate-500 hover:text-amber-400"}`}
+                    title={esFavoritoActual ? "Quitar favorito" : "Agregar a favoritos"}
+                  >
+                    {esFavoritoActual ? <FaStar className="text-xs" /> : <FaRegStar className="text-xs" />}
+                  </button>
+                  <button
+                    onClick={proyectarVersiculo}
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
+                  >
+                    <FaPlay className="text-[9px]" /> Proyectar
+                  </button>
+                  <button
+                    onClick={() => setMostrarDetalle(false)}
+                    className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-500 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors"
+                  >
+                    <IoClose className="text-sm" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Versículo anterior */}
+              {versiculoSeleccionado > 1 && (
                 <button
-                  onClick={() => setMostrarDetalle(false)}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                  type="button"
+                  onClick={irAnterior}
+                  className="w-full text-left px-4 pt-3 pb-2 border-b border-slate-800 hover:bg-slate-800/50 transition-colors group"
                 >
-                  <IoClose className="text-xl" />
-                </button>
-              </div>
-            </div>
-
-            {/* Contenido del versículo */}
-            <div className="p-8">
-              {/* Vista previa (anterior / actual / siguiente) */}
-              <div className="mb-8">
-                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-3 md:p-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    {/* Anterior */}
-                    <button
-                      type="button"
-                      disabled={versiculoSeleccionado <= 1}
-                      onClick={irAnterior}
-                      className="text-left rounded-2xl p-5 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-500/20 transition-all duration-200 disabled:opacity-40 disabled:hover:bg-white/5 disabled:hover:border-white/10"
-                      title="Anterior"
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <span className="text-xs text-slate-400 font-semibold tracking-wide">
-                          ANTERIOR
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {capituloSeleccionado}:
-                          {Math.max(1, (versiculoSeleccionado || 1) - 1)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-200/80 leading-relaxed h-20 overflow-hidden">
-                        {versiculoSeleccionado > 1
-                          ? `“${versiculos[versiculoSeleccionado - 2] || "No disponible"}”`
-                          : "—"}
-                      </p>
-                    </button>
-
-                    {/* Actual */}
-                    <div className="rounded-2xl p-6 border border-indigo-500/25 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm">
-                      <div className="flex items-center justify-between gap-3 mb-4">
-                        <span className="text-xs text-indigo-300 font-semibold tracking-wide">
-                          ACTUAL
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {capituloSeleccionado}:{versiculoSeleccionado}
-                        </span>
-                      </div>
-                      <div className="max-h-56 overflow-y-auto pr-1">
-                        <p className="text-2xl text-white leading-relaxed font-medium text-center">
-                          "
-                          {versiculos[versiculoSeleccionado - 1] ||
-                            "No disponible"}
-                          "
-                        </p>
-                      </div>
-                      <div className="mt-4 text-indigo-300 font-semibold text-center">
-                        —{" "}
-                        {
-                          librosDeLaBiblia.antiguoTestamento
-                            .concat(librosDeLaBiblia.nuevoTestamento)
-                            .find((libro) => libro.id === libroSeleccionado)
-                            ?.nombre
-                        }{" "}
-                        {capituloSeleccionado}:{versiculoSeleccionado} —
-                      </div>
-                    </div>
-
-                    {/* Siguiente */}
-                    <button
-                      type="button"
-                      disabled={versiculoSeleccionado >= versiculos.length}
-                      onClick={irSiguiente}
-                      className="text-left rounded-2xl p-5 border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-500/20 transition-all duration-200 disabled:opacity-40 disabled:hover:bg-white/5 disabled:hover:border-white/10"
-                      title="Siguiente"
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <span className="text-xs text-slate-400 font-semibold tracking-wide">
-                          SIGUIENTE
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {capituloSeleccionado}:
-                          {Math.min(
-                            versiculos.length,
-                            (versiculoSeleccionado || 1) + 1,
-                          )}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-200/80 leading-relaxed h-20 overflow-hidden">
-                        {versiculoSeleccionado < versiculos.length
-                          ? `“${versiculos[versiculoSeleccionado] || "No disponible"}”`
-                          : "—"}
-                      </p>
-                    </button>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Anterior</span>
+                    <span className="text-[10px] text-slate-700 tabular-nums">{capituloSeleccionado}:{versiculoSeleccionado - 1}</span>
                   </div>
+                  <p className="text-xs text-slate-600 group-hover:text-slate-500 line-clamp-2 leading-relaxed">
+                    {versiculos[versiculoSeleccionado - 2] || "—"}
+                  </p>
+                </button>
+              )}
+
+              {/* Versículo actual */}
+              <div className="px-5 py-4 bg-indigo-500/5 border-b border-indigo-500/15">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] text-indigo-400/70 uppercase tracking-wider font-semibold">Actual</span>
+                  <span className="text-[11px] text-indigo-400/50 tabular-nums">{capituloSeleccionado}:{versiculoSeleccionado}</span>
                 </div>
+                <p className="text-base sm:text-lg text-white leading-relaxed font-medium text-center">
+                  "{versiculos[versiculoSeleccionado - 1] || "No disponible"}"
+                </p>
+                <p className="text-[11px] text-indigo-400/50 text-center mt-2.5">
+                  — {nombreLibroModal} {capituloSeleccionado}:{versiculoSeleccionado} —
+                </p>
               </div>
 
-              {/* Controles de navegación */}
-              <div className="flex justify-center gap-4 mb-8">
+              {/* Versículo siguiente */}
+              {versiculoSeleccionado < versiculos.length && (
                 <button
-                  onClick={() => {
-                    if (versiculoSeleccionado > 1) {
-                      const nuevoVersiculo = versiculoSeleccionado - 1;
-                      setVersiculoSeleccionado(nuevoVersiculo);
+                  type="button"
+                  onClick={irSiguiente}
+                  className="w-full text-left px-4 pt-2 pb-3 border-b border-slate-800 hover:bg-slate-800/50 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Siguiente</span>
+                    <span className="text-[10px] text-slate-700 tabular-nums">{capituloSeleccionado}:{versiculoSeleccionado + 1}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 group-hover:text-slate-500 line-clamp-2 leading-relaxed">
+                    {versiculos[versiculoSeleccionado] || "—"}
+                  </p>
+                </button>
+              )}
 
-                      window.electron.enviarVersiculo({
-                        parrafo:
-                          versiculos[nuevoVersiculo - 1] || "No disponible",
-                        titulo: librosDeLaBiblia.antiguoTestamento
-                          .concat(librosDeLaBiblia.nuevoTestamento)
-                          .find((libro) => libro.id === libroSeleccionado)
-                          ?.nombre,
-                        numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
-                        origen: "biblia",
-                      });
-                    }
-                  }}
+              {/* Footer */}
+              <div className="px-4 py-2.5 flex items-center gap-2">
+                <button
+                  onClick={irAnterior}
                   disabled={versiculoSeleccionado <= 1}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-500 rounded-xl transition-all duration-300 hover:scale-105"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                 >
-                  <FaArrowLeft />
-                  <span>Anterior</span>
+                  <FaArrowLeft className="text-[9px]" /> Anterior
                 </button>
-
                 <button
-                  onClick={() => {
-                    window.electron.enviarVersiculo({
-                      parrafo: "",
-                      titulo: "",
-                      numero: "",
-                      origen: "clear",
-                    });
-                    setMostrarDetalle(false);
-                  }}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 rounded-xl transition-all duration-300 hover:scale-105"
+                  onClick={() => { window.electron.enviarVersiculo({parrafo:"",titulo:"",numero:"",origen:"clear"}); setMostrarDetalle(false); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs transition-colors"
                 >
-                  <FaTimes />
-                  <span>Limpiar</span>
+                  <FaTimes className="text-[9px]" /> Limpiar
                 </button>
-
+                <span className="flex-1 text-center text-[11px] text-slate-600 tabular-nums">
+                  {versiculoSeleccionado} / {versiculos.length}
+                </span>
                 <button
-                  onClick={toggleFavoritoActual}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105 border ${
-                    esFavoritoActual
-                      ? "bg-yellow-500/20 border-yellow-400/30 text-yellow-200"
-                      : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
-                  }`}
-                  title={
-                    esFavoritoActual
-                      ? "Quitar de favoritos"
-                      : "Agregar a favoritos"
-                  }
-                >
-                  {esFavoritoActual ? <FaStar /> : <FaRegStar />}
-                  <span>{esFavoritoActual ? "Favorito" : "Favorito"}</span>
-                </button>
-
-                <button
-                  onClick={proyectarVersiculo}
-                  className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl transition-all duration-300 hover:scale-105 font-semibold"
-                >
-                  <FaPlay />
-                  <span>Proyectar</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (versiculoSeleccionado < versiculos.length) {
-                      const nuevoVersiculo = versiculoSeleccionado + 1;
-                      setVersiculoSeleccionado(nuevoVersiculo);
-
-                      window.electron.enviarVersiculo({
-                        parrafo:
-                          versiculos[nuevoVersiculo - 1] || "No disponible",
-                        titulo: librosDeLaBiblia.antiguoTestamento
-                          .concat(librosDeLaBiblia.nuevoTestamento)
-                          .find((libro) => libro.id === libroSeleccionado)
-                          ?.nombre,
-                        numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
-                        origen: "biblia",
-                      });
-                    }
-                  }}
+                  onClick={irSiguiente}
                   disabled={versiculoSeleccionado >= versiculos.length}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-500 rounded-xl transition-all duration-300 hover:scale-105"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                 >
-                  <span>Siguiente</span>
-                  <FaArrowRight />
+                  Siguiente <FaArrowRight className="text-[9px]" />
                 </button>
-              </div>
-
-              {/* Mini navegador de versículos */}
-              <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm border border-indigo-500/20 rounded-2xl p-6">
-                <h4 className="text-lg font-semibold mb-4 text-indigo-300">
-                  Navegación rápida - Capítulo {capituloSeleccionado}
-                </h4>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {versiculos.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg cursor-pointer hover:shadow-lg hover:shadow-indigo-500/25 text-sm font-bold transition-all duration-300 hover:scale-110 ${
-                        versiculoSeleccionado === index + 1
-                          ? "ring-2 ring-yellow-400 scale-110 shadow-lg shadow-yellow-400/25"
-                          : ""
-                      }`}
-                      onClick={() => {
-                        const nuevoVersiculo = index + 1;
-                        setVersiculoSeleccionado(nuevoVersiculo);
-
-                        window.electron.enviarVersiculo({
-                          parrafo:
-                            versiculos[nuevoVersiculo - 1] || "No disponible",
-                          titulo: librosDeLaBiblia.antiguoTestamento
-                            .concat(librosDeLaBiblia.nuevoTestamento)
-                            .find((libro) => libro.id === libroSeleccionado)
-                            ?.nombre,
-                          numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
-                          origen: "biblia",
-                        });
-                      }}
-                    >
-                      {index + 1}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Buscador Rápido - REDISEÑADO */}
+      {/* Buscador Rápido */}
       {mostrarBuscador && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950/95 border border-white/10 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-            {/* Header del buscador */}
-            <div className="p-6 border-b border-indigo-500/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full">
-                    <IoSearch className="text-xl" />
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-950/98 border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl flex flex-col max-h-[92vh] sm:max-h-[85vh]">
+
+            {/* ── Header compacto ── */}
+            <div className="px-4 pt-4 pb-3 border-b border-white/8 shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                    <IoSearch className="text-indigo-400 text-sm" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                      Búsqueda Rápida
-                    </h3>
-                    <p className="text-slate-400">
-                      Encuentra versículos en 3 pasos simples
-                    </p>
+                    <h3 className="text-base font-bold text-white leading-tight">Búsqueda Rápida</h3>
+                    <p className="text-[11px] text-slate-500">↑↓ navegar · Tab/Enter seleccionar · Esc cerrar</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setMostrarBuscador(false);
-                    resetearBuscador();
-                  }}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                  onClick={() => { setMostrarBuscador(false); resetearBuscador(); }}
+                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/25 flex items-center justify-center text-slate-400 hover:text-red-400 transition-all"
                 >
-                  <IoClose className="text-xl" />
+                  <IoClose />
                 </button>
               </div>
-            </div>
 
-            {/* Indicador de pasos */}
-            <div className="p-6 border-b border-indigo-500/20">
-              <div className="flex items-center justify-center gap-6">
-                <div
-                  className={`flex items-center ${
-                    pasoActual >= 1 ? "text-blue-400" : "text-gray-500"
-                  }`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
-                      pasoActual >= 1
-                        ? "border-blue-400 bg-blue-400 text-white"
-                        : "border-gray-500"
-                    }`}
-                  >
-                    1
-                  </div>
-                  <span className="ml-3 font-medium">Libro</span>
-                </div>
-
-                <div className="h-0.5 w-12 bg-gradient-to-r from-blue-400 to-green-400"></div>
-
-                <div
-                  className={`flex items-center ${
-                    pasoActual >= 2 ? "text-green-400" : "text-gray-500"
-                  }`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
-                      pasoActual >= 2
-                        ? "border-green-400 bg-green-400 text-white"
-                        : "border-gray-500"
-                    }`}
-                  >
-                    2
-                  </div>
-                  <span className="ml-3 font-medium">Capítulo</span>
-                </div>
-
-                <div className="h-0.5 w-12 bg-gradient-to-r from-green-400 to-purple-400"></div>
-
-                <div
-                  className={`flex items-center ${
-                    pasoActual >= 3 ? "text-purple-400" : "text-gray-500"
-                  }`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold ${
-                      pasoActual >= 3
-                        ? "border-purple-400 bg-purple-400 text-white"
-                        : "border-gray-500"
-                    }`}
-                  >
-                    3
-                  </div>
-                  <span className="ml-3 font-medium">Versículo</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Contexto actual */}
-            <div className="p-6">
-              {(libroSeleccionadoBuscador || capituloSeleccionadoBuscador) && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {libroSeleccionadoBuscador && (
-                        <span className="flex items-center gap-2 text-blue-400 font-semibold">
-                          <FaBible className="text-sm" />
-                          {libroSeleccionadoBuscador.nombre}
-                        </span>
-                      )}
-                      {capituloSeleccionadoBuscador && (
-                        <span className="flex items-center gap-2 text-green-400 font-semibold">
-                          <IoGrid className="text-sm" />
-                          Capítulo {capituloSeleccionadoBuscador}
-                        </span>
-                      )}
+              {/* Stepper compacto */}
+              <div className="flex items-center gap-1">
+                {[{n:1,label:"Libro",color:"blue"},{n:2,label:"Capítulo",color:"green"},{n:3,label:"Versículo",color:"purple"}].map((step, i) => (
+                  <div key={step.n} className="flex items-center gap-1 min-w-0">
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                      pasoActual === step.n
+                        ? step.color === "blue" ? "bg-blue-500/20 border-blue-500/40 text-blue-300" :
+                          step.color === "green" ? "bg-green-500/20 border-green-500/40 text-green-300" :
+                          "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                        : pasoActual > step.n
+                          ? "bg-white/8 border-white/15 text-white/70"
+                          : "bg-transparent border-white/10 text-white/30"
+                    }`}>
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        pasoActual >= step.n ? "bg-current/20" : ""
+                      }`}>{step.n}</span>
+                      <span className="hidden sm:inline">{step.label}</span>
                     </div>
+                    {i < 2 && <div className={`w-4 h-px shrink-0 ${pasoActual > step.n ? "bg-white/30" : "bg-white/10"}`} />}
+                  </div>
+                ))}
 
+                {/* Breadcrumb selección actual */}
+                {libroSeleccionadoBuscador && (
+                  <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] text-blue-400 font-medium truncate max-w-[100px]">{libroSeleccionadoBuscador.nombre}</span>
+                    {capituloSeleccionadoBuscador && (
+                      <>
+                        <span className="text-white/20 text-[10px]">·</span>
+                        <span className="text-[11px] text-green-400 font-medium">Cap. {capituloSeleccionadoBuscador}</span>
+                      </>
+                    )}
                     {pasoActual > 1 && (
-                      <button
-                        onClick={retrocederPaso}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg transition-all duration-200"
-                      >
-                        <IoChevronBack />
-                        Atrás
+                      <button onClick={retrocederPaso} className="ml-1 flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 px-1.5 py-0.5 rounded-md transition-all">
+                        <IoChevronBack className="text-[10px]" /> Atrás
                       </button>
                     )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            </div>
 
-              {/* Campo de búsqueda */}
-              <div className="mb-6">
+            {/* ── Campo de búsqueda ── */}
+            <div className="px-4 py-3 border-b border-white/6 shrink-0">
+              <div className="relative">
+                <IoSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400/70 text-sm pointer-events-none" />
                 <input
+                  ref={inputBuscadorRef}
                   type="text"
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   onKeyDown={manejarTeclasBuscador}
-                  className="w-full p-4 bg-white/10 border border-indigo-500/30 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300 text-lg"
+                  className="w-full pl-9 pr-9 py-3 bg-slate-800 border-2 border-slate-600 hover:border-slate-500 focus:border-indigo-500 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-colors text-sm"
                   placeholder={
                     pasoActual === 1
-                      ? "🔍 Escribe el nombre del libro (ej: Genesis, Juan, Salmos)..."
+                      ? "Buscar libro... (ej: Juan, Salmos, Génesis)"
                       : pasoActual === 2
-                        ? `🔍 Escribe el número del capítulo en ${libroSeleccionadoBuscador?.nombre}...`
-                        : `🔍 Escribe el número del versículo o busca por contenido...`
+                        ? `Número de capítulo en ${libroSeleccionadoBuscador?.nombre}...`
+                        : `Número de versículo...`
                   }
-                  autoFocus
                 />
-                <p className="text-sm text-slate-400 mt-2">
-                  💡 Usa las flechas ↑↓ para navegar, Tab o Enter para
-                  seleccionar
-                </p>
-              </div>
-
-              {/* Resultados de búsqueda */}
-              <div className="max-h-64 overflow-y-auto">
-                {resultadosBusqueda.length === 0 && busqueda.trim() && (
-                  <div className="text-center py-12">
-                    <IoSearch className="text-4xl text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-300 mb-2">
-                      No se encontraron resultados
-                    </h3>
-                    <p className="text-slate-400">
-                      Intenta con otro término de búsqueda para "{busqueda}"
-                    </p>
-                  </div>
-                )}
-
-                {resultadosBusqueda.length === 0 && !busqueda.trim() && (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">
-                      {pasoActual === 1 && "📚"}
-                      {pasoActual === 2 && "📋"}
-                      {pasoActual === 3 && "📖"}
-                    </div>
-                    <h3 className="text-xl font-semibold text-slate-300 mb-2">
-                      {pasoActual === 1 && "¿Qué libro buscas?"}
-                      {pasoActual === 2 &&
-                        `¿Qué capítulo de ${libroSeleccionadoBuscador?.nombre}?`}
-                      {pasoActual === 3 &&
-                        `¿Qué versículo del capítulo ${capituloSeleccionadoBuscador}?`}
-                    </h3>
-                    <p className="text-slate-400">
-                      {pasoActual === 1 &&
-                        "Puedes escribir el nombre completo o una abreviación"}
-                      {pasoActual === 2 &&
-                        "Escribe el número del capítulo que deseas"}
-                      {pasoActual === 3 &&
-                        "Escribe el número del versículo o busca por contenido"}
-                    </p>
-                  </div>
-                )}
-
-                {resultadosBusqueda.map((resultado, index) => (
-                  <div
-                    key={index}
-                    className={`p-4 mb-3 rounded-xl cursor-pointer transition-all duration-300 border-l-4 ${
-                      index === indiceSeleccionado
-                        ? "bg-indigo-500/20 border-indigo-400 transform scale-[1.02] shadow-lg"
-                        : "bg-white/5 border-transparent hover:bg-white/10"
-                    }`}
-                    onClick={() => seleccionarResultadoRapido(resultado)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-3 h-3 rounded-full ${
-                            resultado.tipo === "libro"
-                              ? "bg-blue-400"
-                              : resultado.tipo === "capitulo"
-                                ? "bg-green-400"
-                                : "bg-purple-400"
-                          }`}
-                        ></div>
-                        <div>
-                          <h4 className="font-semibold text-white text-lg">
-                            {resultado.titulo}
-                          </h4>
-                          <p className="text-sm text-slate-400 mt-1">
-                            {resultado.descripcion}
-                          </p>
-                        </div>
-                      </div>
-
-                      {index === indiceSeleccionado && (
-                        <span className="text-indigo-400 text-sm font-medium bg-indigo-500/20 px-3 py-1 rounded-full">
-                          Tab/Enter
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Botones de acción */}
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => {
-                    setMostrarBuscador(false);
-                    resetearBuscador();
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 rounded-xl transition-all duration-300 hover:scale-105"
-                >
-                  <IoClose />
-                  Cerrar
-                </button>
-
-                <button
-                  onClick={resetearBuscador}
-                  className="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 rounded-xl transition-all duration-300 hover:scale-105"
-                >
-                  Reiniciar
-                </button>
-
-                {pasoActual > 1 && (
-                  <button
-                    onClick={retrocederPaso}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 rounded-xl transition-all duration-300 hover:scale-105"
-                  >
-                    <IoChevronBack />
-                    Atrás
+                {busqueda && (
+                  <button onClick={() => setBusqueda("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                    <IoClose className="text-sm" />
                   </button>
                 )}
               </div>
+            </div>
 
-              {/* Ayuda */}
-              <div className="mt-6 p-4 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl">
-                <p className="text-xs text-slate-400">
-                  <strong>Atajos de teclado:</strong> Ctrl/Cmd + K (abrir
-                  buscador), Esc (cerrar/limpiar), ↑↓ (navegar), Tab/Enter
-                  (seleccionar)
-                </p>
-              </div>
+            {/* ── Área de resultados / browse ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+
+              {/* Sin búsqueda en paso 1: mostrar todos los libros */}
+              {pasoActual === 1 && !busqueda.trim() && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] text-amber-500/70 font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <FaBookOpen className="text-[9px]" /> Antiguo Testamento
+                      <span className="text-amber-500/40">({librosDeLaBiblia.antiguoTestamento.length})</span>
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                      {librosDeLaBiblia.antiguoTestamento.map((libro, i) => (
+                        <button
+                          key={libro.id}
+                          type="button"
+                          onClick={() => seleccionarResultadoRapido({tipo:"libro", libro, titulo:libro.nombre, descripcion:""})}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-amber-500/12 bg-amber-500/5 hover:border-amber-400/35 hover:bg-amber-500/12 text-left transition-all group"
+                        >
+                          <span className="shrink-0 text-[9px] text-amber-600/50 group-hover:text-amber-500/70 w-4 tabular-nums">{i+1}</span>
+                          <span className="text-[11px] text-slate-300 group-hover:text-amber-200 leading-tight truncate">{libro.nombre}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-emerald-500/70 font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <IoBook className="text-[9px]" /> Nuevo Testamento
+                      <span className="text-emerald-500/40">({librosDeLaBiblia.nuevoTestamento.length})</span>
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                      {librosDeLaBiblia.nuevoTestamento.map((libro, i) => (
+                        <button
+                          key={libro.id}
+                          type="button"
+                          onClick={() => seleccionarResultadoRapido({tipo:"libro", libro, titulo:libro.nombre, descripcion:""})}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-emerald-500/12 bg-emerald-500/5 hover:border-emerald-400/35 hover:bg-emerald-500/12 text-left transition-all group"
+                        >
+                          <span className="shrink-0 text-[9px] text-emerald-600/50 group-hover:text-emerald-500/70 w-4 tabular-nums">{i+1}</span>
+                          <span className="text-[11px] text-slate-300 group-hover:text-emerald-200 leading-tight truncate">{libro.nombre}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sin búsqueda en paso 2 o 3 */}
+              {(pasoActual === 2 || pasoActual === 3) && !busqueda.trim() && resultadosBusqueda.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="text-4xl mb-3">{pasoActual === 2 ? "📋" : "📖"}</div>
+                  <p className="text-sm font-medium text-slate-300 mb-1">
+                    {pasoActual === 2 ? `¿Qué capítulo de ${libroSeleccionadoBuscador?.nombre}?` : `¿Qué versículo del capítulo ${capituloSeleccionadoBuscador}?`}
+                  </p>
+                  <p className="text-xs text-slate-500">Escribe el número arriba</p>
+                </div>
+              )}
+
+              {/* Sin resultados con búsqueda */}
+              {resultadosBusqueda.length === 0 && busqueda.trim() && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <IoSearch className="text-3xl text-slate-600 mb-3" />
+                  <p className="text-sm font-medium text-slate-300">Sin resultados para "{busqueda}"</p>
+                  <p className="text-xs text-slate-500 mt-1">Intenta con otro término</p>
+                </div>
+              )}
+
+              {/* Resultados de búsqueda */}
+              {resultadosBusqueda.length > 0 && (
+                <div className="space-y-1">
+                  {resultadosBusqueda.map((resultado, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
+                        index === indiceSeleccionado
+                          ? "bg-indigo-500/18 border-indigo-400/40 shadow-sm"
+                          : "bg-white/4 border-white/6 hover:bg-white/8 hover:border-white/12"
+                      }`}
+                      onClick={() => seleccionarResultadoRapido(resultado)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          resultado.tipo === "libro" ? "bg-blue-400" :
+                          resultado.tipo === "capitulo" ? "bg-green-400" : "bg-purple-400"
+                        }`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-white truncate">{resultado.titulo}</p>
+                          {resultado.descripcion && (
+                            <p className="text-[11px] text-slate-400 truncate">{resultado.descripcion}</p>
+                          )}
+                        </div>
+                        {index === indiceSeleccionado && (
+                          <span className="shrink-0 text-[10px] text-indigo-400 bg-indigo-500/15 border border-indigo-500/25 px-1.5 py-0.5 rounded">Enter</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Footer con acciones ── */}
+            <div className="px-4 py-3 border-t border-white/6 flex items-center gap-2 shrink-0">
+              <button
+                onClick={resetearBuscador}
+                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg transition-all"
+              >
+                Reiniciar
+              </button>
+              <button
+                onClick={() => { setMostrarBuscador(false); resetearBuscador(); }}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/20 rounded-lg transition-all"
+              >
+                <IoClose className="text-xs" /> Cerrar
+              </button>
             </div>
           </div>
         </div>

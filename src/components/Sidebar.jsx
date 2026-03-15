@@ -14,81 +14,22 @@ import {
   FaPlay,
   FaImage,
   FaBook,
+  FaChevronRight,
 } from "react-icons/fa";
 
 const menuItems = [
-  {
-    id: "inicio",
-    path: "/",
-    icon: <FaHome />,
-    label: "Inicio",
-  },
-  {
-    id: "himnos",
-    path: "/himnos",
-    icon: <FaMusic />,
-    label: "Himnario Moravo",
-  },
-  {
-    id: "vida-cristiana",
-    path: "/vida-cristiana",
-    icon: <FaBookOpen />,
-    label: "Vida Cristiana",
-  },
-  {
-    id: "agregar-himno",
-    path: "/agregar-himno",
-    icon: <FaPlus />,
-    label: "Agregar Himno",
-  },
-  {
-    id: "biblia",
-    path: "/biblia",
-    icon: <FaBook />,
-    label: "Biblia",
-  },
-  {
-    id: "multimedia",
-    path: "/multimedia",
-    icon: <FaPlay />,
-    label: "Fuentes Multimedia",
-  },
-  {
-    id: "gestion-fondos",
-    path: "/gestion-fondos",
-    icon: <FaImage />,
-    label: "Gestión de Fondos",
-  },
-  {
-    id: "favoritos",
-    path: "/favoritos",
-    icon: <FaStar />,
-    label: "Favoritos",
-  },
-  {
-    id: "app-movil",
-    path: "/app-movil",
-    icon: <FaMobileAlt />,
-    label: "App móvil",
-  },
-  {
-    id: "configuracion",
-    path: "/configuracion",
-    icon: <FaVial />,
-    label: "Configuración",
-  },
-  {
-    id: "contactos",
-    path: "/contactos",
-    icon: <FaSteam />,
-    label: "Soporte",
-  },
-  {
-    id: "version",
-    icon: <FaDev />,
-    label: "Versión 1.0.0",
-    isLabel: true,
-  },
+  {id: "inicio",         path: "/",              icon: <FaHome />,      label: "Inicio"},
+  {id: "himnos",         path: "/himnos",         icon: <FaMusic />,     label: "Himnario Moravo"},
+  {id: "vida-cristiana", path: "/vida-cristiana", icon: <FaBookOpen />,  label: "Vida Cristiana"},
+  {id: "agregar-himno",  path: "/agregar-himno",  icon: <FaPlus />,      label: "Agregar Himno"},
+  {id: "biblia",         path: "/biblia",         icon: <FaBook />,      label: "Biblia"},
+  {id: "multimedia",     path: "/multimedia",     icon: <FaPlay />,      label: "Fuentes Multimedia"},
+  {id: "gestion-fondos", path: "/gestion-fondos", icon: <FaImage />,     label: "Gestión de Fondos"},
+  {id: "favoritos",      path: "/favoritos",      icon: <FaStar />,      label: "Favoritos"},
+  {id: "app-movil",      path: "/app-movil",      icon: <FaMobileAlt />, label: "App móvil"},
+  {id: "configuracion",  path: "/configuracion",  icon: <FaVial />,      label: "Configuración"},
+  {id: "contactos",      path: "/contactos",      icon: <FaSteam />,     label: "Soporte"},
+  {id: "version", icon: <FaDev />, label: "Versión 1.0.0", isLabel: true},
 ];
 
 const Sidebar = ({isCollapsed, setIsCollapsed}) => {
@@ -97,59 +38,75 @@ const Sidebar = ({isCollapsed, setIsCollapsed}) => {
   return (
     <div
       className={`${
-        isCollapsed ? "w-14 xl:w-16" : "w-52 lg:w-56 xl:w-60 2xl:w-64"
-      } h-screen bg-gray-950 text-white flex flex-col p-2 xl:p-3 transition-all duration-300 shrink-0 border-r border-gray-800`}
+        isCollapsed ? "w-[60px]" : "w-52 lg:w-56 xl:w-60"
+      } h-screen bg-gray-950 text-white flex flex-col transition-all duration-300 shrink-0 border-r border-white/6 relative z-40`}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-2 pt-1 pb-2">
+      {/* ── HEADER ── */}
+      <div
+        className={`flex items-center border-b border-white/6 shrink-0 ${
+          isCollapsed ? "justify-center px-0 py-3" : "justify-between px-3 py-3"
+        }`}
+      >
         {!isCollapsed && (
-          <div className="flex-grow flex items-center justify-center py-2">
-            <div className="flex items-center gap-2">
-              <img
-                src="/images/icon-256.png"
-                alt="GloryView"
-                className="w-9 h-9 rounded-md object-contain"
-                draggable={false}
-              />
-              <h1 className="text-lg font-semibold tracking-wide text-gray-100">
-                GloryView
-              </h1>
-            </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <img
+              src="/images/icon-256.png"
+              alt="GloryView"
+              className="w-8 h-8 rounded-lg object-contain shrink-0"
+              draggable={false}
+            />
+            <h1 className="text-sm font-semibold tracking-wide text-gray-100 truncate">
+              GloryView
+            </h1>
           </div>
         )}
+
+        {isCollapsed && (
+          <img
+            src="/images/icon-256.png"
+            alt="GloryView"
+            className="w-8 h-8 rounded-lg object-contain"
+            draggable={false}
+          />
+        )}
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-lg text-gray-300 hover:text-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+          className={`shrink-0 w-7 h-7 rounded-lg bg-white/5 hover:bg-white/12 border border-white/8 flex items-center justify-center transition-colors text-gray-400 hover:text-white ${
+            isCollapsed ? "absolute -right-3 top-4 bg-gray-900 border-white/15 shadow-lg" : ""
+          }`}
           aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
-          {isCollapsed ? <FaBars /> : <FaTimes />}
+          {isCollapsed
+            ? <FaChevronRight className="text-[10px]" />
+            : <FaTimes className="text-[10px]" />}
         </button>
       </div>
 
-      <div className="h-px bg-gray-800 mx-2" />
-
-      {/* Menú - ✨ USAR ID COMO KEY Y MANEJAR ELEMENTOS SIN PATH */}
-      <nav className="flex-1 pt-2 space-y-1">
+      {/* ── NAVEGACIÓN ── */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-0.5">
         {menuItems.map((item) => {
-          // ✨ SI ES SOLO UNA ETIQUETA (como versión), renderizar diferente
           if (item.isLabel) {
             return (
               <div
-                key={item.id} // ✨ USAR ID COMO KEY
-                className="group relative flex items-center gap-3 px-3 py-2 rounded opacity-60 cursor-default"
+                key={item.id}
+                className={`group relative flex items-center rounded-lg opacity-50 cursor-default mt-2 ${
+                  isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-2 py-2"
+                }`}
               >
-                <span className="inline-flex items-center justify-center w-8 h-8 xl:w-9 xl:h-9 rounded-md border border-gray-700 bg-gradient-to-br from-indigo-900/35 via-gray-900 to-gray-950">
-                  <span className="text-lg text-gray-400">{item.icon}</span>
+                <span className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-white/4 border border-white/6 text-gray-500 text-sm">
+                  {item.icon}
                 </span>
                 {!isCollapsed && (
-                  <span className="text-[11px] text-gray-400 leading-tight">
+                  <span className="text-[10px] text-gray-500 leading-tight truncate">
                     {item.label}
                   </span>
                 )}
                 {isCollapsed && (
-                  <span className="sr-only group-hover:not-sr-only absolute left-16 bg-gray-900 text-xs px-2 py-1 rounded border border-gray-800 z-50 whitespace-nowrap">
+                  <div className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 border border-white/10 rounded-lg text-xs text-gray-300 whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                     {item.label}
-                  </span>
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+                  </div>
                 )}
               </div>
             );
@@ -157,47 +114,51 @@ const Sidebar = ({isCollapsed, setIsCollapsed}) => {
 
           const isActive = location.pathname === item.path;
 
-          // ✨ ELEMENTOS NORMALES CON LINK
           return (
             <Link
-              key={item.id} // ✨ USAR ID COMO KEY
+              key={item.id}
               to={item.path}
-              className={`group relative flex items-center gap-3 px-3 py-2 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ${
+              className={`group relative flex items-center rounded-lg transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 ${
+                isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-2 py-2"
+              } ${
                 isActive
-                  ? "bg-gray-900 text-gray-100"
-                  : "text-gray-300 hover:text-gray-100 hover:bg-gray-900"
+                  ? "bg-indigo-500/15 text-white"
+                  : "text-gray-400 hover:text-white hover:bg-white/6"
               }`}
             >
+              {/* Indicador activo */}
+              {isActive && (
+                <span className={`absolute ${isCollapsed ? "left-0" : "left-0"} top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-400 rounded-r-full`} />
+              )}
+
+              {/* Icono */}
               <span
-                className={`inline-flex items-center justify-center w-8 h-8 xl:w-9 xl:h-9 rounded-md border transition-colors bg-gradient-to-br ${
+                className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border text-base transition-all ${
                   isActive
-                    ? "from-indigo-800/45 via-gray-900 to-gray-950 border-indigo-900/40"
-                    : "from-indigo-900/30 via-gray-900 to-gray-950 border-gray-700 group-hover:from-indigo-800/45 group-hover:via-gray-900 group-hover:to-gray-950 group-hover:border-indigo-900/40"
+                    ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
+                    : "bg-white/4 border-white/6 text-gray-400 group-hover:bg-white/8 group-hover:border-white/10 group-hover:text-gray-200"
                 }`}
               >
-                <span
-                  className={`text-lg transition-colors ${
-                    isActive
-                      ? "text-gray-100"
-                      : "text-gray-400 group-hover:text-gray-100"
-                  }`}
-                >
-                  {item.icon}
-                </span>
+                {item.icon}
               </span>
+
+              {/* Label (expandido) */}
               {!isCollapsed && (
                 <span
-                  className={`text-[11px] xl:text-[12px] 2xl:text-xs leading-tight ${
-                    isActive ? "font-medium" : ""
+                  className={`text-[11px] xl:text-xs leading-tight truncate ${
+                    isActive ? "font-semibold text-white" : ""
                   }`}
                 >
                   {item.label}
                 </span>
               )}
+
+              {/* Tooltip (colapsado) */}
               {isCollapsed && (
-                <span className="sr-only group-hover:not-sr-only absolute left-16 bg-gray-900 text-xs px-2 py-1 rounded border border-gray-800 z-50 whitespace-nowrap">
+                <div className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 border border-white/10 rounded-lg text-xs text-gray-200 whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                   {item.label}
-                </span>
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+                </div>
               )}
             </Link>
           );

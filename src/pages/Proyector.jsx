@@ -99,10 +99,12 @@ const Proyector = () => {
   }, []);
 
   useEffect(() => {
-    // Asegurar fondo oscuro SIEMPRE en el proyector.
+    // Asegurar fondo oscuro SIEMPRE en el proyector y ocultar scrollbars.
     // La ventana del proyector carga la misma SPA que la app principal,
     // cuyo body por defecto es claro; si el fondo dinámico se oculta o falla
     // por un instante (updates de configuración, modo slide, etc.) se ve blanco.
+    // El scrollbar de 8px del CSS global aparece como una línea vertical derecha
+    // sobre fondo negro — se elimina forzando overflow:hidden en html/body.
     const htmlEl = document.documentElement;
     const bodyEl = document.body;
 
@@ -111,25 +113,31 @@ const Proyector = () => {
       bodyBg: bodyEl?.style?.backgroundColor || "",
       htmlColor: htmlEl?.style?.color || "",
       bodyColor: bodyEl?.style?.color || "",
+      htmlOverflow: htmlEl?.style?.overflow || "",
+      bodyOverflow: bodyEl?.style?.overflow || "",
     };
 
     if (htmlEl?.style) {
       htmlEl.style.backgroundColor = "#000";
       htmlEl.style.color = "#fff";
+      htmlEl.style.overflow = "hidden";
     }
     if (bodyEl?.style) {
       bodyEl.style.backgroundColor = "#000";
       bodyEl.style.color = "#fff";
+      bodyEl.style.overflow = "hidden";
     }
 
     return () => {
       if (htmlEl?.style) {
         htmlEl.style.backgroundColor = previousGlobalStylesRef.current.htmlBg;
         htmlEl.style.color = previousGlobalStylesRef.current.htmlColor;
+        htmlEl.style.overflow = previousGlobalStylesRef.current.htmlOverflow;
       }
       if (bodyEl?.style) {
         bodyEl.style.backgroundColor = previousGlobalStylesRef.current.bodyBg;
         bodyEl.style.color = previousGlobalStylesRef.current.bodyColor;
+        bodyEl.style.overflow = previousGlobalStylesRef.current.bodyOverflow;
       }
     };
   }, []);

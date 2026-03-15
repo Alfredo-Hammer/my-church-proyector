@@ -256,11 +256,11 @@ function MainLayout() {
   const isInicio = location.pathname === '/';
   const isMultimedia = location.pathname === '/multimedia';
 
-  const mainClasses = isInicio
-    ? `flex-1 overflow-hidden bg-gray-800 transition-all duration-300`
+  const contentClasses = isInicio
+    ? `flex-1 min-h-0 overflow-hidden bg-gray-800 transition-all duration-300`
     : isMultimedia
-      ? `flex-1 overflow-hidden bg-gray-800 p-2 lg:p-3 xl:p-4 transition-all duration-300`
-      : `flex-1 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5 transition-all duration-300`;
+      ? `flex-1 min-h-0 overflow-hidden bg-gray-800 p-2 lg:p-3 xl:p-4 transition-all duration-300`
+      : `flex-1 min-h-0 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5 transition-all duration-300`;
 
   return (
     <div className="flex h-screen">
@@ -268,25 +268,27 @@ function MainLayout() {
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
       />
-      <main className={mainClasses}>
-        {/* Header para todas las páginas excepto Inicio */}
+      {/* Columna derecha: header pegado arriba + contenido con padding */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-800">
         {!isInicio && !isMultimedia && <Header />}
-        <Routes>
-          <Route path="/" element={<Inicio />} />
-          <Route path="/biblia" element={<Biblia />} />
-          <Route path="/himnos" element={<Himnos />} />
-          <Route path="/vida-cristiana" element={<HimnoVidaCristiana />} />
-          <Route path="/favoritos" element={<Favoritos />} />
-          <Route path="/himno-detalle/:id" element={<HimnoDetalle />} />
-          <Route path="/himno/:numero" element={<HimnoDetalle />} />
-          <Route path="/agregar-himno" element={<AgregarHimno />} />
-          <Route path="/contactos" element={<Contactos />} />
-          <Route path="/configuracion" element={<Configuracion />} />
-          <Route path="/app-movil" element={<AppMovil />} />
-          <Route path="/multimedia" element={<Multimedia />} />
-          <Route path="/gestion-fondos" element={<GestionFondos />} />
-        </Routes>
-      </main>
+        <main className={contentClasses}>
+          <Routes>
+            <Route path="/" element={<Inicio />} />
+            <Route path="/biblia" element={<Biblia />} />
+            <Route path="/himnos" element={<Himnos />} />
+            <Route path="/vida-cristiana" element={<HimnoVidaCristiana />} />
+            <Route path="/favoritos" element={<Favoritos />} />
+            <Route path="/himno-detalle/:id" element={<HimnoDetalle />} />
+            <Route path="/himno/:numero" element={<HimnoDetalle />} />
+            <Route path="/agregar-himno" element={<AgregarHimno />} />
+            <Route path="/contactos" element={<Contactos />} />
+            <Route path="/configuracion" element={<Configuracion />} />
+            <Route path="/app-movil" element={<AppMovil />} />
+            <Route path="/multimedia" element={<Multimedia />} />
+            <Route path="/gestion-fondos" element={<GestionFondos />} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
 }

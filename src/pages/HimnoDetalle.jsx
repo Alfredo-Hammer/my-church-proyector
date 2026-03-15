@@ -18,25 +18,8 @@ import {
   FaUndo,
   FaRedo,
   FaHome,
+  FaBroadcastTower,
 } from "react-icons/fa";
-
-const temasFondo = [
-  {
-    nombre: "Oscuro",
-    clase: "bg-slate-950",
-    texto: "text-slate-100",
-  },
-  {
-    nombre: "Grafito",
-    clase: "bg-slate-900",
-    texto: "text-slate-100",
-  },
-  {
-    nombre: "Índigo",
-    clase: "bg-indigo-950",
-    texto: "text-slate-100",
-  },
-];
 
 const HimnoDetalle = () => {
   const {id, numero} = useParams();
@@ -50,13 +33,11 @@ const HimnoDetalle = () => {
   const [toasts, setToasts] = useState([]);
 
   const API_BASE = "http://localhost:3001";
-
   const navigate = useNavigate();
 
   useEffect(() => {
     const cargarEstadoFavoritos = async () => {
       try {
-        // Himnos personalizados (DB): se lee desde SQLite vía IPC
         if (id) {
           const himnoDB = await window.electron?.obtenerHimnoPorId?.(id);
           if (himnoDB) {
@@ -71,14 +52,10 @@ const HimnoDetalle = () => {
           return;
         }
 
-        // Himnos base (Moravo / Vida): se lee desde backend (config)
         const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : "moravo";
         const res = await fetch(
           `${API_BASE}/api/himnos/favoritos?tipo=${tipoApi}`,
-          {
-            method: "GET",
-            headers: {Accept: "application/json"},
-          },
+          {method: "GET", headers: {Accept: "application/json"}},
         );
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok || !Array.isArray(json?.himnos)) {
@@ -92,88 +69,44 @@ const HimnoDetalle = () => {
           ),
         );
       } catch (error) {
-        console.warn("⚠️ Error cargando favoritos de himnos (backend):", error);
+        console.warn("⚠️ Error cargando favoritos:", error);
         setFavoritos(new Set());
       }
     };
-
     cargarEstadoFavoritos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, state?.tipo]);
 
-  // ✨ FUNCIÓN PARA TOASTS
   const addToast = (message, type = "success", duration = 3000) => {
-    const id = Date.now();
-    const newToast = {id, message, type};
-    setToasts((prev) => [...prev, newToast]);
+    const toastId = Date.now();
+    setToasts((prev) => [...prev, {id: toastId, message, type}]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      setToasts((prev) => prev.filter((t) => t.id !== toastId));
     }, duration);
   };
 
-  const removeToast = (id) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  const removeToast = (toastId) => {
+    setToasts((prev) => prev.filter((t) => t.id !== toastId));
   };
 
-  // ✨ COMPONENTE TOAST
   const Toast = ({toast}) => {
-    const getIcon = () => {
-      switch (toast.type) {
-        case "success":
-          return <FaCheck className="text-green-400" />;
-        case "info":
-          return <FaMusic className="text-blue-400" />;
-        case "warning":
-          return <FaVolumeUp className="text-yellow-400" />;
-        case "error":
-          return <FaTimes className="text-red-400" />;
-        default:
-          return <FaCheck className="text-green-400" />;
-      }
+    const configs = {
+      success: {icon: <FaCheck />, bar: "bg-emerald-500", text: "text-emerald-400"},
+      info:    {icon: <FaMusic />, bar: "bg-blue-500",    text: "text-blue-400"},
+      warning: {icon: <FaVolumeUp />, bar: "bg-amber-500", text: "text-amber-400"},
+      error:   {icon: <FaTimes />, bar: "bg-red-500",    text: "text-red-400"},
     };
-
-    const getAccent = () => {
-      switch (toast.type) {
-        case "success":
-          return "border-l-green-500";
-        case "info":
-          return "border-l-blue-500";
-        case "warning":
-          return "border-l-yellow-500";
-        case "error":
-          return "border-l-red-500";
-        default:
-          return "border-l-green-500";
-      }
-    };
-
+    const cfg = configs[toast.type] || configs.success;
     return (
-      <div
-        className={`bg-slate-900/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl shadow-lg flex items-start gap-3 border border-white/10 border-l-4 ${getAccent()}`}
-      >
-        <div className="flex-shrink-0 mt-0.5">{getIcon()}</div>
-        <div className="flex-1 text-sm font-medium leading-snug">
-          {toast.message}
-        </div>
-        <button
-          onClick={() => removeToast(toast.id)}
-          className="flex-shrink-0 text-white/80 hover:text-white transition-colors"
-        >
+      <div className="relative overflow-hidden flex items-start gap-3 bg-slate-900/95 backdrop-blur border border-white/10 rounded-2xl px-4 py-3 shadow-2xl min-w-[240px] max-w-xs">
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${cfg.bar}`} />
+        <span className={`${cfg.text} mt-0.5 shrink-0 text-sm`}>{cfg.icon}</span>
+        <p className="text-sm text-white/90 font-medium leading-snug flex-1">{toast.message}</p>
+        <button onClick={() => removeToast(toast.id)} className="text-white/40 hover:text-white/80 transition-colors shrink-0">
           <FaTimes className="text-xs" />
         </button>
       </div>
     );
-  };
-
-  const ui = {
-    btnBase:
-      "inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-    btnIcon:
-      "w-9 h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-    btnPrimary:
-      "inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-600/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-    btnDanger:
-      "inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-600 hover:bg-red-500 active:bg-red-600/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
   };
 
   useEffect(() => {
@@ -181,43 +114,26 @@ const HimnoDetalle = () => {
       try {
         if (numero) {
           if (state?.tipo === "vidaCristiana") {
-            const vidaCristianaHimno = vidacristianaData.find(
-              (h) => h.numero.toString() === numero,
-            );
-            if (vidaCristianaHimno) {
-              setHimno(vidaCristianaHimno);
-              return;
-            }
+            const h = vidacristianaData.find((h) => h.numero.toString() === numero);
+            if (h) { setHimno(h); return; }
           } else {
-            const jsonHimno = himnosData.find(
-              (h) => h.numero.toString() === numero,
-            );
-            if (jsonHimno) {
-              setHimno(jsonHimno);
-              return;
-            }
+            const h = himnosData.find((h) => h.numero.toString() === numero);
+            if (h) { setHimno(h); return; }
           }
         }
-
         if (id) {
           const himnoDB = await window.electron?.obtenerHimnoPorId(id);
           if (himnoDB) {
-            setHimno({
-              numero: himnoDB.numero,
-              titulo: himnoDB.titulo,
-              parrafos: himnoDB.letra,
-            });
+            setHimno({numero: himnoDB.numero, titulo: himnoDB.titulo, parrafos: himnoDB.letra});
             return;
           }
         }
-
         throw new Error("Himno no encontrado");
       } catch (error) {
         console.error("Error al cargar el himno:", error);
         setHimno(null);
       }
     };
-
     cargarHimno();
   }, [id, numero, state]);
 
@@ -231,85 +147,58 @@ const HimnoDetalle = () => {
         origen: "himno",
       });
       setIsProyectando(true);
-      addToast(`🎵 Proyectando: ${himno.titulo}`, "success");
+      addToast(`Proyectando: ${himno.titulo}`, "success");
     }
   };
 
   const limpiarProyeccion = () => {
     if (window.electron) {
-      window.electron.enviarVersiculo({
-        parrafo: "",
-        titulo: "",
-        numero: "",
-        origen: "clear",
-      });
+      window.electron.enviarVersiculo({parrafo: "", titulo: "", numero: "", origen: "clear"});
       setIsProyectando(false);
-      addToast("🧹 Proyección limpiada", "info");
+      addToast("Proyección limpiada", "info");
     }
   };
 
-  // ✨ Toggle de favoritos sincronizado (escritorio <-> móvil)
   const toggleFavorito = async () => {
     if (!himno) return;
-
     const prev = new Set(favoritos);
     const esAgregar = !prev.has(himno.numero);
     const next = new Set(prev);
     if (esAgregar) next.add(himno.numero);
     else next.delete(himno.numero);
     setFavoritos(next);
-
     try {
-      // Himno personalizado (DB): IPC
       if (id) {
-        if (!window.electron?.marcarFavorito)
-          throw new Error("IPC no disponible");
+        if (!window.electron?.marcarFavorito) throw new Error("IPC no disponible");
         await window.electron.marcarFavorito(id, esAgregar);
       } else {
-        // Himno base: backend
         const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : "moravo";
         const himnoId = `base:${tipoApi}:${String(himno.numero)}`;
-        const res = await fetch(
-          `${API_BASE}/api/himnos/${encodeURIComponent(himnoId)}/favorito`,
-          {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({favorito: esAgregar}),
-          },
-        );
+        const res = await fetch(`${API_BASE}/api/himnos/${encodeURIComponent(himnoId)}/favorito`, {
+          method: "POST",
+          headers: {Accept: "application/json", "Content-Type": "application/json"},
+          body: JSON.stringify({favorito: esAgregar}),
+        });
         const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) {
-          throw new Error(json?.error || `Error HTTP ${res.status}`);
-        }
+        if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
       }
-
-      if (esAgregar) {
-        addToast(`❤️ "${himno.titulo}" agregado a favoritos`, "success");
-      } else {
-        addToast(`💔 "${himno.titulo}" removido de favoritos`, "info");
-      }
+      addToast(esAgregar ? `"${himno.titulo}" en favoritos` : `Removido de favoritos`, esAgregar ? "success" : "info");
     } catch (error) {
       console.warn("❌ Error actualizando favorito:", error);
       setFavoritos(prev);
-      addToast("❌ No se pudo actualizar favorito", "error");
+      addToast("No se pudo actualizar favorito", "error");
     }
   };
 
   const cambiarParrafo = (indice, agregarAlHistorial = true) => {
     if (!himno) return;
-
     if (agregarAlHistorial) {
       const nuevoHistorial = historial.slice(0, posicionHistorial + 1);
       nuevoHistorial.push(indice);
       setHistorial(nuevoHistorial);
       setPosicionHistorial(nuevoHistorial.length - 1);
     }
-
     setSelectedParrafo(indice);
-
     if (window.electron && isProyectando) {
       window.electron.enviarHimno({
         parrafo: himno.parrafos[indice],
@@ -324,7 +213,6 @@ const HimnoDetalle = () => {
       const nuevaPosicion = posicionHistorial - 1;
       setPosicionHistorial(nuevaPosicion);
       cambiarParrafo(historial[nuevaPosicion], false);
-      addToast("⬅️ Párrafo anterior", "info");
     }
   };
 
@@ -333,47 +221,27 @@ const HimnoDetalle = () => {
       const nuevaPosicion = posicionHistorial + 1;
       setPosicionHistorial(nuevaPosicion);
       cambiarParrafo(historial[nuevaPosicion], false);
-      addToast("➡️ Párrafo siguiente", "info");
     }
   };
 
   const handleKeyDown = (e) => {
     if (!himno) return;
-
     switch (e.key) {
-      case "Escape":
-        limpiarProyeccion();
-        break;
-      case " ":
-        e.preventDefault();
-        proyectarHimno();
-        break;
+      case "Escape": limpiarProyeccion(); break;
+      case " ": e.preventDefault(); proyectarHimno(); break;
       case "ArrowUp":
       case "ArrowLeft":
         e.preventDefault();
-        const prevIndex = Math.max(0, selectedParrafo - 1);
-        cambiarParrafo(prevIndex);
+        cambiarParrafo(Math.max(0, selectedParrafo - 1));
         break;
       case "ArrowDown":
       case "ArrowRight":
         e.preventDefault();
-        const nextIndex = Math.min(
-          himno.parrafos.length - 1,
-          selectedParrafo + 1,
-        );
-        cambiarParrafo(nextIndex);
+        cambiarParrafo(Math.min(himno.parrafos.length - 1, selectedParrafo + 1));
         break;
-      case "Home":
-        e.preventDefault();
-        cambiarParrafo(0);
-        break;
-      case "End":
-        e.preventDefault();
-        cambiarParrafo(himno.parrafos.length - 1);
-        break;
-      default:
-        // No action for other keys
-        break;
+      case "Home": e.preventDefault(); cambiarParrafo(0); break;
+      case "End":  e.preventDefault(); cambiarParrafo(himno.parrafos.length - 1); break;
+      default: break;
     }
   };
 
@@ -382,256 +250,298 @@ const HimnoDetalle = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [himno, selectedParrafo, isProyectando, historial, posicionHistorial]);
 
+  const esFavorito = favoritos.has(himno?.numero);
+  const progreso = himno ? ((selectedParrafo + 1) / Math.max(1, himno.parrafos.length)) * 100 : 0;
+
+  /* ─── Estado de carga / error ─── */
   if (!himno) {
     return (
-      <div className="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center px-4">
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 shadow-xl text-center max-w-md w-full">
-          <FaMusic className="mx-auto text-6xl text-gray-600 mb-6" />
-          <h3 className="text-2xl font-bold text-gray-300 mb-4">
-            Himno no encontrado
-          </h3>
-          <p className="text-gray-400 mb-6">
-            El himno que buscas no está disponible
-          </p>
+      <div className="bg-slate-950 text-slate-100 h-full flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+            <FaMusic className="text-3xl text-white/20" />
+          </div>
+          <h3 className="text-xl font-bold text-white/80 mb-2">Himno no encontrado</h3>
+          <p className="text-white/40 text-sm mb-6">El himno que buscas no está disponible.</p>
           <button
             onClick={() => navigate("/himnos")}
-            className={`${ui.btnBase} px-5 py-3 mx-auto`}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/8 hover:bg-white/12 border border-white/10 text-sm font-medium transition-colors"
           >
-            <FaHome />
-            Volver a himnos
+            <FaHome className="text-white/60" /> Volver a himnos
           </button>
         </div>
       </div>
     );
   }
 
-  const temaActual = temasFondo[0];
+  const isVidaCristiana = state?.tipo === "vidaCristiana";
 
   return (
-    <div
-      className={`${temaActual.clase} ${temaActual.texto} min-h-screen relative flex flex-col`}
-    >
-      {/* ✨ CONTENEDOR DE TOASTS */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
-        {toasts.map((toast) => (
-          <Toast key={toast.id} toast={toast} />
-        ))}
+    <div className="bg-slate-950 text-slate-100 h-full flex flex-col relative overflow-hidden">
+
+      {/* Fondo decorativo */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-emerald-500/4 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-indigo-500/4 blur-3xl" />
       </div>
 
-      {/* Header limpio */}
-      <header className="sticky top-0 z-30 bg-black/30 backdrop-blur border-b border-white/10">
-        <div className="max-w-[96vw] mx-auto px-2 py-2 sm:px-3 sm:py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => navigate(-1)}
-                className={ui.btnIcon}
-                title="Volver"
-              >
-                <FaArrowLeft />
-              </button>
+      {/* Toasts */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end">
+        {toasts.map((t) => <Toast key={t.id} toast={t} />)}
+      </div>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-xs text-white/60">
-                  {state?.tipo === "vidaCristiana" ? (
-                    <span className="inline-flex items-center gap-1">
-                      <FaCross /> Vida Cristiana
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <FaBible /> Moravo
-                    </span>
-                  )}
-                  <span className="text-white/30">•</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10">
-                    Himno #{himno.numero}
-                  </span>
-                </div>
-                <h1 className="text-lg sm:text-xl font-semibold truncate leading-tight">
-                  {himno.titulo}
-                </h1>
-              </div>
-            </div>
+      {/* ── HEADER ── */}
+      <header className="relative z-30 shrink-0 bg-slate-900/80 backdrop-blur-xl border-b border-white/8">
+        <div className="px-3 xl:px-5 py-2.5 flex items-center justify-between gap-3">
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={irAtras}
-                disabled={posicionHistorial <= 0}
-                className={ui.btnIcon}
-                title="Atrás"
-              >
-                <FaUndo />
-              </button>
-              <button
-                onClick={irAdelante}
-                disabled={posicionHistorial >= historial.length - 1}
-                className={ui.btnIcon}
-                title="Adelante"
-              >
-                <FaRedo />
-              </button>
+          {/* Izquierda: volver + info + título */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate(-1)}
+              className="shrink-0 w-9 h-9 rounded-xl bg-white/6 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors text-white/70 hover:text-white"
+              title="Volver"
+            >
+              <FaArrowLeft className="text-xs" />
+            </button>
 
-              <button
-                onClick={limpiarProyeccion}
-                className={`${ui.btnDanger} w-9 h-9 sm:w-10 sm:h-10`}
-                title="Limpiar (Esc)"
-              >
-                <FaStop />
-              </button>
-
-              <button
-                onClick={proyectarHimno}
-                className={`${ui.btnPrimary} w-9 h-9 sm:w-10 sm:h-10`}
-                title="Proyectar (Espacio)"
-              >
-                <FaProjectDiagram />
-              </button>
-
-              <button
-                onClick={toggleFavorito}
-                className={
-                  favoritos.has(himno.numero)
-                    ? `${ui.btnIcon} bg-red-600 hover:bg-red-500 border-red-500/30`
-                    : ui.btnIcon
-                }
-                title="Favoritos"
-              >
-                {favoritos.has(himno.numero) ? <FaHeart /> : <FaRegHeart />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 max-w-[96vw] mx-auto px-2 py-2 sm:px-3 sm:py-3 grid grid-cols-1 md:grid-cols-12 gap-2 sm:gap-3">
-          {/* Mini-cards (izquierda) */}
-          <aside className="order-2 md:order-1 md:col-span-4 min-h-0">
-            <section className="h-full min-h-0 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 sm:p-4 flex flex-col">
-              <div className="flex items-center justify-between gap-4 mb-2 sm:mb-3">
-                <h2 className="text-sm font-semibold text-white/90 flex items-center gap-2">
-                  <FaMusic className="text-white/60" />
-                  Párrafos
-                </h2>
-                <span className="text-xs text-white/50">Clic para navegar</span>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent">
-                {himno.parrafos.map((parrafo, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => cambiarParrafo(index)}
-                    className={`w-full text-left rounded-xl border p-3 transition-colors ${
-                      selectedParrafo === index
-                        ? "border-emerald-500/40 bg-emerald-500/10"
-                        : "border-white/10 bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                      <span className="text-xs text-white/60">Párrafo</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-md border ${
-                          selectedParrafo === index
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                            : "border-white/10 bg-white/5 text-white/70"
-                        }`}
-                      >
-                        {index + 1}
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/90 line-clamp-3 leading-relaxed">
-                      {parrafo}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </section>
-          </aside>
-
-          {/* Letra principal (derecha) */}
-          <div className="order-1 md:order-2 md:col-span-8 min-h-0 flex flex-col gap-2 sm:gap-3">
-            {/* Tarjeta principal */}
-            <section className="flex-1 min-h-0 w-full rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 sm:p-4 flex flex-col">
-              <div className="flex items-center justify-between gap-4 mb-2 sm:mb-3">
-                <div className="text-sm text-white/60">
-                  Párrafo{" "}
-                  <span className="text-white/90">{selectedParrafo + 1}</span>{" "}
-                  de{" "}
-                  <span className="text-white/90">{himno.parrafos.length}</span>
-                </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-semibold text-white/40">
+                  {isVidaCristiana ? <FaCross className="text-[8px]" /> : <FaBible className="text-[8px]" />}
+                  {isVidaCristiana ? "Vida Cristiana" : "Himno Moravo"}
+                </span>
+                <span className="text-white/20 text-[10px]">·</span>
+                <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-400/80">
+                  #{himno.numero}
+                </span>
                 {isProyectando && (
-                  <span className="px-2.5 py-1 rounded-md text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
-                    Proyectando
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    EN VIVO
                   </span>
                 )}
               </div>
+              <h1 className="text-sm sm:text-base xl:text-lg font-bold truncate leading-tight text-white">
+                {himno.titulo}
+              </h1>
+            </div>
+          </div>
 
-              <div className="flex-1 min-h-0 flex items-center justify-center">
-                <div className="w-full max-w-3xl mx-auto text-center">
-                  <div className="px-1 sm:px-2 py-2 sm:py-4 max-h-[52vh] md:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-400/20 scrollbar-track-transparent pr-1">
-                    <div className="min-h-full flex items-center justify-center">
-                      <p className="whitespace-pre-line font-medium">
-                        <span className="text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-relaxed">
-                          {himno.parrafos[selectedParrafo]}
-                        </span>
-                      </p>
-                    </div>
+          {/* Derecha: controles */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Historial */}
+            <button
+              onClick={irAtras}
+              disabled={posicionHistorial <= 0}
+              className="w-8 h-8 xl:w-9 xl:h-9 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-30 text-white/60 hover:text-white disabled:cursor-not-allowed"
+              title="Atrás en historial"
+            >
+              <FaUndo className="text-[10px]" />
+            </button>
+            <button
+              onClick={irAdelante}
+              disabled={posicionHistorial >= historial.length - 1}
+              className="w-8 h-8 xl:w-9 xl:h-9 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-30 text-white/60 hover:text-white disabled:cursor-not-allowed"
+              title="Adelante en historial"
+            >
+              <FaRedo className="text-[10px]" />
+            </button>
+
+            <div className="w-px h-5 bg-white/10 mx-1" />
+
+            {/* Favorito */}
+            <button
+              onClick={toggleFavorito}
+              className={`w-8 h-8 xl:w-9 xl:h-9 rounded-lg border flex items-center justify-center transition-all ${
+                esFavorito
+                  ? "bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500/30"
+                  : "bg-white/5 border-white/8 text-white/50 hover:text-rose-400 hover:bg-white/10"
+              }`}
+              title={esFavorito ? "Quitar favorito" : "Agregar favorito"}
+            >
+              {esFavorito ? <FaHeart className="text-xs" /> : <FaRegHeart className="text-xs" />}
+            </button>
+
+            <div className="w-px h-5 bg-white/10 mx-1" />
+
+            {/* Limpiar */}
+            <button
+              onClick={limpiarProyeccion}
+              className="w-8 h-8 xl:w-9 xl:h-9 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 flex items-center justify-center transition-all"
+              title="Limpiar proyector (Esc)"
+            >
+              <FaStop className="text-[10px]" />
+            </button>
+
+            {/* Proyectar */}
+            <button
+              onClick={proyectarHimno}
+              className="inline-flex items-center gap-2 h-8 xl:h-9 px-3 xl:px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 border border-emerald-500/30 text-white font-semibold text-xs xl:text-sm transition-all shadow-lg shadow-emerald-900/40"
+              title="Proyectar (Espacio)"
+            >
+              <FaBroadcastTower className="text-[10px] xl:text-xs" />
+              <span className="hidden sm:inline">Proyectar</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Barra de progreso en el header */}
+        <div className="h-0.5 bg-white/5">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-300 ease-out"
+            style={{width: `${progreso}%`}}
+          />
+        </div>
+      </header>
+
+      {/* ── CONTENIDO ── */}
+      <main className="relative z-10 flex-1 min-h-0 overflow-hidden">
+        <div className="h-full p-2 xl:p-3 grid grid-cols-1 md:grid-cols-12 md:grid-rows-[1fr] gap-2 xl:gap-3">
+
+          {/* ── SIDEBAR: lista de párrafos ── */}
+          <aside className="order-2 md:order-1 md:col-span-4 xl:col-span-3 min-h-0 flex flex-col max-h-[40vh] md:max-h-none">
+            <div className="h-full min-h-0 rounded-2xl border border-white/8 bg-white/3 backdrop-blur-sm flex flex-col overflow-hidden">
+
+              {/* Cabecera sidebar */}
+              <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-white/8 border border-white/8 flex items-center justify-center">
+                    <FaMusic className="text-[9px] text-white/50" />
                   </div>
+                  <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">Párrafos</span>
+                </div>
+                <span className="text-xs text-white/30 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">
+                  {selectedParrafo + 1} / {himno.parrafos.length}
+                </span>
+              </div>
 
-                  <div className="mt-1.5 sm:mt-2 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+              {/* Lista */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5">
+                {himno.parrafos.map((parrafo, index) => {
+                  const isActive = selectedParrafo === index;
+                  return (
                     <button
-                      onClick={() =>
-                        cambiarParrafo(Math.max(0, selectedParrafo - 1))
-                      }
-                      disabled={selectedParrafo === 0}
-                      className={ui.btnIcon}
-                      title="Anterior"
+                      key={index}
+                      type="button"
+                      onClick={() => cambiarParrafo(index)}
+                      className={`w-full text-left rounded-xl border transition-all group ${
+                        isActive
+                          ? "border-emerald-500/35 bg-gradient-to-br from-emerald-500/12 to-emerald-600/6 shadow-lg shadow-emerald-900/20"
+                          : "border-white/6 bg-white/3 hover:bg-white/6 hover:border-white/12"
+                      }`}
                     >
-                      <FaArrowLeft />
+                      <div className="px-3 py-2.5">
+                        <div className="flex items-center gap-2.5 mb-1.5">
+                          {/* Número */}
+                          <span className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold border transition-colors ${
+                            isActive
+                              ? "bg-emerald-500 border-emerald-400/50 text-white"
+                              : "bg-white/6 border-white/10 text-white/50 group-hover:text-white/70"
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                            isActive ? "text-emerald-300/80" : "text-white/30 group-hover:text-white/40"
+                          }`}>
+                            Párrafo
+                          </span>
+                          {isActive && isProyectando && (
+                            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          )}
+                        </div>
+                        <p className={`text-xs leading-relaxed line-clamp-3 transition-colors ${
+                          isActive ? "text-white/85" : "text-white/45 group-hover:text-white/60"
+                        }`}>
+                          {parrafo}
+                        </p>
+                      </div>
                     </button>
+                  );
+                })}
+              </div>
 
-                    <div className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs sm:text-sm text-white/70">
-                      Atajos: <span className="text-white/90">Espacio</span>{" "}
-                      proyectar · <span className="text-white/90">← →</span>{" "}
-                      cambiar · <span className="text-white/90">Esc</span>{" "}
-                      limpiar
-                    </div>
+              {/* Footer del sidebar: navegación rápida */}
+              <div className="px-3 py-2.5 border-t border-white/6 flex items-center justify-between gap-2 shrink-0">
+                <button
+                  onClick={() => cambiarParrafo(Math.max(0, selectedParrafo - 1))}
+                  disabled={selectedParrafo === 0}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-white/50 hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-medium"
+                >
+                  <FaArrowLeft className="text-[10px]" /> Anterior
+                </button>
+                <button
+                  onClick={() => cambiarParrafo(Math.min(himno.parrafos.length - 1, selectedParrafo + 1))}
+                  disabled={selectedParrafo === himno.parrafos.length - 1}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-white/50 hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-medium"
+                >
+                  Siguiente <FaArrowRight className="text-[10px]" />
+                </button>
+              </div>
+            </div>
+          </aside>
 
-                    <button
-                      onClick={() =>
-                        cambiarParrafo(
-                          Math.min(
-                            himno.parrafos.length - 1,
-                            selectedParrafo + 1,
-                          ),
-                        )
-                      }
-                      disabled={selectedParrafo === himno.parrafos.length - 1}
-                      className={ui.btnIcon}
-                      title="Siguiente"
-                    >
-                      <FaArrowRight />
-                    </button>
+          {/* ── MAIN: texto del párrafo ── */}
+          <div className="order-1 md:order-2 md:col-span-8 xl:col-span-9 min-h-0 flex flex-col min-h-[44vh] md:min-h-0">
+            <section className="flex-1 min-h-0 rounded-2xl border border-white/12 bg-gradient-to-br from-slate-800/70 via-slate-900/85 to-slate-800/50 backdrop-blur-sm flex flex-col overflow-hidden relative shadow-2xl shadow-black/50">
+
+              {/* Luz de fondo suave centrada */}
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2/3 bg-gradient-to-b from-emerald-500/18 via-emerald-600/10 to-transparent blur-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-700/30 via-transparent to-slate-800/20" />
+              </div>
+
+              {/* Indicador superior — siempre visible */}
+              <div className="relative z-10 px-4 xl:px-5 py-2.5 flex items-center justify-between shrink-0 border-b border-white/6 bg-white/3">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1 flex-wrap">
+                    {himno.parrafos.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => cambiarParrafo(i)}
+                        className={`h-1.5 rounded-full transition-all ${
+                          i === selectedParrafo
+                            ? "bg-emerald-400 w-6"
+                            : "bg-white/20 hover:bg-white/40 w-1.5"
+                        }`}
+                        title={`Párrafo ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-white/40 font-medium tabular-nums">
+                    {selectedParrafo + 1} / {himno.parrafos.length}
+                  </span>
+                </div>
+
+                {isProyectando && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Proyectando</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Card interna con gradiente para el texto */}
+              <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-4 xl:px-8 py-3 xl:py-5 overflow-hidden">
+                <div className="w-full max-w-4xl mx-auto min-h-0 flex flex-col">
+                  <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-700/40 via-slate-800/30 to-slate-700/20 shadow-inner shadow-black/30 px-5 sm:px-8 xl:px-12 py-5 xl:py-8 min-h-0 overflow-y-auto">
+                    <p className="whitespace-pre-line text-center text-2xl sm:text-3xl xl:text-4xl 2xl:text-5xl font-medium leading-relaxed xl:leading-loose text-white/93 tracking-wide drop-shadow-sm">
+                      {himno.parrafos[selectedParrafo]}
+                    </p>
                   </div>
                 </div>
               </div>
-            </section>
 
-            {/* Progreso */}
-            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden shrink-0">
-              <div
-                className="h-full bg-emerald-500/80 transition-all duration-300 ease-out"
-                style={{
-                  width: `${
-                    ((selectedParrafo + 1) /
-                      Math.max(1, himno.parrafos.length)) *
-                    100
-                  }%`,
-                }}
-              />
-            </div>
+              {/* Footer: atajos de teclado — siempre visible */}
+              <div className="relative z-10 px-4 xl:px-5 py-2 border-t border-white/6 bg-white/2 flex items-center justify-center gap-3 shrink-0">
+                <span className="text-[10px] text-white/25 flex items-center gap-3 flex-wrap justify-center">
+                  <span><kbd className="px-1.5 py-0.5 rounded bg-white/8 border border-white/12 font-mono text-white/35">Espacio</kbd> proyectar</span>
+                  <span><kbd className="px-1.5 py-0.5 rounded bg-white/8 border border-white/12 font-mono text-white/35">← →</kbd> cambiar</span>
+                  <span><kbd className="px-1.5 py-0.5 rounded bg-white/8 border border-white/12 font-mono text-white/35">Esc</kbd> limpiar</span>
+                </span>
+              </div>
+            </section>
           </div>
+
         </div>
       </main>
 
@@ -641,16 +551,6 @@ const HimnoDetalle = () => {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
-        }
-        .scrollbar-thin {
-          scrollbar-width: thin;
-        }
-        .scrollbar-thumb-slate-400\/20::-webkit-scrollbar-thumb {
-          background-color: rgba(148, 163, 184, 0.2);
-          border-radius: 0.375rem;
-        }
-        .scrollbar-track-transparent::-webkit-scrollbar-track {
-          background-color: transparent;
         }
       `}</style>
     </div>

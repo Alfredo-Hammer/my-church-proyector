@@ -52,6 +52,7 @@ function initializeDatabase() {
 
       // Crear tablas
       createTables()
+        .then(() => migrateDatabase())
         .then(() => {
           console.log('Tablas creadas exitosamente');
           initializeDefaultData()
@@ -66,6 +67,22 @@ function initializeDatabase() {
   });
 }
 
+// Migración: agrega columnas nuevas a tablas existentes si no existen
+async function migrateDatabase() {
+  const migrations = [
+    "ALTER TABLE himnos ADD COLUMN autor TEXT",
+    "ALTER TABLE himnos ADD COLUMN categoria TEXT",
+  ];
+  for (const sql of migrations) {
+    await new Promise((resolve) => {
+      db.run(sql, (err) => {
+        // Ignorar error "duplicate column" — significa que ya existe
+        resolve();
+      });
+    });
+  }
+}
+
 // Función para crear las tablas
 async function createTables() {
   const tables = [
@@ -75,6 +92,8 @@ async function createTables() {
       numero TEXT,
       titulo TEXT,
       letra TEXT,
+      autor TEXT,
+      categoria TEXT,
       favorito INTEGER DEFAULT 0
     )`,
 
@@ -153,6 +172,7 @@ async function createTables() {
 
 // Función para ejecutar consultas
 function runQuery(sql, params = []) {
+  if (!db) return Promise.reject(new Error('Base de datos no disponible'));
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) {
@@ -166,6 +186,7 @@ function runQuery(sql, params = []) {
 
 // Función para obtener un registro
 function getQuery(sql, params = []) {
+  if (!db) return Promise.reject(new Error('Base de datos no disponible'));
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
       if (err) {
@@ -179,6 +200,7 @@ function getQuery(sql, params = []) {
 
 // Función para obtener múltiples registros
 function allQuery(sql, params = []) {
+  if (!db) return Promise.reject(new Error('Base de datos no disponible'));
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
       if (err) {
@@ -417,8 +439,8 @@ async function buscarHimnos(termino) {
 async function crearHimno(himno) {
   try {
     const result = await runQuery(
-      'INSERT INTO himnos (numero, titulo, letra, favorito) VALUES (?, ?, ?, ?)',
-      [himno.numero, himno.titulo, himno.letra, himno.favorito || 0]
+      'INSERT INTO himnos (numero, titulo, letra, autor, categoria, favorito) VALUES (?, ?, ?, ?, ?, ?)',
+      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0]
     );
     return result.lastID;
   } catch (error) {
@@ -431,8 +453,8 @@ async function crearHimno(himno) {
 async function actualizarHimno(id, himno) {
   try {
     const result = await runQuery(
-      'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, favorito = ? WHERE id = ?',
-      [himno.numero, himno.titulo, himno.letra, himno.favorito, id]
+      'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, autor = ?, categoria = ?, favorito = ? WHERE id = ?',
+      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, id]
     );
     return result.changes > 0;
   } catch (error) {
@@ -689,7 +711,9 @@ async function eliminarPresentacionCompat(id) {
 // Función para cerrar la base de datos
 function cerrarDB() {
   if (db) {
-    db.close((err) => {
+    const instancia = db;
+    db = null; // Anular referencia ANTES de cerrar para que ninguna query en vuelo intente usarla
+    instancia.close((err) => {
       if (err) {
         console.error('Error al cerrar la base de datos:', err);
       } else {

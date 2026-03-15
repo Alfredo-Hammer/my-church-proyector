@@ -11,10 +11,8 @@ import {
   FaPlus,
   FaSearch,
   FaDownload,
-  FaEye,
   FaBookOpen,
   FaCloud,
-  FaTag,
   FaCopy,
   FaExternalLinkAlt,
   FaGlobe,
@@ -50,17 +48,11 @@ export default function AgregarHimno() {
   const [himnosEnLinea, setHimnosEnLinea] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalBusquedaVisible, setModalBusquedaVisible] = useState(false);
-  const [modalPreviewVisible, setModalPreviewVisible] = useState(false);
-  const [himnoPreview, setHimnoPreview] = useState(null);
   const [numero, setNumero] = useState("");
   const [titulo, setTitulo] = useState("");
   const [letra, setLetra] = useState("");
   const [autor, setAutor] = useState("");
   const [categoria, setCategoria] = useState("Adoración");
-  const [tags, setTags] = useState([]);
-  const [newTag, setNewTag] = useState("");
-  const [acordes, setAcordes] = useState("");
-  const [notas, setNotas] = useState("");
   const [editId, setEditId] = useState(null);
   const [favoritos, setFavoritos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -68,10 +60,7 @@ export default function AgregarHimno() {
   const [cargandoBusqueda, setCargandoBusqueda] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [ordenamiento, setOrdenamiento] = useState("titulo");
-  const [vistaActual, setVistaActual] = useState("grid");
-
-  // Estado para logo de la iglesia
-  const [logoIglesia, setLogoIglesia] = useState(null);
+  const [vistaActual, setVistaActual] = useState("list");
 
   // Estados para navegador integrado
   const [modalBrowserVisible, setModalBrowserVisible] = useState(false);
@@ -105,24 +94,7 @@ export default function AgregarHimno() {
   useEffect(() => {
     fetchHimnos();
     fetchFavoritos();
-    cargarLogoIglesia();
   }, []);
-
-  // Función para cargar logo de la iglesia
-  const cargarLogoIglesia = async () => {
-    try {
-      if (!window.electron?.obtenerConfiguracion) {
-        setLogoIglesia("/images/icon-256.png");
-        return;
-      }
-      const configuracion = await window.electron.obtenerConfiguracion();
-      const logo = configuracion?.logoUrl || "/images/icon-256.png";
-      setLogoIglesia(logo);
-    } catch (error) {
-      console.log("No se pudo cargar el logo:", error);
-      setLogoIglesia("/images/icon-256.png");
-    }
-  };
 
   // Función para obtener himnos de la base de datos
   const fetchHimnos = async () => {
@@ -338,12 +310,6 @@ export default function AgregarHimno() {
     setLetra(letraProcesada.join("\n\n"));
     setAutor(himnoParaBuscar?.autor || "");
     setCategoria("Adoración");
-    setTags(["Letra Online"]);
-    setNotas(
-      `Letra encontrada en línea para: ${
-        himnoParaBuscar?.titulo || busquedaEnLinea
-      }`,
-    );
 
     setModalBrowserVisible(false);
     setModalBusquedaVisible(false);
@@ -355,23 +321,20 @@ export default function AgregarHimno() {
   };
 
   const handleGuardar = async () => {
-    if (!numero.trim() || !titulo.trim() || !letra.trim()) {
-      toast.error("Número, título y letra son obligatorios.");
+    if (!titulo.trim() || !letra.trim()) {
+      toast.error("Título y letra son obligatorios.");
       return;
     }
 
     const himno = {
-      numero,
+      numero: numero.trim() || "",
       titulo,
       letra: letra
         .split("\n\n")
         .map((p) => p.trim())
         .filter((p) => p !== ""),
-      autor: autor || "Desconocido",
+      autor: autor.trim(),
       categoria,
-      tags,
-      acordes,
-      notas,
       fecha_creacion: new Date().toISOString(),
       fecha_modificacion: new Date().toISOString(),
     };
@@ -393,14 +356,11 @@ export default function AgregarHimno() {
   };
 
   const handleEditar = (himno) => {
-    setNumero(himno.numero);
+    setNumero(himno.numero || "");
     setTitulo(himno.titulo);
     setLetra(himno.letra.join("\n\n"));
     setAutor(himno.autor || "");
     setCategoria(himno.categoria || "Adoración");
-    setTags(himno.tags || []);
-    setAcordes(himno.acordes || "");
-    setNotas(himno.notas || "");
     setEditId(himno.id);
     setModalVisible(true);
   };
@@ -424,10 +384,6 @@ export default function AgregarHimno() {
     setLetra("");
     setAutor("");
     setCategoria("Adoración");
-    setTags([]);
-    setNewTag("");
-    setAcordes("");
-    setNotas("");
     setEditId(null);
   };
 
@@ -452,17 +408,6 @@ export default function AgregarHimno() {
     }
   };
 
-  const agregarTag = () => {
-    if (newTag && !tags.includes(newTag)) {
-      setTags([...tags, newTag]);
-      setNewTag("");
-    }
-  };
-
-  const eliminarTag = (tagToRemove) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
-  };
-
   const duplicarHimno = async (himno) => {
     const himnoDuplicado = {
       ...himno,
@@ -478,11 +423,6 @@ export default function AgregarHimno() {
     } catch (error) {
       toast.error("Error al duplicar himno");
     }
-  };
-
-  const verPreview = (himno) => {
-    setHimnoPreview(himno);
-    setModalPreviewVisible(true);
   };
 
   // Filtrar y ordenar himnos
@@ -541,172 +481,127 @@ export default function AgregarHimno() {
   };
 
   return (
-    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 min-h-screen overflow-y-auto">
+    <div className="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden">
       <ToastContainer />
 
-      {/* Header con gradiente */}
-      <div className="bg-black/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
-                <FaBible className="text-2xl" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-semibold text-white">
-                  Biblioteca de Himnos
-                </h1>
-                <p className="text-white/60">
-                  {himnosFiltrados.length} himnos en tu colección
-                </p>
-              </div>
-            </div>
+      {/* ── Barra de herramientas compacta ── */}
+      <div className="shrink-0 bg-slate-900/98 backdrop-blur border-b border-slate-700/50 px-3 py-2">
+        <div className="flex items-center gap-2">
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  cerrarModal();
-                  setModalVisible(true);
-                }}
-                className="bg-emerald-600/90 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2"
-              >
-                <FaPlus />
-                <span>Crear Himno</span>
+          {/* Título */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <FaBible className="text-violet-400 text-sm" />
+            <span className="text-sm font-semibold text-white hidden sm:inline">Mis Himnos</span>
+          </div>
+
+          <div className="w-px h-5 bg-slate-700 shrink-0" />
+
+          {/* Búsqueda */}
+          <div className="flex-1 relative min-w-0">
+            <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar himnos..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="w-full pl-7 pr-7 py-1.5 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors"
+            />
+            {busqueda && (
+              <button onClick={() => setBusqueda("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                <FaTimes className="text-xs" />
               </button>
-            </div>
+            )}
           </div>
 
-          {/* Barra de búsqueda y filtros */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex-1 relative">
-                <FaSearch className="absolute left-3 top-3 text-white/40" />
-                <input
-                  type="text"
-                  placeholder="Buscar himnos..."
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <FaFilter className="text-white/40" />
-                <select
-                  value={filtroCategoria}
-                  onChange={(e) => setFiltroCategoria(e.target.value)}
-                  className="bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                >
-                  <option value="" className="bg-gray-800">
-                    Todas las categorías
-                  </option>
-                  {categorias.map((cat) => (
-                    <option key={cat} value={cat} className="bg-gray-800">
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <select
-                value={ordenamiento}
-                onChange={(e) => setOrdenamiento(e.target.value)}
-                className="bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-              >
-                <option value="titulo" className="bg-gray-800">
-                  Ordenar por Título
-                </option>
-                <option value="numero" className="bg-gray-800">
-                  Ordenar por Número
-                </option>
-                <option value="autor" className="bg-gray-800">
-                  Ordenar por Autor
-                </option>
-                <option value="categoria" className="bg-gray-800">
-                  Ordenar por Categoría
-                </option>
-                <option value="fecha" className="bg-gray-800">
-                  Ordenar por Fecha
-                </option>
-              </select>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setVistaActual("grid")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    vistaActual === "grid"
-                      ? "bg-purple-500 text-white"
-                      : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <FaTh />
-                </button>
-                <button
-                  onClick={() => setVistaActual("list")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    vistaActual === "list"
-                      ? "bg-purple-500 text-white"
-                      : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <FaList />
-                </button>
-                <button
-                  onClick={() => setVistaActual("compact")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    vistaActual === "compact"
-                      ? "bg-purple-500 text-white"
-                      : "bg-white/10 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <FaThLarge />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-sm text-gray-400">
-              {himnosFiltrados.length} de {himnos.length} himnos
-            </div>
+          {/* Categoría */}
+          <div className="flex items-center gap-1 shrink-0">
+            <FaFilter className="text-slate-500 text-xs" />
+            <select
+              value={filtroCategoria}
+              onChange={(e) => setFiltroCategoria(e.target.value)}
+              className="bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none transition-colors"
+            >
+              <option value="" className="bg-slate-800">Todas</option>
+              {categorias.map((cat) => (
+                <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+              ))}
+            </select>
           </div>
+
+          {/* Ordenamiento */}
+          <select
+            value={ordenamiento}
+            onChange={(e) => setOrdenamiento(e.target.value)}
+            className="shrink-0 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none transition-colors hidden md:block"
+          >
+            <option value="titulo" className="bg-slate-800">Título</option>
+            <option value="numero" className="bg-slate-800">Número</option>
+            <option value="autor" className="bg-slate-800">Autor</option>
+            <option value="categoria" className="bg-slate-800">Categoría</option>
+            <option value="fecha" className="bg-slate-800">Fecha</option>
+          </select>
+
+          {/* Vista toggle */}
+          <div className="flex items-center gap-0.5 bg-slate-800 border border-slate-600/60 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setVistaActual("list")}
+              className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "list" ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+              title="Lista"
+            ><FaList className="text-xs" /></button>
+            <button
+              onClick={() => setVistaActual("grid")}
+              className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "grid" ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+              title="Grid"
+            ><FaTh className="text-xs" /></button>
+            <button
+              onClick={() => setVistaActual("compact")}
+              className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "compact" ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+              title="Compacto"
+            ><FaThLarge className="text-xs" /></button>
+          </div>
+
+          {/* Stats */}
+          <span className="hidden md:block text-[11px] text-slate-500 tabular-nums shrink-0">
+            {himnosFiltrados.length}/{himnos.length}
+          </span>
+
+          {/* Crear */}
+          <button
+            onClick={() => { cerrarModal(); setModalVisible(true); }}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/80 hover:bg-violet-600 border border-violet-500/30 rounded-lg text-xs font-semibold text-white transition-colors"
+          >
+            <FaPlus className="text-[10px]" />
+            <span className="hidden sm:inline">Crear</span>
+          </button>
         </div>
       </div>
 
       {/* Contenido principal */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2">
         {himnosFiltrados.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-12 border border-gray-700/50 shadow-xl">
-              <FaBookOpen className="mx-auto text-6xl text-gray-600 mb-6" />
-              <h3 className="text-2xl font-bold text-gray-300 mb-4">
-                {busqueda
-                  ? "No se encontraron resultados"
-                  : "Tu biblioteca está vacía"}
-              </h3>
-              <p className="text-gray-400 mb-6">
-                {busqueda
-                  ? "Intenta con otros términos de búsqueda o ajusta los filtros"
-                  : "Comienza agregando tu primer himno a la colección"}
-              </p>
-              <button
-                onClick={() => {
-                  cerrarModal();
-                  setModalVisible(true);
-                }}
-                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-6 py-3 rounded-full transition-all duration-300 transform hover:scale-105 flex items-center gap-2 mx-auto"
-              >
-                <FaPlus />
-                Crear mi primer himno
-              </button>
-            </div>
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <FaBookOpen className="text-3xl text-slate-700 mb-3" />
+            <p className="text-slate-400 text-sm mb-1 font-medium">
+              {busqueda ? "Sin resultados" : "Biblioteca vacía"}
+            </p>
+            <p className="text-slate-600 text-xs mb-4">
+              {busqueda ? `No hay himnos para "${busqueda}"` : "Crea tu primer himno personalizado"}
+            </p>
+            <button
+              onClick={() => { cerrarModal(); setModalVisible(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600/80 hover:bg-violet-600 border border-violet-500/30 rounded-lg text-sm font-medium transition-colors"
+            >
+              <FaPlus className="text-xs" /> Crear himno
+            </button>
           </div>
         ) : (
           <div
             className={
               vistaActual === "grid"
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                 : vistaActual === "list"
-                  ? "space-y-4"
-                  : "grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-3"
+                  ? "flex flex-col gap-1"
+                  : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-9 gap-2"
             }
           >
             {himnosFiltrados.map((himno, index) => (
@@ -714,10 +609,10 @@ export default function AgregarHimno() {
                 key={himno.id}
                 className={
                   vistaActual === "grid"
-                    ? "bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 group cursor-pointer"
+                    ? "bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-violet-500/30 rounded-xl p-4 transition-all group cursor-pointer"
                     : vistaActual === "list"
-                      ? "bg-gradient-to-r from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-between group"
-                      : "bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-lg p-3 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group cursor-pointer text-center"
+                      ? "flex items-center gap-3 px-3 py-2 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/50 hover:border-slate-600/70 rounded-lg transition-colors group"
+                      : "bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-violet-500/30 rounded-xl p-3 transition-all group cursor-pointer text-center"
                 }
               >
                 {vistaActual === "grid" && (
@@ -780,18 +675,8 @@ export default function AgregarHimno() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            verPreview(himno);
-                          }}
-                          className="p-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors"
-                          title="Vista previa"
-                        >
-                          <FaEye />
-                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -831,56 +716,30 @@ export default function AgregarHimno() {
 
                 {vistaActual === "list" && (
                   <>
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="flex items-center gap-3">
-                        {getCategoryIcon(himno.categoria)}
-                        <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full">
-                          #{himno.numero}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="shrink-0 text-[10px] text-violet-400/70 font-bold tabular-nums w-8 text-center">{himno.numero || "—"}</span>
                       <div
                         onClick={() => handleNavigate(himno.id)}
-                        className="cursor-pointer flex-1"
+                        className="cursor-pointer flex-1 min-w-0"
                       >
-                        <h3 className="font-bold text-white">{himno.titulo}</h3>
-                        <p className="text-sm text-gray-400">
-                          {himno.autor && `${himno.autor} • `}
-                          {himno.categoria}
-                        </p>
+                        <p className="text-sm text-slate-300 group-hover:text-white truncate transition-colors">{himno.titulo}</p>
+                        {(himno.autor || himno.categoria) && (
+                          <p className="text-[11px] text-slate-400 truncate">{himno.autor}{himno.autor && himno.categoria ? " · " : ""}{himno.categoria}</p>
+                        )}
                       </div>
                       <button
                         onClick={() => toggleFavorito(himno.id)}
-                        className={`transition-colors ${
-                          favoritos.includes(himno.id)
-                            ? "text-red-400"
-                            : "text-gray-400 hover:text-red-400"
-                        }`}
+                        className={`shrink-0 p-1.5 rounded-lg transition-colors ${favoritos.includes(himno.id) ? "text-rose-400" : "text-slate-600 hover:text-rose-400"}`}
                       >
-                        {favoritos.includes(himno.id) ? (
-                          <FaHeart />
-                        ) : (
-                          <FaRegHeart />
-                        )}
+                        {favoritos.includes(himno.id) ? <FaHeart className="text-xs" /> : <FaRegHeart className="text-xs" />}
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <button
-                        onClick={() => verPreview(himno)}
-                        className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
-                      >
-                        <FaEye />
+                    <div className="shrink-0 flex items-center gap-1">
+                      <button onClick={() => handleEditar(himno)} className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors" title="Editar">
+                        <FaEdit className="text-xs" />
                       </button>
-                      <button
-                        onClick={() => handleEditar(himno)}
-                        className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded-lg transition-colors"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        onClick={() => handleEliminar(himno.id)}
-                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                      >
-                        <FaTrash />
+                      <button onClick={() => handleEliminar(himno.id)} className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Eliminar">
+                        <FaTrash className="text-xs" />
                       </button>
                     </div>
                   </>
@@ -924,226 +783,110 @@ export default function AgregarHimno() {
 
       {/* Modal para crear/editar himno */}
       {modalVisible && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-purple-500/20 p-3 rounded-full">
-                    <FaBible className="text-purple-400 text-xl" />
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-3">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+            {/* Header compacto */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 shrink-0">
+              <div className="flex items-center gap-2">
+                <FaMusic className="text-violet-400 text-sm" />
+                <span className="text-sm font-semibold text-white">
+                  {editId ? "Editar Himno" : "Nuevo Himno"}
+                </span>
+              </div>
+              <button onClick={cerrarModal} className="text-slate-400 hover:text-white transition-colors p-1 rounded">
+                <FaTimes className="text-sm" />
+              </button>
+            </div>
+
+            {/* Cuerpo */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Columna izquierda */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1">
+                        Número <span className="text-slate-600">(opcional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 001"
+                        value={numero}
+                        onChange={(e) => setNumero(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Categoría</label>
+                      <select
+                        value={categoria}
+                        onChange={(e) => setCategoria(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white focus:outline-none transition-colors"
+                      >
+                        {categorias.map((cat) => (
+                          <option key={cat} value={cat} className="bg-slate-800">{cat}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+
                   <div>
-                    <h2 className="text-2xl font-bold text-white">
-                      {editId ? "Editar Himno" : "Crear Nuevo Himno"}
-                    </h2>
-                    <p className="text-gray-400 text-sm">
-                      Completa la información del himno
-                    </p>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                      Título <span className="text-violet-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Título del himno"
+                      value={titulo}
+                      onChange={(e) => setTitulo(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Autor</label>
+                    <input
+                      type="text"
+                      placeholder="Nombre del autor"
+                      value={autor}
+                      onChange={(e) => setAutor(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors"
+                    />
                   </div>
                 </div>
-                <button
-                  onClick={cerrarModal}
-                  className="text-gray-400 hover:text-white transition-colors p-2"
-                >
-                  <FaTimes />
-                </button>
+
+                {/* Columna derecha - Letra */}
+                <div className="flex flex-col">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Letra <span className="text-violet-400">*</span>
+                    <span className="text-slate-600 ml-1">(doble Enter = nuevo párrafo)</span>
+                  </label>
+                  <textarea
+                    placeholder={"Escribe la letra del himno aquí...\n\nSepara cada párrafo con doble Enter"}
+                    value={letra}
+                    onChange={(e) => setLetra(e.target.value)}
+                    className="flex-1 min-h-[180px] px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-violet-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors resize-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Columna izquierda - Información básica */}
-                <div className="space-y-6">
-                  <div className="bg-gray-700/30 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <FaTag className="text-purple-400" />
-                      Información Básica
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Número *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ej: 001"
-                          value={numero}
-                          onChange={(e) => setNumero(e.target.value)}
-                          className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Categoría
-                        </label>
-                        <select
-                          value={categoria}
-                          onChange={(e) => setCategoria(e.target.value)}
-                          className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300"
-                        >
-                          {categorias.map((cat) => (
-                            <option
-                              key={cat}
-                              value={cat}
-                              className="bg-gray-800"
-                            >
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Título *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Título del himno"
-                        value={titulo}
-                        onChange={(e) => setTitulo(e.target.value)}
-                        className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300"
-                      />
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Autor
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Nombre del autor"
-                        value={autor}
-                        onChange={(e) => setAutor(e.target.value)}
-                        className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-700/30 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <FaTag className="text-blue-400" />
-                      Etiquetas y Notas
-                    </h3>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Etiquetas
-                      </label>
-                      <div className="flex gap-2 mb-3">
-                        <input
-                          type="text"
-                          placeholder="Agregar etiqueta..."
-                          value={newTag}
-                          onChange={(e) => setNewTag(e.target.value)}
-                          onKeyPress={(e) => e.key === "Enter" && agregarTag()}
-                          className="flex-1 p-2 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300"
-                        />
-                        <button
-                          onClick={agregarTag}
-                          className="bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg transition-colors"
-                        >
-                          <FaTag />
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                          >
-                            #{tag}
-                            <button
-                              onClick={() => eliminarTag(tag)}
-                              className="hover:bg-purple-600/30 rounded-full w-5 h-5 flex items-center justify-center transition-colors"
-                            >
-                              <FaTimes className="text-xs" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Notas adicionales
-                      </label>
-                      <textarea
-                        placeholder="Notas sobre el himno..."
-                        value={notas}
-                        onChange={(e) => setNotas(e.target.value)}
-                        rows={3}
-                        className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300 resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Columna derecha - Contenido */}
-                <div className="space-y-6">
-                  <div className="bg-gray-700/30 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <FaMusic className="text-green-400" />
-                      Letra del Himno
-                    </h3>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Letra *
-                      </label>
-                      <textarea
-                        placeholder="Escribe la letra del himno aquí...&#10;&#10;Separa cada párrafo con doble salto de línea"
-                        value={letra}
-                        onChange={(e) => setLetra(e.target.value)}
-                        rows={15}
-                        className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300 resize-none"
-                      />
-                      <small className="text-gray-400 mt-2 block">
-                        💡 Tip: Usa doble Enter para separar párrafos
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-700/30 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <FaMusic className="text-orange-400" />
-                      Acordes (Opcional)
-                    </h3>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Acordes musicales
-                      </label>
-                      <textarea
-                        placeholder="Acordes del himno...&#10;Ej: G - D - Em - C"
-                        value={acordes}
-                        onChange={(e) => setAcordes(e.target.value)}
-                        rows={6}
-                        className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300 resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700/50">
-                <button
-                  onClick={cerrarModal}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleGuardar}
-                  disabled={!numero.trim() || !titulo.trim() || !letra.trim()}
-                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-700 disabled:to-gray-800 text-white px-6 py-3 rounded-lg transition-all duration-300 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <FaDownload />
-                  {editId ? "Actualizar Himno" : "Guardar Himno"}
-                </button>
-              </div>
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-700/50 shrink-0">
+              <button
+                onClick={cerrarModal}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 text-slate-300 text-sm rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleGuardar}
+                disabled={!titulo.trim() || !letra.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-violet-600/80 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500 border border-violet-500/30 disabled:border-slate-600/30 text-white text-sm font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+              >
+                <FaDownload className="text-xs" />
+                {editId ? "Actualizar" : "Guardar"}
+              </button>
             </div>
           </div>
         </div>
@@ -1555,97 +1298,6 @@ export default function AgregarHimno() {
         </div>
       )}
 
-      {/* Modal de vista previa */}
-      {modalPreviewVisible && himnoPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-          <div className="bg-gray-800 text-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Vista Previa</h2>
-              <button
-                onClick={() => setModalPreviewVisible(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-xl font-bold text-blue-400">
-                  {himnoPreview.titulo}
-                </h3>
-                <p className="text-gray-400">#{himnoPreview.numero}</p>
-                {himnoPreview.autor && (
-                  <p className="text-gray-400">por {himnoPreview.autor}</p>
-                )}
-                {himnoPreview.categoria && (
-                  <span className="inline-block bg-blue-600 text-white text-sm px-3 py-1 rounded-full mt-2">
-                    {himnoPreview.categoria}
-                  </span>
-                )}
-              </div>
-
-              <div className="border-t border-gray-600 pt-4">
-                {himnoPreview.letra.map((parrafo, index) => (
-                  <p key={index} className="mb-4 leading-relaxed">
-                    {parrafo}
-                  </p>
-                ))}
-              </div>
-
-              {himnoPreview.acordes && (
-                <div className="border-t border-gray-600 pt-4">
-                  <h4 className="font-semibold mb-2">Acordes:</h4>
-                  <pre className="text-sm bg-gray-700 p-3 rounded whitespace-pre-wrap">
-                    {himnoPreview.acordes}
-                  </pre>
-                </div>
-              )}
-
-              {himnoPreview.tags && himnoPreview.tags.length > 0 && (
-                <div className="border-t border-gray-600 pt-4">
-                  <h4 className="font-semibold mb-2">Etiquetas:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {himnoPreview.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="bg-gray-600 px-2 py-1 rounded text-sm"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {himnoPreview.notas && (
-              <div className="border-t border-gray-600 pt-4">
-                <h4 className="font-semibold mb-2">Notas:</h4>
-                <p className="text-sm text-gray-300">{himnoPreview.notas}</p>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setModalPreviewVisible(false)}
-                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg"
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={() => {
-                  setModalPreviewVisible(false);
-                  handleNavigate(himnoPreview.id);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-              >
-                Ver Completo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

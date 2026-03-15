@@ -46,6 +46,26 @@ if (!DEBUG_LOGS) {
   console.debug = () => { };
 }
 
+// ✅ INSTANCIA ÚNICA: evitar que el usuario abra varias copias de GloryView.
+// Si ya hay una instancia corriendo, enfocarla y cerrar la nueva.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  // Esta es la segunda instancia — ceder el paso a la primera y salir inmediatamente.
+  app.quit();
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  // La primera instancia recibe este evento cuando alguien intenta abrir una segunda.
+  // Buscamos la ventana principal y la traemos al frente.
+  const { BrowserWindow: BW } = require('electron');
+  const wins = BW.getAllWindows().filter(w => !w.isDestroyed());
+  if (wins.length > 0) {
+    const main = wins[0];
+    if (main.isMinimized()) main.restore();
+    main.focus();
+  }
+});
+
 // Permitir reproducción sin gesto del usuario (necesario para controlar play/pause por IPC en el proyector).
 // No fuerza autoplay por sí mismo; solo evita que Chromium rechace `media.play()`.
 try {
@@ -456,29 +476,39 @@ function iniciarServidorMultimedia() {
 
   const obtenerIpsLocalesV4 = () => {
     const nets = os.networkInterfaces();
-    const ips = [];
+
+    // Patrones de nombres de adaptadores virtuales conocidos en Windows/Linux/macOS.
+    // Se comparan contra el nombre de la interfaz (no la IP), por eso son más confiables.
+    const VIRTUAL_NAME_RE = /vmware|virtualbox|vbox|docker|hyper.?v|vethernet|tap|wsl|bluetooth|hamachi|tunnelbear|nordvpn|expressvpn|pvpn|openvpn|zerotier/i;
+
+    const realIps = [];   // adaptadores reales (Wi-Fi, Ethernet)
+    const virtualIps = []; // adaptadores virtuales (fallback si no hay reales)
 
     for (const nombre of Object.keys(nets || {})) {
+      const esVirtual = VIRTUAL_NAME_RE.test(nombre);
       for (const net of nets[nombre] || []) {
         const family = typeof net.family === 'string' ? net.family : String(net.family);
         const isV4 = family === 'IPv4' || family === '4';
         if (!isV4) continue;
         if (net.internal) continue;
         if (!net.address) continue;
-        ips.push(net.address);
+        if (esVirtual) {
+          virtualIps.push(net.address);
+        } else {
+          realIps.push(net.address);
+        }
       }
     }
 
-    const uniqueIps = Array.from(new Set(ips));
+    // Usar adaptadores reales primero; si no hay, caer a virtuales.
+    const pool = realIps.length > 0 ? realIps : virtualIps;
+    const uniqueIps = Array.from(new Set(pool));
 
-    // Priorizar IPs de red real (Wi-Fi / Ethernet) sobre adaptadores virtuales.
-    // Windows retorna VMware/Hyper-V/WSL antes que el Wi-Fi, rompiendo el QR en producción.
+    // Priorizar IPs de red local (Wi-Fi / Ethernet) sobre cualquier otro rango.
     const score = (ip) => {
-      // Rangos típicos de red local → mayor prioridad
       if (/^192\.168\./.test(ip)) return 0;
       if (/^10\./.test(ip)) return 1;
       if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 2;
-      // Rangos típicos de adaptadores virtuales → menor prioridad
       if (/^172\./.test(ip)) return 10;
       if (/^169\.254\./.test(ip)) return 20; // APIPA / link-local
       return 5;
@@ -2360,19 +2390,20 @@ function iniciarServidorMultimedia() {
   servidor.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.warn(`⚠️ [Servidor] Puerto ${PORT} ocupado. Intentando liberar proceso anterior...`);
-      // Matar el proceso que ocupa el puerto y reintentar
       const { exec } = require('child_process');
+
+      // En Windows: obtener el PID con netstat y matarlo con taskkill.
+      // La sintaxis "FOR /F ... %P" funciona en cmd.exe directo (no en batch file).
       const killCmd = process.platform === 'win32'
-        ? `FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :${PORT}') DO taskkill /PID %P /F`
+        ? `for /f "tokens=5" %P in ('netstat -ano ^| findstr LISTENING ^| findstr :${PORT}') do taskkill /PID %P /F`
         : `lsof -ti:${PORT} | xargs kill -9`;
 
-      exec(killCmd, (killErr) => {
+      exec(killCmd, { shell: true }, (killErr) => {
         if (killErr) {
           console.warn('[Servidor] No se pudo liberar el puerto:', killErr.message);
         } else {
           console.log(`[Servidor] Puerto ${PORT} liberado. Reintentando en 1.5s...`);
         }
-        // Reintentar después de liberar (o de igual forma tras el timeout)
         setTimeout(() => {
           servidor.close();
           const nuevoServidor = expressApp.listen(PORT, '0.0.0.0', () => {
@@ -2399,16 +2430,19 @@ function iniciarServidorMultimedia() {
   });
 
   // Windows: agregar regla de Firewall para que la app móvil pueda conectarse.
-  // En producción, el .exe empaquetado no hereda la excepción de node.exe en desarrollo.
-  if (app.isPackaged && process.platform === 'win32') {
+  // Se ejecuta siempre (dev y producción) porque node.exe en dev tampoco tiene excepción.
+  // La regla es solo por puerto (sin "program=") para que funcione tanto en dev como empaquetado.
+  if (process.platform === 'win32') {
     const { exec } = require('child_process');
     const ruleName = 'GloryView Proyector - Puerto 3001';
-    const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} program="${process.execPath}" enable=yes`;
-    exec(addRule, (err) => {
+    // Primero eliminar regla anterior para evitar duplicados, luego agregar la nueva.
+    const deleteRule = `netsh advfirewall firewall delete rule name="${ruleName}" >nul 2>&1`;
+    const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} enable=yes`;
+    exec(`${deleteRule} & ${addRule}`, (err) => {
       if (err) {
-        console.warn('[Firewall] No se pudo agregar regla automáticamente (puede requerir admin):', err.message);
+        console.warn('[Firewall] No se pudo agregar regla (requiere permisos de admin):', err.message);
       } else {
-        console.log(`[Firewall] Regla creada: "${ruleName}"`);
+        console.log(`[Firewall] Regla activa: "${ruleName}" (TCP in puerto ${PORT})`);
       }
     });
   }
@@ -3297,9 +3331,6 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   console.log("🚪 [MAIN] Todas las ventanas cerradas");
 
-  // Cerrar la base de datos
-  dbNew.cerrarDB();
-
   // ✨ IMPORTANTE: Cerrar el proyector si existe
   if (proyectorWindow && !proyectorWindow.isDestroyed()) {
     console.log("🔴 [MAIN] Cerrando ventana del proyector");
@@ -3308,18 +3339,21 @@ app.on("window-all-closed", () => {
   }
 
   if (process.platform !== "darwin") {
+    // En Windows/Linux la app termina aquí — cerrar la DB antes de salir
+    dbNew.cerrarDB();
     console.log("👋 [MAIN] Saliendo de la aplicación");
     app.quit();
   }
+  // En macOS la app sigue viva en el dock → no cerrar la DB
 });
 
-// ✨ NUEVO: Cerrar proyector cuando se cierra la ventana principal
 app.on("before-quit", () => {
-  console.log("⚠️ [MAIN] before-quit: Cerrando proyector");
+  console.log("⚠️ [MAIN] before-quit: Cerrando proyector y base de datos");
   if (proyectorWindow && !proyectorWindow.isDestroyed()) {
     proyectorWindow.close();
     proyectorWindow = null;
   }
+  dbNew.cerrarDB();
 });
 
 // ✨ FUNCIÓN COMPLETA PARA REGISTRAR TODOS LOS HANDLERS

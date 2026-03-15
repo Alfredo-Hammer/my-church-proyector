@@ -1116,10 +1116,14 @@ export default function App() {
         cargarCatalogoHimnos();
       }, 50);
     } catch (err) {
-      const msg =
-        err?.name === 'AbortError'
-          ? 'Timeout: no respondió en 6s.'
-          : err?.message || 'Error de red.';
+      let msg;
+      if (err?.name === 'AbortError') {
+        msg = 'Timeout: el servidor no respondió en 6s. Verifica que el PC esté encendido, GloryView abierto y en la misma red Wi-Fi.';
+      } else if (err?.message?.includes('Network request failed') || err?.message?.includes('fetch')) {
+        msg = 'No se pudo alcanzar el servidor. Asegúrate de estar conectado a Wi-Fi (no datos móviles) en la misma red que el PC.';
+      } else {
+        msg = err?.message || 'Error de red desconocido.';
+      }
       setEstado({ status: 'error', message: msg, payload: null });
     } finally {
       clearTimeout(timeout);
@@ -2888,6 +2892,14 @@ export default function App() {
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Conexión</Text>
                 <Text style={styles.smallText}>Escanea el QR o pega la URL.</Text>
+
+                {tipoConexion && tipoConexion !== 'wifi' && (
+                  <View style={{ backgroundColor: 'rgba(234,179,8,0.12)', borderColor: 'rgba(234,179,8,0.35)', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 4 }}>
+                    <Text style={{ color: '#fbbf24', fontSize: 13 }}>
+                      ⚠️ Estás en {tipoConexion === 'cellular' ? 'datos móviles' : tipoConexion}. Para conectar al proyector debes usar Wi-Fi en la misma red que el PC.
+                    </Text>
+                  </View>
+                )}
 
                 <Pressable
                   onPress={abrirEscanerQr}

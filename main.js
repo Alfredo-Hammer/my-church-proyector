@@ -47,18 +47,38 @@ if (!DEBUG_LOGS) {
 }
 
 // ✅ INSTANCIA ÚNICA: evitar que el usuario abra varias copias de GloryView.
-// Si ya hay una instancia corriendo, enfocarla y cerrar la nueva.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  // Esta es la segunda instancia — ceder el paso a la primera y salir inmediatamente.
-  app.quit();
-  process.exit(0);
+  // Hay otra instancia corriendo (o un proceso fantasma del instalador anterior).
+  // Intentar matar los procesos Electron colgados antes de rendirse.
+  if (process.platform === 'win32') {
+    try {
+      require('child_process').execSync(
+        `taskkill /IM "${require('path').basename(process.execPath)}" /F /FI "PID ne ${process.pid}"`,
+        { timeout: 3000 }
+      );
+    } catch (_) { /* si falla, mostrar mensaje abajo */ }
+  }
+
+  // Reintentar el lock después de matar procesos
+  const retry = app.requestSingleInstanceLock();
+  if (!retry) {
+    // Aún no se puede — mostrar mensaje claro al usuario
+    app.whenReady().then(() => {
+      dialog.showMessageBoxSync({
+        type: 'warning',
+        title: 'GloryView ya está abierto',
+        message: 'GloryView Proyector ya está en ejecución.\n\nSi la ventana no está visible, búscala en la barra de tareas.\n\nSi el problema persiste, abre el Administrador de tareas y cierra todos los procesos "Electron" antes de volver a abrir GloryView.',
+        buttons: ['Aceptar'],
+      });
+      app.quit();
+    });
+    return;
+  }
 }
+
 app.on('second-instance', () => {
-  // La primera instancia recibe este evento cuando alguien intenta abrir una segunda.
-  // Buscamos la ventana principal y la traemos al frente.
-  const { BrowserWindow: BW } = require('electron');
-  const wins = BW.getAllWindows().filter(w => !w.isDestroyed());
+  const wins = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed());
   if (wins.length > 0) {
     const main = wins[0];
     if (main.isMinimized()) main.restore();

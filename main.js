@@ -2358,12 +2358,44 @@ function iniciarServidorMultimedia() {
   });
 
   servidor.on('error', (err) => {
-    console.error(`❌ [Servidor] Error al iniciar en puerto ${PORT}:`, err.message);
-    const { dialog } = require('electron');
-    dialog.showErrorBox(
-      'Error de servidor',
-      `GloryView no pudo iniciar el servidor en el puerto ${PORT}.\n\nPosible causa: el puerto ya está en uso por otra aplicación.\n\nDetalle: ${err.message}`
-    );
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`⚠️ [Servidor] Puerto ${PORT} ocupado. Intentando liberar proceso anterior...`);
+      // Matar el proceso que ocupa el puerto y reintentar
+      const { exec } = require('child_process');
+      const killCmd = process.platform === 'win32'
+        ? `FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :${PORT}') DO taskkill /PID %P /F`
+        : `lsof -ti:${PORT} | xargs kill -9`;
+
+      exec(killCmd, (killErr) => {
+        if (killErr) {
+          console.warn('[Servidor] No se pudo liberar el puerto:', killErr.message);
+        } else {
+          console.log(`[Servidor] Puerto ${PORT} liberado. Reintentando en 1.5s...`);
+        }
+        // Reintentar después de liberar (o de igual forma tras el timeout)
+        setTimeout(() => {
+          servidor.close();
+          const nuevoServidor = expressApp.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ [Servidor] Reintento exitoso en 0.0.0.0:${PORT}`);
+          });
+          nuevoServidor.on('error', (err2) => {
+            console.error(`❌ [Servidor] Fallo en reintento:`, err2.message);
+            const { dialog } = require('electron');
+            dialog.showErrorBox(
+              'Error de servidor',
+              `GloryView no pudo iniciar en el puerto ${PORT}.\n\nCierra cualquier instancia anterior de GloryView e inténtalo de nuevo.\n\nDetalle: ${err2.message}`
+            );
+          });
+        }, 1500);
+      });
+    } else {
+      console.error(`❌ [Servidor] Error inesperado:`, err.message);
+      const { dialog } = require('electron');
+      dialog.showErrorBox(
+        'Error de servidor',
+        `GloryView no pudo iniciar el servidor en el puerto ${PORT}.\n\nDetalle: ${err.message}`
+      );
+    }
   });
 
   // Windows: agregar regla de Firewall para que la app móvil pueda conectarse.
@@ -3235,7 +3267,16 @@ app.whenReady().then(async () => {
     });
 
     // ✨ INICIAR SERVIDOR DE MULTIMEDIA
-    iniciarServidorMultimedia();
+    // Liberar puerto 3001 si hay una instancia anterior colgada antes de iniciar
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      exec(`FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :3001') DO taskkill /PID %P /F`, () => {
+        // Ignorar errores (si no hay proceso ocupando el puerto, el comando falla normalmente)
+        setTimeout(() => iniciarServidorMultimedia(), 500);
+      });
+    } else {
+      iniciarServidorMultimedia();
+    }
 
   } catch (error) {
     // ✨ CAPTURA DE ERRORES GLOBAL DEL APP.WHENREADY

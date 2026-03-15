@@ -256,7 +256,6 @@ export default function AgregarHimno() {
     setLetra(himnoLocal.letra.join("\n\n"));
     setAutor(himnoLocal.autor);
     setCategoria(himnoLocal.categoria);
-    setTags([himnoLocal.fuente]);
     setModalBusquedaVisible(false);
     setModalVisible(true);
     toast.info("📖 Himno importado, completa los datos y guarda");

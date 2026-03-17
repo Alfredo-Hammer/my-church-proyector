@@ -40,6 +40,24 @@ npm run rebuild
 | Renderer principal | `src/` (React) | UI de control y gestión |
 | Renderer proyector | `public/proyector.html` | Ventana de proyección (pantalla 2) |
 
+### Orden de inicialización (app.whenReady)
+
+**¡CRÍTICO!** El orden de inicialización es fundamental para que la app funcione en producción:
+
+1. Configurar nombre de aplicación
+2. Inicializar base de datos (`dbNew.initializeDatabase()`)
+3. Inicializar fondos por defecto
+4. Limpiar handlers IPC anteriores
+5. Verificar integridad de archivos del build (solo producción)
+6. Registrar todos los handlers IPC
+7. **Iniciar servidor Express y esperar** (devuelve Promise) ← CRÍTICO
+8. Esperar 2 segundos adicionales para estabilidad
+9. Crear ventana principal (carga desde `http://localhost:3001` en producción)
+10. Detectar y crear ventana proyector si hay segunda pantalla
+11. Registrar atajos de teclado globales
+
+**⚠️ NUNCA crear ventanas antes de que el servidor Express esté escuchando.** Esto causa pantalla blanca / app que no inicia en producción.
+
 ### Comunicación IPC
 
 El flujo de datos siempre sigue este camino:
@@ -63,7 +81,21 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
 
 - Corre dentro del proceso main de Electron en el puerto 3001.
 - Sirve archivos estáticos de `public/` (multimedia, uploads, fondos).
+- **`iniciarServidorMultimedia()` devuelve una Promise** que se resuelve cuando el servidor está escuchando.
+- En producción, sirve el directorio `build/` completo con `express.static()`.
 - No tiene autenticación (es localhost, no expuesto a red).
+
+**Inicialización correcta:**
+```js
+// ✅ Correcto - esperar a que el servidor esté listo
+await iniciarServidorMultimedia();
+await new Promise(resolve => setTimeout(resolve, 2000)); // estabilidad
+createMainWindow(); // ahora sí puede cargar http://localhost:3001
+
+// ❌ Incorrecto - crear ventana antes del servidor
+createMainWindow(); // intenta cargar pero servidor no está listo
+iniciarServidorMultimedia(); // demasiado tarde
+```
 
 ---
 
@@ -248,6 +280,73 @@ Sin las variables de entorno, el build funciona sin firma (modo desarrollo/prueb
 | Multimedia del usuario | `{userData}/public/multimedia/` |
 | Fondos del usuario | `{userData}/public/fondos/` |
 | Uploads (logos) | `{userData}/public/uploads/` |
+- **No crear ventanas antes de iniciar el servidor Express** — siempre usar `await iniciarServidorMultimedia()` primero.
+- **No modificar el orden de inicialización en `app.whenReady()`** sin entender las dependencias.
+
+---
+
+## Diagnóstico de problemas
+
+### Archivos de log
+
+**Ubicación en producción:**
+- Windows: `%APPDATA%\GloryView Proyector\gloryview-error.log`
+- macOS: `~/Library/Application Support/GloryView Proyector/gloryview-error.log`
+
+**Acceso rápido (Windows):**
+```cmd
+notepad "%APPDATA%\GloryView Proyector\gloryview-error.log"
+```
+
+**Contenido del log:**
+- Todos los pasos de inicialización
+- Errores con stack trace completo
+- Eventos de carga de ventanas
+- Estado del servidor Express
+- Verificaciones de integridad de archivos
+
+### Script de diagnóstico automatizado
+
+Ejecutar en PowerShell (Windows) como administrador:
+```powershell
+.\diagnostico-windows.ps1
+```
+
+Este script verifica:
+- Procesos en ejecución
+- Puerto 3001 disponible/ocupado
+- Reglas de firewall
+- Archivos de log y base de datos
+- Conectividad del servidor
+
+### DevTools en producción
+
+Atajos de teclado para abrir DevTools:
+- `F12` — Alternar DevTools en ventana enfocada
+- `Ctrl+Shift+I` — Alternar DevTools en ventana enfocada
+- `Ctrl+Shift+P` — Abrir DevTools del proyector específicamente
+
+### Errores comunes
+
+#### Pantalla blanca / App no inicia
+**Causa:** Ventana creada antes de que el servidor esté listo.
+**Diagnóstico:** Revisar log, buscar `❌ Error cargando URL http://localhost:3001`
+**Solución:** El código ya está corregido (marzo 2026), actualizar a versión 0.2.0+
+
+#### Puerto 3001 ocupado
+**Causa:** Otra instancia de GloryView o proceso bloqueando el puerto.
+**Diagnóstico:** Ejecutar `diagnostico-windows.ps1`
+**Solución:** 
+```powershell
+Stop-Process -Name "GloryViewProyector" -Force
+```
+
+#### Archivos del build faltantes
+**Causa:** Build incompleto o corrupto.
+**Diagnóstico:** Log mostrará `❌ index.html no encontrado`
+**Solución:** Reinstalar aplicación
+
+---
 
 `{userData}` en Windows: `C:\Users\{usuario}\AppData\Roaming\GloryView Proyector`
 

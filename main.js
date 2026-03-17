@@ -358,14 +358,14 @@ function obtenerCSP() {
       "connect-src 'self' http://localhost:3000 http://localhost:3001 ws://localhost:3000 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "frame-src 'self' https://*.youtube.com https://www.youtube.com https://youtube.com https://*.google.com;";
   } else {
-    // PRODUCCIÓN: sin 'unsafe-eval' (bundles webpack no usan eval)
-    // NOTA: 'unsafe-inline' se mantiene en script-src porque TinyMCE/Quill inyectan scripts inline
+    // PRODUCCIÓN: Agregar 'unsafe-eval' temporalmente para React
+    // Algunos bundlers modernos pueden requerir eval() para source maps o dynamic imports
     return "default-src 'self' http://localhost:3001 https://*.youtube.com https://*.google.com; " +
-      "script-src 'self' 'unsafe-inline' https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
-      "style-src 'self' 'unsafe-inline' https://*.youtube.com https://*.ytimg.com https://*.google.com https://*.ggpht.com https://*.gstatic.com; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
+      "style-src 'self' 'unsafe-inline' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.google.com https://*.ggpht.com https://*.gstatic.com; " +
       "img-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "media-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.ggpht.com https://pixabay.com https://*.pixabay.com blob:; " +
-      "font-src 'self' data: https://*.youtube.com https://*.ytimg.com https://*.gstatic.com; " +
+      "font-src 'self' data: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.gstatic.com; " +
       "connect-src 'self' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "frame-src 'self' https://*.youtube.com https://www.youtube.com https://youtube.com https://*.google.com;";
   }
@@ -407,435 +407,543 @@ function bloquearAnuncios(ventana) {
 
 // ✨ CREAR SERVIDOR PARA ARCHIVOS MULTIMEDIA
 function iniciarServidorMultimedia() {
-  const expressApp = express();
-  const PORT = 3001;
+  return new Promise((resolve, reject) => {
+    const expressApp = express();
+    const PORT = 3001;
 
-  if (!bibliaPreviewListenerRegistered) {
-    bibliaPreviewListenerRegistered = true;
-    ipcMain.on('control-biblia-preview-response', (event, payload) => {
-      try {
-        const id = payload?.id;
-        if (!id) return;
-        const pending = pendingBibliaPreview.get(id);
-        if (!pending) return;
-        pendingBibliaPreview.delete(id);
-        pending.resolve(payload);
-      } catch (error) {
-        console.error('❌ [MAIN] Error procesando control-biblia-preview-response:', error);
-      }
-    });
-  }
-
-  const solicitarBibliaPreviewAlRenderer = ({ libroId, capitulo, versiculo }) => {
-    return new Promise((resolve, reject) => {
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        reject(new Error('Ventana principal no disponible'));
-        return;
-      }
-
-      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const timeout = setTimeout(() => {
-        pendingBibliaPreview.delete(id);
-        reject(new Error('Timeout obteniendo vista previa de Biblia'));
-      }, 2500);
-
-      pendingBibliaPreview.set(id, {
-        resolve: (payload) => {
-          clearTimeout(timeout);
-          resolve(payload);
-        },
-      });
-
-      mainWindow.webContents.send('control-biblia-preview', {
-        id,
-        libroId,
-        capitulo,
-        versiculo,
-      });
-    });
-  };
-
-  const obtenerIpsLocalesV4 = () => {
-    const nets = os.networkInterfaces();
-
-    // Patrones de nombres de adaptadores virtuales conocidos en Windows/Linux/macOS.
-    // Se comparan contra el nombre de la interfaz (no la IP), por eso son más confiables.
-    const VIRTUAL_NAME_RE = /vmware|virtualbox|vbox|docker|hyper.?v|vethernet|tap|wsl|bluetooth|hamachi|tunnelbear|nordvpn|expressvpn|pvpn|openvpn|zerotier/i;
-
-    const realIps = [];   // adaptadores reales (Wi-Fi, Ethernet)
-    const virtualIps = []; // adaptadores virtuales (fallback si no hay reales)
-
-    for (const nombre of Object.keys(nets || {})) {
-      const esVirtual = VIRTUAL_NAME_RE.test(nombre);
-      for (const net of nets[nombre] || []) {
-        const family = typeof net.family === 'string' ? net.family : String(net.family);
-        const isV4 = family === 'IPv4' || family === '4';
-        if (!isV4) continue;
-        if (net.internal) continue;
-        if (!net.address) continue;
-        if (esVirtual) {
-          virtualIps.push(net.address);
-        } else {
-          realIps.push(net.address);
+    if (!bibliaPreviewListenerRegistered) {
+      bibliaPreviewListenerRegistered = true;
+      ipcMain.on('control-biblia-preview-response', (event, payload) => {
+        try {
+          const id = payload?.id;
+          if (!id) return;
+          const pending = pendingBibliaPreview.get(id);
+          if (!pending) return;
+          pendingBibliaPreview.delete(id);
+          pending.resolve(payload);
+        } catch (error) {
+          console.error('❌ [MAIN] Error procesando control-biblia-preview-response:', error);
         }
-      }
+      });
     }
 
-    // Usar adaptadores reales primero; si no hay, caer a virtuales.
-    const pool = realIps.length > 0 ? realIps : virtualIps;
-    const uniqueIps = Array.from(new Set(pool));
+    const solicitarBibliaPreviewAlRenderer = ({ libroId, capitulo, versiculo }) => {
+      return new Promise((resolve, reject) => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          reject(new Error('Ventana principal no disponible'));
+          return;
+        }
 
-    // Priorizar IPs de red local (Wi-Fi / Ethernet) sobre cualquier otro rango.
-    const score = (ip) => {
-      if (/^192\.168\./.test(ip)) return 0;
-      if (/^10\./.test(ip)) return 1;
-      if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 2;
-      if (/^172\./.test(ip)) return 10;
-      if (/^169\.254\./.test(ip)) return 20; // APIPA / link-local
-      return 5;
+        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const timeout = setTimeout(() => {
+          pendingBibliaPreview.delete(id);
+          reject(new Error('Timeout obteniendo vista previa de Biblia'));
+        }, 2500);
+
+        pendingBibliaPreview.set(id, {
+          resolve: (payload) => {
+            clearTimeout(timeout);
+            resolve(payload);
+          },
+        });
+
+        mainWindow.webContents.send('control-biblia-preview', {
+          id,
+          libroId,
+          capitulo,
+          versiculo,
+        });
+      });
     };
 
-    return uniqueIps.sort((a, b) => score(a) - score(b));
-  };
+    const obtenerIpsLocalesV4 = () => {
+      const nets = os.networkInterfaces();
 
-  const obtenerUrlPreferidaParaMovil = () => {
-    const ips = obtenerIpsLocalesV4();
-    const ip = ips[0] || '127.0.0.1';
-    return `http://${ip}:${PORT}`;
-  };
+      // Patrones de nombres de adaptadores virtuales conocidos en Windows/Linux/macOS.
+      // Se comparan contra el nombre de la interfaz (no la IP), por eso son más confiables.
+      const VIRTUAL_NAME_RE = /vmware|virtualbox|vbox|docker|hyper.?v|vethernet|tap|wsl|bluetooth|hamachi|tunnelbear|nordvpn|expressvpn|pvpn|openvpn|zerotier/i;
 
-  // Habilitar CORS para React
-  expressApp.use(cors());
+      const realIps = [];   // adaptadores reales (Wi-Fi, Ethernet)
+      const virtualIps = []; // adaptadores virtuales (fallback si no hay reales)
 
-  // Parsear JSON en el body de las peticiones
-  // ✨ Aumentar límites para videos grandes (500MB)
-  expressApp.use(express.json({ limit: '500mb' }));
-  expressApp.use(express.urlencoded({ extended: true, limit: '500mb' }));
-
-  // ✨ Rutas para archivos escribibles (userData en producción)
-  const rutaBase = obtenerRutaBase();
-  const rutaRecursos = obtenerRutaRecursos();
-
-  // Servir archivos desde multimedia (userData en producción)
-  const multimediaDir = path.join(rutaBase, "public", "multimedia");
-  const buildMultimediaDir = path.join(rutaRecursos, "build", "multimedia");
-
-  // ✨ AGREGAR SERVIDOR PARA FONDOS (userData en producción)
-  const fondosDir = path.join(rutaBase, "public", "fondos");
-  const buildFondosDir = path.join(rutaRecursos, "build", "fondos");
-
-  expressApp.use("/multimedia", express.static(multimediaDir, {
-    setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo.
-      // Nota: algunos archivos históricos se guardaron sin ".ext" (ej: ...video4mp4).
-      const name = String(path.basename(filePath || '')).toLowerCase();
-
-      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
-        res.setHeader('Content-Type', 'audio/wav');
-      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
-        res.setHeader('Content-Type', 'video/webm');
-      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
-        res.setHeader('Content-Type', 'video/mp4');
-      } else if (name.endsWith('.png') || name.endsWith('png')) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
-        res.setHeader('Content-Type', 'image/jpeg');
+      for (const nombre of Object.keys(nets || {})) {
+        const esVirtual = VIRTUAL_NAME_RE.test(nombre);
+        for (const net of nets[nombre] || []) {
+          const family = typeof net.family === 'string' ? net.family : String(net.family);
+          const isV4 = family === 'IPv4' || family === '4';
+          if (!isV4) continue;
+          if (net.internal) continue;
+          if (!net.address) continue;
+          if (esVirtual) {
+            virtualIps.push(net.address);
+          } else {
+            realIps.push(net.address);
+          }
+        }
       }
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
-  }));
 
-  // ✨ SERVIR ARCHIVOS DE FONDOS
-  expressApp.use("/fondos", express.static(fondosDir, {
-    setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo.
-      const name = String(path.basename(filePath || '')).toLowerCase();
+      // Usar adaptadores reales primero; si no hay, caer a virtuales.
+      const pool = realIps.length > 0 ? realIps : virtualIps;
+      const uniqueIps = Array.from(new Set(pool));
 
-      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
-        res.setHeader('Content-Type', 'audio/wav');
-      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
-        res.setHeader('Content-Type', 'video/webm');
-      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
-        res.setHeader('Content-Type', 'video/mp4');
-      } else if (name.endsWith('.png') || name.endsWith('png')) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      }
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
-  }));
+      // Priorizar IPs de red local (Wi-Fi / Ethernet) sobre cualquier otro rango.
+      const score = (ip) => {
+        if (/^192\.168\./.test(ip)) return 0;
+        if (/^10\./.test(ip)) return 1;
+        if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 2;
+        if (/^172\./.test(ip)) return 10;
+        if (/^169\.254\./.test(ip)) return 20; // APIPA / link-local
+        return 5;
+      };
 
-  // También servir desde build/multimedia (modo producción)
-  expressApp.use("/multimedia", express.static(buildMultimediaDir, {
-    setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo.
-      const name = String(path.basename(filePath || '')).toLowerCase();
+      return uniqueIps.sort((a, b) => score(a) - score(b));
+    };
 
-      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
-        res.setHeader('Content-Type', 'audio/wav');
-      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
-        res.setHeader('Content-Type', 'video/webm');
-      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
-        res.setHeader('Content-Type', 'video/mp4');
-      } else if (name.endsWith('.png') || name.endsWith('png')) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      }
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
-  }));
-
-  // ✨ TAMBIÉN SERVIR FONDOS DESDE BUILD (MODO PRODUCCIÓN)
-  expressApp.use("/fondos", express.static(buildFondosDir, {
-    setHeaders: (res, filePath) => {
-      // Configurar headers según el tipo de archivo.
-      const name = String(path.basename(filePath || '')).toLowerCase();
-
-      if (name.endsWith('.mp3') || name.endsWith('mp3')) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-      } else if (name.endsWith('.wav') || name.endsWith('wav')) {
-        res.setHeader('Content-Type', 'audio/wav');
-      } else if (name.endsWith('.webm') || name.endsWith('webm')) {
-        res.setHeader('Content-Type', 'video/webm');
-      } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
-        res.setHeader('Content-Type', 'video/mp4');
-      } else if (name.endsWith('.png') || name.endsWith('png')) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      }
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
-  }));
-
-  // 📥 Servir todas las imágenes estáticas desde build/images (incluye icon-256.png)
-  const imagesDir = path.join(obtenerRutaRecursos(), "build", "images");
-  expressApp.use("/images", express.static(imagesDir, {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      }
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 24 horas
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-  }));
-
-  // 📥 Servir imágenes de Pixabay descargadas localmente (ruta específica para prioridad)
-  const { app: electronApp } = require('electron');
-  const isDev = !electronApp.isPackaged;
-  const pixabayImagesDir = isDev
-    ? path.join(obtenerRutaRecursos(), "build", "images", "pixabay")
-    : path.join(electronApp.getPath('userData'), 'build', 'images', 'pixabay');
-
-  expressApp.use("/images/pixabay", express.static(pixabayImagesDir, {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      }
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 24 horas
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-  }));
-
-  // 📥 Servir archivos de uploads (logos, etc.) desde userData en producción
-  const uploadsDir = path.join(obtenerRutaBase(), "public", "uploads");
-  expressApp.use("/uploads", express.static(uploadsDir, {
-    setHeaders: (res, filePath) => {
-      const name = String(path.basename(filePath || '')).toLowerCase();
-
-      if (name.endsWith('.png') || name.endsWith('png')) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      } else if (name.endsWith('.webp') || name.endsWith('webp')) {
-        res.setHeader('Content-Type', 'image/webp');
-      }
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-  }));
-
-  // 📦 Servir archivos estáticos de build (HTML, JS, CSS) - CRÍTICO PARA PRODUCCIÓN
-  const buildDir = path.join(obtenerRutaRecursos(), "build");
-  expressApp.use(express.static(buildDir, {
-    setHeaders: (res, filePath) => {
-      // Cache apropiado según tipo de archivo
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Content-Type', 'text/html');
-        res.setHeader('Cache-Control', 'no-cache');
-      } else if (filePath.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 año
-      } else if (filePath.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css');
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 año
-      }
-    }
-  }));
-
-  // Verificar que las carpetas existan
-  if (!fs.existsSync(multimediaDir)) {
-    fs.mkdirSync(multimediaDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(buildMultimediaDir)) {
-    fs.mkdirSync(buildMultimediaDir, { recursive: true });
-  }
-
-  // ✨ VERIFICAR QUE LAS CARPETAS DE FONDOS EXISTAN
-  if (!fs.existsSync(fondosDir)) {
-    fs.mkdirSync(fondosDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(buildFondosDir)) {
-    fs.mkdirSync(buildFondosDir, { recursive: true });
-  }
-
-  // Endpoint para debuggear archivos disponibles
-  expressApp.get('/debug/multimedia', (req, res) => {
-    const publicFiles = fs.existsSync(multimediaDir) ? fs.readdirSync(multimediaDir) : [];
-    const buildFiles = fs.existsSync(buildMultimediaDir) ? fs.readdirSync(buildMultimediaDir) : [];
-
-    res.json({
-      publicDir: multimediaDir,
-      buildDir: buildMultimediaDir,
-      publicFiles,
-      buildFiles,
-      totalFiles: [...new Set([...publicFiles, ...buildFiles])]
-    });
-  });
-
-  // ✅ Endpoint mínimo para apps externas (móvil) - prueba de conectividad
-  expressApp.get('/api/ping', (req, res) => {
-    res.json({
-      ok: true,
-      app: 'GloryView Proyector',
-      version: app.getVersion(),
-      serverTime: new Date().toISOString(),
-    });
-  });
-
-  // ✅ Info de conexión para emparejar app móvil (LAN)
-  // Respuesta: { ok:true, port, urls, preferredUrl, qrValue }
-  expressApp.get('/api/connection-info', (req, res) => {
-    try {
+    const obtenerUrlPreferidaParaMovil = () => {
       const ips = obtenerIpsLocalesV4();
-      const urls = ips.map((ip) => `http://${ip}:${PORT}`);
-      const preferredUrl = obtenerUrlPreferidaParaMovil();
+      const ip = ips[0] || '127.0.0.1';
+      return `http://${ip}:${PORT}`;
+    };
 
+    // Habilitar CORS para React
+    expressApp.use(cors());
+
+    // Parsear JSON en el body de las peticiones
+    // ✨ Aumentar límites para videos grandes (500MB)
+    expressApp.use(express.json({ limit: '500mb' }));
+    expressApp.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+    // ✨ Rutas para archivos escribibles (userData en producción)
+    const rutaBase = obtenerRutaBase();
+    const rutaRecursos = obtenerRutaRecursos();
+
+    // Servir archivos desde multimedia (userData en producción)
+    const multimediaDir = path.join(rutaBase, "public", "multimedia");
+    const buildMultimediaDir = path.join(rutaRecursos, "build", "multimedia");
+
+    // ✨ AGREGAR SERVIDOR PARA FONDOS (userData en producción)
+    const fondosDir = path.join(rutaBase, "public", "fondos");
+    const buildFondosDir = path.join(rutaRecursos, "build", "fondos");
+
+    expressApp.use("/multimedia", express.static(multimediaDir, {
+      setHeaders: (res, filePath) => {
+        // Configurar headers según el tipo de archivo.
+        // Nota: algunos archivos históricos se guardaron sin ".ext" (ej: ...video4mp4).
+        const name = String(path.basename(filePath || '')).toLowerCase();
+
+        if (name.endsWith('.mp3') || name.endsWith('mp3')) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+        } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+          res.setHeader('Content-Type', 'audio/wav');
+        } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+          res.setHeader('Content-Type', 'video/webm');
+        } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
+          res.setHeader('Content-Type', 'video/mp4');
+        } else if (name.endsWith('.png') || name.endsWith('png')) {
+          res.setHeader('Content-Type', 'image/png');
+        } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+    }));
+
+    // ✨ SERVIR ARCHIVOS DE FONDOS
+    expressApp.use("/fondos", express.static(fondosDir, {
+      setHeaders: (res, filePath) => {
+        // Configurar headers según el tipo de archivo.
+        const name = String(path.basename(filePath || '')).toLowerCase();
+
+        if (name.endsWith('.mp3') || name.endsWith('mp3')) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+        } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+          res.setHeader('Content-Type', 'audio/wav');
+        } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+          res.setHeader('Content-Type', 'video/webm');
+        } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
+          res.setHeader('Content-Type', 'video/mp4');
+        } else if (name.endsWith('.png') || name.endsWith('png')) {
+          res.setHeader('Content-Type', 'image/png');
+        } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+    }));
+
+    // También servir desde build/multimedia (modo producción)
+    expressApp.use("/multimedia", express.static(buildMultimediaDir, {
+      setHeaders: (res, filePath) => {
+        // Configurar headers según el tipo de archivo.
+        const name = String(path.basename(filePath || '')).toLowerCase();
+
+        if (name.endsWith('.mp3') || name.endsWith('mp3')) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+        } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+          res.setHeader('Content-Type', 'audio/wav');
+        } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+          res.setHeader('Content-Type', 'video/webm');
+        } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
+          res.setHeader('Content-Type', 'video/mp4');
+        } else if (name.endsWith('.png') || name.endsWith('png')) {
+          res.setHeader('Content-Type', 'image/png');
+        } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+    }));
+
+    // ✨ TAMBIÉN SERVIR FONDOS DESDE BUILD (MODO PRODUCCIÓN)
+    expressApp.use("/fondos", express.static(buildFondosDir, {
+      setHeaders: (res, filePath) => {
+        // Configurar headers según el tipo de archivo.
+        const name = String(path.basename(filePath || '')).toLowerCase();
+
+        if (name.endsWith('.mp3') || name.endsWith('mp3')) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+        } else if (name.endsWith('.wav') || name.endsWith('wav')) {
+          res.setHeader('Content-Type', 'audio/wav');
+        } else if (name.endsWith('.webm') || name.endsWith('webm')) {
+          res.setHeader('Content-Type', 'video/webm');
+        } else if (name.endsWith('.mp4') || name.endsWith('mp4') || name.endsWith('.m4v') || name.endsWith('m4v')) {
+          res.setHeader('Content-Type', 'video/mp4');
+        } else if (name.endsWith('.png') || name.endsWith('png')) {
+          res.setHeader('Content-Type', 'image/png');
+        } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+    }));
+
+    // 📥 Servir todas las imágenes estáticas desde build/images (incluye icon-256.png)
+    const imagesDir = path.join(obtenerRutaRecursos(), "build", "images");
+    expressApp.use("/images", express.static(imagesDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 24 horas
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    }));
+
+    // 📥 Servir imágenes de Pixabay descargadas localmente (ruta específica para prioridad)
+    const { app: electronApp } = require('electron');
+    const isDev = !electronApp.isPackaged;
+    const pixabayImagesDir = isDev
+      ? path.join(obtenerRutaRecursos(), "build", "images", "pixabay")
+      : path.join(electronApp.getPath('userData'), 'build', 'images', 'pixabay');
+
+    expressApp.use("/images/pixabay", express.static(pixabayImagesDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.png') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        }
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 24 horas
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    }));
+
+    // 📥 Servir archivos de uploads (logos, etc.) desde userData en producción
+    const uploadsDir = path.join(obtenerRutaBase(), "public", "uploads");
+    expressApp.use("/uploads", express.static(uploadsDir, {
+      setHeaders: (res, filePath) => {
+        const name = String(path.basename(filePath || '')).toLowerCase();
+
+        if (name.endsWith('.png') || name.endsWith('png')) {
+          res.setHeader('Content-Type', 'image/png');
+        } else if (name.endsWith('.jpg') || name.endsWith('jpg') || name.endsWith('.jpeg') || name.endsWith('jpeg')) {
+          res.setHeader('Content-Type', 'image/jpeg');
+        } else if (name.endsWith('.webp') || name.endsWith('webp')) {
+          res.setHeader('Content-Type', 'image/webp');
+        }
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    }));
+
+    // 📦 Servir archivos estáticos de build (HTML, JS, CSS) - CRÍTICO PARA PRODUCCIÓN
+    const buildDir = path.join(obtenerRutaRecursos(), "build");
+
+    // ✨ LOGGING DE DIAGNÓSTICO
+    writeLog(`📁 Directorio build: ${buildDir}`);
+    writeLog(`📁 __dirname: ${__dirname}`);
+    writeLog(`📁 app.isPackaged: ${app.isPackaged}`);
+    writeLog(`📁 process.resourcesPath: ${process.resourcesPath}`);
+
+    if (fs.existsSync(buildDir)) {
+      const buildFiles = fs.readdirSync(buildDir);
+      writeLog(`📁 Archivos en build: ${buildFiles.slice(0, 10).join(', ')}${buildFiles.length > 10 ? '...' : ''}`);
+    } else {
+      writeLog(`❌ Directorio build NO existe: ${buildDir}`);
+    }
+
+    expressApp.use(express.static(buildDir, {
+      setHeaders: (res, filePath) => {
+        // Cache apropiado según tipo de archivo
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Content-Type', 'text/html');
+          res.setHeader('Cache-Control', 'no-cache');
+        } else if (filePath.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 año
+        } else if (filePath.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 año
+        }
+      }
+    }));
+
+    // Verificar que las carpetas existan
+    if (!fs.existsSync(multimediaDir)) {
+      fs.mkdirSync(multimediaDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(buildMultimediaDir)) {
+      fs.mkdirSync(buildMultimediaDir, { recursive: true });
+    }
+
+    // ✨ VERIFICAR QUE LAS CARPETAS DE FONDOS EXISTAN
+    if (!fs.existsSync(fondosDir)) {
+      fs.mkdirSync(fondosDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(buildFondosDir)) {
+      fs.mkdirSync(buildFondosDir, { recursive: true });
+    }
+
+    // Endpoint para debuggear archivos disponibles
+    expressApp.get('/debug/multimedia', (req, res) => {
+      const publicFiles = fs.existsSync(multimediaDir) ? fs.readdirSync(multimediaDir) : [];
+      const buildFiles = fs.existsSync(buildMultimediaDir) ? fs.readdirSync(buildMultimediaDir) : [];
+
+      res.json({
+        publicDir: multimediaDir,
+        buildDir: buildMultimediaDir,
+        publicFiles,
+        buildFiles,
+        totalFiles: [...new Set([...publicFiles, ...buildFiles])]
+      });
+    });
+
+    // ✅ Endpoint mínimo para apps externas (móvil) - prueba de conectividad
+    expressApp.get('/api/ping', (req, res) => {
       res.json({
         ok: true,
         app: 'GloryView Proyector',
         version: app.getVersion(),
-        port: PORT,
-        urls,
-        preferredUrl,
-        qrValue: preferredUrl,
         serverTime: new Date().toISOString(),
       });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/connection-info:', error);
-      res.status(500).json({ ok: false, error: error.message });
-    }
-  });
+    });
 
-  // ✅ QR PNG para emparejar (contenido = URL preferida)
-  // Query opcional: ?url=http://ip:3001
-  expressApp.get('/api/qr.png', async (req, res) => {
-    try {
-      const raw = String(req.query?.url || '').trim();
-      const value = raw && /^https?:\/\//i.test(raw) ? raw : obtenerUrlPreferidaParaMovil();
+    // ✅ Endpoint de diagnóstico para verificar rutas y archivos
+    expressApp.get('/api/diagnostico', (req, res) => {
+      const buildDir = path.join(obtenerRutaRecursos(), "build");
+      const indexExists = fs.existsSync(path.join(buildDir, 'index.html'));
+      const buildExists = fs.existsSync(buildDir);
+      const buildFiles = buildExists ? fs.readdirSync(buildDir) : [];
 
-      const png = await QRCode.toBuffer(value, {
-        type: 'png',
-        width: 360,
-        margin: 1,
-        errorCorrectionLevel: 'M',
+      res.json({
+        ok: true,
+        __dirname: __dirname,
+        buildDir: buildDir,
+        buildExists: buildExists,
+        indexExists: indexExists,
+        filesCount: buildFiles.length,
+        files: buildFiles.slice(0, 20),
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath
       });
+    });
 
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'no-store');
-      res.end(png);
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/qr.png:', error);
-      res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Catálogo de himnos para app móvil (siempre desde el escritorio)
-  // Query: ?tipo=moravo|vida|personal
-  // Respuesta: { ok:true, tipo, himnos:[{ id, numero, titulo, parrafos, fuente }] }
-  // Nota: moravo/vida devuelve solo el catálogo base; personal devuelve solo himnos creados por el usuario.
-  const leerJsonHimnosSeguro = (filename) => {
-    const candidatos = [
-      // Producción: build (si el archivo fue copiado desde public/)
-      path.join(buildDir, 'data', filename),
-      // Desarrollo: fuente del proyecto
-      path.join(__dirname, 'src', 'data', filename),
-      // Último recurso: carpeta data del repo
-      path.join(__dirname, 'data', filename),
-    ];
-
-    for (const ruta of candidatos) {
+    // ✅ Info de conexión para emparejar app móvil (LAN)
+    // Respuesta: { ok:true, port, urls, preferredUrl, qrValue }
+    expressApp.get('/api/connection-info', (req, res) => {
       try {
-        if (fs.existsSync(ruta)) {
-          const raw = fs.readFileSync(ruta, 'utf-8');
-          const json = JSON.parse(raw);
-          return Array.isArray(json) ? json : [];
-        }
-      } catch (e) {
-        console.warn('⚠️ [MAIN] No se pudo leer JSON de himnos:', ruta, e?.message);
+        const ips = obtenerIpsLocalesV4();
+        const urls = ips.map((ip) => `http://${ip}:${PORT}`);
+        const preferredUrl = obtenerUrlPreferidaParaMovil();
+
+        res.json({
+          ok: true,
+          app: 'GloryView Proyector',
+          version: app.getVersion(),
+          port: PORT,
+          urls,
+          preferredUrl,
+          qrValue: preferredUrl,
+          serverTime: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/connection-info:', error);
+        res.status(500).json({ ok: false, error: error.message });
       }
-    }
+    });
 
-    return [];
-  };
+    // ✅ QR PNG para emparejar (contenido = URL preferida)
+    // Query opcional: ?url=http://ip:3001
+    expressApp.get('/api/qr.png', async (req, res) => {
+      try {
+        const raw = String(req.query?.url || '').trim();
+        const value = raw && /^https?:\/\//i.test(raw) ? raw : obtenerUrlPreferidaParaMovil();
 
-  expressApp.get('/api/himnos', async (req, res) => {
-    try {
-      const tipoRaw = String(req.query?.tipo || 'moravo').toLowerCase();
-      const tipo = tipoRaw === 'vida' ? 'vida' : tipoRaw === 'personal' ? 'personal' : 'moravo';
+        const png = await QRCode.toBuffer(value, {
+          type: 'png',
+          width: 360,
+          margin: 1,
+          errorCorrectionLevel: 'M',
+        });
 
-      let baseNormalizados = [];
-      let dbNormalizados = [];
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(png);
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/qr.png:', error);
+        res.status(500).json({ ok: false, error: error.message });
+      }
+    });
 
-      if (tipo !== 'personal') {
-        const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+    // ✅ Catálogo de himnos para app móvil (siempre desde el escritorio)
+    // Query: ?tipo=moravo|vida|personal
+    // Respuesta: { ok:true, tipo, himnos:[{ id, numero, titulo, parrafos, fuente }] }
+    // Nota: moravo/vida devuelve solo el catálogo base; personal devuelve solo himnos creados por el usuario.
+    const leerJsonHimnosSeguro = (filename) => {
+      const candidatos = [
+        // Producción: build (si el archivo fue copiado desde public/)
+        path.join(buildDir, 'data', filename),
+        // Desarrollo: fuente del proyecto
+        path.join(__dirname, 'src', 'data', filename),
+        // Último recurso: carpeta data del repo
+        path.join(__dirname, 'data', filename),
+      ];
 
-        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
-        let favoritosBaseIds = [];
+      for (const ruta of candidatos) {
         try {
-          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
-          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
-          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
-        } catch {
-          favoritosBaseIds = [];
+          if (fs.existsSync(ruta)) {
+            const raw = fs.readFileSync(ruta, 'utf-8');
+            const json = JSON.parse(raw);
+            return Array.isArray(json) ? json : [];
+          }
+        } catch (e) {
+          console.warn('⚠️ [MAIN] No se pudo leer JSON de himnos:', ruta, e?.message);
         }
-
-        const base = leerJsonHimnosSeguro(filename);
-        baseNormalizados = base
-          .map((h) => ({
-            id: `base:${tipo}:${h?.numero ?? ''}`,
-            numero: h?.numero ?? '',
-            titulo: h?.titulo ?? '',
-            parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
-            fuente: tipo,
-            favorito: favoritosBaseIds.includes(`base:${tipo}:${h?.numero ?? ''}`),
-          }))
-          .filter((h) => String(h.titulo || '').trim());
       }
 
-      if (tipo === 'personal') {
+      return [];
+    };
+
+    expressApp.get('/api/himnos', async (req, res) => {
+      try {
+        const tipoRaw = String(req.query?.tipo || 'moravo').toLowerCase();
+        const tipo = tipoRaw === 'vida' ? 'vida' : tipoRaw === 'personal' ? 'personal' : 'moravo';
+
+        let baseNormalizados = [];
+        let dbNormalizados = [];
+
+        if (tipo !== 'personal') {
+          const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+
+          const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+          let favoritosBaseIds = [];
+          try {
+            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+            favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
+          } catch {
+            favoritosBaseIds = [];
+          }
+
+          const base = leerJsonHimnosSeguro(filename);
+          baseNormalizados = base
+            .map((h) => ({
+              id: `base:${tipo}:${h?.numero ?? ''}`,
+              numero: h?.numero ?? '',
+              titulo: h?.titulo ?? '',
+              parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+              fuente: tipo,
+              favorito: favoritosBaseIds.includes(`base:${tipo}:${h?.numero ?? ''}`),
+            }))
+            .filter((h) => String(h.titulo || '').trim());
+        }
+
+        if (tipo === 'personal') {
+          const himnosDb = await dbNew.obtenerHimnos();
+          dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
+            .map((h) => {
+              let letra = [];
+              try {
+                letra = JSON.parse(h?.letra || '[]');
+              } catch {
+                letra = [];
+              }
+
+              return {
+                id: `db:${h?.id ?? ''}`,
+                numero: h?.numero ?? '',
+                titulo: h?.titulo ?? '',
+                parrafos: Array.isArray(letra) ? letra : [],
+                fuente: 'personal',
+                favorito: Boolean(h?.favorito),
+              };
+            })
+            .filter((h) => String(h.titulo || '').trim());
+        }
+
+        return res.json({
+          ok: true,
+          tipo,
+          himnos: tipo === 'personal' ? dbNormalizados : baseNormalizados,
+        });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/himnos:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Favoritos de himnos (App móvil)
+    // Query: ?tipo=moravo|vida|all
+    // Respuesta: { ok:true, himnos:[{id,numero,titulo,parrafos,fuente,favorito}] }
+    expressApp.get('/api/himnos/favoritos', async (req, res) => {
+      try {
+        const tipoRaw = String(req.query?.tipo || 'all').toLowerCase();
+        const tipos = tipoRaw === 'vida' ? ['vida'] : tipoRaw === 'moravo' ? ['moravo'] : ['moravo', 'vida'];
+
+        const favoritos = [];
+
+        for (const t of tipos) {
+          const filename = t === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+          const keyFavoritos = t === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+
+          let favoritosBaseIds = [];
+          try {
+            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+            favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
+          } catch {
+            favoritosBaseIds = [];
+          }
+
+          if (favoritosBaseIds.length) {
+            const base = leerJsonHimnosSeguro(filename);
+            base
+              .map((h) => ({
+                id: `base:${t}:${h?.numero ?? ''}`,
+                numero: h?.numero ?? '',
+                titulo: h?.titulo ?? '',
+                parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
+                fuente: t,
+                favorito: favoritosBaseIds.includes(`base:${t}:${h?.numero ?? ''}`),
+              }))
+              .filter((h) => h.favorito && String(h.titulo || '').trim())
+              .forEach((h) => favoritos.push(h));
+          }
+        }
+
         const himnosDb = await dbNew.obtenerHimnos();
-        dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
+        (Array.isArray(himnosDb) ? himnosDb : [])
+          .filter((h) => Boolean(h?.favorito))
           .map((h) => {
             let letra = [];
             try {
@@ -850,998 +958,1061 @@ function iniciarServidorMultimedia() {
               titulo: h?.titulo ?? '',
               parrafos: Array.isArray(letra) ? letra : [],
               fuente: 'personal',
-              favorito: Boolean(h?.favorito),
+              favorito: true,
             };
           })
-          .filter((h) => String(h.titulo || '').trim());
+          .filter((h) => String(h.titulo || '').trim())
+          .forEach((h) => favoritos.push(h));
+
+        favoritos.sort((a, b) => {
+          const na = Number(a?.numero);
+          const nb = Number(b?.numero);
+          if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+          return String(a?.titulo || '').localeCompare(String(b?.titulo || ''), 'es');
+        });
+
+        return res.json({ ok: true, himnos: favoritos });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/himnos/favoritos:', error);
+        return res.status(500).json({ ok: false, error: error.message });
       }
+    });
 
-      return res.json({
-        ok: true,
-        tipo,
-        himnos: tipo === 'personal' ? dbNormalizados : baseNormalizados,
-      });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/himnos:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
+    // ✅ Toggle favorito himno (App móvil)
+    // Body: { favorito:boolean }
+    expressApp.post('/api/himnos/:id/favorito', async (req, res) => {
+      try {
+        const id = String(req.params?.id || '').trim();
+        if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
+        const favorito = Boolean(req.body?.favorito);
 
-  // ✅ Favoritos de himnos (App móvil)
-  // Query: ?tipo=moravo|vida|all
-  // Respuesta: { ok:true, himnos:[{id,numero,titulo,parrafos,fuente,favorito}] }
-  expressApp.get('/api/himnos/favoritos', async (req, res) => {
-    try {
-      const tipoRaw = String(req.query?.tipo || 'all').toLowerCase();
-      const tipos = tipoRaw === 'vida' ? ['vida'] : tipoRaw === 'moravo' ? ['moravo'] : ['moravo', 'vida'];
+        if (id.startsWith('db:')) {
+          const raw = id.slice(3);
+          const dbId = Number(raw);
+          if (!Number.isFinite(dbId)) {
+            return res.status(400).json({ ok: false, error: 'id db inválido' });
+          }
 
-      const favoritos = [];
-
-      for (const t of tipos) {
-        const filename = t === 'vida' ? 'vidacristiana.json' : 'himnos.json';
-        const keyFavoritos = t === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
-
-        let favoritosBaseIds = [];
-        try {
-          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
-          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
-          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
-        } catch {
-          favoritosBaseIds = [];
+          const ok = await dbNew.actualizarFavoritoHimno(dbId, favorito);
+          if (!ok) {
+            return res.status(500).json({ ok: false, error: 'No se pudo actualizar favorito' });
+          }
+          return res.json({ ok: true });
         }
 
-        if (favoritosBaseIds.length) {
-          const base = leerJsonHimnosSeguro(filename);
-          base
-            .map((h) => ({
-              id: `base:${t}:${h?.numero ?? ''}`,
-              numero: h?.numero ?? '',
-              titulo: h?.titulo ?? '',
-              parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
-              fuente: t,
-              favorito: favoritosBaseIds.includes(`base:${t}:${h?.numero ?? ''}`),
-            }))
-            .filter((h) => h.favorito && String(h.titulo || '').trim())
-            .forEach((h) => favoritos.push(h));
-        }
-      }
+        if (id.startsWith('base:')) {
+          const parts = id.split(':');
+          const tipo = parts?.[1] === 'vida' ? 'vida' : 'moravo';
+          const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
 
-      const himnosDb = await dbNew.obtenerHimnos();
-      (Array.isArray(himnosDb) ? himnosDb : [])
-        .filter((h) => Boolean(h?.favorito))
-        .map((h) => {
-          let letra = [];
+          let favoritosBaseIds = [];
           try {
-            letra = JSON.parse(h?.letra || '[]');
+            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
+            favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
           } catch {
-            letra = [];
+            favoritosBaseIds = [];
+          }
+
+          const set = new Set(favoritosBaseIds);
+          if (favorito) set.add(id);
+          else set.delete(id);
+
+          const ok = await dbNew.actualizarConfiguracion(keyFavoritos, JSON.stringify(Array.from(set)));
+          if (!ok) {
+            return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
+          }
+
+          return res.json({ ok: true });
+        }
+
+        return res.status(400).json({ ok: false, error: 'Formato de id no soportado' });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/himnos/:id/favorito:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Favoritos de Biblia (RV1960)
+    // Respuesta: { ok:true, favoritos:[{ id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn }] }
+    const BIBLIA_FAVORITOS_KEY = 'biblia_favoritos_rv1960';
+
+    const normalizarFavoritoBiblia = (raw) => {
+      if (!raw) return null;
+
+      // Compat: lista antigua de strings (ids)
+      if (typeof raw === 'string') {
+        const id = raw.trim();
+        if (!id) return null;
+        return {
+          id,
+          libroId: '',
+          libroNombre: '',
+          capitulo: null,
+          versiculo: null,
+          texto: '',
+          creadoEn: null,
+        };
+      }
+
+      if (typeof raw !== 'object') return null;
+
+      const id = String(raw.id || '').trim();
+      if (!id) return null;
+
+      const libroId = String(raw.libroId || '').trim();
+      const libroNombre = String(raw.libroNombre || '').trim();
+
+      const capituloNum = Number(raw.capitulo);
+      const versiculoNum = Number(raw.versiculo);
+
+      const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
+      const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
+
+      const texto = typeof raw.texto === 'string' ? raw.texto : '';
+
+      const creadoEnNum = Number(raw.creadoEn);
+      const creadoEn = Number.isFinite(creadoEnNum) && creadoEnNum > 0 ? creadoEnNum : null;
+
+      return { id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn };
+    };
+
+    const leerFavoritosBiblia = async () => {
+      try {
+        const raw = await dbNew.obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
+        const parsed = raw ? JSON.parse(String(raw)) : [];
+        const arr = Array.isArray(parsed) ? parsed : [];
+        const normalizados = arr.map(normalizarFavoritoBiblia).filter(Boolean);
+
+        // De-dup por id (último gana)
+        const map = new Map();
+        for (const f of normalizados) map.set(f.id, f);
+        return Array.from(map.values());
+      } catch {
+        return [];
+      }
+    };
+
+    const guardarFavoritosBiblia = async (favoritos) => {
+      return dbNew.actualizarConfiguracion(BIBLIA_FAVORITOS_KEY, JSON.stringify(favoritos));
+    };
+
+    expressApp.get('/api/biblia/favoritos', async (_req, res) => {
+      try {
+        const favoritos = await leerFavoritosBiblia();
+
+        favoritos.sort((a, b) => {
+          const ln = String(a?.libroNombre || '').localeCompare(String(b?.libroNombre || ''), 'es');
+          if (ln !== 0) return ln;
+          const ca = Number(a?.capitulo || 0);
+          const cb = Number(b?.capitulo || 0);
+          if (ca !== cb) return ca - cb;
+          const va = Number(a?.versiculo || 0);
+          const vb = Number(b?.versiculo || 0);
+          return va - vb;
+        });
+
+        return res.json({ ok: true, favoritos });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/biblia/favoritos:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Estructura de un libro: número de capítulos y versículos por capítulo
+    // Respuesta: { ok:true, libroId, capitulos:number, versiculosPorCapitulo:number[] }
+    // Usado por la app móvil para renderizar la grilla de capítulos/versículos correctamente.
+    expressApp.get('/api/biblia/estructura/:libroId', (req, res) => {
+      try {
+        const libroId = String(req.params?.libroId || '').trim();
+        // Validar: solo letras minúsculas, dígitos y guión bajo (evita path traversal)
+        if (!libroId || !/^[a-z0-9_]+$/.test(libroId)) {
+          writeLog(`⚠️ [API] /api/biblia/estructura - libroId inválido: "${libroId}"`);
+          return res.status(400).json({ ok: false, error: 'libroId inválido' });
+        }
+
+        // Ampliar candidatos para cubrir más casos en producción
+        const candidatos = [
+          path.join(buildDir, 'data', 'biblia', `${libroId}.js`),
+          path.join(__dirname, 'build', 'data', 'biblia', `${libroId}.js`),
+          path.join(__dirname, 'src', 'data', 'biblia', `${libroId}.js`),
+          path.join(obtenerRutaBase(), 'public', 'data', 'biblia', `${libroId}.js`),
+        ];
+
+        let ruta = null;
+        let intentos = [];
+        for (const c of candidatos) {
+          intentos.push(c);
+          if (fs.existsSync(c)) {
+            ruta = c;
+            break;
+          }
+        }
+
+        if (!ruta) {
+          writeLog(`❌ [API] /api/biblia/estructura - Libro "${libroId}" no encontrado en ningún candidato`);
+          writeLog(`   Intentos: ${JSON.stringify(intentos, null, 2)}`);
+          return res.status(404).json({
+            ok: false,
+            error: `Libro "${libroId}" no encontrado`,
+            debug: { intentos }
+          });
+        }
+
+        writeLog(`✅ [API] /api/biblia/estructura - Leyendo: ${ruta}`);
+
+        // Leer como texto y evaluar con vm (evita problemas con import() de ESM en main process)
+        const vm = require('vm');
+        const contenido = fs.readFileSync(ruta, 'utf8');
+
+        // Quitar "export default" y evaluar el array literal JavaScript
+        let arrayStr = contenido.replace(/^\s*export\s+default\s+/, '').trim();
+        // Remover punto y coma final si existe
+        arrayStr = arrayStr.replace(/;+\s*$/, '').trim();
+
+        let data;
+        try {
+          data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
+        } catch (vmError) {
+          writeLog(`❌ [API] Error evaluando contenido con vm: ${vmError.message}`);
+          // Intento alternativo: eval directo (menos seguro pero más compatible)
+          try {
+            data = eval(`(${arrayStr})`);
+            writeLog(`✅ [API] Eval directo funcionó para ${libroId}`);
+          } catch (evalError) {
+            writeLog(`❌ [API] Eval directo también falló: ${evalError.message}`);
+            throw vmError;
+          }
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          writeLog(`❌ [API] Libro "${libroId}" vacío o inválido (no es array o length=0)`);
+          return res.status(404).json({ ok: false, error: `Libro "${libroId}" vacío o inválido` });
+        }
+
+        const versiculosPorCapitulo = data.map((cap) => (Array.isArray(cap) ? cap.length : 0));
+
+        writeLog(`✅ [API] /api/biblia/estructura - ${libroId}: ${data.length} caps, ${versiculosPorCapitulo.reduce((a, b) => a + b, 0)} vers`);
+
+        return res.json({
+          ok: true,
+          libroId,
+          capitulos: data.length,
+          versiculosPorCapitulo,
+        });
+      } catch (error) {
+        writeLog(`❌ [API] Error /api/biblia/estructura: ${error.message}`);
+        writeLog(`❌ Stack: ${error.stack}`);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Endpoint de diagnóstico para la Biblia (testing desde app móvil)
+    expressApp.get('/api/biblia/diagnostico', (req, res) => {
+      try {
+        const diagnostico = {
+          ok: true,
+          timestamp: new Date().toISOString(),
+          paths: {
+            __dirname,
+            buildDir: path.join(obtenerRutaRecursos(), "build"),
+            userData: obtenerRutaBase(),
+          },
+          bibliaFiles: {
+            found: [],
+            notFound: []
+          }
+        };
+
+        // Probar 3 libros de muestra
+        const muestras = ['genesis', 'juan', 'apocalipsis'];
+        for (const libroId of muestras) {
+          const candidatos = [
+            path.join(path.join(obtenerRutaRecursos(), "build"), 'data', 'biblia', `${libroId}.js`),
+            path.join(__dirname, 'build', 'data', 'biblia', `${libroId}.js`),
+            path.join(__dirname, 'src', 'data', 'biblia', `${libroId}.js`),
+            path.join(obtenerRutaBase(), 'public', 'data', 'biblia', `${libroId}.js`),
+          ];
+
+          let encontrado = null;
+          for (const c of candidatos) {
+            if (fs.existsSync(c)) {
+              encontrado = c;
+              break;
+            }
+          }
+
+          if (encontrado) {
+            diagnostico.bibliaFiles.found.push({ libro: libroId, path: encontrado });
+          } else {
+            diagnostico.bibliaFiles.notFound.push({ libro: libroId, intentos: candidatos });
+          }
+        }
+
+        // Listar todos los archivos en build/data/biblia si existe
+        const buildBibliaDir = path.join(path.join(obtenerRutaRecursos(), "build"), 'data', 'biblia');
+        if (fs.existsSync(buildBibliaDir)) {
+          const archivos = fs.readdirSync(buildBibliaDir);
+          diagnostico.bibliaFiles.enBuildDir = {
+            path: buildBibliaDir,
+            count: archivos.length,
+            sample: archivos.slice(0, 10)
+          };
+        }
+
+        writeLog(`✅ [API] Diagnóstico Biblia ejecutado - ${diagnostico.bibliaFiles.found.length} found, ${diagnostico.bibliaFiles.notFound.length} not found`);
+
+        return res.json(diagnostico);
+      } catch (error) {
+        writeLog(`❌ [API] Error en diagnóstico Biblia: ${error.message}`);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Toggle favorito de versículo
+    // Body: { favorito:boolean, libroId, libroNombre, capitulo:number, versiculo:number, texto:string }
+    expressApp.post('/api/biblia/:id/favorito', async (req, res) => {
+      try {
+        const id = String(req.params?.id || '').trim();
+        if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
+
+        const favorito = Boolean(req.body?.favorito);
+
+        const favoritos = await leerFavoritosBiblia();
+        const map = new Map(favoritos.map((f) => [f.id, f]));
+
+        if (favorito) {
+          const libroId = String(req.body?.libroId || '').trim();
+          const libroNombre = String(req.body?.libroNombre || '').trim();
+          const capituloNum = Number(req.body?.capitulo);
+          const versiculoNum = Number(req.body?.versiculo);
+          const texto = typeof req.body?.texto === 'string' ? req.body.texto : '';
+
+          const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
+          const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
+
+          const previo = map.get(id);
+          map.set(id, {
+            id,
+            libroId,
+            libroNombre,
+            capitulo,
+            versiculo,
+            texto,
+            creadoEn: previo?.creadoEn || Date.now(),
+          });
+        } else {
+          map.delete(id);
+        }
+
+        const ok = await guardarFavoritosBiblia(Array.from(map.values()));
+        if (!ok) return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
+
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/biblia/:id/favorito:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Proyectar himno desde app móvil
+    // Body esperado: { parrafo: string, titulo: string, numero: string|number, origen?: string }
+    expressApp.post('/api/proyector/himno', async (req, res) => {
+      try {
+        const himno = req.body;
+
+        if (!himno || typeof himno !== 'object') {
+          return res.status(400).json({ ok: false, error: 'Body inválido' });
+        }
+
+        const parrafo = typeof himno.parrafo === 'string' ? himno.parrafo : '';
+        const titulo = typeof himno.titulo === 'string' ? himno.titulo : '';
+        const numero = himno.numero ?? '';
+        const origen = typeof himno.origen === 'string' ? himno.origen : 'himno';
+
+        if (!parrafo.trim() || !titulo.trim()) {
+          return res
+            .status(400)
+            .json({ ok: false, error: 'Faltan parrafo/titulo' });
+        }
+
+        const payload = { parrafo, titulo, numero, origen };
+
+        // Reutilizar la misma lógica que ipcMain.on("proyectar-himno")
+        if (!proyectorWindow) {
+          const nuevaVentana = createProyectorWindow();
+          if (!nuevaVentana) {
+            return res.status(500).json({ ok: false, error: 'No se pudo abrir proyector' });
+          }
+
+          nuevaVentana.webContents.once('did-finish-load', () => {
+            setTimeout(() => {
+              if (nuevaVentana && !nuevaVentana.isDestroyed()) {
+                console.log('📤 [MAIN] (API) Enviando himno a nuevo proyector:', payload.titulo);
+                nuevaVentana.webContents.send('mostrar-himno', payload);
+              }
+            }, 1000);
+          });
+        } else {
+          console.log('📤 [MAIN] (API) Enviando himno a proyector existente:', payload.titulo);
+          proyectorWindow.webContents.send('mostrar-himno', payload);
+        }
+
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error proyectando himno:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Limpiar proyector desde app móvil
+    // Respuesta: { ok:true }
+    expressApp.post('/api/proyector/limpiar', async (req, res) => {
+      try {
+        if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+          proyectorWindow.webContents.send('limpiar-proyector');
+          console.log('🧹 [MAIN] (API) Comando limpiar enviado al proyector');
+          return res.json({ ok: true });
+        }
+
+        return res
+          .status(500)
+          .json({ ok: false, error: 'Ventana del proyector no disponible' });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/proyector/limpiar:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Control Biblia desde app móvil (sin duplicar texto en el móvil)
+    // Body esperado: { libroId: string, capitulo: number, versiculo: number }
+    // Nota: el renderer (React) resuelve el texto y llama a window.electron.enviarVersiculo.
+    expressApp.post('/api/control/biblia/proyectar', (req, res) => {
+      try {
+        const { libroId, capitulo, versiculo } = req.body || {};
+
+        if (!libroId || typeof libroId !== 'string') {
+          return res.status(400).json({ ok: false, error: 'libroId inválido' });
+        }
+
+        const cap = Number(capitulo);
+        const ver = Number(versiculo);
+
+        if (!Number.isFinite(cap) || cap <= 0) {
+          return res.status(400).json({ ok: false, error: 'capitulo inválido' });
+        }
+
+        if (!Number.isFinite(ver) || ver <= 0) {
+          return res.status(400).json({ ok: false, error: 'versiculo inválido' });
+        }
+
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return res.status(500).json({ ok: false, error: 'Ventana principal no disponible' });
+        }
+
+        mainWindow.webContents.send('control-biblia-proyectar', {
+          libroId: libroId.trim(),
+          capitulo: cap,
+          versiculo: ver,
+        });
+
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error control Biblia:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Vista previa Biblia (para mostrar anterior/actual/siguiente en la app móvil)
+    // Body esperado: { libroId: string, capitulo: number, versiculo: number }
+    // Respuesta: { ok:true, data:{ libroId, nombreLibro, capitulo, versiculo, prev, current, next } }
+    expressApp.post('/api/control/biblia/preview', async (req, res) => {
+      try {
+        const { libroId, capitulo, versiculo } = req.body || {};
+
+        if (!libroId || typeof libroId !== 'string') {
+          return res.status(400).json({ ok: false, error: 'libroId inválido' });
+        }
+
+        const cap = Number(capitulo);
+        const ver = Number(versiculo);
+
+        if (!Number.isFinite(cap) || cap <= 0) {
+          return res.status(400).json({ ok: false, error: 'capitulo inválido' });
+        }
+
+        if (!Number.isFinite(ver) || ver <= 0) {
+          return res.status(400).json({ ok: false, error: 'versiculo inválido' });
+        }
+
+        const payload = await solicitarBibliaPreviewAlRenderer({
+          libroId: libroId.trim(),
+          capitulo: cap,
+          versiculo: ver,
+        });
+
+        if (!payload?.ok) {
+          return res.status(500).json({ ok: false, error: payload?.error || 'Error obteniendo vista previa' });
+        }
+
+        return res.json({ ok: true, data: payload.data });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/biblia/preview:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
+    // ✅ Multimedia (App móvil)
+    // ==================================================
+
+    const getRequestBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+    const absolutizarUrl = (req, url) => {
+      const raw = String(url || '').trim();
+      if (!raw) return '';
+      if (/^https?:\/\//i.test(raw)) return raw;
+      const base = getRequestBaseUrl(req);
+      if (raw.startsWith('/')) return `${base}${raw}`;
+      return `${base}/${raw}`;
+    };
+
+    const toLocalhostUrl = (url) => {
+      const raw = String(url || '').trim();
+      if (!raw) return '';
+      if (/^https?:\/\//i.test(raw)) return raw;
+      if (raw.startsWith('/')) return `http://localhost:${PORT}${raw}`;
+      return `http://localhost:${PORT}/${raw}`;
+    };
+
+    const asegurarProyectorListo = async () => {
+      if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+        proyectorWindow = createProyectorWindow();
+        if (!proyectorWindow) {
+          throw new Error('No se pudo crear la ventana del proyector');
+        }
+
+        await new Promise((resolve) => {
+          proyectorWindow.webContents.once('did-finish-load', resolve);
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      if (proyectorWindow.webContents.isLoading()) {
+        await new Promise((resolve) => {
+          proyectorWindow.webContents.once('did-finish-load', resolve);
+        });
+      }
+
+      try {
+        proyectorWindow.focus();
+      } catch {
+        // Ignorar
+      }
+
+      return proyectorWindow;
+    };
+
+    // ✅ Listar multimedia
+    // Respuesta: { ok:true, multimedia:[...] }
+    expressApp.get('/api/multimedia', async (req, res) => {
+      try {
+        const multimedia = await obtenerMultimedia();
+        const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
+          const urlRel = String(m?.url || '').trim();
+          return {
+            ...m,
+            url: urlRel ? absolutizarUrl(req, urlRel) : '',
+            url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
+          };
+        });
+        return res.json({ ok: true, multimedia: normalizados });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/multimedia:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Listar multimedia favoritos
+    expressApp.get('/api/multimedia/favoritos', async (req, res) => {
+      try {
+        const multimedia = await obtenerMultimediaFavoritos();
+        const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
+          const urlRel = String(m?.url || '').trim();
+          return {
+            ...m,
+            url: urlRel ? absolutizarUrl(req, urlRel) : '',
+            url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
+          };
+        });
+        return res.json({ ok: true, multimedia: normalizados });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/multimedia/favoritos:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Proyectar multimedia desde app móvil
+    // Body esperado: { id?: number|string, url?: string, tipo?: 'video'|'audio'|'imagen', nombre?: string }
+    expressApp.post('/api/control/multimedia/proyectar', async (req, res) => {
+      try {
+        const { id, url, tipo, nombre } = req.body || {};
+
+        let media = null;
+        if (id !== undefined && id !== null && String(id).trim() !== '') {
+          const all = await obtenerMultimedia();
+          const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
+          if (found) {
+            media = found;
+          }
+        }
+
+        const finalTipo = String(tipo || media?.tipo || '').trim();
+        const finalNombre = String(nombre || media?.nombre || '').trim();
+        const finalUrl = String(url || media?.url || '').trim();
+
+        if (!finalTipo || !finalUrl) {
+          return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
+        }
+
+        const proyector = await asegurarProyectorListo();
+        const payload = {
+          tipo: finalTipo,
+          url: toLocalhostUrl(finalUrl),
+          nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
+        };
+
+        proyector.webContents.send('mostrar-multimedia', payload);
+
+        // Guardar id/nombre inmediatamente para que todos los clientes puedan
+        // ver el estado sin esperar al IPC de playback-status del renderer.
+        const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
+          ? id
+          : null;
+        multimediaPlaybackStatus['proyector'].id = numericId;
+        multimediaPlaybackStatus['proyector'].nombre = payload.nombre || null;
+        multimediaPlaybackStatus['proyector'].paused = false;
+        multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/multimedia/proyectar:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Controlar reproducción multimedia desde app móvil
+    // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
+    expressApp.post('/api/control/multimedia/control', async (req, res) => {
+      try {
+        const { action, time, volume } = req.body || {};
+        const finalAction = String(action || '').trim();
+
+        const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
+        if (!allowed.has(finalAction)) {
+          return res.status(400).json({ ok: false, error: 'Acción inválida' });
+        }
+
+        const payload = { action: finalAction };
+
+        if (finalAction === 'seek') {
+          const t = Number(time);
+          if (!Number.isFinite(t) || t < 0) {
+            return res.status(400).json({ ok: false, error: 'time inválido' });
+          }
+          payload.time = t;
+        }
+
+        if (finalAction === 'volume') {
+          const v = Number(volume);
+          if (!Number.isFinite(v) || v < 0 || v > 1) {
+            return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
+          }
+          payload.volume = v;
+        }
+
+        const proyector = await asegurarProyectorListo();
+        proyector.webContents.send('control-multimedia', payload);
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/multimedia/control:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Estado de reproducción multimedia (para app móvil)
+    // Query: ?destino=proyector|pc
+    // Respuesta: { ok:true, destino, status:{ updatedAt, currentTime, duration, paused, volume, tipo } }
+    expressApp.get('/api/control/multimedia/status', async (req, res) => {
+      try {
+        const destinoRaw = String(req.query?.destino || 'proyector').toLowerCase();
+        const destino = destinoRaw === 'pc' ? 'pc' : 'proyector';
+        const status = multimediaPlaybackStatus?.[destino] || null;
+        return res.json({ ok: true, destino, status });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/multimedia/status:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Reproducir multimedia como "solo audio" (en la app de escritorio, sin proyectar)
+    // Útil para música de fondo mientras se sigue mostrando texto en el proyector.
+    // Body esperado: { id?: number|string, url?: string, tipo?: 'youtube'|'video'|'audio', nombre?: string }
+    expressApp.post('/api/control/multimedia/solo-audio/play', async (req, res) => {
+      try {
+        const { id, url, tipo, nombre } = req.body || {};
+
+        let media = null;
+        if (id !== undefined && id !== null && String(id).trim() !== '') {
+          const all = await obtenerMultimedia();
+          const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
+          if (found) {
+            media = found;
+          }
+        }
+
+        const finalTipo = String(tipo || media?.tipo || '').trim();
+        const finalNombre = String(nombre || media?.nombre || '').trim();
+        const finalUrl = String(url || media?.url || '').trim();
+
+        if (!finalTipo || !finalUrl) {
+          return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
+        }
+
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
+        }
+
+        const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
+          ? id
+          : (media?.id ?? null);
+
+        const payload = {
+          id: numericId,
+          tipo: finalTipo,
+          url: toLocalhostUrl(finalUrl),
+          nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
+          soloAudio: true,
+        };
+
+        mainWindow.webContents.send('solo-audio-play', payload);
+
+        // Guardar id/nombre inmediatamente para que todos los clientes puedan
+        // ver el estado sin esperar al IPC de playback-status del renderer.
+        multimediaPlaybackStatus['pc'].id = numericId;
+        multimediaPlaybackStatus['pc'].nombre = payload.nombre;
+        multimediaPlaybackStatus['pc'].paused = false;
+        multimediaPlaybackStatus['pc'].updatedAt = Date.now();
+
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/play:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Controlar "solo audio" (en la app de escritorio, sin proyectar)
+    // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
+    expressApp.post('/api/control/multimedia/solo-audio/control', async (req, res) => {
+      try {
+        const { action, volume, time } = req.body || {};
+        const finalAction = String(action || '').trim();
+
+        const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
+        if (!allowed.has(finalAction)) {
+          return res.status(400).json({ ok: false, error: 'Acción inválida' });
+        }
+
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
+        }
+
+        const payload = { action: finalAction };
+
+        if (finalAction === 'seek') {
+          const t = Number(time);
+          if (!Number.isFinite(t) || t < 0) {
+            return res.status(400).json({ ok: false, error: 'time inválido' });
+          }
+          payload.time = t;
+        }
+
+        if (finalAction === 'volume') {
+          const v = Number(volume);
+          if (!Number.isFinite(v) || v < 0 || v > 1) {
+            return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
+          }
+          payload.volume = v;
+        }
+
+        mainWindow.webContents.send('solo-audio-control', payload);
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/control:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Favorito multimedia
+    // Body: { favorito: boolean }
+    expressApp.post('/api/multimedia/:id/favorito', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+        const favorito = Boolean(req.body?.favorito);
+        const result = await actualizarFavoritoMultimedia(id, favorito);
+        if (!result?.success) {
+          return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
+        }
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/multimedia/:id/favorito:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
+    // ✅ Presentaciones Slides (App móvil)
+    // ==================================================
+
+    // ✅ Listado (ligero)
+    // Respuesta: { ok:true, presentaciones:[{id,nombre,descripcion,total_slides,slide_actual,favorito,updated_at,created_at}] }
+    expressApp.get('/api/presentaciones-slides', async (req, res) => {
+      try {
+        const presentaciones = await obtenerPresentacionesSlides();
+        const lista = (Array.isArray(presentaciones) ? presentaciones : []).map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          descripcion: p.descripcion,
+          total_slides: p.total_slides,
+          slide_actual: p.slide_actual,
+          favorito: Boolean(p.favorito),
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+        }));
+        return res.json({ ok: true, presentaciones: lista });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Detalle (incluye slides)
+    expressApp.get('/api/presentaciones-slides/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+
+        const presentacion = await obtenerPresentacionSlidesPorId(id);
+        if (!presentacion) {
+          return res.status(404).json({ ok: false, error: 'No encontrada' });
+        }
+
+        return res.json({ ok: true, presentacion });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    const proyectarPresentacionSlide = async ({ presentacionId, slideIndex }) => {
+      const presentacion = await obtenerPresentacionSlidesPorId(presentacionId);
+      if (!presentacion) {
+        throw new Error('Presentación no encontrada');
+      }
+      const slides = Array.isArray(presentacion.slides) ? presentacion.slides : [];
+      if (slides.length === 0) {
+        throw new Error('Presentación sin slides');
+      }
+
+      const index = Number(slideIndex);
+      if (!Number.isFinite(index) || index < 0 || index >= slides.length) {
+        throw new Error('slideIndex inválido');
+      }
+
+      const slideData = {
+        tipo: 'slide',
+        slide: slides[index],
+        presentation: {
+          name: presentacion.nombre,
+          currentIndex: index,
+          totalSlides: slides.length,
+        },
+      };
+
+      const proyector = await asegurarProyectorListo();
+      proyector.webContents.send('proyectar-slide-data', slideData);
+
+      try {
+        await actualizarSlideActualPresentacion(presentacionId, index);
+      } catch {
+        // No bloquear si falla actualizar en BD
+      }
+
+      return { presentacionId, slideIndex: index, totalSlides: slides.length };
+    };
+
+    // ✅ Proyectar slide (por id y slideIndex opcional)
+    // Body: { id:number, slideIndex?:number }
+    expressApp.post('/api/control/presentaciones-slides/proyectar', async (req, res) => {
+      try {
+        const id = Number(req.body?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+
+        const presentacion = await obtenerPresentacionSlidesPorId(id);
+        if (!presentacion) {
+          return res.status(404).json({ ok: false, error: 'No encontrada' });
+        }
+
+        const slideIndex =
+          req.body?.slideIndex !== undefined && req.body?.slideIndex !== null
+            ? Number(req.body.slideIndex)
+            : Number(presentacion.slide_actual || 0);
+
+        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex });
+        return res.json({ ok: true, ...result });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/proyectar:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Siguiente slide
+    // Body: { id:number }
+    expressApp.post('/api/control/presentaciones-slides/siguiente', async (req, res) => {
+      try {
+        const id = Number(req.body?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+
+        const presentacion = await obtenerPresentacionSlidesPorId(id);
+        if (!presentacion) {
+          return res.status(404).json({ ok: false, error: 'No encontrada' });
+        }
+
+        const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
+        if (total <= 0) {
+          return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
+        }
+
+        const current = Number(presentacion.slide_actual || 0);
+        const next = Math.min(total - 1, current + 1);
+
+        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: next });
+        return res.json({ ok: true, ...result });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/siguiente:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Slide anterior
+    // Body: { id:number }
+    expressApp.post('/api/control/presentaciones-slides/anterior', async (req, res) => {
+      try {
+        const id = Number(req.body?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+
+        const presentacion = await obtenerPresentacionSlidesPorId(id);
+        if (!presentacion) {
+          return res.status(404).json({ ok: false, error: 'No encontrada' });
+        }
+
+        const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
+        if (total <= 0) {
+          return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
+        }
+
+        const current = Number(presentacion.slide_actual || 0);
+        const prev = Math.max(0, current - 1);
+
+        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: prev });
+        return res.json({ ok: true, ...result });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/anterior:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✅ Favorito presentación slides
+    // Body: { favorito: boolean }
+    expressApp.post('/api/presentaciones-slides/:id/favorito', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+        const favorito = Boolean(req.body?.favorito);
+        const result = await actualizarFavoritoPresentacionSlides(id, favorito);
+        if (!result?.success) {
+          return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
+        }
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id/favorito:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
+    // ✅ Fondos (App móvil)
+    // ==================================================
+
+    // ✅ Listar fondos
+    // Respuesta: { ok:true, fondos:[{id,url,tipo,nombre,activo,created_at}] }
+    expressApp.get('/api/fondos', async (req, res) => {
+      try {
+        const fondos = await dbNew.obtenerFondos();
+        const base = getRequestBaseUrl(req);
+
+        const normalizados = (Array.isArray(fondos) ? fondos : []).map((f) => {
+          const rawUrl = String(f?.url || '').trim();
+          let urlPublica = rawUrl;
+          if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
+            if (urlPublica.startsWith('/')) {
+              urlPublica = `${base}${urlPublica}`;
+            } else {
+              urlPublica = `${base}/fondos/${path.basename(urlPublica)}`;
+            }
           }
 
           return {
-            id: `db:${h?.id ?? ''}`,
-            numero: h?.numero ?? '',
-            titulo: h?.titulo ?? '',
-            parrafos: Array.isArray(letra) ? letra : [],
-            fuente: 'personal',
-            favorito: true,
+            id: f.id,
+            url: urlPublica,
+            url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
+            tipo: f.tipo || 'imagen',
+            nombre: f.nombre || `Fondo ${f.id}`,
+            activo: Boolean(f.activo),
+            created_at: f.created_at || new Date().toISOString(),
           };
-        })
-        .filter((h) => String(h.titulo || '').trim())
-        .forEach((h) => favoritos.push(h));
-
-      favoritos.sort((a, b) => {
-        const na = Number(a?.numero);
-        const nb = Number(b?.numero);
-        if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
-        return String(a?.titulo || '').localeCompare(String(b?.titulo || ''), 'es');
-      });
-
-      return res.json({ ok: true, himnos: favoritos });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/himnos/favoritos:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Toggle favorito himno (App móvil)
-  // Body: { favorito:boolean }
-  expressApp.post('/api/himnos/:id/favorito', async (req, res) => {
-    try {
-      const id = String(req.params?.id || '').trim();
-      if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
-      const favorito = Boolean(req.body?.favorito);
-
-      if (id.startsWith('db:')) {
-        const raw = id.slice(3);
-        const dbId = Number(raw);
-        if (!Number.isFinite(dbId)) {
-          return res.status(400).json({ ok: false, error: 'id db inválido' });
-        }
-
-        const ok = await dbNew.actualizarFavoritoHimno(dbId, favorito);
-        if (!ok) {
-          return res.status(500).json({ ok: false, error: 'No se pudo actualizar favorito' });
-        }
-        return res.json({ ok: true });
-      }
-
-      if (id.startsWith('base:')) {
-        const parts = id.split(':');
-        const tipo = parts?.[1] === 'vida' ? 'vida' : 'moravo';
-        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
-
-        let favoritosBaseIds = [];
-        try {
-          const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
-          const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
-          favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
-        } catch {
-          favoritosBaseIds = [];
-        }
-
-        const set = new Set(favoritosBaseIds);
-        if (favorito) set.add(id);
-        else set.delete(id);
-
-        const ok = await dbNew.actualizarConfiguracion(keyFavoritos, JSON.stringify(Array.from(set)));
-        if (!ok) {
-          return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
-        }
-
-        return res.json({ ok: true });
-      }
-
-      return res.status(400).json({ ok: false, error: 'Formato de id no soportado' });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/himnos/:id/favorito:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Favoritos de Biblia (RV1960)
-  // Respuesta: { ok:true, favoritos:[{ id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn }] }
-  const BIBLIA_FAVORITOS_KEY = 'biblia_favoritos_rv1960';
-
-  const normalizarFavoritoBiblia = (raw) => {
-    if (!raw) return null;
-
-    // Compat: lista antigua de strings (ids)
-    if (typeof raw === 'string') {
-      const id = raw.trim();
-      if (!id) return null;
-      return {
-        id,
-        libroId: '',
-        libroNombre: '',
-        capitulo: null,
-        versiculo: null,
-        texto: '',
-        creadoEn: null,
-      };
-    }
-
-    if (typeof raw !== 'object') return null;
-
-    const id = String(raw.id || '').trim();
-    if (!id) return null;
-
-    const libroId = String(raw.libroId || '').trim();
-    const libroNombre = String(raw.libroNombre || '').trim();
-
-    const capituloNum = Number(raw.capitulo);
-    const versiculoNum = Number(raw.versiculo);
-
-    const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
-    const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
-
-    const texto = typeof raw.texto === 'string' ? raw.texto : '';
-
-    const creadoEnNum = Number(raw.creadoEn);
-    const creadoEn = Number.isFinite(creadoEnNum) && creadoEnNum > 0 ? creadoEnNum : null;
-
-    return { id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn };
-  };
-
-  const leerFavoritosBiblia = async () => {
-    try {
-      const raw = await dbNew.obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
-      const parsed = raw ? JSON.parse(String(raw)) : [];
-      const arr = Array.isArray(parsed) ? parsed : [];
-      const normalizados = arr.map(normalizarFavoritoBiblia).filter(Boolean);
-
-      // De-dup por id (último gana)
-      const map = new Map();
-      for (const f of normalizados) map.set(f.id, f);
-      return Array.from(map.values());
-    } catch {
-      return [];
-    }
-  };
-
-  const guardarFavoritosBiblia = async (favoritos) => {
-    return dbNew.actualizarConfiguracion(BIBLIA_FAVORITOS_KEY, JSON.stringify(favoritos));
-  };
-
-  expressApp.get('/api/biblia/favoritos', async (_req, res) => {
-    try {
-      const favoritos = await leerFavoritosBiblia();
-
-      favoritos.sort((a, b) => {
-        const ln = String(a?.libroNombre || '').localeCompare(String(b?.libroNombre || ''), 'es');
-        if (ln !== 0) return ln;
-        const ca = Number(a?.capitulo || 0);
-        const cb = Number(b?.capitulo || 0);
-        if (ca !== cb) return ca - cb;
-        const va = Number(a?.versiculo || 0);
-        const vb = Number(b?.versiculo || 0);
-        return va - vb;
-      });
-
-      return res.json({ ok: true, favoritos });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/biblia/favoritos:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Estructura de un libro: número de capítulos y versículos por capítulo
-  // Respuesta: { ok:true, libroId, capitulos:number, versiculosPorCapitulo:number[] }
-  // Usado por la app móvil para renderizar la grilla de capítulos/versículos correctamente.
-  expressApp.get('/api/biblia/estructura/:libroId', (req, res) => {
-    try {
-      const libroId = String(req.params?.libroId || '').trim();
-      // Validar: solo letras minúsculas, dígitos y guión bajo (evita path traversal)
-      if (!libroId || !/^[a-z0-9_]+$/.test(libroId)) {
-        return res.status(400).json({ ok: false, error: 'libroId inválido' });
-      }
-
-      const candidatos = [
-        path.join(buildDir, 'data', 'biblia', `${libroId}.js`),
-        path.join(__dirname, 'src', 'data', 'biblia', `${libroId}.js`),
-      ];
-
-      let ruta = null;
-      for (const c of candidatos) {
-        if (fs.existsSync(c)) { ruta = c; break; }
-      }
-
-      if (!ruta) {
-        return res.status(404).json({ ok: false, error: `Libro "${libroId}" no encontrado` });
-      }
-
-      // Leer como texto y evaluar con vm (evita problemas con import() de ESM en main process)
-      const vm = require('vm');
-      const contenido = fs.readFileSync(ruta, 'utf8');
-      // Quitar "export default" y evaluar el array literal JavaScript
-      const arrayStr = contenido.replace(/^\s*export\s+default\s+/, '').trim();
-      const data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
-
-      if (!Array.isArray(data) || data.length === 0) {
-        return res.status(404).json({ ok: false, error: `Libro "${libroId}" vacío o inválido` });
-      }
-
-      const versiculosPorCapitulo = data.map((cap) => (Array.isArray(cap) ? cap.length : 0));
-
-      return res.json({
-        ok: true,
-        libroId,
-        capitulos: data.length,
-        versiculosPorCapitulo,
-      });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/biblia/estructura:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Toggle favorito de versículo
-  // Body: { favorito:boolean, libroId, libroNombre, capitulo:number, versiculo:number, texto:string }
-  expressApp.post('/api/biblia/:id/favorito', async (req, res) => {
-    try {
-      const id = String(req.params?.id || '').trim();
-      if (!id) return res.status(400).json({ ok: false, error: 'id inválido' });
-
-      const favorito = Boolean(req.body?.favorito);
-
-      const favoritos = await leerFavoritosBiblia();
-      const map = new Map(favoritos.map((f) => [f.id, f]));
-
-      if (favorito) {
-        const libroId = String(req.body?.libroId || '').trim();
-        const libroNombre = String(req.body?.libroNombre || '').trim();
-        const capituloNum = Number(req.body?.capitulo);
-        const versiculoNum = Number(req.body?.versiculo);
-        const texto = typeof req.body?.texto === 'string' ? req.body.texto : '';
-
-        const capitulo = Number.isFinite(capituloNum) && capituloNum > 0 ? capituloNum : null;
-        const versiculo = Number.isFinite(versiculoNum) && versiculoNum > 0 ? versiculoNum : null;
-
-        const previo = map.get(id);
-        map.set(id, {
-          id,
-          libroId,
-          libroNombre,
-          capitulo,
-          versiculo,
-          texto,
-          creadoEn: previo?.creadoEn || Date.now(),
         });
-      } else {
-        map.delete(id);
+
+        return res.json({ ok: true, fondos: normalizados });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/fondos:', error);
+        return res.status(500).json({ ok: false, error: error.message });
       }
-
-      const ok = await guardarFavoritosBiblia(Array.from(map.values()));
-      if (!ok) return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
-
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/biblia/:id/favorito:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Proyectar himno desde app móvil
-  // Body esperado: { parrafo: string, titulo: string, numero: string|number, origen?: string }
-  expressApp.post('/api/proyector/himno', async (req, res) => {
-    try {
-      const himno = req.body;
-
-      if (!himno || typeof himno !== 'object') {
-        return res.status(400).json({ ok: false, error: 'Body inválido' });
-      }
-
-      const parrafo = typeof himno.parrafo === 'string' ? himno.parrafo : '';
-      const titulo = typeof himno.titulo === 'string' ? himno.titulo : '';
-      const numero = himno.numero ?? '';
-      const origen = typeof himno.origen === 'string' ? himno.origen : 'himno';
-
-      if (!parrafo.trim() || !titulo.trim()) {
-        return res
-          .status(400)
-          .json({ ok: false, error: 'Faltan parrafo/titulo' });
-      }
-
-      const payload = { parrafo, titulo, numero, origen };
-
-      // Reutilizar la misma lógica que ipcMain.on("proyectar-himno")
-      if (!proyectorWindow) {
-        const nuevaVentana = createProyectorWindow();
-        if (!nuevaVentana) {
-          return res.status(500).json({ ok: false, error: 'No se pudo abrir proyector' });
-        }
-
-        nuevaVentana.webContents.once('did-finish-load', () => {
-          setTimeout(() => {
-            if (nuevaVentana && !nuevaVentana.isDestroyed()) {
-              console.log('📤 [MAIN] (API) Enviando himno a nuevo proyector:', payload.titulo);
-              nuevaVentana.webContents.send('mostrar-himno', payload);
-            }
-          }, 1000);
-        });
-      } else {
-        console.log('📤 [MAIN] (API) Enviando himno a proyector existente:', payload.titulo);
-        proyectorWindow.webContents.send('mostrar-himno', payload);
-      }
-
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error proyectando himno:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Limpiar proyector desde app móvil
-  // Respuesta: { ok:true }
-  expressApp.post('/api/proyector/limpiar', async (req, res) => {
-    try {
-      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-        proyectorWindow.webContents.send('limpiar-proyector');
-        console.log('🧹 [MAIN] (API) Comando limpiar enviado al proyector');
-        return res.json({ ok: true });
-      }
-
-      return res
-        .status(500)
-        .json({ ok: false, error: 'Ventana del proyector no disponible' });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/proyector/limpiar:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Control Biblia desde app móvil (sin duplicar texto en el móvil)
-  // Body esperado: { libroId: string, capitulo: number, versiculo: number }
-  // Nota: el renderer (React) resuelve el texto y llama a window.electron.enviarVersiculo.
-  expressApp.post('/api/control/biblia/proyectar', (req, res) => {
-    try {
-      const { libroId, capitulo, versiculo } = req.body || {};
-
-      if (!libroId || typeof libroId !== 'string') {
-        return res.status(400).json({ ok: false, error: 'libroId inválido' });
-      }
-
-      const cap = Number(capitulo);
-      const ver = Number(versiculo);
-
-      if (!Number.isFinite(cap) || cap <= 0) {
-        return res.status(400).json({ ok: false, error: 'capitulo inválido' });
-      }
-
-      if (!Number.isFinite(ver) || ver <= 0) {
-        return res.status(400).json({ ok: false, error: 'versiculo inválido' });
-      }
-
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return res.status(500).json({ ok: false, error: 'Ventana principal no disponible' });
-      }
-
-      mainWindow.webContents.send('control-biblia-proyectar', {
-        libroId: libroId.trim(),
-        capitulo: cap,
-        versiculo: ver,
-      });
-
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error control Biblia:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Vista previa Biblia (para mostrar anterior/actual/siguiente en la app móvil)
-  // Body esperado: { libroId: string, capitulo: number, versiculo: number }
-  // Respuesta: { ok:true, data:{ libroId, nombreLibro, capitulo, versiculo, prev, current, next } }
-  expressApp.post('/api/control/biblia/preview', async (req, res) => {
-    try {
-      const { libroId, capitulo, versiculo } = req.body || {};
-
-      if (!libroId || typeof libroId !== 'string') {
-        return res.status(400).json({ ok: false, error: 'libroId inválido' });
-      }
-
-      const cap = Number(capitulo);
-      const ver = Number(versiculo);
-
-      if (!Number.isFinite(cap) || cap <= 0) {
-        return res.status(400).json({ ok: false, error: 'capitulo inválido' });
-      }
-
-      if (!Number.isFinite(ver) || ver <= 0) {
-        return res.status(400).json({ ok: false, error: 'versiculo inválido' });
-      }
-
-      const payload = await solicitarBibliaPreviewAlRenderer({
-        libroId: libroId.trim(),
-        capitulo: cap,
-        versiculo: ver,
-      });
-
-      if (!payload?.ok) {
-        return res.status(500).json({ ok: false, error: payload?.error || 'Error obteniendo vista previa' });
-      }
-
-      return res.json({ ok: true, data: payload.data });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/biblia/preview:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ==================================================
-  // ✅ Multimedia (App móvil)
-  // ==================================================
-
-  const getRequestBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
-
-  const absolutizarUrl = (req, url) => {
-    const raw = String(url || '').trim();
-    if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
-    const base = getRequestBaseUrl(req);
-    if (raw.startsWith('/')) return `${base}${raw}`;
-    return `${base}/${raw}`;
-  };
-
-  const toLocalhostUrl = (url) => {
-    const raw = String(url || '').trim();
-    if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
-    if (raw.startsWith('/')) return `http://localhost:${PORT}${raw}`;
-    return `http://localhost:${PORT}/${raw}`;
-  };
-
-  const asegurarProyectorListo = async () => {
-    if (!proyectorWindow || proyectorWindow.isDestroyed()) {
-      proyectorWindow = createProyectorWindow();
-      if (!proyectorWindow) {
-        throw new Error('No se pudo crear la ventana del proyector');
-      }
-
-      await new Promise((resolve) => {
-        proyectorWindow.webContents.once('did-finish-load', resolve);
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-
-    if (proyectorWindow.webContents.isLoading()) {
-      await new Promise((resolve) => {
-        proyectorWindow.webContents.once('did-finish-load', resolve);
-      });
-    }
-
-    try {
-      proyectorWindow.focus();
-    } catch {
-      // Ignorar
-    }
-
-    return proyectorWindow;
-  };
-
-  // ✅ Listar multimedia
-  // Respuesta: { ok:true, multimedia:[...] }
-  expressApp.get('/api/multimedia', async (req, res) => {
-    try {
-      const multimedia = await obtenerMultimedia();
-      const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
-        const urlRel = String(m?.url || '').trim();
-        return {
-          ...m,
-          url: urlRel ? absolutizarUrl(req, urlRel) : '',
-          url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
-        };
-      });
-      return res.json({ ok: true, multimedia: normalizados });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/multimedia:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Listar multimedia favoritos
-  expressApp.get('/api/multimedia/favoritos', async (req, res) => {
-    try {
-      const multimedia = await obtenerMultimediaFavoritos();
-      const normalizados = (Array.isArray(multimedia) ? multimedia : []).map((m) => {
-        const urlRel = String(m?.url || '').trim();
-        return {
-          ...m,
-          url: urlRel ? absolutizarUrl(req, urlRel) : '',
-          url_localhost: urlRel ? toLocalhostUrl(urlRel) : '',
-        };
-      });
-      return res.json({ ok: true, multimedia: normalizados });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/multimedia/favoritos:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Proyectar multimedia desde app móvil
-  // Body esperado: { id?: number|string, url?: string, tipo?: 'video'|'audio'|'imagen', nombre?: string }
-  expressApp.post('/api/control/multimedia/proyectar', async (req, res) => {
-    try {
-      const { id, url, tipo, nombre } = req.body || {};
-
-      let media = null;
-      if (id !== undefined && id !== null && String(id).trim() !== '') {
-        const all = await obtenerMultimedia();
-        const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
-        if (found) {
-          media = found;
-        }
-      }
-
-      const finalTipo = String(tipo || media?.tipo || '').trim();
-      const finalNombre = String(nombre || media?.nombre || '').trim();
-      const finalUrl = String(url || media?.url || '').trim();
-
-      if (!finalTipo || !finalUrl) {
-        return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
-      }
-
-      const proyector = await asegurarProyectorListo();
-      const payload = {
-        tipo: finalTipo,
-        url: toLocalhostUrl(finalUrl),
-        nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
-      };
-
-      proyector.webContents.send('mostrar-multimedia', payload);
-
-      // Guardar id/nombre inmediatamente para que todos los clientes puedan
-      // ver el estado sin esperar al IPC de playback-status del renderer.
-      const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
-        ? id
-        : null;
-      multimediaPlaybackStatus['proyector'].id = numericId;
-      multimediaPlaybackStatus['proyector'].nombre = payload.nombre || null;
-      multimediaPlaybackStatus['proyector'].paused = false;
-      multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
-
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/multimedia/proyectar:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Controlar reproducción multimedia desde app móvil
-  // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
-  expressApp.post('/api/control/multimedia/control', async (req, res) => {
-    try {
-      const { action, time, volume } = req.body || {};
-      const finalAction = String(action || '').trim();
-
-      const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
-      if (!allowed.has(finalAction)) {
-        return res.status(400).json({ ok: false, error: 'Acción inválida' });
-      }
-
-      const payload = { action: finalAction };
-
-      if (finalAction === 'seek') {
-        const t = Number(time);
-        if (!Number.isFinite(t) || t < 0) {
-          return res.status(400).json({ ok: false, error: 'time inválido' });
-        }
-        payload.time = t;
-      }
-
-      if (finalAction === 'volume') {
-        const v = Number(volume);
-        if (!Number.isFinite(v) || v < 0 || v > 1) {
-          return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
-        }
-        payload.volume = v;
-      }
-
-      const proyector = await asegurarProyectorListo();
-      proyector.webContents.send('control-multimedia', payload);
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/multimedia/control:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Estado de reproducción multimedia (para app móvil)
-  // Query: ?destino=proyector|pc
-  // Respuesta: { ok:true, destino, status:{ updatedAt, currentTime, duration, paused, volume, tipo } }
-  expressApp.get('/api/control/multimedia/status', async (req, res) => {
-    try {
-      const destinoRaw = String(req.query?.destino || 'proyector').toLowerCase();
-      const destino = destinoRaw === 'pc' ? 'pc' : 'proyector';
-      const status = multimediaPlaybackStatus?.[destino] || null;
-      return res.json({ ok: true, destino, status });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/multimedia/status:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Reproducir multimedia como "solo audio" (en la app de escritorio, sin proyectar)
-  // Útil para música de fondo mientras se sigue mostrando texto en el proyector.
-  // Body esperado: { id?: number|string, url?: string, tipo?: 'youtube'|'video'|'audio', nombre?: string }
-  expressApp.post('/api/control/multimedia/solo-audio/play', async (req, res) => {
-    try {
-      const { id, url, tipo, nombre } = req.body || {};
-
-      let media = null;
-      if (id !== undefined && id !== null && String(id).trim() !== '') {
-        const all = await obtenerMultimedia();
-        const found = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === String(id));
-        if (found) {
-          media = found;
-        }
-      }
-
-      const finalTipo = String(tipo || media?.tipo || '').trim();
-      const finalNombre = String(nombre || media?.nombre || '').trim();
-      const finalUrl = String(url || media?.url || '').trim();
-
-      if (!finalTipo || !finalUrl) {
-        return res.status(400).json({ ok: false, error: 'Faltan tipo/url (o id inválido)' });
-      }
-
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
-      }
-
-      const numericId = (id !== undefined && id !== null && String(id).trim() !== '')
-        ? id
-        : (media?.id ?? null);
-
-      const payload = {
-        id: numericId,
-        tipo: finalTipo,
-        url: toLocalhostUrl(finalUrl),
-        nombre: finalNombre || finalUrl.split('/').pop() || 'Multimedia',
-        soloAudio: true,
-      };
-
-      mainWindow.webContents.send('solo-audio-play', payload);
-
-      // Guardar id/nombre inmediatamente para que todos los clientes puedan
-      // ver el estado sin esperar al IPC de playback-status del renderer.
-      multimediaPlaybackStatus['pc'].id = numericId;
-      multimediaPlaybackStatus['pc'].nombre = payload.nombre;
-      multimediaPlaybackStatus['pc'].paused = false;
-      multimediaPlaybackStatus['pc'].updatedAt = Date.now();
-
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/play:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Controlar "solo audio" (en la app de escritorio, sin proyectar)
-  // Body: { action: 'play'|'pause'|'stop'|'limpiar'|'seek'|'volume', time?: number, volume?: number }
-  expressApp.post('/api/control/multimedia/solo-audio/control', async (req, res) => {
-    try {
-      const { action, volume, time } = req.body || {};
-      const finalAction = String(action || '').trim();
-
-      const allowed = new Set(['play', 'pause', 'stop', 'limpiar', 'seek', 'volume']);
-      if (!allowed.has(finalAction)) {
-        return res.status(400).json({ ok: false, error: 'Acción inválida' });
-      }
-
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return res.status(409).json({ ok: false, error: 'Ventana principal no disponible' });
-      }
-
-      const payload = { action: finalAction };
-
-      if (finalAction === 'seek') {
-        const t = Number(time);
-        if (!Number.isFinite(t) || t < 0) {
-          return res.status(400).json({ ok: false, error: 'time inválido' });
-        }
-        payload.time = t;
-      }
-
-      if (finalAction === 'volume') {
-        const v = Number(volume);
-        if (!Number.isFinite(v) || v < 0 || v > 1) {
-          return res.status(400).json({ ok: false, error: 'volume inválido (0..1)' });
-        }
-        payload.volume = v;
-      }
-
-      mainWindow.webContents.send('solo-audio-control', payload);
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/control:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Favorito multimedia
-  // Body: { favorito: boolean }
-  expressApp.post('/api/multimedia/:id/favorito', async (req, res) => {
-    try {
-      const id = Number(req.params?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-      const favorito = Boolean(req.body?.favorito);
-      const result = await actualizarFavoritoMultimedia(id, favorito);
-      if (!result?.success) {
-        return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
-      }
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/multimedia/:id/favorito:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ==================================================
-  // ✅ Presentaciones Slides (App móvil)
-  // ==================================================
-
-  // ✅ Listado (ligero)
-  // Respuesta: { ok:true, presentaciones:[{id,nombre,descripcion,total_slides,slide_actual,favorito,updated_at,created_at}] }
-  expressApp.get('/api/presentaciones-slides', async (req, res) => {
-    try {
-      const presentaciones = await obtenerPresentacionesSlides();
-      const lista = (Array.isArray(presentaciones) ? presentaciones : []).map((p) => ({
-        id: p.id,
-        nombre: p.nombre,
-        descripcion: p.descripcion,
-        total_slides: p.total_slides,
-        slide_actual: p.slide_actual,
-        favorito: Boolean(p.favorito),
-        created_at: p.created_at,
-        updated_at: p.updated_at,
-      }));
-      return res.json({ ok: true, presentaciones: lista });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Detalle (incluye slides)
-  expressApp.get('/api/presentaciones-slides/:id', async (req, res) => {
-    try {
-      const id = Number(req.params?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-
-      const presentacion = await obtenerPresentacionSlidesPorId(id);
-      if (!presentacion) {
-        return res.status(404).json({ ok: false, error: 'No encontrada' });
-      }
-
-      return res.json({ ok: true, presentacion });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  const proyectarPresentacionSlide = async ({ presentacionId, slideIndex }) => {
-    const presentacion = await obtenerPresentacionSlidesPorId(presentacionId);
-    if (!presentacion) {
-      throw new Error('Presentación no encontrada');
-    }
-    const slides = Array.isArray(presentacion.slides) ? presentacion.slides : [];
-    if (slides.length === 0) {
-      throw new Error('Presentación sin slides');
-    }
-
-    const index = Number(slideIndex);
-    if (!Number.isFinite(index) || index < 0 || index >= slides.length) {
-      throw new Error('slideIndex inválido');
-    }
-
-    const slideData = {
-      tipo: 'slide',
-      slide: slides[index],
-      presentation: {
-        name: presentacion.nombre,
-        currentIndex: index,
-        totalSlides: slides.length,
-      },
-    };
-
-    const proyector = await asegurarProyectorListo();
-    proyector.webContents.send('proyectar-slide-data', slideData);
-
-    try {
-      await actualizarSlideActualPresentacion(presentacionId, index);
-    } catch {
-      // No bloquear si falla actualizar en BD
-    }
-
-    return { presentacionId, slideIndex: index, totalSlides: slides.length };
-  };
-
-  // ✅ Proyectar slide (por id y slideIndex opcional)
-  // Body: { id:number, slideIndex?:number }
-  expressApp.post('/api/control/presentaciones-slides/proyectar', async (req, res) => {
-    try {
-      const id = Number(req.body?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-
-      const presentacion = await obtenerPresentacionSlidesPorId(id);
-      if (!presentacion) {
-        return res.status(404).json({ ok: false, error: 'No encontrada' });
-      }
-
-      const slideIndex =
-        req.body?.slideIndex !== undefined && req.body?.slideIndex !== null
-          ? Number(req.body.slideIndex)
-          : Number(presentacion.slide_actual || 0);
-
-      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex });
-      return res.json({ ok: true, ...result });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/proyectar:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Siguiente slide
-  // Body: { id:number }
-  expressApp.post('/api/control/presentaciones-slides/siguiente', async (req, res) => {
-    try {
-      const id = Number(req.body?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-
-      const presentacion = await obtenerPresentacionSlidesPorId(id);
-      if (!presentacion) {
-        return res.status(404).json({ ok: false, error: 'No encontrada' });
-      }
-
-      const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
-      if (total <= 0) {
-        return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
-      }
-
-      const current = Number(presentacion.slide_actual || 0);
-      const next = Math.min(total - 1, current + 1);
-
-      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: next });
-      return res.json({ ok: true, ...result });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/siguiente:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Slide anterior
-  // Body: { id:number }
-  expressApp.post('/api/control/presentaciones-slides/anterior', async (req, res) => {
-    try {
-      const id = Number(req.body?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-
-      const presentacion = await obtenerPresentacionSlidesPorId(id);
-      if (!presentacion) {
-        return res.status(404).json({ ok: false, error: 'No encontrada' });
-      }
-
-      const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
-      if (total <= 0) {
-        return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
-      }
-
-      const current = Number(presentacion.slide_actual || 0);
-      const prev = Math.max(0, current - 1);
-
-      const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: prev });
-      return res.json({ ok: true, ...result });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/anterior:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Favorito presentación slides
-  // Body: { favorito: boolean }
-  expressApp.post('/api/presentaciones-slides/:id/favorito', async (req, res) => {
-    try {
-      const id = Number(req.params?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-      const favorito = Boolean(req.body?.favorito);
-      const result = await actualizarFavoritoPresentacionSlides(id, favorito);
-      if (!result?.success) {
-        return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
-      }
-      return res.json({ ok: true });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id/favorito:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ==================================================
-  // ✅ Fondos (App móvil)
-  // ==================================================
-
-  // ✅ Listar fondos
-  // Respuesta: { ok:true, fondos:[{id,url,tipo,nombre,activo,created_at}] }
-  expressApp.get('/api/fondos', async (req, res) => {
-    try {
-      const fondos = await dbNew.obtenerFondos();
-      const base = getRequestBaseUrl(req);
-
-      const normalizados = (Array.isArray(fondos) ? fondos : []).map((f) => {
-        const rawUrl = String(f?.url || '').trim();
+    });
+
+    // ✅ Fondo activo
+    expressApp.get('/api/fondos/activo', async (req, res) => {
+      try {
+        const fondos = await dbNew.obtenerFondos();
+        const activo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo);
+        if (!activo) return res.json({ ok: true, fondo: null });
+
+        const base = getRequestBaseUrl(req);
+        const rawUrl = String(activo?.url || '').trim();
         let urlPublica = rawUrl;
         if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
           if (urlPublica.startsWith('/')) {
@@ -1851,582 +2022,561 @@ function iniciarServidorMultimedia() {
           }
         }
 
-        return {
-          id: f.id,
-          url: urlPublica,
-          url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
-          tipo: f.tipo || 'imagen',
-          nombre: f.nombre || `Fondo ${f.id}`,
-          activo: Boolean(f.activo),
-          created_at: f.created_at || new Date().toISOString(),
-        };
-      });
-
-      return res.json({ ok: true, fondos: normalizados });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/fondos:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Fondo activo
-  expressApp.get('/api/fondos/activo', async (req, res) => {
-    try {
-      const fondos = await dbNew.obtenerFondos();
-      const activo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo);
-      if (!activo) return res.json({ ok: true, fondo: null });
-
-      const base = getRequestBaseUrl(req);
-      const rawUrl = String(activo?.url || '').trim();
-      let urlPublica = rawUrl;
-      if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
-        if (urlPublica.startsWith('/')) {
-          urlPublica = `${base}${urlPublica}`;
-        } else {
-          urlPublica = `${base}/fondos/${path.basename(urlPublica)}`;
-        }
-      }
-
-      return res.json({
-        ok: true,
-        fondo: {
-          ...activo,
-          url: urlPublica,
-          url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
-        },
-      });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error /api/fondos/activo:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✅ Establecer fondo activo
-  // Body: { id:number }
-  expressApp.post('/api/fondos/activo', async (req, res) => {
-    try {
-      const id = Number(req.body?.id);
-      if (!Number.isFinite(id)) {
-        return res.status(400).json({ ok: false, error: 'id inválido' });
-      }
-
-      const ok = await dbNew.activarFondo(id);
-      if (!ok) {
-        return res.status(500).json({ ok: false, error: 'No se pudo activar el fondo' });
-      }
-
-      const fondos = await dbNew.obtenerFondos();
-      const fondoActivo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo) || null;
-
-      // Notificar a todas las ventanas (incluye proyector)
-      const todasLasVentanas = BrowserWindow.getAllWindows();
-      todasLasVentanas.forEach((ventana) => {
-        if (!ventana.isDestroyed()) {
-          if (fondoActivo && fondoActivo.url && !String(fondoActivo.url).startsWith('http')) {
-            ventana.webContents.send('actualizar-fondo-activo', {
-              ...fondoActivo,
-              url: toLocalhostUrl(fondoActivo.url),
-            });
-          } else {
-            ventana.webContents.send('actualizar-fondo-activo', fondoActivo);
-          }
-        }
-      });
-
-      return res.json({ ok: true, fondo: fondoActivo });
-    } catch (error) {
-      console.error('❌ [MAIN] (API) Error POST /api/fondos/activo:', error);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-  });
-
-  // ✨ ENDPOINT PARA DEBUGGEAR FONDOS DISPONIBLES
-  expressApp.get('/debug/fondos', (req, res) => {
-    const publicFiles = fs.existsSync(fondosDir) ? fs.readdirSync(fondosDir) : [];
-    const buildFiles = fs.existsSync(buildFondosDir) ? fs.readdirSync(buildFondosDir) : [];
-
-    res.json({
-      publicDir: fondosDir,
-      buildDir: buildFondosDir,
-      publicFiles,
-      buildFiles,
-      totalFiles: [...new Set([...publicFiles, ...buildFiles])],
-      serverUrls: {
-        public: publicFiles.map(f => `http://localhost:3001/fondos/${f}`),
-        build: buildFiles.map(f => `http://localhost:3001/fondos/${f}`)
+        return res.json({
+          ok: true,
+          fondo: {
+            ...activo,
+            url: urlPublica,
+            url_localhost: rawUrl ? toLocalhostUrl(rawUrl.startsWith('/') ? rawUrl : `/fondos/${path.basename(rawUrl)}`) : '',
+          },
+        });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/fondos/activo:', error);
+        return res.status(500).json({ ok: false, error: error.message });
       }
     });
-  });
 
-  // Endpoint para servir archivos con corrección de extensión
-  expressApp.get('/multimedia-fixed/:filename', (req, res) => {
-    const filename = req.params.filename;
-
-    // Buscar el archivo en ambos directorios
-    const directorios = [multimediaDir, buildMultimediaDir];
-
-    for (const dir of directorios) {
-      if (fs.existsSync(dir)) {
-        const archivos = fs.readdirSync(dir);
-
-        // Buscar coincidencia exacta
-        let archivo = archivos.find(f => f === filename);
-
-        // Si no hay coincidencia exacta, buscar sin extensión
-        if (!archivo) {
-          archivo = archivos.find(f => f.startsWith(filename));
+    // ✅ Establecer fondo activo
+    // Body: { id:number }
+    expressApp.post('/api/fondos/activo', async (req, res) => {
+      try {
+        const id = Number(req.body?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
         }
 
-        if (archivo) {
-          const rutaCompleta = path.join(dir, archivo);
+        const ok = await dbNew.activarFondo(id);
+        if (!ok) {
+          return res.status(500).json({ ok: false, error: 'No se pudo activar el fondo' });
+        }
 
-          // Configurar headers
-          if (archivo.includes('mp3') || archivo.includes('wav')) {
-            res.setHeader('Content-Type', 'audio/mpeg');
-          } else if (archivo.includes('mp4') || archivo.includes('webm')) {
-            res.setHeader('Content-Type', 'video/mp4');
-          } else if (archivo.includes('jpg') || archivo.includes('png')) {
-            res.setHeader('Content-Type', 'image/jpeg');
+        const fondos = await dbNew.obtenerFondos();
+        const fondoActivo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo) || null;
+
+        // Notificar a todas las ventanas (incluye proyector)
+        const todasLasVentanas = BrowserWindow.getAllWindows();
+        todasLasVentanas.forEach((ventana) => {
+          if (!ventana.isDestroyed()) {
+            if (fondoActivo && fondoActivo.url && !String(fondoActivo.url).startsWith('http')) {
+              ventana.webContents.send('actualizar-fondo-activo', {
+                ...fondoActivo,
+                url: toLocalhostUrl(fondoActivo.url),
+              });
+            } else {
+              ventana.webContents.send('actualizar-fondo-activo', fondoActivo);
+            }
           }
-          res.setHeader('Accept-Ranges', 'bytes');
+        });
 
-          return res.sendFile(rutaCompleta);
+        return res.json({ ok: true, fondo: fondoActivo });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error POST /api/fondos/activo:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ✨ ENDPOINT PARA DEBUGGEAR FONDOS DISPONIBLES
+    expressApp.get('/debug/fondos', (req, res) => {
+      const publicFiles = fs.existsSync(fondosDir) ? fs.readdirSync(fondosDir) : [];
+      const buildFiles = fs.existsSync(buildFondosDir) ? fs.readdirSync(buildFondosDir) : [];
+
+      res.json({
+        publicDir: fondosDir,
+        buildDir: buildFondosDir,
+        publicFiles,
+        buildFiles,
+        totalFiles: [...new Set([...publicFiles, ...buildFiles])],
+        serverUrls: {
+          public: publicFiles.map(f => `http://localhost:3001/fondos/${f}`),
+          build: buildFiles.map(f => `http://localhost:3001/fondos/${f}`)
         }
-      }
-    }
+      });
+    });
 
-    res.status(404).json({ error: 'Archivo no encontrado', filename, searchedIn: directorios });
-  });
+    // Endpoint para servir archivos con corrección de extensión
+    expressApp.get('/multimedia-fixed/:filename', (req, res) => {
+      const filename = req.params.filename;
 
-  // ✅ Miniatura estática para videos (para la app móvil)
-  // Genera y cachea un JPG con ffmpeg (si existe en el sistema).
-  // GET /api/multimedia/:id/thumbnail
-  expressApp.get('/api/multimedia/:id/thumbnail', async (req, res) => {
-    try {
-      const id = String(req.params?.id || '').trim();
-      if (!id) return res.status(400).json({ ok: false, error: 'id requerido' });
-
-      const all = await obtenerMultimedia();
-      const item = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === id);
-      if (!item) return res.status(404).json({ ok: false, error: 'multimedia no encontrada' });
-
-      const tipo = String(item?.tipo || '').toLowerCase();
-      if (!tipo.includes('video')) {
-        return res.status(400).json({ ok: false, error: 'no es un video' });
-      }
-
-      const filenameRaw =
-        String(item?.ruta_archivo || '').trim() ||
-        String(item?.url || '').trim().split('/').pop() ||
-        '';
-      const filename = String(filenameRaw || '').split('?')[0].trim();
-      if (!filename) {
-        return res.status(404).json({ ok: false, error: 'archivo no encontrado (sin nombre)' });
-      }
-
+      // Buscar el archivo en ambos directorios
       const directorios = [multimediaDir, buildMultimediaDir];
-      let sourcePath = '';
+
       for (const dir of directorios) {
-        try {
-          if (!fs.existsSync(dir)) continue;
-          const exact = path.join(dir, filename);
-          if (fs.existsSync(exact)) {
-            sourcePath = exact;
-            break;
+        if (fs.existsSync(dir)) {
+          const archivos = fs.readdirSync(dir);
+
+          // Buscar coincidencia exacta
+          let archivo = archivos.find(f => f === filename);
+
+          // Si no hay coincidencia exacta, buscar sin extensión
+          if (!archivo) {
+            archivo = archivos.find(f => f.startsWith(filename));
           }
 
-          // Si no hay coincidencia exacta, intentar por prefijo (casos sin extensión bien formada)
-          const archivos = fs.readdirSync(dir);
-          const found = archivos.find((f) => f === filename) || archivos.find((f) => f.startsWith(filename));
-          if (found) {
-            sourcePath = path.join(dir, found);
-            break;
+          if (archivo) {
+            const rutaCompleta = path.join(dir, archivo);
+
+            // Configurar headers
+            if (archivo.includes('mp3') || archivo.includes('wav')) {
+              res.setHeader('Content-Type', 'audio/mpeg');
+            } else if (archivo.includes('mp4') || archivo.includes('webm')) {
+              res.setHeader('Content-Type', 'video/mp4');
+            } else if (archivo.includes('jpg') || archivo.includes('png')) {
+              res.setHeader('Content-Type', 'image/jpeg');
+            }
+            res.setHeader('Accept-Ranges', 'bytes');
+
+            return res.sendFile(rutaCompleta);
+          }
+        }
+      }
+
+      res.status(404).json({ error: 'Archivo no encontrado', filename, searchedIn: directorios });
+    });
+
+    // ✅ Miniatura estática para videos (para la app móvil)
+    // Genera y cachea un JPG con ffmpeg (si existe en el sistema).
+    // GET /api/multimedia/:id/thumbnail
+    expressApp.get('/api/multimedia/:id/thumbnail', async (req, res) => {
+      try {
+        const id = String(req.params?.id || '').trim();
+        if (!id) return res.status(400).json({ ok: false, error: 'id requerido' });
+
+        const all = await obtenerMultimedia();
+        const item = (Array.isArray(all) ? all : []).find((m) => String(m?.id) === id);
+        if (!item) return res.status(404).json({ ok: false, error: 'multimedia no encontrada' });
+
+        const tipo = String(item?.tipo || '').toLowerCase();
+        if (!tipo.includes('video')) {
+          return res.status(400).json({ ok: false, error: 'no es un video' });
+        }
+
+        const filenameRaw =
+          String(item?.ruta_archivo || '').trim() ||
+          String(item?.url || '').trim().split('/').pop() ||
+          '';
+        const filename = String(filenameRaw || '').split('?')[0].trim();
+        if (!filename) {
+          return res.status(404).json({ ok: false, error: 'archivo no encontrado (sin nombre)' });
+        }
+
+        const directorios = [multimediaDir, buildMultimediaDir];
+        let sourcePath = '';
+        for (const dir of directorios) {
+          try {
+            if (!fs.existsSync(dir)) continue;
+            const exact = path.join(dir, filename);
+            if (fs.existsSync(exact)) {
+              sourcePath = exact;
+              break;
+            }
+
+            // Si no hay coincidencia exacta, intentar por prefijo (casos sin extensión bien formada)
+            const archivos = fs.readdirSync(dir);
+            const found = archivos.find((f) => f === filename) || archivos.find((f) => f.startsWith(filename));
+            if (found) {
+              sourcePath = path.join(dir, found);
+              break;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (!sourcePath || !fs.existsSync(sourcePath)) {
+          return res.status(404).json({ ok: false, error: 'archivo no encontrado', filename });
+        }
+
+        const thumbsDir = path.join(rutaBase, 'public', 'multimedia_thumbs');
+        try {
+          if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+        } catch {
+          // noop
+        }
+
+        const thumbPath = path.join(thumbsDir, `thumb_${id}.jpg`);
+
+        // Cache: si existe y es más nuevo que el video, servir
+        try {
+          if (fs.existsSync(thumbPath)) {
+            const thumbStat = fs.statSync(thumbPath);
+            const srcStat = fs.statSync(sourcePath);
+            if (thumbStat.mtimeMs >= srcStat.mtimeMs) {
+              res.setHeader('Content-Type', 'image/jpeg');
+              res.setHeader('Cache-Control', 'public, max-age=86400');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              return res.sendFile(thumbPath);
+            }
           }
         } catch {
           // ignore
         }
-      }
 
-      if (!sourcePath || !fs.existsSync(sourcePath)) {
-        return res.status(404).json({ ok: false, error: 'archivo no encontrado', filename });
-      }
+        // Generar miniatura con ffmpeg
+        const args = [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-y',
+          // mover un poco el tiempo para evitar frames negros iniciales
+          '-ss',
+          '00:00:01',
+          '-i',
+          sourcePath,
+          '-vframes',
+          '1',
+          '-vf',
+          'scale=640:-2',
+          thumbPath,
+        ];
 
-      const thumbsDir = path.join(rutaBase, 'public', 'multimedia_thumbs');
-      try {
-        if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
-      } catch {
-        // noop
-      }
-
-      const thumbPath = path.join(thumbsDir, `thumb_${id}.jpg`);
-
-      // Cache: si existe y es más nuevo que el video, servir
-      try {
-        if (fs.existsSync(thumbPath)) {
-          const thumbStat = fs.statSync(thumbPath);
-          const srcStat = fs.statSync(sourcePath);
-          if (thumbStat.mtimeMs >= srcStat.mtimeMs) {
-            res.setHeader('Content-Type', 'image/jpeg');
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            return res.sendFile(thumbPath);
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      // Generar miniatura con ffmpeg
-      const args = [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        // mover un poco el tiempo para evitar frames negros iniciales
-        '-ss',
-        '00:00:01',
-        '-i',
-        sourcePath,
-        '-vframes',
-        '1',
-        '-vf',
-        'scale=640:-2',
-        thumbPath,
-      ];
-
-      await new Promise((resolve, reject) => {
-        const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' });
-        proc.on('error', (err) => reject(err));
-        proc.on('close', (code) => {
-          if (code === 0) return resolve();
-          reject(new Error(`ffmpeg exit ${code}`));
+        await new Promise((resolve, reject) => {
+          const proc = spawn(FFMPEG_BIN, args, { stdio: 'ignore' });
+          proc.on('error', (err) => reject(err));
+          proc.on('close', (code) => {
+            if (code === 0) return resolve();
+            reject(new Error(`ffmpeg exit ${code}`));
+          });
         });
-      });
 
-      if (!fs.existsSync(thumbPath)) {
-        return res.status(500).json({ ok: false, error: 'no se pudo generar miniatura' });
-      }
-
-      res.setHeader('Content-Type', 'image/jpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      return res.sendFile(thumbPath);
-    } catch (error) {
-      const msg = String(error?.message || error || 'error');
-      // ffmpeg puede no estar instalado: devolver 501 y dejar que el móvil caiga a placeholder.
-      const status = msg.includes('ENOENT') ? 501 : 500;
-      return res.status(status).json({ ok: false, error: msg });
-    }
-  });
-
-  // ✨ Proxy para imágenes de Pixabay
-  expressApp.get('/pixabay-proxy', async (req, res) => {
-    const imageUrl = req.query.url;
-
-    if (!imageUrl) {
-      console.error('❌ [Pixabay Proxy] URL no proporcionada');
-      return res.status(400).json({ error: 'URL de imagen requerida' });
-    }
-
-    console.log('🔄 [Pixabay Proxy] Intentando cargar:', imageUrl);
-
-    try {
-      const fetch = (await import('node-fetch')).default;
-
-      // Mejorar headers para simular un navegador real
-      const response = await fetch(imageUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Referer': 'https://pixabay.com/',
-          'Origin': 'https://pixabay.com',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Sec-Fetch-Dest': 'image',
-          'Sec-Fetch-Mode': 'no-cors',
-          'Sec-Fetch-Site': 'cross-site'
-        },
-        redirect: 'follow',
-        timeout: 15000 // 15 segundos timeout
-      });
-
-      if (!response.ok) {
-        console.error(`❌ [Pixabay Proxy] HTTP ${response.status}: ${response.statusText}`);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const contentType = response.headers.get('content-type');
-      if (contentType) {
-        res.setHeader('Content-Type', contentType);
-      } else {
-        res.setHeader('Content-Type', 'image/jpeg'); // Default para Pixabay
-      }
-
-      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache por 1 hora
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-
-      console.log('✅ [Pixabay Proxy] Imagen cargada exitosamente');
-      response.body.pipe(res);
-    } catch (error) {
-      console.error('❌ [Pixabay Proxy] Error completo:', error.message);
-      console.error('❌ URL que falló:', imageUrl);
-      res.status(500).json({
-        error: 'Error al cargar imagen de Pixabay',
-        details: error.message,
-        url: imageUrl
-      });
-    }
-  });
-
-  // 📥 Endpoint para descargar imágenes de Pixabay localmente
-  expressApp.post('/api/download-pixabay-image', async (req, res) => {
-    console.log('\n📥 ========================================');
-    console.log('📥 [Pixabay Download] Request recibido');
-    console.log('📥 Body:', JSON.stringify(req.body, null, 2));
-
-    try {
-      const { imageUrl, imageId, tags } = req.body;
-
-      if (!imageUrl) {
-        console.error('❌ URL de imagen no proporcionada');
-        return res.status(400).json({
-          error: 'URL de imagen requerida',
-          received: req.body
-        });
-      }
-
-      console.log('📥 URL a descargar:', imageUrl);
-      console.log('📥 ID:', imageId);
-
-      const crypto = require('crypto');
-
-      // Crear carpeta para imágenes de Pixabay en userData (fuera del .asar)
-      const { app: electronApp } = require('electron');
-      const isDev = !electronApp.isPackaged;
-      const pixabayFolder = isDev
-        ? path.join(__dirname, 'build', 'images', 'pixabay')
-        : path.join(electronApp.getPath('userData'), 'build', 'images', 'pixabay');
-
-      console.log('📁 Carpeta destino:', pixabayFolder);
-      console.log('📁 App empaquetada:', !isDev);
-      console.log('📁 userData path:', electronApp.getPath('userData'));
-
-      try {
-        if (!fs.existsSync(pixabayFolder)) {
-          console.log('📁 Carpeta no existe, creando...');
-          fs.mkdirSync(pixabayFolder, { recursive: true });
-          console.log('✅ Carpeta creada exitosamente');
-        } else {
-          console.log('✅ Carpeta ya existe');
+        if (!fs.existsSync(thumbPath)) {
+          return res.status(500).json({ ok: false, error: 'no se pudo generar miniatura' });
         }
 
-        // Verificar permisos de escritura
-        const testPath = path.join(pixabayFolder, '.test');
-        fs.writeFileSync(testPath, 'test');
-        fs.unlinkSync(testPath);
-        console.log('✅ Permisos de escritura verificados');
-
-      } catch (dirError) {
-        console.error('❌ Error creando/verificando carpeta:', dirError.message);
-        throw new Error(`No se puede crear carpeta: ${dirError.message}`);
-      }
-
-      // Generar nombre único para la imagen
-      const extension = imageUrl.split('.').pop().split('?')[0] || 'jpg';
-      const filename = `pixabay_${imageId || Date.now()}_${crypto.randomBytes(4).toString('hex')}.${extension}`;
-      const filepath = path.join(pixabayFolder, filename);
-
-      console.log('💾 Guardando como:', filename);
-      console.log('📂 Ruta completa:', filepath);
-
-      // Descargar usando https/http nativo de Node.js
-      const downloadPromise = new Promise((resolve, reject) => {
-        const protocol = imageUrl.startsWith('https') ? https : http;
-
-        const downloadFile = (url) => {
-          console.log('⬇️  Descargando desde:', url);
-
-          protocol.get(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'image/*,*/*;q=0.8',
-            },
-            timeout: 30000
-          }, (response) => {
-            console.log('📡 Response status:', response.statusCode);
-            console.log('📡 Response headers:', response.headers);
-
-            // Manejar redirecciones
-            if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 307) {
-              const redirectUrl = response.headers.location;
-              console.log('↪️  Redirigiendo a:', redirectUrl);
-              response.resume(); // Consumir response antes de nueva petición
-              downloadFile(redirectUrl); // Recursión para seguir redirección
-              return;
-            }
-
-            if (response.statusCode !== 200) {
-              const errorMsg = `HTTP ${response.statusCode}: ${response.statusMessage}`;
-              console.error('❌ Error en respuesta HTTP:', errorMsg);
-              reject(new Error(errorMsg));
-              return;
-            }
-
-            console.log('📥 Creando stream de escritura...');
-            const fileStream = fs.createWriteStream(filepath);
-            let downloadedBytes = 0;
-
-            fileStream.on('open', () => {
-              console.log('✅ Stream de archivo abierto');
-            });
-
-            response.on('data', (chunk) => {
-              downloadedBytes += chunk.length;
-              if (downloadedBytes % 100000 === 0) { // Log cada 100KB
-                console.log(`📊 Descargados: ${(downloadedBytes / 1024).toFixed(0)} KB`);
-              }
-            });
-
-            response.pipe(fileStream);
-
-            fileStream.on('finish', () => {
-              fileStream.close();
-              console.log('✅ Stream cerrado');
-              console.log('✅ Descarga completada:', downloadedBytes, 'bytes');
-              resolve(downloadedBytes);
-            });
-
-            fileStream.on('error', (err) => {
-              console.error('❌ Error en stream de archivo:', err.message);
-              console.error('❌ Código de error:', err.code);
-              fs.unlink(filepath, (unlinkErr) => {
-                if (unlinkErr) console.error('❌ Error eliminando archivo parcial:', unlinkErr.message);
-              });
-              reject(new Error(`Error escribiendo archivo: ${err.message}`));
-            });
-          }).on('error', reject).on('timeout', () => {
-            reject(new Error('Timeout: descarga tardó más de 30 segundos'));
-          });
-        };
-
-        downloadFile(imageUrl);
-      });
-
-      await downloadPromise;
-
-      // Verificar archivo
-      const stats = fs.statSync(filepath);
-      console.log('✅ Archivo guardado exitosamente');
-      console.log('✅ Tamaño:', (stats.size / 1024).toFixed(2), 'KB');
-
-      const localPath = `http://localhost:${PORT}/images/pixabay/${filename}`;
-      console.log('✅ URL local:', localPath);
-      console.log('✅ ========================================\n');
-
-      res.json({
-        success: true,
-        localPath: localPath,
-        filename: filename,
-        size: stats.size
-      });
-
-    } catch (error) {
-      console.error('❌ [Pixabay Download] ERROR:', error.message);
-      console.error('❌ Stack:', error.stack);
-      console.error('❌ ========================================\n');
-
-      res.status(500).json({
-        error: 'Error al descargar imagen',
-        details: error.message,
-        stack: error.stack
-      });
-    }
-  });
-
-  // 🏠 Ruta raíz para servir index.html
-  expressApp.get('/', (req, res) => {
-    const buildDir = path.join(obtenerRutaRecursos(), "build");
-    const indexPath = path.join(buildDir, 'index.html');
-
-    console.log('🏠 Ruta raíz solicitada');
-    console.log('📁 Sirviendo index.html desde:', indexPath);
-
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      console.error('❌ index.html no encontrado en:', indexPath);
-      res.status(404).send('index.html no encontrado');
-    }
-  });
-
-  // Escuchar en 0.0.0.0 explícitamente para aceptar conexiones de la red local (app móvil).
-  // Sin host explícito, en Windows con IPv6 preferido puede quedar solo en '::' y rechazar IPv4.
-  const servidor = expressApp.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ [Servidor] Escuchando en 0.0.0.0:${PORT} (LAN + localhost)`);
-  });
-
-  servidor.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.warn(`⚠️ [Servidor] Puerto ${PORT} ocupado. Intentando liberar proceso anterior...`);
-      const { exec } = require('child_process');
-
-      // En Windows: obtener el PID con netstat y matarlo con taskkill.
-      // La sintaxis "FOR /F ... %P" funciona en cmd.exe directo (no en batch file).
-      const killCmd = process.platform === 'win32'
-        ? `for /f "tokens=5" %P in ('netstat -ano ^| findstr LISTENING ^| findstr :${PORT}') do taskkill /PID %P /F`
-        : `lsof -ti:${PORT} | xargs kill -9`;
-
-      exec(killCmd, { shell: true }, (killErr) => {
-        if (killErr) {
-          console.warn('[Servidor] No se pudo liberar el puerto:', killErr.message);
-        } else {
-          console.log(`[Servidor] Puerto ${PORT} liberado. Reintentando en 1.5s...`);
-        }
-        setTimeout(() => {
-          servidor.close();
-          const nuevoServidor = expressApp.listen(PORT, '0.0.0.0', () => {
-            console.log(`✅ [Servidor] Reintento exitoso en 0.0.0.0:${PORT}`);
-          });
-          nuevoServidor.on('error', (err2) => {
-            console.error(`❌ [Servidor] Fallo en reintento:`, err2.message);
-            const { dialog } = require('electron');
-            dialog.showErrorBox(
-              'Error de servidor',
-              `GloryView no pudo iniciar en el puerto ${PORT}.\n\nCierra cualquier instancia anterior de GloryView e inténtalo de nuevo.\n\nDetalle: ${err2.message}`
-            );
-          });
-        }, 1500);
-      });
-    } else {
-      console.error(`❌ [Servidor] Error inesperado:`, err.message);
-      const { dialog } = require('electron');
-      dialog.showErrorBox(
-        'Error de servidor',
-        `GloryView no pudo iniciar el servidor en el puerto ${PORT}.\n\nDetalle: ${err.message}`
-      );
-    }
-  });
-
-  // Windows: agregar regla de Firewall para que la app móvil pueda conectarse.
-  // Se ejecuta siempre (dev y producción) porque node.exe en dev tampoco tiene excepción.
-  // La regla es solo por puerto (sin "program=") para que funcione tanto en dev como empaquetado.
-  if (process.platform === 'win32') {
-    const { exec } = require('child_process');
-    const ruleName = 'GloryView Proyector - Puerto 3001';
-    // Primero eliminar regla anterior para evitar duplicados, luego agregar la nueva.
-    const deleteRule = `netsh advfirewall firewall delete rule name="${ruleName}" >nul 2>&1`;
-    const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} enable=yes`;
-    exec(`${deleteRule} & ${addRule}`, (err) => {
-      if (err) {
-        console.warn('[Firewall] No se pudo agregar regla (requiere permisos de admin):', err.message);
-      } else {
-        console.log(`[Firewall] Regla activa: "${ruleName}" (TCP in puerto ${PORT})`);
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.sendFile(thumbPath);
+      } catch (error) {
+        const msg = String(error?.message || error || 'error');
+        // ffmpeg puede no estar instalado: devolver 501 y dejar que el móvil caiga a placeholder.
+        const status = msg.includes('ENOENT') ? 501 : 500;
+        return res.status(status).json({ ok: false, error: msg });
       }
     });
-  }
+
+    // ✨ Proxy para imágenes de Pixabay
+    expressApp.get('/pixabay-proxy', async (req, res) => {
+      const imageUrl = req.query.url;
+
+      if (!imageUrl) {
+        console.error('❌ [Pixabay Proxy] URL no proporcionada');
+        return res.status(400).json({ error: 'URL de imagen requerida' });
+      }
+
+      console.log('🔄 [Pixabay Proxy] Intentando cargar:', imageUrl);
+
+      try {
+        const fetch = (await import('node-fetch')).default;
+
+        // Mejorar headers para simular un navegador real
+        const response = await fetch(imageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://pixabay.com/',
+            'Origin': 'https://pixabay.com',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site'
+          },
+          redirect: 'follow',
+          timeout: 15000 // 15 segundos timeout
+        });
+
+        if (!response.ok) {
+          console.error(`❌ [Pixabay Proxy] HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (contentType) {
+          res.setHeader('Content-Type', contentType);
+        } else {
+          res.setHeader('Content-Type', 'image/jpeg'); // Default para Pixabay
+        }
+
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache por 1 hora
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+        console.log('✅ [Pixabay Proxy] Imagen cargada exitosamente');
+        response.body.pipe(res);
+      } catch (error) {
+        console.error('❌ [Pixabay Proxy] Error completo:', error.message);
+        console.error('❌ URL que falló:', imageUrl);
+        res.status(500).json({
+          error: 'Error al cargar imagen de Pixabay',
+          details: error.message,
+          url: imageUrl
+        });
+      }
+    });
+
+    // 📥 Endpoint para descargar imágenes de Pixabay localmente
+    expressApp.post('/api/download-pixabay-image', async (req, res) => {
+      console.log('\n📥 ========================================');
+      console.log('📥 [Pixabay Download] Request recibido');
+      console.log('📥 Body:', JSON.stringify(req.body, null, 2));
+
+      try {
+        const { imageUrl, imageId, tags } = req.body;
+
+        if (!imageUrl) {
+          console.error('❌ URL de imagen no proporcionada');
+          return res.status(400).json({
+            error: 'URL de imagen requerida',
+            received: req.body
+          });
+        }
+
+        console.log('📥 URL a descargar:', imageUrl);
+        console.log('📥 ID:', imageId);
+
+        const crypto = require('crypto');
+
+        // Crear carpeta para imágenes de Pixabay en userData (fuera del .asar)
+        const { app: electronApp } = require('electron');
+        const isDev = !electronApp.isPackaged;
+        const pixabayFolder = isDev
+          ? path.join(__dirname, 'build', 'images', 'pixabay')
+          : path.join(electronApp.getPath('userData'), 'build', 'images', 'pixabay');
+
+        console.log('📁 Carpeta destino:', pixabayFolder);
+        console.log('📁 App empaquetada:', !isDev);
+        console.log('📁 userData path:', electronApp.getPath('userData'));
+
+        try {
+          if (!fs.existsSync(pixabayFolder)) {
+            console.log('📁 Carpeta no existe, creando...');
+            fs.mkdirSync(pixabayFolder, { recursive: true });
+            console.log('✅ Carpeta creada exitosamente');
+          } else {
+            console.log('✅ Carpeta ya existe');
+          }
+
+          // Verificar permisos de escritura
+          const testPath = path.join(pixabayFolder, '.test');
+          fs.writeFileSync(testPath, 'test');
+          fs.unlinkSync(testPath);
+          console.log('✅ Permisos de escritura verificados');
+
+        } catch (dirError) {
+          console.error('❌ Error creando/verificando carpeta:', dirError.message);
+          throw new Error(`No se puede crear carpeta: ${dirError.message}`);
+        }
+
+        // Generar nombre único para la imagen
+        const extension = imageUrl.split('.').pop().split('?')[0] || 'jpg';
+        const filename = `pixabay_${imageId || Date.now()}_${crypto.randomBytes(4).toString('hex')}.${extension}`;
+        const filepath = path.join(pixabayFolder, filename);
+
+        console.log('💾 Guardando como:', filename);
+        console.log('📂 Ruta completa:', filepath);
+
+        // Descargar usando https/http nativo de Node.js
+        const downloadPromise = new Promise((resolve, reject) => {
+          const protocol = imageUrl.startsWith('https') ? https : http;
+
+          const downloadFile = (url) => {
+            console.log('⬇️  Descargando desde:', url);
+
+            protocol.get(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'image/*,*/*;q=0.8',
+              },
+              timeout: 30000
+            }, (response) => {
+              console.log('📡 Response status:', response.statusCode);
+              console.log('📡 Response headers:', response.headers);
+
+              // Manejar redirecciones
+              if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 307) {
+                const redirectUrl = response.headers.location;
+                console.log('↪️  Redirigiendo a:', redirectUrl);
+                response.resume(); // Consumir response antes de nueva petición
+                downloadFile(redirectUrl); // Recursión para seguir redirección
+                return;
+              }
+
+              if (response.statusCode !== 200) {
+                const errorMsg = `HTTP ${response.statusCode}: ${response.statusMessage}`;
+                console.error('❌ Error en respuesta HTTP:', errorMsg);
+                reject(new Error(errorMsg));
+                return;
+              }
+
+              console.log('📥 Creando stream de escritura...');
+              const fileStream = fs.createWriteStream(filepath);
+              let downloadedBytes = 0;
+
+              fileStream.on('open', () => {
+                console.log('✅ Stream de archivo abierto');
+              });
+
+              response.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                if (downloadedBytes % 100000 === 0) { // Log cada 100KB
+                  console.log(`📊 Descargados: ${(downloadedBytes / 1024).toFixed(0)} KB`);
+                }
+              });
+
+              response.pipe(fileStream);
+
+              fileStream.on('finish', () => {
+                fileStream.close();
+                console.log('✅ Stream cerrado');
+                console.log('✅ Descarga completada:', downloadedBytes, 'bytes');
+                resolve(downloadedBytes);
+              });
+
+              fileStream.on('error', (err) => {
+                console.error('❌ Error en stream de archivo:', err.message);
+                console.error('❌ Código de error:', err.code);
+                fs.unlink(filepath, (unlinkErr) => {
+                  if (unlinkErr) console.error('❌ Error eliminando archivo parcial:', unlinkErr.message);
+                });
+                reject(new Error(`Error escribiendo archivo: ${err.message}`));
+              });
+            }).on('error', reject).on('timeout', () => {
+              reject(new Error('Timeout: descarga tardó más de 30 segundos'));
+            });
+          };
+
+          downloadFile(imageUrl);
+        });
+
+        await downloadPromise;
+
+        // Verificar archivo
+        const stats = fs.statSync(filepath);
+        console.log('✅ Archivo guardado exitosamente');
+        console.log('✅ Tamaño:', (stats.size / 1024).toFixed(2), 'KB');
+
+        const localPath = `http://localhost:${PORT}/images/pixabay/${filename}`;
+        console.log('✅ URL local:', localPath);
+        console.log('✅ ========================================\n');
+
+        res.json({
+          success: true,
+          localPath: localPath,
+          filename: filename,
+          size: stats.size
+        });
+
+      } catch (error) {
+        console.error('❌ [Pixabay Download] ERROR:', error.message);
+        console.error('❌ Stack:', error.stack);
+        console.error('❌ ========================================\n');
+
+        res.status(500).json({
+          error: 'Error al descargar imagen',
+          details: error.message,
+          stack: error.stack
+        });
+      }
+    });
+
+    // 🏠 Ruta raíz para servir index.html
+    expressApp.get('/', (req, res) => {
+      const buildDir = path.join(obtenerRutaRecursos(), "build");
+      const indexPath = path.join(buildDir, 'index.html');
+
+      console.log('🏠 Ruta raíz solicitada');
+      console.log('📁 Sirviendo index.html desde:', indexPath);
+
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error('❌ index.html no encontrado en:', indexPath);
+        res.status(404).send('index.html no encontrado');
+      }
+    });
+
+    // Escuchar en 0.0.0.0 explícitamente para aceptar conexiones de la red local (app móvil).
+    // Sin host explícito, en Windows con IPv6 preferido puede quedar solo en '::' y rechazar IPv4.
+    const servidor = expressApp.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ [Servidor] Escuchando en 0.0.0.0:${PORT} (LAN + localhost)`);
+      writeLog(`✅ [Servidor] Express escuchando en puerto ${PORT}`);
+      resolve(); // ✨ Resolver la promesa cuando el servidor esté listo
+    });
+
+    servidor.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`⚠️ [Servidor] Puerto ${PORT} ocupado. Intentando liberar proceso anterior...`);
+        writeLog(`⚠️ [Servidor] Puerto ${PORT} ocupado, intentando liberar...`);
+        const { exec } = require('child_process');
+
+        // En Windows: obtener el PID con netstat y matarlo con taskkill.
+        // La sintaxis "FOR /F ... %P" funciona en cmd.exe directo (no en batch file).
+        const killCmd = process.platform === 'win32'
+          ? `for /f "tokens=5" %P in ('netstat -ano ^| findstr LISTENING ^| findstr :${PORT}') do taskkill /PID %P /F`
+          : `lsof -ti:${PORT} | xargs kill -9`;
+
+        exec(killCmd, { shell: true }, (killErr) => {
+          if (killErr) {
+            console.warn('[Servidor] No se pudo liberar el puerto:', killErr.message);
+            writeLog(`⚠️ [Servidor] No se pudo liberar puerto: ${killErr.message}`);
+          } else {
+            console.log(`[Servidor] Puerto ${PORT} liberado. Reintentando en 1.5s...`);
+            writeLog(`[Servidor] Puerto ${PORT} liberado, reintentando...`);
+          }
+          setTimeout(() => {
+            servidor.close();
+            const nuevoServidor = expressApp.listen(PORT, '0.0.0.0', () => {
+              console.log(`✅ [Servidor] Reintento exitoso en 0.0.0.0:${PORT}`);
+              writeLog(`✅ [Servidor] Reintento exitoso en puerto ${PORT}`);
+              resolve(); // ✨ Resolver la promesa en el reintento exitoso
+            });
+            nuevoServidor.on('error', (err2) => {
+              console.error(`❌ [Servidor] Fallo en reintento:`, err2.message);
+              writeLog(`❌ [Servidor] Fallo en reintento: ${err2.message}`);
+              const { dialog } = require('electron');
+              dialog.showErrorBox(
+                'Error de servidor',
+                `GloryView no pudo iniciar en el puerto ${PORT}.\n\nCierra cualquier instancia anterior de GloryView e inténtalo de nuevo.\n\nDetalle: ${err2.message}`
+              );
+              reject(err2); // ✨ Rechazar la promesa si falla el reintento
+            });
+          }, 1500);
+        });
+      } else {
+        console.error(`❌ [Servidor] Error inesperado:`, err.message);
+        writeLog(`❌ [Servidor] Error inesperado: ${err.message}`);
+        const { dialog } = require('electron');
+        dialog.showErrorBox(
+          'Error de servidor',
+          `GloryView no pudo iniciar el servidor en el puerto ${PORT}.\n\nDetalle: ${err.message}`
+        );
+        reject(err); // ✨ Rechazar la promesa en error inesperado
+      }
+    });
+
+    // Windows: agregar regla de Firewall para que la app móvil pueda conectarse.
+    // Se ejecuta siempre (dev y producción) porque node.exe en dev tampoco tiene excepción.
+    // La regla es solo por puerto (sin "program=") para que funcione tanto en dev como empaquetado.
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      const ruleName = 'GloryView Proyector - Puerto 3001';
+      // Primero eliminar regla anterior para evitar duplicados, luego agregar la nueva.
+      const deleteRule = `netsh advfirewall firewall delete rule name="${ruleName}" >nul 2>&1`;
+      const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} enable=yes`;
+      exec(`${deleteRule} & ${addRule}`, (err) => {
+        if (err) {
+          console.warn('[Firewall] No se pudo agregar regla (requiere permisos de admin):', err.message);
+          writeLog(`⚠️ [Firewall] No se pudo agregar regla: ${err.message}`);
+        } else {
+          console.log(`[Firewall] Regla activa: "${ruleName}" (TCP in puerto ${PORT})`);
+          writeLog(`✅ [Firewall] Regla activa para puerto ${PORT}`);
+        }
+      });
+    }
+
+  }); // ✨ Cierre de la promesa
 }
 
 // Crear la carpeta "assets/fondos" si no existe (solo desarrollo)
@@ -2494,14 +2644,58 @@ function createMainWindow() {
   console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`📦 app.isPackaged: ${app.isPackaged}`);
   console.log(`🚀 isDev: ${isDev}`);
+  writeLog(`Modo de ejecución: ${isDev ? 'desarrollo' : 'producción'}`);
 
+  let targetUrl;
   if (isDev) {
+    targetUrl = "http://localhost:3000";
     console.log("📍 Cargando desde servidor de desarrollo");
-    mainWindow.loadURL("http://localhost:3000");
+    writeLog("📍 Cargando desde servidor de desarrollo (React dev server)");
   } else {
+    targetUrl = "http://localhost:3001";
     console.log("📍 Cargando desde servidor Express de producción");
-    mainWindow.loadURL("http://localhost:3001");
+    writeLog("📍 Cargando desde servidor Express de producción");
   }
+
+  writeLog(`Intentando cargar URL: ${targetUrl}`);
+
+  // Cargar URL con manejo de errores
+  mainWindow.loadURL(targetUrl).catch(err => {
+    const errorMsg = `❌ Error cargando URL ${targetUrl}: ${err.message}`;
+    console.error(errorMsg);
+    writeLog(errorMsg);
+
+    dialog.showErrorBox(
+      "Error Crítico - No se puede cargar la aplicación",
+      `No se pudo cargar la interfaz de la aplicación.\n\nURL: ${targetUrl}\nError: ${err.message}\n\nVerifique que el servidor esté funcionando.\n\nLog: ${logFilePath}`
+    );
+  });
+
+  // Log cuando la página comienza a cargar
+  mainWindow.webContents.on('did-start-loading', () => {
+    writeLog(`✅ Inicio de carga de página detectado`);
+  });
+
+  // Log cuando la página termina de cargar
+  mainWindow.webContents.on('did-finish-load', () => {
+    writeLog(`✅ Página cargada completamente`);
+    console.log("✅ Página cargada completamente");
+  });
+
+  // Log si hay error de carga
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    const errorMsg = `❌ Error al cargar página: ${errorDescription} (código: ${errorCode}) - URL: ${validatedURL}`;
+    writeLog(errorMsg);
+    console.error(errorMsg);
+
+    // Mostrar error al usuario si es crítico
+    if (errorCode !== -3) { // -3 es ERR_ABORTED (normal en navegación cancelada)
+      dialog.showErrorBox(
+        "Error de Carga",
+        `No se pudo cargar la aplicación.\n\nURL: ${validatedURL}\nError: ${errorDescription}\nCódigo: ${errorCode}\n\nLog: ${logFilePath}`
+      );
+    }
+  });
 
   // ✨ MAXIMIZAR VENTANA CUANDO ESTÉ LISTA
   mainWindow.once('ready-to-show', () => {
@@ -3186,6 +3380,42 @@ app.whenReady().then(async () => {
       console.error("Error limpiando handlers:", error);
     }
 
+    // ✨ VERIFICAR ARCHIVOS ESENCIALES DEL BUILD EN PRODUCCIÓN
+    if (app.isPackaged) {
+      try {
+        writeLog("Verificando integridad de archivos del build...");
+        const buildDir = path.join(obtenerRutaRecursos(), "build");
+        const indexPath = path.join(buildDir, "index.html");
+        const manifestPath = path.join(buildDir, "manifest.json");
+
+        writeLog(`Build directory: ${buildDir}`);
+        writeLog(`Verificando index.html en: ${indexPath}`);
+
+        if (!fs.existsSync(buildDir)) {
+          throw new Error(`Directorio build no encontrado: ${buildDir}`);
+        }
+
+        if (!fs.existsSync(indexPath)) {
+          throw new Error(`index.html no encontrado en: ${indexPath}`);
+        }
+
+        // Listar archivos en build para diagnóstico
+        const buildFiles = fs.readdirSync(buildDir);
+        writeLog(`Archivos en build: ${buildFiles.join(', ')}`);
+
+        writeLog("✅ Archivos esenciales del build verificados correctamente");
+      } catch (error) {
+        writeLog(`❌ ERROR CRÍTICO: Archivos del build no encontrados: ${error.message}`);
+        console.error("ERROR CRÍTICO: Archivos del build no encontrados:", error);
+        dialog.showErrorBox(
+          "Error Crítico - Archivos Faltantes",
+          `La aplicación no puede iniciar porque faltan archivos esenciales:\n\n${error.message}\n\nPor favor, reinstale la aplicación.\n\nLog: ${logFilePath}`
+        );
+        app.quit();
+        return;
+      }
+    }
+
     // ✨ REGISTRAR TODOS LOS HANDLERS DESPUÉS DE LIMPIAR
     try {
       writeLog("Registrando handlers IPC...");
@@ -3201,48 +3431,80 @@ app.whenReady().then(async () => {
       );
     }
 
-    try {
-      writeLog("Creando ventana principal...");
-      createMainWindow();
-      writeLog("✅ Ventana principal creada");
-    } catch (error) {
-      writeLog(`❌ ERROR CRÍTICO creando ventana principal: ${error.message}\n${error.stack}`);
-      console.error("ERROR CRÍTICO:", error);
-      dialog.showErrorBox(
-        "Error Crítico - GloryView",
-        `No se pudo crear la ventana principal:\n\n${error.message}\n\nRevise el archivo de log en:\n${logFilePath}`
-      );
-      app.quit();
-      return;
-    }
+    // ✨ INICIAR SERVIDOR DE MULTIMEDIA PRIMERO (ANTES DE CREAR VENTANAS EN PRODUCCIÓN)
+    // Liberar puerto 3001 si hay una instancia anterior colgada antes de iniciar
+    writeLog("Iniciando servidor Express en puerto 3001...");
 
-    // ✨ Solo crear proyector automáticamente si hay segunda pantalla
-    try {
-      const displays = screen.getAllDisplays();
-      const externalDisplay = displays.find((d) => d.bounds.x !== 0 || d.bounds.y !== 0);
+    const iniciarServidorYVentanas = async () => {
+      try {
+        // En Windows, intentar liberar el puerto primero
+        if (process.platform === 'win32') {
+          const { exec } = require('child_process');
+          writeLog("Windows detectado - intentando liberar puerto 3001...");
+          await new Promise((resolve) => {
+            exec(`FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :3001') DO taskkill /PID %P /F`, () => {
+              // Ignorar errores (si no hay proceso ocupando el puerto, el comando falla normalmente)
+              setTimeout(resolve, 500);
+            });
+          });
+        }
 
-      if (externalDisplay) {
-        writeLog("✅ Segunda pantalla detectada, creando proyector automáticamente");
-        console.log("✅ [MAIN] Segunda pantalla detectada, creando proyector automáticamente");
-        createProyectorWindow();
-      } else {
-        writeLog("⚠️ Solo una pantalla detectada, proyector se creará manualmente");
-        console.log("⚠️ [MAIN] Solo una pantalla detectada, proyector se creará manualmente");
+        // Iniciar servidor Express
+        await iniciarServidorMultimedia();
+        writeLog("✅ Servidor Express iniciado");
+
+        // Esperar 2 segundos adicionales para asegurar que el servidor esté completamente listo
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        writeLog("✅ Servidor Express completamente listo");
+
+        // Ahora sí, crear las ventanas
+        try {
+          writeLog("Creando ventana principal...");
+          createMainWindow();
+          writeLog("✅ Ventana principal creada");
+        } catch (error) {
+          writeLog(`❌ ERROR CRÍTICO creando ventana principal: ${error.message}\n${error.stack}`);
+          console.error("ERROR CRÍTICO:", error);
+          dialog.showErrorBox(
+            "Error Crítico - GloryView",
+            `No se pudo crear la ventana principal:\n\n${error.message}\n\nRevise el archivo de log en:\n${logFilePath}`
+          );
+          app.quit();
+          return;
+        }
+
+        // ✨ Solo crear proyector automáticamente si hay segunda pantalla
+        try {
+          const displays = screen.getAllDisplays();
+          const externalDisplay = displays.find((d) => d.bounds.x !== 0 || d.bounds.y !== 0);
+
+          if (externalDisplay) {
+            writeLog("✅ Segunda pantalla detectada, creando proyector automáticamente");
+            console.log("✅ [MAIN] Segunda pantalla detectada, creando proyector automáticamente");
+            createProyectorWindow();
+          } else {
+            writeLog("⚠️ Solo una pantalla detectada, proyector se creará manualmente");
+            console.log("⚠️ [MAIN] Solo una pantalla detectada, proyector se creará manualmente");
+          }
+        } catch (error) {
+          writeLog(`⚠️ Error verificando pantallas: ${error.message}`);
+          console.warn("Error verificando pantallas:", error);
+          // No es crítico, continuar
+        }
+
+      } catch (error) {
+        writeLog(`❌ Error fatal en iniciarServidorYVentanas: ${error.message}`);
+        console.error("Error fatal en iniciarServidorYVentanas:", error);
+        dialog.showErrorBox(
+          "Error Fatal - GloryView",
+          `No se pudo iniciar el servidor Express:\n\n${error.message}\n\nLa aplicación no puede funcionar sin el servidor.`
+        );
+        app.quit();
       }
-    } catch (error) {
-      writeLog(`⚠️ Error verificando pantallas: ${error.message}`);
-      console.warn("Error verificando pantallas:", error);
-      // No es crítico, continuar
-    }
+    };
 
-    writeLog("✅ GloryView Proyector iniciado exitosamente");
-
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createMainWindow();
-        // No crear proyector automáticamente en activate
-      }
-    });
+    // Llamar a la función async
+    await iniciarServidorYVentanas();
 
     // ✨ AGREGAR ATAJO PARA DEVTOOLS
     globalShortcut.register('F12', () => {
@@ -3281,17 +3543,14 @@ app.whenReady().then(async () => {
       }
     });
 
-    // ✨ INICIAR SERVIDOR DE MULTIMEDIA
-    // Liberar puerto 3001 si hay una instancia anterior colgada antes de iniciar
-    if (process.platform === 'win32') {
-      const { exec } = require('child_process');
-      exec(`FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :3001') DO taskkill /PID %P /F`, () => {
-        // Ignorar errores (si no hay proceso ocupando el puerto, el comando falla normalmente)
-        setTimeout(() => iniciarServidorMultimedia(), 500);
-      });
-    } else {
-      iniciarServidorMultimedia();
-    }
+    writeLog("✅ GloryView Proyector iniciado exitosamente");
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+        // No crear proyector automáticamente en activate
+      }
+    });
 
   } catch (error) {
     // ✨ CAPTURA DE ERRORES GLOBAL DEL APP.WHENREADY
@@ -4766,18 +5025,18 @@ function registrarHandlers() {
   // VALIDACIÓN DE ARCHIVOS: magic numbers + tamaño + extensión
   // ============================================================
   const LIMITES_MB = {
-    logo:      10,
-    imagen:    50,
-    audio:    500,
-    video:   2048,
+    logo: 10,
+    imagen: 50,
+    audio: 500,
+    video: 2048,
     documento: 100,
   };
 
   const EXTENSIONES_PERMITIDAS = {
-    logo:      ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
-    imagen:    ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
-    audio:     ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
-    video:     ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'],
+    logo: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
+    imagen: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
+    audio: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
+    video: ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'],
     documento: ['.pdf', '.pptx', '.ppt', '.key'],
   };
 
@@ -4789,21 +5048,21 @@ function registrarHandlers() {
       case 'jpg': case 'jpeg':
         return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
       case 'png':
-        return buffer.slice(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]));
+        return buffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
       case 'gif':
         return buffer.slice(0, 6).equals(Buffer.from('GIF87a')) ||
-               buffer.slice(0, 6).equals(Buffer.from('GIF89a'));
+          buffer.slice(0, 6).equals(Buffer.from('GIF89a'));
       case 'webp':
         return buffer.slice(0, 4).equals(Buffer.from('RIFF')) &&
-               buffer.slice(8, 12).equals(Buffer.from('WEBP'));
+          buffer.slice(8, 12).equals(Buffer.from('WEBP'));
       case 'pdf':
         return buffer.slice(0, 4).equals(Buffer.from('%PDF'));
       case 'mp3':
         return (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) || // sync frame
-               buffer.slice(0, 3).equals(Buffer.from('ID3'));
+          buffer.slice(0, 3).equals(Buffer.from('ID3'));
       case 'wav':
         return buffer.slice(0, 4).equals(Buffer.from('RIFF')) &&
-               buffer.slice(8, 12).equals(Buffer.from('WAVE'));
+          buffer.slice(8, 12).equals(Buffer.from('WAVE'));
       case 'ogg':
         return buffer.slice(0, 4).equals(Buffer.from('OggS'));
       case 'mp4': case 'mov': case 'm4a': case 'm4v':
@@ -4811,7 +5070,7 @@ function registrarHandlers() {
       case 'webm':
         return buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3;
       case 'pptx': case 'ppt':
-        return buffer.slice(0, 4).equals(Buffer.from([0x50,0x4B,0x03,0x04])); // ZIP
+        return buffer.slice(0, 4).equals(Buffer.from([0x50, 0x4B, 0x03, 0x04])); // ZIP
       default:
         return true; // Sin firma definida → validación por extensión es suficiente
     }
@@ -4821,7 +5080,7 @@ function registrarHandlers() {
     const limiteMB = LIMITES_MB[categoria] ?? LIMITES_MB.documento;
     const limiteBytes = limiteMB * 1024 * 1024;
     if (buffer.length > limiteBytes) {
-      throw new Error(`Archivo demasiado grande (${Math.round(buffer.length/1024/1024)} MB). Límite: ${limiteMB} MB`);
+      throw new Error(`Archivo demasiado grande (${Math.round(buffer.length / 1024 / 1024)} MB). Límite: ${limiteMB} MB`);
     }
     const extsPermitidas = EXTENSIONES_PERMITIDAS[categoria];
     if (extsPermitidas && !extsPermitidas.includes(extension.toLowerCase())) {
@@ -5357,7 +5616,7 @@ function registrarHandlers() {
       // Convertir base64 a buffer, validar y escribir el archivo
       const base64Data = fileData.data.replace(/^data:.*,/, ''); // Remover prefijo data:
       const buffer = Buffer.from(base64Data, 'base64');
-      const categoriaMultimedia = ['imagen','video','audio'].includes(fileData.tipo) ? fileData.tipo : 'documento';
+      const categoriaMultimedia = ['imagen', 'video', 'audio'].includes(fileData.tipo) ? fileData.tipo : 'documento';
       validarArchivoUpload(buffer, fileData.extension || '', categoriaMultimedia);
       fs.writeFileSync(rutaArchivo, buffer);
 

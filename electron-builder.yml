@@ -1,5 +1,5 @@
 appId: com.gloryview.proyector
-productName: GloryView Proyector
+productName: GloryView
 copyright: Copyright © 2025 Alfredo Hammer
 
 directories:
@@ -21,6 +21,10 @@ files:
   - INSTRUCCIONES-WINDOWS.txt
   - "!node_modules/@types/**/*"
   - "!node_modules/.cache/**/*"
+
+asarUnpack:
+  - "**/node_modules/ffmpeg-static/**"
+  - "build/**/*"
 
 extraResources:
   - from: data
@@ -44,12 +48,11 @@ win:
       arch:
         - x64
   icon: assets/icon.ico
-  verifyUpdateCodeSignature: true
+  verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
   executableName: GloryViewProyector
-  # Firma con certificado si WIN_CSC_LINK está definido en el entorno
-  signingHashAlgorithms:
-    - sha256
+  # Firma deshabilitada para desarrollo
+  sign: null
   signDlls: false
 
 nsis:
@@ -64,14 +67,17 @@ nsis:
   uninstallerIcon: assets/icon.ico
   installerHeader: assets/icon-256.png
   installerHeaderIcon: assets/icon.ico
+  installerSidebar: assets/icon-256.png
+  uninstallerSidebar: assets/icon-256.png
   artifactName: "${productName}-${version}-Installer.${ext}"
-  deleteAppDataOnUninstall: true
+  deleteAppDataOnUninstall: false
   runAfterFinish: true
   menuCategory: true
   license: LICENSE.txt
   warningsAsErrors: false
   differentialPackage: true
   displayLanguageSelector: false
+  include: build/installer.nsh
 
 portable:
   artifactName: "${productName}-${version}-Portable.${ext}"

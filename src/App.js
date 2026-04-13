@@ -18,6 +18,7 @@ import Configuracion from "./pages/Configuracion";
 import AppMovil from "./pages/AppMovil";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
 import GlobalMediaPlayer from "./components/GlobalMediaPlayer";
+import UpdateNotification from "./components/UpdateNotification";
 import librosDeLaBiblia from "./utils/libros";
 import { cargarLibro } from "./utils/cargarLibro";
 
@@ -309,6 +310,9 @@ function App() {
 
         {/* Reproductor global que persiste entre navegaciones */}
         <GlobalMediaPlayer />
+
+        {/* Notificación de actualizaciones */}
+        <UpdateNotification />
       </Router>
     </MediaPlayerProvider>
   );

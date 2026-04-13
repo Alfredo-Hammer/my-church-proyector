@@ -171,7 +171,6 @@ sobre la antigua. El instalador actualizará automáticamente.
 Para reportar problemas o solicitar ayuda:
 
 Email: coderhammer70@gmail.com
-GitHub: https://github.com/Alfredo-Hammer/my-church-proyector
 
 ═══════════════════════════════════════════════════════════════════
 

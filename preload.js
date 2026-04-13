@@ -172,6 +172,14 @@ contextBridge.exposeInMainWorld("electron", {
   actualizarConfiguracionPorClave: (clave, valor) => ipcRenderer.invoke("actualizar-configuracion-clave", clave, valor),
   guardarLogo: (archivoBuffer) => ipcRenderer.invoke("guardar-logo", archivoBuffer),
 
+  // ====================================
+  // APIs DE ACTUALIZACIÓN AUTOMÁTICA
+  // ====================================
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("download-update"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+
   // Eventos
   on: (channel, callback) => {
     const validChannels = [
@@ -196,6 +204,15 @@ contextBridge.exposeInMainWorld("electron", {
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
       "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+
+      // Actualización automática
+      "update-checking",
+      "update-available",
+      "update-not-available",
+      "update-error",
+      "update-download-progress",
+      "update-downloaded",
+      "check-updates-manual",
 
       // Control remoto: reproducir multimedia "solo audio" en el escritorio (sin proyectar)
       "solo-audio-play",
@@ -228,6 +245,15 @@ contextBridge.exposeInMainWorld("electron", {
       "control-biblia-proyectar",
       "control-biblia-preview",
 
+      // Actualización automática
+      "update-checking",
+      "update-available",
+      "update-not-available",
+      "update-error",
+      "update-download-progress",
+      "update-downloaded",
+      "check-updates-manual",
+
       "solo-audio-play",
       "solo-audio-control",
     ];
@@ -256,6 +282,15 @@ contextBridge.exposeInMainWorld("electron", {
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
       "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+
+      // Actualización automática
+      "update-checking",
+      "update-available",
+      "update-not-available",
+      "update-error",
+      "update-download-progress",
+      "update-downloaded",
+      "check-updates-manual",
 
       "solo-audio-play",
       "solo-audio-control",

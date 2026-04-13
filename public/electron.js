@@ -1098,12 +1098,6 @@ function createMainWindow() {
       label: "Ayuda",
       submenu: [
         {
-          label: "Guía de Inicio Rápido",
-          click: () => {
-            shell.openExternal("https://github.com/Alfredo-Hammer/my-church-proyector/wiki");
-          },
-        },
-        {
           label: "Atajos de Teclado",
           click: () => {
             dialog.showMessageBox(mainWindow, {
@@ -1147,12 +1141,6 @@ function createMainWindow() {
               mainWindow.webContents.send('navegar-a-ruta', '/contactos');
               mainWindow.focus();
             }
-          },
-        },
-        {
-          label: "Reportar Problema",
-          click: () => {
-            shell.openExternal("https://github.com/Alfredo-Hammer/my-church-proyector/issues");
           },
         },
         { type: "separator" },

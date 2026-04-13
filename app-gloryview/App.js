@@ -259,6 +259,7 @@ export default function App() {
   const [qrBloqueado, setQrBloqueado] = useState(false);
 
   const [bibliaBusqueda, setBibliaBusqueda] = useState('');
+  const [bibliaTabActivo, setBibliaTabActivo] = useState('antiguo'); // 'antiguo' | 'nuevo'
   const [libroSeleccionado, setLibroSeleccionado] = useState(null);
   const [capitulo, setCapitulo] = useState('');
   const [versiculo, setVersiculo] = useState('');
@@ -1046,15 +1047,23 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conectado, serverBaseUrl]);
 
+  // Separar libros por testamento
+  const librosAntiguoTestamento = useMemo(() => librosBiblia.slice(0, 39), []);
+  const librosNuevoTestamento = useMemo(() => librosBiblia.slice(39), []);
+
   const librosFiltrados = useMemo(() => {
+    // Seleccionar libros según el tab activo
+    const librosBase = bibliaTabActivo === 'antiguo' ? librosAntiguoTestamento : librosNuevoTestamento;
+
     const q = (bibliaBusqueda || '').trim().toLowerCase();
-    if (!q) return librosBiblia;
-    return librosBiblia.filter((l) => {
+    if (!q) return librosBase;
+
+    return librosBase.filter((l) => {
       const nombre = String(l?.nombre ?? '').toLowerCase();
       const id = String(l?.id ?? '').toLowerCase();
       return nombre.includes(q) || id.includes(q);
     });
-  }, [bibliaBusqueda]);
+  }, [bibliaBusqueda, bibliaTabActivo, librosAntiguoTestamento, librosNuevoTestamento]);
 
   const probarConexion = async (baseOverride) => {
     const base = normalizarBaseUrl(baseOverride ?? serverBaseUrl);
@@ -3179,6 +3188,47 @@ export default function App() {
 
                   {!libroSeleccionado ? (
                     <>
+                      {/* Tabs para Antiguo y Nuevo Testamento */}
+                      <View style={styles.tabsContainer}>
+                        <Pressable
+                          onPress={() => {
+                            setBibliaTabActivo('antiguo');
+                            Keyboard.dismiss();
+                          }}
+                          style={({ pressed }) => [
+                            styles.tabButton,
+                            bibliaTabActivo === 'antiguo' && styles.tabButtonActive,
+                            pressed && styles.tabButtonPressed,
+                          ]}
+                        >
+                          <Text style={[
+                            styles.tabButtonText,
+                            bibliaTabActivo === 'antiguo' && styles.tabButtonTextActive,
+                          ]}>
+                            Antiguo Testamento
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => {
+                            setBibliaTabActivo('nuevo');
+                            Keyboard.dismiss();
+                          }}
+                          style={({ pressed }) => [
+                            styles.tabButton,
+                            bibliaTabActivo === 'nuevo' && styles.tabButtonActive,
+                            pressed && styles.tabButtonPressed,
+                          ]}
+                        >
+                          <Text style={[
+                            styles.tabButtonText,
+                            bibliaTabActivo === 'nuevo' && styles.tabButtonTextActive,
+                          ]}>
+                            Nuevo Testamento
+                          </Text>
+                        </Pressable>
+                      </View>
+
                       <TextInput
                         value={bibliaBusqueda}
                         onChangeText={setBibliaBusqueda}
@@ -5168,5 +5218,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     marginLeft: 20,
+  },
+
+  // Tabs para Biblia
+  tabsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: 'rgba(99,102,241,0.16)',
+    borderColor: 'rgba(99,102,241,0.35)',
+  },
+  tabButtonPressed: {
+    opacity: 0.7,
+  },
+  tabButtonText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  tabButtonTextActive: {
+    color: '#6366f1',
+    fontWeight: '900',
   },
 });

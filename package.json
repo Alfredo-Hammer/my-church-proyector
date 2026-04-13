@@ -16,7 +16,9 @@
     "better-sqlite3": "^11.10.0",
     "cors": "^2.8.5",
     "docx": "^9.5.1",
+    "electron-updater": "^6.8.3",
     "express": "^5.1.0",
+    "ffmpeg-static": "^5.2.0",
     "framer-motion": "^12.8.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
@@ -36,8 +38,7 @@
     "sqlite3": "^5.1.7",
     "suneditor": "^2.47.5",
     "suneditor-react": "^3.6.1",
-    "web-vitals": "^2.1.4",
-    "ffmpeg-static": "^5.2.0"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
@@ -54,6 +55,8 @@
     "build-exe-win": "npm run build && electron-builder --win",
     "pack": "electron-builder --dir",
     "release": "npm run build && electron-builder --publish=never",
+    "release-github": "npm run build && electron-builder --win --publish always",
+    "release-draft": "npm run build && electron-builder --win --publish onTagOrDraft",
     "neon-logo": "node scripts/neon-logo.js assets/icon-256.png assets/icon-256-neon.png",
     "neon-logo-circulo": "node scripts/neon-lines-logo.js assets/logo-circulo.png assets/logo-circulo-neon.png #00F5FF 130 30"
   },

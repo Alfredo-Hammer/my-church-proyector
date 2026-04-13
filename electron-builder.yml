@@ -9,6 +9,18 @@ directories:
 extraMetadata:
   main: main.js
 
+# ============================================================
+# CONFIGURACIÓN DE ACTUALIZACIONES AUTOMÁTICAS
+# Usa GitHub Releases para publicar y distribuir actualizaciones
+# El autoUpdater descargará desde https://github.com/Alfredo-Hammer/my-church-proyector/releases
+# ============================================================
+publish:
+  provider: github
+  owner: Alfredo-Hammer
+  repo: my-church-proyector
+  private: false
+  releaseType: release
+
 files:
   - build/**/*
   - main.js

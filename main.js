@@ -1,5 +1,6 @@
 // ✨ IMPORTACIONES PRIMERO
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell, globalShortcut } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 
@@ -3097,11 +3098,14 @@ function createMainWindow() {
       label: "Ayuda",
       submenu: [
         {
-          label: "Guía de Inicio Rápido",
+          label: "Buscar Actualizaciones...",
           click: () => {
-            shell.openExternal("https://github.com/Alfredo-Hammer/my-church-proyector/wiki");
+            if (mainWindow) {
+              mainWindow.webContents.send('check-updates-manual');
+            }
           },
         },
+        { type: "separator" },
         {
           label: "Atajos de Teclado",
           click: () => {
@@ -3146,12 +3150,6 @@ function createMainWindow() {
               mainWindow.webContents.send('navegar-a-ruta', '/contactos');
               mainWindow.focus();
             }
-          },
-        },
-        {
-          label: "Reportar Problema",
-          click: () => {
-            shell.openExternal("https://github.com/Alfredo-Hammer/my-church-proyector/issues");
           },
         },
         { type: "separator" },
@@ -3337,6 +3335,72 @@ function createProyectorWindow() {
   return proyectorWindow;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ✨ SISTEMA DE ACTUALIZACIONES AUTOMÁTICAS
+// ═══════════════════════════════════════════════════════════════════
+
+// Configurar autoUpdater
+autoUpdater.autoDownload = false; // No descargar automáticamente, preguntar primero
+autoUpdater.autoInstallOnAppQuit = true; // Instalar al cerrar la app
+
+// Eventos del autoUpdater
+autoUpdater.on('checking-for-update', () => {
+  writeLog('🔍 Verificando actualizaciones...');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-checking');
+  }
+});
+
+autoUpdater.on('update-available', (info) => {
+  writeLog(`✅ Nueva actualización disponible: v${info.version}`);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      releaseDate: info.releaseDate
+    });
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  writeLog('ℹ️ No hay actualizaciones disponibles');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-not-available', info);
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  const errorMsg = `❌ Error en autoUpdater: ${err.message}`;
+  writeLog(errorMsg);
+  console.error(errorMsg);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', { message: err.message });
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const logMessage = `📥 Descargando actualización: ${Math.round(progressObj.percent)}% (${Math.round(progressObj.bytesPerSecond / 1024)}KB/s)`;
+  writeLog(logMessage);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-download-progress', {
+      percent: progressObj.percent,
+      transferred: progressObj.transferred,
+      total: progressObj.total,
+      bytesPerSecond: progressObj.bytesPerSecond
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  writeLog(`✅ Actualización descargada: v${info.version}`);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', {
+      version: info.version,
+      releaseNotes: info.releaseNotes
+    });
+  }
+});
+
 // --- App Ready ---
 app.whenReady().then(async () => {
   try {
@@ -3490,6 +3554,20 @@ app.whenReady().then(async () => {
           writeLog(`⚠️ Error verificando pantallas: ${error.message}`);
           console.warn("Error verificando pantallas:", error);
           // No es crítico, continuar
+        }
+
+        // ✨ Verificar actualizaciones automáticamente (solo en producción)
+        if (process.env.NODE_ENV !== 'development') {
+          setTimeout(() => {
+            try {
+              writeLog('🔍 Verificando actualizaciones automáticamente...');
+              autoUpdater.checkForUpdates();
+            } catch (error) {
+              writeLog(`⚠️ Error verificando actualizaciones: ${error.message}`);
+            }
+          }, 5000); // Esperar 5 segundos después de que la ventana esté lista
+        } else {
+          writeLog('ℹ️ Actualizaciones automáticas deshabilitadas en modo desarrollo');
         }
 
       } catch (error) {
@@ -5019,6 +5097,52 @@ function registrarHandlers() {
       console.error('❌ [Main] Error actualizando configuración:', error);
       return false;
     }
+  });
+
+  // ====================================
+  // HANDLERS DE ACTUALIZACIÓN AUTOMÁTICA
+  // ====================================
+
+  ipcMain.handle('check-for-updates', async () => {
+    try {
+      writeLog('🔍 Usuario solicitó verificación manual de actualizaciones');
+      if (process.env.NODE_ENV === 'development') {
+        writeLog('⚠️ Actualizaciones deshabilitadas en modo desarrollo');
+        return { available: false, isDev: true };
+      }
+      await autoUpdater.checkForUpdates();
+      return { checking: true };
+    } catch (error) {
+      writeLog(`❌ Error verificando actualizaciones: ${error.message}`);
+      return { error: error.message };
+    }
+  });
+
+  ipcMain.handle('download-update', async () => {
+    try {
+      writeLog('📥 Usuario aceptó descargar actualización');
+      await autoUpdater.downloadUpdate();
+      return { downloading: true };
+    } catch (error) {
+      writeLog(`❌ Error descargando actualización: ${error.message}`);
+      return { error: error.message };
+    }
+  });
+
+  ipcMain.handle('install-update', async () => {
+    try {
+      writeLog('🔄 Usuario aceptó instalar actualización - reiniciando app...');
+      // Esto cerrará la app e instalará la actualización
+      autoUpdater.quitAndInstall(false, true);
+      return { installing: true };
+    } catch (error) {
+      writeLog(`❌ Error instalando actualización: ${error.message}`);
+      return { error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-app-version', async () => {
+    return app.getVersion();
   });
 
   // ============================================================

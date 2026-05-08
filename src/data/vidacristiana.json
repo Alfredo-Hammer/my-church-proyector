@@ -263,7 +263,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 21,
     "titulo": "SEÑOR JESUS, PERDONAME",
@@ -279,7 +278,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 22,
     "titulo": "ANHELO AMARTE MAS",
@@ -292,7 +290,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 23,
     "titulo": "SOL DE MI SER MI SALVADOR",
@@ -330,7 +327,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 26,
     "titulo": "POR LA MAÑANA YO DIRIJO MI ALABANZA",
@@ -358,7 +354,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 28,
     "titulo": "GLORIA A DIOS EN LAS ALTURAS",
@@ -371,7 +366,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 29,
     "titulo": "SUENEN DULCES HIMNOS",
@@ -386,7 +380,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 30,
     "titulo": "UN ARRULLO ESCUCHAD",
@@ -399,7 +392,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 31,
     "titulo": "¡OH, SANTÍSIMO, FELICÍSIMO!",
@@ -412,7 +404,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 32,
     "titulo": "ALLA EN EL PESEBRE",
@@ -426,7 +417,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 33,
     "titulo": "OÍD UN SON EN ALTA ESFERA",
@@ -440,12 +430,11 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 34,
     "titulo": "¡AL MUNDO PAZ, NACIÓ JESÚS!",
     "parrafos": [
-      "1. ¡Al mundo paz, nació Jesús!\nNació ya nuestro Rey;\nEl corazón ya tiene luz,\nY paz su santa grey,\ny paz en su santa grey.\nY paz, y paz su santa grey.",
+      "1. ¡Al mundo paz, nació Jesús! Nació ya nuestro Rey; El corazón ya tiene luz, Y paz su santa grey, y paz en su santa grey. Y paz, y paz su santa grey.",
       "2. Al mundo paz, el Salvador en tierra reinará! Ya es feliz el pecador, Jesús perdón le da, Jesús perdón le da. Jesús, Jesús perdón le da.",
       "3. Al mundo Él gobernará con gracia y con poder; A las naciones mostrará su amor Y su poder, su amor y su poder. Su amor, su amor y su poder."
     ],
@@ -453,7 +442,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 35,
     "titulo": "A MEDIA NOCHE ALLÁ EN BELÉN",
@@ -467,7 +455,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 36,
     "titulo": "OH, ALDEHUELA DE BELÉN",
@@ -481,7 +468,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 37,
     "titulo": "ASTRO, EL MÁS BELLO",
@@ -507,7 +493,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 39,
     "titulo": "PASTORES CERCA DE BELÉN",
@@ -523,7 +508,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 40,
     "titulo": "TÚ DEJASTE TU TRONO",
@@ -539,7 +523,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 41,
     "titulo": "HUBO QUIEN POR MIS CULPAS",
@@ -553,7 +536,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 42,
     "titulo": "EN LA VERGONZOSA CRUZ",
@@ -567,7 +549,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 43,
     "titulo": "CRISTO, HAZME VER TU CRUZ",
@@ -582,7 +563,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 44,
     "titulo": "MI VIDA DI POR TI",
@@ -596,7 +576,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 45,
     "titulo": "CABEZA ENSANGRENTADA",
@@ -611,7 +590,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 46,
     "titulo": "UN MONTE HAY MAS ALLA",
@@ -626,7 +604,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 47,
     "titulo": "JUNTO A LA CRUZ DE CRISTO",
@@ -639,7 +616,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 48,
     "titulo": "LA CRUZ EXCELSA AL CONTEMPLAR",
@@ -653,7 +629,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 49,
     "titulo": "ES CIERTO QUE JESUS MURIO?",
@@ -679,7 +654,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 51,
     "titulo": "PIES DIVINOS",
@@ -695,7 +669,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 52,
     "titulo": "¡CUÁN FELICES FUIMOS!",
@@ -710,7 +683,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 53,
     "titulo": "ROSTRO DIVINO",
@@ -725,7 +697,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 54,
     "titulo": "LEVANTADO FUE JESÚS",
@@ -739,7 +710,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 55,
     "titulo": "HAY UN PRECIOSO MANANTIAL",
@@ -753,7 +723,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 56,
     "titulo": "MANOS CARIÑOSAS",
@@ -768,7 +737,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 57,
     "titulo": "LA TUMBA LE ENCERRO",
@@ -782,7 +750,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 58,
     "titulo": "EL SEÑOR RESUCITÓ",
@@ -810,7 +777,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 60,
     "titulo": "HOY EN GLORIA CELESTIAL",
@@ -823,7 +789,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 61,
     "titulo": "CORONA A NUESTRO SALVADOR",
@@ -837,7 +802,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 62,
     "titulo": "LA RUDA LUCHA TERMINÓ",
@@ -853,7 +817,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 63,
     "titulo": "AL CRISTO VIVO SIRVO",
@@ -867,7 +830,6 @@
     "hasCoro": true,
     "coroIndex": 1
   },
-
   {
     "numero": 64,
     "titulo": "HUNIDOS, FIELES TODOS",
@@ -879,7 +841,6 @@
     ],
     "favoritos": false
   },
-
   {
     "numero": 65,
     "titulo": "YO SÉ QUE JESUCRISTO VIVE",
@@ -893,7 +854,6 @@
     "hasCoro": true,
     "coroIndex": 1
   },
-
   {
     "numero": 66,
     "titulo": "EL NOMBRE DE JESÚS LOAD",
@@ -908,7 +868,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 67,
     "titulo": "POR MIL ARPAS",
@@ -921,7 +880,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 68,
     "titulo": "A CRISTO CORONAD DIVINO SALVADOR",
@@ -934,7 +892,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 69,
     "titulo": "DIGNO ES EL CORDERO",
@@ -948,7 +905,6 @@
     "hasCoro": true,
     "coroIndex": 1
   },
-
   {
     "numero": 70,
     "titulo": "VED AL CRISTO, REY DE GLORIA",
@@ -963,7 +919,6 @@
     "coroIndex": 1,
     "favoritos": false
   },
-
   {
     "numero": 71,
     "titulo": "ALBOREANDO LA MAÑANA",
@@ -976,7 +931,6 @@
     "hasCoro": false,
     "coroIndex": 1
   },
-
   {
     "numero": 72,
     "titulo": "PUDIERA BIEN SER",
@@ -991,7 +945,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 73,
     "titulo": "CRISTO VIENE",
@@ -1005,7 +958,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 74,
     "titulo": "VIENE OTRA VEZ",
@@ -1020,7 +972,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 75,
     "titulo": "MUY CERCANO ESTÁ EL DÍA",
@@ -1034,7 +985,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 76,
     "titulo": "YO ESPERO EL GRAN DÍA",
@@ -1048,7 +998,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 77,
     "titulo": "YO SÓLO ESPERO ESE DÍA",
@@ -1061,7 +1010,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 78,
     "titulo": "UN ALBA HERMOSA",
@@ -1075,7 +1023,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 79,
     "titulo": "CRISTO YA VIENE",
@@ -1090,7 +1037,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 80,
     "titulo": "UN DIA",
@@ -1106,7 +1052,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 81,
     "titulo": "CON LAS NUBES VIENE CRISTO",
@@ -1120,7 +1065,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 82,
     "titulo": "VIENE OTRA VEZ NUESTRO SALVADOR",
@@ -1134,7 +1078,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 83,
     "titulo": "DÍA DE VICTORIA ",
@@ -1148,7 +1091,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 84,
     "titulo": "VEN, SANTO ESPÍRITU",
@@ -1162,7 +1104,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 85,
     "titulo": "DE TU ESPÍRITU DIVINO",
@@ -1175,7 +1116,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 86,
     "titulo": "EN MI ALMA MORA, SANTO ESPÍRITU",
@@ -1217,7 +1157,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 89,
     "titulo": "SANTO ESPIRITU DE DIOS",
@@ -1397,7 +1336,6 @@
       "3. Oh, Señor, tu salvación no puedo merecer; La fe puesta sólo en ti salvará mi pobre ser.",
       "4. Ante el trono, en Ti, Señor, completo al fin seré; Cristo mi alma rescató para siempre cantaré."
     ],
-
     "favoritos": false,
     "coroIndex": 1,
     "hasCoro": true
@@ -1428,7 +1366,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 105,
     "titulo": "¡PAZ, PAZ, DULCE PAZ!",
@@ -1443,7 +1380,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 106,
     "titulo": "EN EL SENO DE MI ALMA",
@@ -1458,7 +1394,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 107,
     "titulo": "OH, CRISTO EN TI",
@@ -1486,7 +1421,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 109,
     "titulo": "SALVO EN LOS TIERNOS BRAZOS",
@@ -1501,7 +1435,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 110,
     "titulo": "ESTOY BIEN CON MI DIOS",
@@ -1516,7 +1449,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 111,
     "titulo": "GOZO DA SERVIR A CRISTO",
@@ -1531,7 +1463,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 112,
     "titulo": "CRISTO MI DULCE SALVADOR",
@@ -1545,7 +1476,6 @@
     "coroIndex": 1,
     "hasCoro": false
   },
-
   {
     "numero": 113,
     "titulo": "OH CRISTO, YO TE AMO",
@@ -1629,7 +1559,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 119,
     "titulo": "LE CANTO A MI SEÑOR",
@@ -2722,7 +2651,6 @@
     "coroIndex": 1,
     "hasCoro": true
   },
-
   {
     "numero": 201,
     "titulo": "SALE A LA LUCHA EL SALVADOR",

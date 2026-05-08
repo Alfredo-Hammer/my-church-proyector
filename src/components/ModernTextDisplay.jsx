@@ -1,187 +1,174 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react";
-import {motion} from "framer-motion";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {AnimatePresence, motion} from "framer-motion";
 
-// ✨ COMPONENTE DE TEXTO MODERNO
-const ModernTextDisplay = ({
-  titulo,
-  parrafo,
-  numero,
-  configuracion,
-  mostrarTitulo = true, // Ahora controla si mostrar título ARRIBA del párrafo (para versículos)
-}) => {
-  const textBoxRef = useRef(null);
+// Divide el texto en líneas → palabras para el stagger
+function parseLines(text) {
+  if (!text) return [[""]];
+  const lines = String(text).split("\n").filter(Boolean);
+  return lines.length ? lines.map((l) => l.trim().split(/\s+/).filter(Boolean)) : [[""]];
+}
+
+// Variantes Framer Motion
+const EXIT_TRANSITION    = {duration: 0.22, ease: [0.4, 0, 1, 1]};
+const containerVariants  = {
+  hidden:  {},
+  visible: {},           // stagger lo manejan las palabras
+  exit:    {opacity: 0, y: -18, filter: "blur(8px)", transition: EXIT_TRANSITION},
+};
+const wordVariants = (stagger) => ({
+  hidden:  {opacity: 0, y: 20,  filter: "blur(8px)"},
+  visible: (i) => ({
+    opacity: 1, y: 0, filter: "blur(0px)",
+    transition: {delay: i * stagger, duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94]},
+  }),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitulo = true}) => {
+  const textBoxRef   = useRef(null);
   const paragraphRef = useRef(null);
   const [fontSizePx, setFontSizePx] = useState(null);
 
-  // ✨ Ajustar tamaño de fuente según longitud del párrafo
-  const calcularTamañoTexto = (texto) => {
-    const longitud = texto?.length || 0;
+  // ── Texto visible + clave de animación ───────────────────────────────────
+  const [display, setDisplay]   = useState({parrafo, titulo});
+  const [animKey, setAnimKey]   = useState(0);
+  const lastChange              = useRef(Date.now());
 
-    // Si el párrafo es muy largo, reducir el tamaño
-    if (longitud > 450) return "text-4xl"; // Muy largo
-    if (longitud > 320) return "text-5xl"; // Largo
-    if (longitud > 220) return "text-6xl"; // Medio-largo
+  useEffect(() => {
+    if (parrafo === display.parrafo && titulo === display.titulo) return;
 
-    // Normal / corto: tamaño equilibrado por defecto
-    if (longitud > 120) return configuracion?.fontSize?.parrafo || "text-7xl";
+    const now     = Date.now();
+    const elapsed = now - lastChange.current;
+    lastChange.current = now;
+
+    setDisplay({parrafo, titulo});
+
+    // Cambios rápidos (temporizador < 700 ms) → solo actualiza texto, sin animación
+    if (elapsed >= 700) {
+      setAnimKey((k) => k + 1);
+    }
+  }, [parrafo, titulo]);
+
+  // ── Auto-sizing ───────────────────────────────────────────────────────────
+  const tamañoParrafo = useMemo(() => {
+    const len = display.parrafo?.length || 0;
+    if (len > 450) return "text-4xl";
+    if (len > 320) return "text-5xl";
+    if (len > 220) return "text-6xl";
     return configuracion?.fontSize?.parrafo || "text-7xl";
-  };
+  }, [display.parrafo, configuracion]);
 
-  const tamañoParrafo = calcularTamañoTexto(parrafo);
+  const ajustar = () => {
+    const box = textBoxRef.current;
+    const p   = paragraphRef.current;
+    if (!box || !p) return;
+    if (!display.parrafo?.trim()) { p.style.fontSize = ""; setFontSizePx(null); return; }
 
-  const ajustarTextoParaQuepa = () => {
-    const boxEl = textBoxRef.current;
-    const pEl = paragraphRef.current;
-    if (!boxEl || !pEl) return;
+    p.style.fontSize = "";
+    const base = parseFloat(window.getComputedStyle(p).fontSize || "0");
+    if (!isFinite(base) || base <= 0) return;
 
-    // Si no hay contenido, no forzar medidas
-    if (!parrafo || String(parrafo).trim().length === 0) {
-      pEl.style.fontSize = "";
-      setFontSizePx(null);
-      return;
+    const avail     = Math.max(0, box.clientHeight - 2);
+    const lines     = Math.max(1, String(display.parrafo).split("\n").filter(Boolean).length);
+    const heightMax = (avail / (lines * 1.3)) * 0.92;
+    const cap       = lines <= 1 ? 104 : lines <= 2 ? 98 : lines <= 3 ? 92 : lines <= 4 ? 86 : 80;
+    const maxPx     = Math.min(140, Math.max(28, Math.max(base, Math.min(heightMax, cap))));
+    const minPx     = Math.max(22, Math.round(maxPx * 0.42));
+
+    p.style.fontSize = `${maxPx}px`;
+    if (p.scrollHeight <= avail) { setFontSizePx(maxPx); return; }
+
+    let lo = minPx, hi = maxPx, best = minPx;
+    for (let i = 0; i < 20 && hi - lo > 0.5; i++) {
+      const mid = (lo + hi) / 2;
+      p.style.fontSize = `${mid}px`;
+      if (p.scrollHeight <= avail) { best = mid; lo = mid; } else hi = mid;
     }
-
-    // Restablecer cualquier font-size anterior para medir el tamaño base real
-    pEl.style.fontSize = "";
-
-    const computed = window.getComputedStyle(pEl);
-    const computedPx = Number.parseFloat(computed.fontSize || "0");
-    if (!Number.isFinite(computedPx) || computedPx <= 0) return;
-
-    // Tamaño máximo sugerido basado en el alto disponible y el # de líneas explícitas.
-    // Esto hace que con pocas líneas el texto crezca más, y con muchas se reduzca.
-    const availableHeight = Math.max(0, boxEl.clientHeight - 2);
-    const explicitLines = String(parrafo)
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean).length;
-    const lineCount = Math.max(1, explicitLines);
-
-    // Asumimos line-height ~1.3, y dejamos un pequeño margen.
-    // IMPORTANTE: limitar el tamaño máximo para evitar que con 1–2 líneas se vuelva gigante.
-    const assumedLineHeight = 1.3;
-    const heightBasedMaxPx =
-      (availableHeight / (lineCount * assumedLineHeight)) * 0.92;
-
-    const maxCapPx =
-      lineCount <= 1
-        ? 104
-        : lineCount <= 2
-          ? 98
-          : lineCount <= 3
-            ? 92
-            : lineCount <= 4
-              ? 86
-              : 80;
-
-    const maxPx = Math.max(computedPx, Math.min(heightBasedMaxPx, maxCapPx));
-    const maxPxClamped = Math.min(140, Math.max(28, maxPx));
-
-    // Límite inferior para evitar texto ilegible
-    const minPx = Math.max(22, Math.round(maxPxClamped * 0.42));
-
-    const cabe = () => {
-      // Un pequeño margen ayuda a evitar cortes por subpíxeles
-      return pEl.scrollHeight <= availableHeight;
-    };
-
-    // Probar con el máximo primero
-    pEl.style.fontSize = `${maxPxClamped}px`;
-    if (cabe()) {
-      setFontSizePx(maxPxClamped);
-      return;
-    }
-
-    // Búsqueda binaria para encontrar el mayor font-size que cabe
-    let low = minPx;
-    let high = maxPxClamped;
-    let best = minPx;
-
-    for (let i = 0; i < 20 && high - low > 0.5; i++) {
-      const mid = (low + high) / 2;
-      pEl.style.fontSize = `${mid}px`;
-
-      if (cabe()) {
-        best = mid;
-        low = mid;
-      } else {
-        high = mid;
-      }
-    }
-
     setFontSizePx(best);
   };
 
-  useLayoutEffect(() => {
-    // Esperar a que el layout esté estable (animaciones/tipografías)
-    const raf = window.requestAnimationFrame(() => {
-      ajustarTextoParaQuepa();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [parrafo, titulo, mostrarTitulo, tamañoParrafo]);
-
+  // Sincrono (sin RAF) para que el tamaño esté listo antes del paint + animación
+  useLayoutEffect(ajustar, [display.parrafo, display.titulo, mostrarTitulo, tamañoParrafo]);
   useEffect(() => {
-    const handleResize = () => ajustarTextoParaQuepa();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
   }, []);
 
+  // ── Render ────────────────────────────────────────────────────────────────
+  const lines      = useMemo(() => parseLines(display.parrafo), [display.parrafo]);
+  const wordCount  = lines.reduce((s, l) => s + l.length, 0);
+  const stagger    = Math.min(0.055, 0.85 / Math.max(wordCount, 1));
+  const wVariants  = useMemo(() => wordVariants(stagger), [stagger]);
+
+  let wordIdx = 0; // índice global de palabra para el delay acumulado
+
   return (
-    <motion.div
-      initial={{opacity: 0, y: 50, scale: 0.95}}
-      animate={{opacity: 1, y: 0, scale: 1}}
-      exit={{opacity: 0, y: -50, scale: 0.95}}
-      transition={{duration: 0.8, ease: "easeOut"}}
-      className="text-center z-10 relative w-screen h-screen flex flex-col justify-center px-[4vw] py-[4vh]"
-    >
-      {/* Title with enhanced styling - Solo mostrar si mostrarTitulo es true */}
-      {mostrarTitulo && (
-        <motion.h1
-          initial={{opacity: 0, y: 20}}
-          animate={{opacity: 1, y: 0}}
-          exit={{opacity: 0, y: -20}}
-          transition={{delay: 0.2, duration: 0.6}}
-          className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-6 tracking-wide`}
-          style={{color: configuracion?.colorSecundario || "#ffffff"}}
-        >
-          {titulo}
-        </motion.h1>
+    <div className="text-center z-10 relative w-screen h-screen flex flex-col justify-center px-[4vw] py-[4vh]">
+
+      {/* Título */}
+      {mostrarTitulo && display.titulo?.trim() && (
+        <AnimatePresence mode="wait">
+          <motion.h1
+            key={`title-${animKey}`}
+            initial={{opacity: 0, y: -16, filter: "blur(5px)"}}
+            animate={{opacity: 1, y: 0,   filter: "blur(0px)",
+              transition: {duration: 0.45, ease: "easeOut"}}}
+            exit={{opacity: 0, y: -12, filter: "blur(5px)",
+              transition: EXIT_TRANSITION}}
+            className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-6 tracking-wide`}
+            style={{color: configuracion?.colorSecundario || "#ffffff"}}
+          >
+            {display.titulo}
+          </motion.h1>
+        </AnimatePresence>
       )}
 
-      {/* Content with enhanced glass morphism */}
-      <motion.div
-        initial={{opacity: 0, scale: 0.9}}
-        animate={{opacity: 1, scale: 1}}
-        transition={{delay: mostrarTitulo ? 0.4 : 0.2, duration: 0.6}}
-        className="relative flex-1 min-h-0 flex flex-col"
-      >
-        <div
-          ref={textBoxRef}
-          className="relative z-10 flex-1 min-h-0 flex items-center justify-center"
-        >
-          <motion.div
-            key={parrafo}
-            initial={{opacity: 0, y: 20}}
-            animate={{opacity: 1, y: 0}}
-            transition={{duration: 0.5}}
-            className="w-full"
-          >
+      {/* Párrafo con stagger de palabras */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        <div ref={textBoxRef} className="relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+          <div className="w-full">
             <p
               ref={paragraphRef}
-              className={`${tamañoParrafo} font-semibold leading-snug whitespace-pre-wrap`}
+              className={`${tamañoParrafo} font-semibold leading-snug`}
               style={{
-                color: configuracion.colorSecundario,
+                color:      configuracion?.colorSecundario,
                 lineHeight: 1.3,
-                fontSize: fontSizePx ? `${fontSizePx}px` : undefined,
-                overflow: "hidden",
+                fontSize:   fontSizePx ? `${fontSizePx}px` : undefined,
               }}
             >
-              {parrafo}
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={`block-${animKey}`}
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  style={{display: "block"}}
+                >
+                  {lines.map((lineWords, li) => (
+                    <span key={li} style={{display: "block"}}>
+                      {lineWords.map((word) => {
+                        const idx = wordIdx++;
+                        return (
+                          <motion.span
+                            key={idx}
+                            custom={idx}
+                            variants={wVariants}
+                            style={{display: "inline-block", marginRight: "0.28em"}}
+                          >
+                            {word}
+                          </motion.span>
+                        );
+                      })}
+                    </span>
+                  ))}
+                </motion.span>
+              </AnimatePresence>
             </p>
-          </motion.div>
+          </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

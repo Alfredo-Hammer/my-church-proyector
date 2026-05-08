@@ -32,6 +32,7 @@ const Biblia = () => {
   const [favoritosBibliaIds, setFavoritosBibliaIds] = useState(() => new Set());
 
   const inputBuscadorRef = useRef(null);
+  const inputTextoRef = useRef(null);
 
   // Estados para el buscador rápido
   const [busqueda, setBusqueda] = useState("");
@@ -45,6 +46,13 @@ const Biblia = () => {
   const [versiculoSeleccionadoBuscador, setVersiculoSeleccionadoBuscador] =
     useState(null);
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
+
+  // Estados para búsqueda full-text
+  const [modoBuscador, setModoBuscador] = useState("referencia"); // "referencia" | "texto"
+  const [busquedaTexto, setBusquedaTexto] = useState("");
+  const [buscandoTexto, setBuscandoTexto] = useState(false);
+  const [resultadosTexto, setResultadosTexto] = useState([]);
+  const [librosBuscados, setLibrosBuscados] = useState(0);
 
   // Auto-focus en el input del buscador al abrirse
   useEffect(() => {
@@ -473,6 +481,63 @@ const Biblia = () => {
     } catch (error) {
       console.error("Error proyectando desde buscador:", error);
     }
+  };
+
+  // Búsqueda full-text en toda la Biblia
+  const buscarEnTodaLaBiblia = useCallback(async () => {
+    const termino = busquedaTexto.trim();
+    if (!termino || buscandoTexto) return;
+    setBuscandoTexto(true);
+    setResultadosTexto([]);
+    setLibrosBuscados(0);
+    const libros = [...librosDeLaBiblia.antiguoTestamento, ...librosDeLaBiblia.nuevoTestamento];
+    const resultados = [];
+    const terminoLower = termino.toLowerCase();
+
+    for (let li = 0; li < libros.length; li++) {
+      const libro = libros[li];
+      try {
+        const data = await cargarLibro(libro.id);
+        setLibrosBuscados(li + 1);
+        if (Array.isArray(data)) {
+          data.forEach((capitulo, capIdx) => {
+            if (!Array.isArray(capitulo)) return;
+            capitulo.forEach((texto, verIdx) => {
+              if (typeof texto === "string" && texto.toLowerCase().includes(terminoLower)) {
+                resultados.push({libroId: libro.id, libroNombre: libro.nombre, capitulo: capIdx + 1, versiculo: verIdx + 1, texto});
+              }
+            });
+          });
+        }
+      } catch {}
+      if (resultados.length >= 60) break;
+    }
+
+    setResultadosTexto(resultados.slice(0, 60));
+    setBuscandoTexto(false);
+  }, [busquedaTexto, buscandoTexto]);
+
+  const proyectarResultadoTexto = async (resultado) => {
+    try {
+      const data = await cargarLibro(resultado.libroId);
+      setLibroSeleccionado(resultado.libroId);
+      setCapitulos(data);
+      setCapituloSeleccionado(resultado.capitulo);
+      setVersiculos(data[resultado.capitulo - 1] || []);
+      setVersiculoSeleccionado(resultado.versiculo);
+      window.electron.abrirProyector();
+      window.electron.enviarVersiculo({
+        parrafo: resultado.texto,
+        titulo: resultado.libroNombre,
+        numero: `${resultado.capitulo}:${resultado.versiculo}`,
+        origen: "biblia",
+      });
+      setMostrarBuscador(false);
+      setMostrarDetalle(true);
+      setModoBuscador("referencia");
+      setBusquedaTexto("");
+      setResultadosTexto([]);
+    } catch {}
   };
 
   // Función para resetear el buscador
@@ -935,56 +1000,62 @@ const Biblia = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setMostrarBuscador(false); resetearBuscador(); }}
+                  onClick={() => { setMostrarBuscador(false); resetearBuscador(); setModoBuscador("referencia"); }}
                   className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/25 flex items-center justify-center text-slate-400 hover:text-red-400 transition-all"
                 >
                   <IoClose />
                 </button>
               </div>
 
-              {/* Stepper compacto */}
-              <div className="flex items-center gap-1">
-                {[{n:1,label:"Libro",color:"blue"},{n:2,label:"Capítulo",color:"green"},{n:3,label:"Versículo",color:"purple"}].map((step, i) => (
-                  <div key={step.n} className="flex items-center gap-1 min-w-0">
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                      pasoActual === step.n
-                        ? step.color === "blue" ? "bg-blue-500/20 border-blue-500/40 text-blue-300" :
-                          step.color === "green" ? "bg-green-500/20 border-green-500/40 text-green-300" :
-                          "bg-purple-500/20 border-purple-500/40 text-purple-300"
-                        : pasoActual > step.n
-                          ? "bg-white/8 border-white/15 text-white/70"
-                          : "bg-transparent border-white/10 text-white/30"
-                    }`}>
-                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        pasoActual >= step.n ? "bg-current/20" : ""
-                      }`}>{step.n}</span>
-                      <span className="hidden sm:inline">{step.label}</span>
-                    </div>
-                    {i < 2 && <div className={`w-4 h-px shrink-0 ${pasoActual > step.n ? "bg-white/30" : "bg-white/10"}`} />}
-                  </div>
-                ))}
-
-                {/* Breadcrumb selección actual */}
-                {libroSeleccionadoBuscador && (
-                  <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] text-blue-400 font-medium truncate max-w-[100px]">{libroSeleccionadoBuscador.nombre}</span>
-                    {capituloSeleccionadoBuscador && (
-                      <>
-                        <span className="text-white/20 text-[10px]">·</span>
-                        <span className="text-[11px] text-green-400 font-medium">Cap. {capituloSeleccionadoBuscador}</span>
-                      </>
-                    )}
-                    {pasoActual > 1 && (
-                      <button onClick={retrocederPaso} className="ml-1 flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 px-1.5 py-0.5 rounded-md transition-all">
-                        <IoChevronBack className="text-[10px]" /> Atrás
-                      </button>
-                    )}
-                  </div>
-                )}
+              {/* Selector de modo */}
+              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5 mb-3">
+                <button
+                  onClick={() => setModoBuscador("referencia")}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${modoBuscador === "referencia" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}
+                >Referencia</button>
+                <button
+                  onClick={() => { setModoBuscador("texto"); setBusquedaTexto(""); setResultadosTexto([]); setTimeout(() => inputTextoRef.current?.focus(), 50); }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${modoBuscador === "texto" ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}
+                >Buscar Texto</button>
               </div>
+
+              {/* Stepper compacto — solo en modo referencia */}
+              {modoBuscador === "referencia" && (
+                <div className="flex items-center gap-1">
+                  {[{n:1,label:"Libro",color:"blue"},{n:2,label:"Capítulo",color:"green"},{n:3,label:"Versículo",color:"purple"}].map((step, i) => (
+                    <div key={step.n} className="flex items-center gap-1 min-w-0">
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                        pasoActual === step.n
+                          ? step.color === "blue" ? "bg-blue-500/20 border-blue-500/40 text-blue-300" :
+                            step.color === "green" ? "bg-green-500/20 border-green-500/40 text-green-300" :
+                            "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                          : pasoActual > step.n
+                            ? "bg-white/8 border-white/15 text-white/70"
+                            : "bg-transparent border-white/10 text-white/30"
+                      }`}>
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${pasoActual >= step.n ? "bg-current/20" : ""}`}>{step.n}</span>
+                        <span className="hidden sm:inline">{step.label}</span>
+                      </div>
+                      {i < 2 && <div className={`w-4 h-px shrink-0 ${pasoActual > step.n ? "bg-white/30" : "bg-white/10"}`} />}
+                    </div>
+                  ))}
+                  {libroSeleccionadoBuscador && (
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] text-blue-400 font-medium truncate max-w-[100px]">{libroSeleccionadoBuscador.nombre}</span>
+                      {capituloSeleccionadoBuscador && (<><span className="text-white/20 text-[10px]">·</span><span className="text-[11px] text-green-400 font-medium">Cap. {capituloSeleccionadoBuscador}</span></>)}
+                      {pasoActual > 1 && (
+                        <button onClick={retrocederPaso} className="ml-1 flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 px-1.5 py-0.5 rounded-md transition-all">
+                          <IoChevronBack className="text-[10px]" /> Atrás
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* ── Campo de búsqueda ── */}
+            {modoBuscador === "referencia" && (
             <div className="px-4 py-3 border-b border-white/6 shrink-0">
               <div className="relative">
                 <IoSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400/70 text-sm pointer-events-none" />
@@ -1010,9 +1081,86 @@ const Biblia = () => {
                 )}
               </div>
             </div>
+            )}
+
+            {/* ── Búsqueda por texto ── */}
+            {modoBuscador === "texto" && (
+              <div className="px-4 py-3 border-b border-white/6 shrink-0">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <IoSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-violet-400/70 text-sm pointer-events-none" />
+                    <input
+                      ref={inputTextoRef}
+                      type="text"
+                      value={busquedaTexto}
+                      onChange={(e) => setBusquedaTexto(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") buscarEnTodaLaBiblia(); }}
+                      placeholder="Ej: la paz os dejo, todo lo puedo..."
+                      className="w-full pl-9 pr-3 py-3 bg-slate-800 border-2 border-slate-600 hover:border-slate-500 focus:border-violet-500 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-colors text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={buscarEnTodaLaBiblia}
+                    disabled={buscandoTexto || !busquedaTexto.trim()}
+                    className="px-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed border border-violet-500/30 rounded-xl text-white text-sm font-semibold transition-colors shrink-0"
+                  >
+                    {buscandoTexto ? "..." : "Buscar"}
+                  </button>
+                </div>
+                {buscandoTexto && (
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Buscando en libro {librosBuscados} / 66...
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* ── Área de resultados / browse ── */}
             <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+
+            {/* ── Resultados de búsqueda por texto ── */}
+            {modoBuscador === "texto" && (
+              <div>
+                {!buscandoTexto && resultadosTexto.length === 0 && !busquedaTexto.trim() && (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="text-4xl mb-3">🔍</div>
+                    <p className="text-sm font-medium text-slate-300 mb-1">Busca en toda la Biblia</p>
+                    <p className="text-xs text-slate-500">Escribe una frase y presiona Buscar o Enter</p>
+                  </div>
+                )}
+                {!buscandoTexto && resultadosTexto.length === 0 && busquedaTexto.trim() && !buscandoTexto && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <IoSearch className="text-3xl text-slate-600 mb-3" />
+                    <p className="text-sm text-slate-400">Sin resultados para "{busquedaTexto}"</p>
+                  </div>
+                )}
+                {resultadosTexto.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-500 mb-2">{resultadosTexto.length} resultado{resultadosTexto.length !== 1 ? "s" : ""}{resultadosTexto.length === 60 ? " (máx.)" : ""}</p>
+                    {resultadosTexto.map((r, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => proyectarResultadoTexto(r)}
+                        className="w-full text-left px-3 py-2.5 rounded-xl border border-white/6 bg-white/4 hover:bg-violet-500/12 hover:border-violet-400/30 transition-all"
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-2 h-2 rounded-full bg-violet-400 shrink-0 mt-1.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-violet-300 mb-0.5">{r.libroNombre} {r.capitulo}:{r.versiculo}</p>
+                            <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">{r.texto}</p>
+                          </div>
+                          <span className="shrink-0 text-[9px] text-slate-600 bg-white/5 border border-white/8 px-1.5 py-0.5 rounded mt-0.5">Proyectar</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Resultados modo referencia ── */}
+            {modoBuscador === "referencia" && (<>
 
               {/* Sin búsqueda en paso 1: mostrar todos los libros */}
               {pasoActual === 1 && !busqueda.trim() && (
@@ -1111,18 +1259,28 @@ const Biblia = () => {
                   ))}
                 </div>
               )}
+            </>)}
             </div>
 
             {/* ── Footer con acciones ── */}
             <div className="px-4 py-3 border-t border-white/6 flex items-center gap-2 shrink-0">
+              {modoBuscador === "referencia" ? (
+                <button
+                  onClick={resetearBuscador}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg transition-all"
+                >
+                  Reiniciar
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setBusquedaTexto(""); setResultadosTexto([]); setBuscandoTexto(false); }}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg transition-all"
+                >
+                  Limpiar
+                </button>
+              )}
               <button
-                onClick={resetearBuscador}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg transition-all"
-              >
-                Reiniciar
-              </button>
-              <button
-                onClick={() => { setMostrarBuscador(false); resetearBuscador(); }}
+                onClick={() => { setMostrarBuscador(false); resetearBuscador(); setModoBuscador("referencia"); }}
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/20 rounded-lg transition-all"
               >
                 <IoClose className="text-xs" /> Cerrar

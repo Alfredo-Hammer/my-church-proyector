@@ -77,7 +77,10 @@ const PresentationManager = () => {
   const [dbAvailable, setDbAvailable] = useState(false);
   const [saveTimeout, setSaveTimeout] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [isProjecting, setIsProjecting] = useState(false); // ✨ Estado de proyección
+  const [isProjecting, setIsProjecting] = useState(false);
+  const [editorTab, setEditorTab] = useState("texto");
+
+  const parsePx = (val, def = 48) => parseInt(String(val || def)) || def;
 
   // ✨ Helper: Current slide
   const currentSlide = currentPresentation?.slides?.[currentSlideIndex] || null;
@@ -488,11 +491,7 @@ const PresentationManager = () => {
         console.log(`🎯 Auto-seleccionada: ${firstPresentation.name}`);
       }
 
-      if (convertedPresentations.length > 0) {
-        showSuccess(
-          `📋 ${convertedPresentations.length} presentaciones cargadas`,
-        );
-      }
+      return convertedPresentations;
     } catch (error) {
       console.error("❌ Error cargando presentaciones:", error);
       showError("❌ Error cargando presentaciones. Trabajando en modo local.");
@@ -516,10 +515,16 @@ const PresentationManager = () => {
         return saveToLocalStorage(presentation);
       }
 
+      // Limpiar slideImages (base64 pesado) antes de guardar en DB — ya están en backgroundImage
+      const slidesLimpios = (presentation.slides || []).map((slide) => {
+        const { slideImages, ...slideClean } = slide;
+        return slideClean;
+      });
+
       const presentationData = {
         nombre: presentation.name.trim(),
         descripcion: presentation.description || "",
-        slides: presentation.slides,
+        slides: slidesLimpios,
         importado_desde: presentation.importedFrom || null,
         tipo_archivo: presentation.fileType || "custom",
         tamano_archivo: presentation.fileSize || 0,
@@ -531,8 +536,13 @@ const PresentationManager = () => {
       console.log(
         "📤 [savePresentationToDB] Llamando agregarPresentacionSlides...",
       );
-      const result =
-        await window.electron.agregarPresentacionSlides(presentationData);
+      // Timeout de 30s para evitar cuelgue si el IPC falla con datos muy grandes
+      const result = await Promise.race([
+        window.electron.agregarPresentacionSlides(presentationData),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("IPC timeout guardando presentación")), 30000)
+        ),
+      ]);
 
       console.log("📨 [savePresentationToDB] Resultado de BD:", result);
 
@@ -554,6 +564,26 @@ const PresentationManager = () => {
       console.error("❌ Error en savePresentationToDB:", error);
       return saveToLocalStorage(presentation);
     }
+  };
+
+  // ✨ Guardar presentación en DB, agregar al estado y seleccionarla
+  const guardarYRefrescar = async (newPresentation, successMsg) => {
+    const saved = await savePresentationToDB(newPresentation);
+    if (!saved) {
+      showError("❌ No se pudo guardar la presentación. Verifica el espacio disponible.");
+      return null;
+    }
+    // Agregar al estado local sin recargar toda la DB (evita IPC colgado con datos grandes)
+    setPresentations((prev) => {
+      if (saved.id && prev.some((p) => p.id === saved.id)) {
+        return prev.map((p) => (p.id === saved.id ? saved : p));
+      }
+      return [...prev, saved];
+    });
+    setCurrentPresentation(saved);
+    setCurrentSlideIndex(0);
+    showSuccess(successMsg);
+    return saved;
   };
 
   // Función para crear presentación desde el modal
@@ -1377,17 +1407,10 @@ const PresentationManager = () => {
                   slideActual: 0,
                 };
 
-                const savedPresentation =
-                  await savePresentationToDB(newPresentation);
-                if (savedPresentation) {
-                  setPresentations((prev) => [...prev, savedPresentation]);
-                  setCurrentPresentation(savedPresentation);
-                  setCurrentSlideIndex(0);
-                  showSuccess(
-                    `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
-                  );
-                }
-
+                await guardarYRefrescar(
+                  newPresentation,
+                  `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
+                );
                 continue;
               }
 
@@ -1463,17 +1486,10 @@ const PresentationManager = () => {
                   slideActual: 0,
                 };
 
-                const savedPresentation =
-                  await savePresentationToDB(newPresentation);
-                if (savedPresentation) {
-                  setPresentations((prev) => [...prev, savedPresentation]);
-                  setCurrentPresentation(savedPresentation);
-                  setCurrentSlideIndex(0);
-                  showSuccess(
-                    `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
-                  );
-                }
-
+                await guardarYRefrescar(
+                  newPresentation,
+                  `✅ PowerPoint importado (diseño original): ${slides.length} diapositivas`,
+                );
                 continue;
               }
 
@@ -1510,16 +1526,10 @@ const PresentationManager = () => {
                 slideActual: 0,
               };
 
-              const savedPresentation =
-                await savePresentationToDB(newPresentation);
-              if (savedPresentation) {
-                setPresentations((prev) => [...prev, savedPresentation]);
-                setCurrentPresentation(savedPresentation);
-                setCurrentSlideIndex(0);
-                showSuccess(
-                  `✅ PowerPoint importado: ${slides.length} diapositivas`,
-                );
-              }
+              await guardarYRefrescar(
+                newPresentation,
+                `✅ PowerPoint importado: ${slides.length} diapositivas`,
+              );
             } else {
               showError(
                 `❌ No se pudieron extraer diapositivas de ${file.name}`,
@@ -1560,14 +1570,10 @@ const PresentationManager = () => {
               slideActual: 0,
             };
 
-            const savedFallback =
-              await savePresentationToDB(fallbackPresentation);
-            if (savedFallback) {
-              setPresentations((prev) => [...prev, savedFallback]);
-              showInfo(
-                "⚠️ PowerPoint importado parcialmente - revisa el contenido",
-              );
-            }
+            await guardarYRefrescar(
+              fallbackPresentation,
+              "⚠️ PowerPoint importado parcialmente - revisa el contenido",
+            );
           }
           continue;
         }
@@ -2148,11 +2154,11 @@ const PresentationManager = () => {
 
               <div className="flex-1 flex">
                 {/* ✨ Slide preview */}
-                <div className="flex-1 p-6">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg h-full flex items-center justify-center">
+                <div className="flex-1 flex flex-col">
+                  <div className="flex-1 bg-black/50 flex items-center justify-center p-4 min-h-0">
                     {currentSlide ? (
                       <div
-                        className="w-full max-w-4xl aspect-video rounded-lg shadow-2xl flex flex-col justify-center items-center p-8 relative overflow-hidden"
+                        className="w-full max-w-4xl aspect-video rounded-lg shadow-2xl relative overflow-hidden"
                         style={{
                           backgroundColor: currentSlide.backgroundColor,
                           backgroundImage: (() => {
@@ -2171,51 +2177,100 @@ const PresentationManager = () => {
                       >
                         {!isRenderedPptxSlide(currentSlide) &&
                           currentSlide.backgroundImage &&
-                          convertPixabayUrlToProxy(
-                            currentSlide.backgroundImage,
-                          ) && (
-                            <div className="absolute inset-0 bg-black/30"></div>
+                          convertPixabayUrlToProxy(currentSlide.backgroundImage) &&
+                          (currentSlide.overlayOpacity ?? 0.3) > 0 && (
+                            <div
+                              className="absolute inset-0"
+                              style={{backgroundColor: `rgba(0,0,0,${currentSlide.overlayOpacity ?? 0.3})`}}
+                            />
                           )}
 
-                        <div className="relative z-10 w-full h-full flex flex-col justify-center">
-                          {isRenderedPptxSlide(
-                            currentSlide,
-                          ) ? null : isEditing ? (
-                            <div className="space-y-4">
+                        <div
+                          className="relative z-10 w-full h-full flex flex-col px-4 py-4 overflow-hidden"
+                          style={{
+                            fontFamily: currentSlide.fontFamily || "inherit",
+                            justifyContent: currentSlide.verticalAlign === "top" ? "flex-start" : currentSlide.verticalAlign === "bottom" ? "flex-end" : "center",
+                            alignItems: currentSlide.textAlign === "left" ? "flex-start" : currentSlide.textAlign === "right" ? "flex-end" : "center",
+                          }}
+                        >
+                          {isRenderedPptxSlide(currentSlide) ? null : isEditing ? (
+                            <div className="w-full space-y-2">
+                              {/* Título */}
                               <input
                                 type="text"
                                 value={currentSlide.title}
-                                onChange={(e) =>
-                                  updateCurrentSlide({title: e.target.value})
-                                }
-                                className="w-full bg-transparent border-2 border-dashed border-white/50 rounded p-2 text-center outline-none"
+                                onChange={(e) => updateCurrentSlide({title: e.target.value})}
+                                className="w-full bg-transparent border-2 border-dashed border-white/50 rounded p-2 outline-none"
                                 style={{
                                   fontSize: currentSlide.titleFontSize,
-                                  color: currentSlide.textColor,
-                                  fontWeight: "bold",
+                                  color: currentSlide.textColor || "#ffffff",
+                                  fontWeight: currentSlide.titleBold !== false ? "bold" : "normal",
+                                  fontStyle: currentSlide.titleItalic ? "italic" : "normal",
+                                  textDecoration: currentSlide.titleUnderline ? "underline" : "none",
+                                  textAlign: currentSlide.textAlign || "center",
+                                  textShadow: currentSlide.textShadow !== false ? "0 2px 6px rgba(0,0,0,0.8)" : "none",
                                 }}
                                 placeholder="Título de la diapositiva"
                               />
+                              {/* Barra de párrafo */}
+                              <div className="flex gap-1">
+                                <button
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    const ta = e.target.closest(".w-full").querySelector("textarea");
+                                    const pos = ta?.selectionStart ?? (currentSlide.content || "").length;
+                                    const txt = currentSlide.content || "";
+                                    const before = txt.slice(0, pos);
+                                    const after = txt.slice(pos);
+                                    const needsNl = before.length > 0 && !before.endsWith("\n");
+                                    updateCurrentSlide({content: (needsNl ? before + "\n" : before) + "• " + after});
+                                  }}
+                                  className="bg-white/15 hover:bg-white/25 text-white text-xs px-2 py-1 rounded transition-colors"
+                                  title="Insertar punto de lista"
+                                >• Lista</button>
+                                <button
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    const txt = currentSlide.content || "";
+                                    updateCurrentSlide({content: txt + (txt && !txt.endsWith("\n") ? "\n" : "") + ""});
+                                  }}
+                                  className="bg-white/15 hover:bg-white/25 text-white text-xs px-2 py-1 rounded transition-colors"
+                                  title="Nueva línea"
+                                >↵ Línea</button>
+                                <span className="ml-auto text-[9px] text-white/30 self-center">
+                                  {(currentSlide.content || "").split("\n").filter(Boolean).length} líneas
+                                </span>
+                              </div>
+                              {/* Contenido multi-párrafo */}
                               <textarea
                                 value={currentSlide.content}
-                                onChange={(e) =>
-                                  updateCurrentSlide({content: e.target.value})
-                                }
-                                className="w-full h-32 bg-transparent border-2 border-dashed border-white/50 rounded p-2 outline-none resize-none"
+                                onChange={(e) => updateCurrentSlide({content: e.target.value})}
+                                className="w-full bg-transparent border-2 border-dashed border-white/50 rounded p-2 outline-none resize-none"
                                 style={{
                                   fontSize: currentSlide.fontSize,
-                                  color: currentSlide.textColor,
+                                  color: currentSlide.textColor || "#ffffff",
+                                  fontWeight: currentSlide.contentBold ? "bold" : "normal",
+                                  fontStyle: currentSlide.contentItalic ? "italic" : "normal",
+                                  textDecoration: currentSlide.contentUnderline ? "underline" : "none",
+                                  textAlign: currentSlide.textAlign || "center",
+                                  minHeight: "6rem",
+                                  height: `${Math.max(96, ((currentSlide.content || "").split("\n").length + 1) * 28)}px`,
                                 }}
-                                placeholder="Contenido de la diapositiva"
+                                placeholder={"Línea 1\nLínea 2\nLínea 3..."}
                               />
                             </div>
                           ) : (
-                            <div className="space-y-4">
+                            <div className="w-full space-y-3">
                               <h1
-                                className="font-bold leading-tight"
+                                className="leading-tight"
                                 style={{
                                   fontSize: currentSlide.titleFontSize,
-                                  color: currentSlide.textColor,
+                                  color: currentSlide.textColor || "#ffffff",
+                                  fontWeight: currentSlide.titleBold !== false ? "bold" : "normal",
+                                  fontStyle: currentSlide.titleItalic ? "italic" : "normal",
+                                  textDecoration: currentSlide.titleUnderline ? "underline" : "none",
+                                  textAlign: currentSlide.textAlign || "center",
+                                  textShadow: currentSlide.textShadow !== false ? "0 2px 6px rgba(0,0,0,0.8)" : "none",
                                 }}
                               >
                                 {currentSlide.title}
@@ -2225,64 +2280,18 @@ const PresentationManager = () => {
                                   className="leading-relaxed whitespace-pre-wrap"
                                   style={{
                                     fontSize: currentSlide.fontSize,
-                                    color: currentSlide.textColor,
+                                    color: currentSlide.textColor || "#ffffff",
+                                    fontWeight: currentSlide.contentBold ? "bold" : "normal",
+                                    fontStyle: currentSlide.contentItalic ? "italic" : "normal",
+                                    textDecoration: currentSlide.contentUnderline ? "underline" : "none",
+                                    textAlign: currentSlide.textAlign || "center",
                                   }}
                                 >
                                   {currentSlide.content}
                                 </div>
                               )}
 
-                              {/* ✨ Mostrar imágenes de PowerPoint si existen */}
-                              {currentSlide.slideImages &&
-                                currentSlide.slideImages.length > 0 && (
-                                  <div
-                                    className="mt-4 grid gap-2"
-                                    style={{
-                                      gridTemplateColumns:
-                                        currentSlide.slideImages.length === 1
-                                          ? "1fr"
-                                          : currentSlide.slideImages.length ===
-                                              2
-                                            ? "1fr 1fr"
-                                            : "repeat(auto-fit, minmax(150px, 1fr))",
-                                    }}
-                                  >
-                                    {currentSlide.slideImages.map(
-                                      (imageUrl, index) => {
-                                        const processedUrl =
-                                          convertPixabayUrlToProxy(imageUrl);
-                                        // Si la URL es null (proxy antiguo), no renderizar nada
-                                        if (!processedUrl) return null;
-
-                                        return (
-                                          <div
-                                            key={index}
-                                            className="relative overflow-hidden rounded-lg"
-                                          >
-                                            <img
-                                              src={processedUrl}
-                                              alt={`Imagen ${
-                                                index + 1
-                                              } de la diapositiva`}
-                                              className="w-full h-auto max-h-48 object-contain rounded-lg shadow-lg"
-                                              style={{
-                                                backgroundColor:
-                                                  "rgba(255,255,255,0.1)",
-                                              }}
-                                              onError={(e) => {
-                                                console.warn(
-                                                  "Error cargando imagen de PowerPoint:",
-                                                  imageUrl,
-                                                );
-                                                e.target.style.display = "none";
-                                              }}
-                                            />
-                                          </div>
-                                        );
-                                      },
-                                    )}
-                                  </div>
-                                )}
+                              {/* slideImages omitidas — ya están como backgroundImage */}
                             </div>
                           )}
                         </div>
@@ -2296,7 +2305,7 @@ const PresentationManager = () => {
                   </div>
 
                   {/* ✨ Slide navigation */}
-                  <div className="flex items-center justify-center gap-4 mt-6">
+                  <div className="flex items-center justify-center gap-4 py-3 border-t border-white/10 shrink-0">
                     <button
                       onClick={prevSlide}
                       disabled={currentSlideIndex === 0}
@@ -2323,168 +2332,365 @@ const PresentationManager = () => {
                   </div>
                 </div>
 
-                {/* ✨ Slide editor panel */}
+                {/* ✨ Panel Editor moderno */}
                 {isEditing && (
-                  <div className="w-80 bg-white/5 border-l border-white/10 p-4 overflow-y-auto">
-                    <h3 className="text-lg font-bold text-white mb-4">
-                      Editor de Diapositiva
-                    </h3>
-
-                    <div className="space-y-4">
-                      {/* ✨ Slide actions */}
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-300 uppercase tracking-wide">
-                          Acciones
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={addSlide}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm flex items-center gap-2 justify-center"
-                          >
-                            <FaPlus /> Agregar
-                          </button>
-                          <button
-                            onClick={duplicateSlide}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex items-center gap-2 justify-center"
-                          >
-                            <FaCopy /> Duplicar
-                          </button>
-                        </div>
+                  <div className="w-80 bg-[#1a1f2e] border-l border-white/10 flex flex-col select-none shrink-0">
+                    {/* Tabs */}
+                    <div className="flex border-b border-white/10 shrink-0">
+                      {[
+                        {id: "texto", label: "Texto"},
+                        {id: "fondo", label: "Fondo"},
+                        {id: "slide", label: "Slide"},
+                      ].map((tab) => (
                         <button
-                          onClick={deleteSlide}
-                          disabled={currentPresentation.slides?.length <= 1}
-                          className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded text-sm flex items-center gap-2 justify-center"
+                          key={tab.id}
+                          onClick={() => setEditorTab(tab.id)}
+                          className={`flex-1 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                            editorTab === tab.id
+                              ? "text-blue-400 border-b-2 border-blue-400"
+                              : "text-gray-500 hover:text-gray-200"
+                          }`}
                         >
-                          <FaTrash /> Eliminar
+                          {tab.label}
                         </button>
-                      </div>
+                      ))}
+                    </div>
 
-                      {/* ✨ Styling options */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 uppercase tracking-wide">
-                          Estilo
-                        </h4>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-1">
-                            Color de fondo
-                          </label>
-                          <input
-                            type="color"
-                            value={currentSlide?.backgroundColor || "#1e293b"}
-                            onChange={(e) =>
-                              updateCurrentSlide({
-                                backgroundColor: e.target.value,
-                              })
-                            }
-                            className="w-full h-10 rounded border border-white/20"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-1">
-                            Color de texto
-                          </label>
-                          <input
-                            type="color"
-                            value={currentSlide?.textColor || "#ffffff"}
-                            onChange={(e) =>
-                              updateCurrentSlide({textColor: e.target.value})
-                            }
-                            className="w-full h-10 rounded border border-white/20"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-1">
-                            Tamaño título
-                          </label>
-                          <select
-                            value={currentSlide?.titleFontSize || "48px"}
-                            onChange={(e) =>
-                              updateCurrentSlide({
-                                titleFontSize: e.target.value,
-                              })
-                            }
-                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white"
-                          >
-                            <option value="24px">24px</option>
-                            <option value="32px">32px</option>
-                            <option value="48px">48px</option>
-                            <option value="64px">64px</option>
-                            <option value="72px">72px</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-1">
-                            Tamaño contenido
-                          </label>
-                          <select
-                            value={currentSlide?.fontSize || "32px"}
-                            onChange={(e) =>
-                              updateCurrentSlide({fontSize: e.target.value})
-                            }
-                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white"
-                          >
-                            <option value="16px">16px</option>
-                            <option value="20px">20px</option>
-                            <option value="24px">24px</option>
-                            <option value="32px">32px</option>
-                            <option value="40px">40px</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-1">
-                            Alineación
-                          </label>
-                          <select
-                            value={currentSlide?.textAlign || "center"}
-                            onChange={(e) =>
-                              updateCurrentSlide({textAlign: e.target.value})
-                            }
-                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white"
-                          >
-                            <option value="left">Izquierda</option>
-                            <option value="center">Centro</option>
-                            <option value="right">Derecha</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm text-gray-300 mb-2">
-                            Imagen de fondo
-                          </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                  updateCurrentSlide({
-                                    backgroundImage: event.target.result,
-                                  });
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                            className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-                          />
-                          {currentSlide?.backgroundImage && (
-                            <button
-                              onClick={() =>
-                                updateCurrentSlide({backgroundImage: null})
-                              }
-                              className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                      {/* ── TAB TEXTO ── */}
+                      {editorTab === "texto" && (
+                        <>
+                          {/* Fuente */}
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Fuente</label>
+                            <select
+                              value={currentSlide?.fontFamily || ""}
+                              onChange={(e) => updateCurrentSlide({fontFamily: e.target.value})}
+                              className="w-full bg-white/8 border border-white/15 rounded-lg px-3 py-2 text-white text-sm"
+                              style={{backgroundColor: "rgba(255,255,255,0.06)"}}
                             >
-                              Quitar imagen
+                              <option value="">Sistema (predeterminada)</option>
+                              <option value="Arial, sans-serif">Arial</option>
+                              <option value="'Times New Roman', serif">Times New Roman</option>
+                              <option value="Georgia, serif">Georgia</option>
+                              <option value="Impact, fantasy">Impact</option>
+                              <option value="Verdana, sans-serif">Verdana</option>
+                              <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                            </select>
+                          </div>
+
+                          {/* TÍTULO */}
+                          <div className="bg-white/5 rounded-xl p-3 space-y-3 border border-white/8">
+                            <p className="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Título</p>
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs text-gray-400">Tamaño</span>
+                                <span className="text-xs font-mono text-white bg-white/10 px-1.5 py-0.5 rounded">
+                                  {parsePx(currentSlide?.titleFontSize, 48)}px
+                                </span>
+                              </div>
+                              <input
+                                type="range" min="16" max="120" step="2"
+                                value={parsePx(currentSlide?.titleFontSize, 48)}
+                                onChange={(e) => updateCurrentSlide({titleFontSize: `${e.target.value}px`})}
+                                className="w-full accent-blue-500 cursor-pointer"
+                              />
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[
+                                {label: "B", prop: "titleBold", def: true, cls: "font-bold"},
+                                {label: "I", prop: "titleItalic", def: false, cls: "italic"},
+                                {label: "U", prop: "titleUnderline", def: false, cls: "underline"},
+                              ].map(({label, prop, def, cls}) => (
+                                <button
+                                  key={prop}
+                                  onClick={() => updateCurrentSlide({[prop]: !(currentSlide?.[prop] ?? def)})}
+                                  className={`flex-1 py-1.5 rounded-lg text-sm transition-colors ${cls} ${
+                                    (currentSlide?.[prop] ?? def)
+                                      ? "bg-blue-600 text-white"
+                                      : "bg-white/10 text-gray-400 hover:bg-white/15"
+                                  }`}
+                                  style={cls === "underline" ? {textDecoration: "underline"} : {}}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* CONTENIDO */}
+                          <div className="bg-white/5 rounded-xl p-3 space-y-3 border border-white/8">
+                            <p className="text-[10px] uppercase tracking-widest text-purple-400 font-bold">Contenido</p>
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs text-gray-400">Tamaño</span>
+                                <span className="text-xs font-mono text-white bg-white/10 px-1.5 py-0.5 rounded">
+                                  {parsePx(currentSlide?.fontSize, 32)}px
+                                </span>
+                              </div>
+                              <input
+                                type="range" min="14" max="80" step="2"
+                                value={parsePx(currentSlide?.fontSize, 32)}
+                                onChange={(e) => updateCurrentSlide({fontSize: `${e.target.value}px`})}
+                                className="w-full accent-purple-500 cursor-pointer"
+                              />
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[
+                                {label: "B", prop: "contentBold", def: false, cls: "font-bold"},
+                                {label: "I", prop: "contentItalic", def: false, cls: "italic"},
+                                {label: "U", prop: "contentUnderline", def: false, cls: "underline"},
+                              ].map(({label, prop, def, cls}) => (
+                                <button
+                                  key={prop}
+                                  onClick={() => updateCurrentSlide({[prop]: !(currentSlide?.[prop] ?? def)})}
+                                  className={`flex-1 py-1.5 rounded-lg text-sm transition-colors ${cls} ${
+                                    (currentSlide?.[prop] ?? def)
+                                      ? "bg-purple-600 text-white"
+                                      : "bg-white/10 text-gray-400 hover:bg-white/15"
+                                  }`}
+                                  style={cls === "underline" ? {textDecoration: "underline"} : {}}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Color de texto */}
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Color de texto</label>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="color"
+                                value={currentSlide?.textColor || "#ffffff"}
+                                onChange={(e) => updateCurrentSlide({textColor: e.target.value})}
+                                className="w-10 h-9 rounded-lg border border-white/20 cursor-pointer shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={currentSlide?.textColor || "#ffffff"}
+                                onChange={(e) => updateCurrentSlide({textColor: e.target.value})}
+                                className="flex-1 border border-white/15 rounded-lg px-3 py-2 text-white text-sm font-mono"
+                                style={{backgroundColor: "rgba(255,255,255,0.06)"}}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Alineación horizontal */}
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Alineación</label>
+                            <div className="grid grid-cols-3 gap-1">
+                              {[
+                                {value: "left", label: "Izq"},
+                                {value: "center", label: "Centro"},
+                                {value: "right", label: "Der"},
+                              ].map(({value, label}) => (
+                                <button
+                                  key={value}
+                                  onClick={() => updateCurrentSlide({textAlign: value})}
+                                  className={`py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    (currentSlide?.textAlign || "center") === value
+                                      ? "bg-blue-600 text-white"
+                                      : "bg-white/10 text-gray-400 hover:bg-white/15"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Posición vertical */}
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Posición vertical</label>
+                            <div className="grid grid-cols-3 gap-1">
+                              {[
+                                {value: "top", label: "Arriba"},
+                                {value: "center", label: "Centro"},
+                                {value: "bottom", label: "Abajo"},
+                              ].map(({value, label}) => (
+                                <button
+                                  key={value}
+                                  onClick={() => updateCurrentSlide({verticalAlign: value})}
+                                  className={`py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    (currentSlide?.verticalAlign || "center") === value
+                                      ? "bg-indigo-600 text-white"
+                                      : "bg-white/10 text-gray-400 hover:bg-white/15"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Sombra de texto */}
+                          <div className="flex items-center justify-between py-1">
+                            <label className="text-[10px] uppercase tracking-widest text-gray-400">Sombra de texto</label>
+                            <button
+                              onClick={() => updateCurrentSlide({textShadow: !(currentSlide?.textShadow ?? true)})}
+                              className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${
+                                (currentSlide?.textShadow ?? true) ? "bg-blue-600" : "bg-white/20"
+                              }`}
+                            >
+                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                                (currentSlide?.textShadow ?? true) ? "translate-x-5" : "translate-x-0.5"
+                              }`} />
                             </button>
-                          )}
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── TAB FONDO ── */}
+                      {editorTab === "fondo" && (
+                        <>
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Color de fondo</label>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="color"
+                                value={currentSlide?.backgroundColor || "#1e293b"}
+                                onChange={(e) => updateCurrentSlide({backgroundColor: e.target.value})}
+                                className="w-10 h-9 rounded-lg border border-white/20 cursor-pointer shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={currentSlide?.backgroundColor || "#1e293b"}
+                                onChange={(e) => updateCurrentSlide({backgroundColor: e.target.value})}
+                                className="flex-1 border border-white/15 rounded-lg px-3 py-2 text-white text-sm font-mono"
+                                style={{backgroundColor: "rgba(255,255,255,0.06)"}}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1.5">Imagen de fondo</label>
+                            <label className="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center gap-2 justify-center transition-colors">
+                              <FaUpload className="text-xs" />
+                              {currentSlide?.backgroundImage ? "Cambiar imagen" : "Subir imagen"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => updateCurrentSlide({backgroundImage: ev.target.result});
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            {currentSlide?.backgroundImage && (
+                              <button
+                                onClick={() => updateCurrentSlide({backgroundImage: null})}
+                                className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
+                              >
+                                <FaTrash className="text-xs" /> Quitar imagen
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] uppercase tracking-widest text-gray-400">Capa oscura</label>
+                              <span className="text-xs font-mono text-white bg-white/10 px-1.5 py-0.5 rounded">
+                                {Math.round((currentSlide?.overlayOpacity ?? 0.3) * 100)}%
+                              </span>
+                            </div>
+                            <input
+                              type="range" min="0" max="80" step="5"
+                              value={Math.round((currentSlide?.overlayOpacity ?? 0.3) * 100)}
+                              onChange={(e) => updateCurrentSlide({overlayOpacity: Number(e.target.value) / 100})}
+                              className="w-full accent-gray-400 cursor-pointer"
+                            />
+                            <div className="flex justify-between text-[9px] text-gray-600 mt-0.5">
+                              <span>Sin capa</span>
+                              <span>Oscuro</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── TAB SLIDE ── */}
+                      {editorTab === "slide" && (
+                        <div className="space-y-4">
+                          {/* Acciones */}
+                          <div className="space-y-2">
+                            <button
+                              onClick={addSlide}
+                              className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
+                            >
+                              <FaPlus /> Nueva diapositiva
+                            </button>
+                            <button
+                              onClick={duplicateSlide}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
+                            >
+                              <FaCopy /> Duplicar esta
+                            </button>
+                            <button
+                              onClick={deleteSlide}
+                              disabled={currentPresentation.slides?.length <= 1}
+                              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-white/5 disabled:text-gray-600 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
+                            >
+                              <FaTrash /> Eliminar diapositiva
+                            </button>
+                          </div>
+
+                          {/* Layouts predeterminados */}
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-2">Aplicar layout</p>
+                            <div className="space-y-1.5">
+                              {[
+                                {
+                                  label: "Título + Contenido",
+                                  icon: "▤",
+                                  apply: {titleFontSize: "48px", fontSize: "28px", textAlign: "center", verticalAlign: "center", titleBold: true, titleItalic: false, contentBold: false},
+                                },
+                                {
+                                  label: "Solo Título",
+                                  icon: "═",
+                                  apply: {titleFontSize: "72px", fontSize: "28px", textAlign: "center", verticalAlign: "center", titleBold: true, content: ""},
+                                },
+                                {
+                                  label: "Versículo Bíblico",
+                                  icon: "✝",
+                                  apply: {titleFontSize: "32px", fontSize: "36px", textAlign: "center", verticalAlign: "center", titleBold: false, titleItalic: true, contentBold: false, contentItalic: true},
+                                },
+                                {
+                                  label: "Puntos de Lista",
+                                  icon: "☰",
+                                  apply: {titleFontSize: "40px", fontSize: "26px", textAlign: "left", verticalAlign: "top", titleBold: true, contentBold: false},
+                                },
+                                {
+                                  label: "Cita / Reflexión",
+                                  icon: "❝",
+                                  apply: {titleFontSize: "28px", fontSize: "40px", textAlign: "center", verticalAlign: "center", titleBold: false, titleItalic: true, contentBold: false, contentItalic: true},
+                                },
+                                {
+                                  label: "Anuncio Grande",
+                                  icon: "📢",
+                                  apply: {titleFontSize: "64px", fontSize: "32px", textAlign: "center", verticalAlign: "center", titleBold: true, textShadow: true},
+                                },
+                              ].map(({label, icon, apply}) => (
+                                <button
+                                  key={label}
+                                  onClick={() => updateCurrentSlide(apply)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 hover:border-white/15 transition-all text-left"
+                                >
+                                  <span className="text-base shrink-0 w-5 text-center">{icon}</span>
+                                  <span>{label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
                     </div>
                   </div>
                 )}

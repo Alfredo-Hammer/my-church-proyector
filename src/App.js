@@ -7,7 +7,7 @@ import Himnos from "./pages/Himnos";
 import Favoritos from "./pages/Favoritos";
 import HimnoDetalle from "./pages/HimnoDetalle";
 import Proyector from "./pages/Proyector";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import GestionFondos from "./pages/GestionFondos";
 import Contactos from "./pages/Contactos";
 import Inicio from "./pages/Inicio";
@@ -16,6 +16,10 @@ import Multimedia from './pages/Multimedia';
 import HimnoVidaCristiana from "./pages/HimnoVidaCristiana";
 import Configuracion from "./pages/Configuracion";
 import AppMovil from "./pages/AppMovil";
+import Presentaciones from "./pages/Presentaciones";
+import Anuncios from "./pages/Anuncios";
+import Temporizador from "./pages/Temporizador";
+import Plantillas from "./pages/Plantillas";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
 import GlobalMediaPlayer from "./components/GlobalMediaPlayer";
 import UpdateNotification from "./components/UpdateNotification";
@@ -251,24 +255,18 @@ function AppContent() {
 // Componente para el layout principal que adapta el padding según la ruta
 function MainLayout() {
   const location = useLocation();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
-  // Para la página de inicio y multimedia, no aplicar padding top adicional
-  const isInicio = location.pathname === '/';
+  const isInicio    = location.pathname === '/';
   const isMultimedia = location.pathname === '/multimedia';
-
   const contentClasses = isInicio
-    ? `flex-1 min-h-0 overflow-hidden bg-gray-800 transition-all duration-300`
+    ? `flex-1 min-h-0 overflow-hidden bg-gray-800`
     : isMultimedia
-      ? `flex-1 min-h-0 overflow-hidden bg-gray-800 p-2 lg:p-3 xl:p-4 transition-all duration-300`
-      : `flex-1 min-h-0 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5 transition-all duration-300`;
+      ? `flex-1 min-h-0 overflow-hidden bg-gray-800`
+      : `flex-1 min-h-0 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5`;
 
   return (
     <div className="flex h-screen">
-      <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-      />
+      <Sidebar />
       {/* Columna derecha: header pegado arriba + contenido con padding */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-800">
         {!isInicio && !isMultimedia && <Header />}
@@ -287,6 +285,10 @@ function MainLayout() {
             <Route path="/app-movil" element={<AppMovil />} />
             <Route path="/multimedia" element={<Multimedia />} />
             <Route path="/gestion-fondos" element={<GestionFondos />} />
+            <Route path="/presentaciones" element={<Presentaciones />} />
+            <Route path="/anuncios" element={<Anuncios />} />
+            <Route path="/temporizador" element={<Temporizador />} />
+            <Route path="/plantillas" element={<Plantillas />} />
           </Routes>
         </main>
       </div>

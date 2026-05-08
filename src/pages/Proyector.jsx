@@ -4,6 +4,8 @@ import ModernMultimediaRenderer from "../components/ModernMultimediaRenderer";
 import ModernTextDisplay from "../components/ModernTextDisplay";
 import ModernWelcomeScreen from "../components/ModernWelcomeScreen";
 import ParticleBackground from "../components/ParticleBackground";
+import PlantillaGSAP from "../components/PlantillaGSAP";
+import TimerDisplay from "../components/TimerDisplay";
 
 // Función para obtener la URL base del servidor multimedia
 const getBaseURL = () => {
@@ -151,6 +153,9 @@ const Proyector = () => {
   const [himnoActual, setHimnoActual] = useState(""); // ID del himno actual
   const [mostrarTituloHimno, setMostrarTituloHimno] = useState(true);
   const [tituloInicialMostrado, setTituloInicialMostrado] = useState(false); // ✨ Rastrear si ya mostramos el título
+
+  // Estado del temporizador dedicado
+  const [timerData, setTimerData] = useState(null);
 
   // ✨ NUEVOS ESTADOS PARA MULTIMEDIA
   const [multimediaActiva, setMultimediaActiva] = useState(null);
@@ -605,6 +610,9 @@ const Proyector = () => {
   const [fondoActivo, setFondoActivo] = useState(null);
   const [fondoActual, setFondoActual] = useState("/videos/video1.mp4");
   const [usandoFondoDefecto, setUsandoFondoDefecto] = useState(true);
+  // Capa inferior del crossfade: fondo anterior que se mantiene visible mientras el nuevo entra
+  const [fondoPrevio, setFondoPrevio] = useState(null); // { url, tipo }
+  const fondoPrevioTimerRef = useRef(null);
 
   // ✨ NUEVOS ESTADOS PARA EFECTOS
   const [efectosActivos, setEfectosActivos] = useState(true);
@@ -641,6 +649,12 @@ const Proyector = () => {
   const [presentaciones, setPresentaciones] = useState([]);
   const [modoProyeccion, setModoProyeccion] = useState("bienvenida"); // bienvenida, presentacion, multimedia
   const [slideData, setSlideData] = useState(null); // ✨ DATOS DE SLIDE INDIVIDUAL
+
+  // ── Plantilla GSAP global ──────────────────────────────────────────────────
+  const leerGsapGlobal = () => {
+    try { return JSON.parse(localStorage.getItem("gsap-plantilla-global") || "null"); } catch { return null; }
+  };
+  const [gsapGlobal, setGsapGlobal] = useState(leerGsapGlobal);
 
   // ✨ FUNCIÓN PARA CARGAR CONFIGURACIÓN
   const cargarConfiguracion = async () => {
@@ -818,16 +832,31 @@ const Proyector = () => {
     console.log("📺 [Proyector] Video por defecto seleccionado:", rutaCompleta);
   };
 
-  // ✨ FUNCIÓN PARA ACTUALIZAR FONDO ACTIVO
+  // ✨ FUNCIÓN PARA ACTUALIZAR FONDO ACTIVO CON CROSSFADE
   const actualizarFondoActivo = (nuevoFondo) => {
     console.log("🔄 [Proyector] Actualizando fondo activo:", nuevoFondo);
 
     if (nuevoFondo && nuevoFondo.url) {
-      setFondoActivo(nuevoFondo);
-      setFondoActual(nuevoFondo.url);
+      // Asegurar URL completa (por si el evento IPC llega sin transformar)
+      const urlCompleta = nuevoFondo.url.startsWith("http")
+        ? nuevoFondo.url
+        : `${getBaseURL()}${nuevoFondo.url}`;
+
+      const fondoConUrl = { ...nuevoFondo, url: urlCompleta };
+
+      // Guardar fondo actual como capa inferior para el crossfade
+      if (fondoPrevioTimerRef.current) clearTimeout(fondoPrevioTimerRef.current);
+      setFondoPrevio({ url: fondoActual, tipo: fondoActivo?.tipo || "video" });
+
+      setFondoActivo(fondoConUrl);
+      setFondoActual(urlCompleta);
       setUsandoFondoDefecto(false);
-      console.log("✅ [Proyector] Fondo activo actualizado:", nuevoFondo.url);
+
+      // Limpiar capa inferior después de que el crossfade termine
+      fondoPrevioTimerRef.current = setTimeout(() => setFondoPrevio(null), 1400);
+      console.log("✅ [Proyector] Fondo activo actualizado:", urlCompleta);
     } else {
+      setFondoPrevio(null);
       setFondoActivo(null);
       setUsandoFondoDefecto(true);
       seleccionarVideoDefecto();
@@ -922,6 +951,7 @@ const Proyector = () => {
         setTitulo("");
         setNumero("");
         setMultimediaActiva(null);
+        setTimerData(null);
         // ✨ RESETEAR CONTROL DE HIMNO
         setHimnoActual("");
         setMostrarTituloHimno(true);
@@ -1032,6 +1062,18 @@ const Proyector = () => {
     return () => {
       clearInterval(intervalo);
     };
+  }, []);
+
+  // ── Escuchar cambios de plantilla GSAP global en tiempo real ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "gsap-plantilla-global") {
+        try { setGsapGlobal(e.newValue ? JSON.parse(e.newValue) : null); }
+        catch {}
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
   }, []);
 
   // ✨ ESCUCHAR EVENTOS IPC PARA PRESENTACIONES
@@ -1902,6 +1944,11 @@ const Proyector = () => {
 
     // ✨ REGISTRAR TODOS LOS LISTENERS
     if (window.electron?.on) {
+      window.electron.on("mostrar-temporizador", (_, data) => {
+        setTimerData(data);
+        setModoProyector("temporizador");
+        setShowContent(true);
+      });
       window.electron.on("mostrar-himno", handleMostrarHimno);
       window.electron.on("mostrar-versiculo", handleMostrarVersiculo);
       window.electron.on("mostrar-multimedia", handleMostrarMultimedia);
@@ -2082,6 +2129,13 @@ const Proyector = () => {
     };
   }, []); // ✨ DEPENDENCIAS VACÍAS PARA EVITAR REINICIALIZACIONES
 
+  // Limpiar timer de crossfade al desmontar
+  useEffect(() => {
+    return () => {
+      if (fondoPrevioTimerRef.current) clearTimeout(fondoPrevioTimerRef.current);
+    };
+  }, []);
+
   return (
     <>
       <motion.div
@@ -2103,62 +2157,79 @@ const Proyector = () => {
           cursor: "none",
         }}
       >
-        {/* ✨ FONDO DINÁMICO MEJORADO */}
-        {!(
-          (
-            (modoProyector === "multimedia" &&
-              multimediaActiva?.tipo === "video") ||
-            modoProyector === "slide"
-          ) // ✨ OCULTAR FONDO CUANDO HAY SLIDES ACTIVAS
-        ) && (
-          <AnimatePresence mode="wait">
-            {fondoActivo && fondoActivo.tipo === "imagen" ? (
+        {/* ✨ FONDO DINÁMICO — SISTEMA DE CROSSFADE SIN PARPADEO */}
+        {!((modoProyector === "multimedia" && multimediaActiva?.tipo === "video") || modoProyector === "slide") && (
+          <>
+            {/* ── Capa inferior: fondo ANTERIOR se mantiene visible durante la transición ── */}
+            <AnimatePresence>
+              {fondoPrevio && (
+                <motion.div
+                  key={`previo-${fondoPrevio.url}`}
+                  className="absolute top-0 left-0 w-full h-full -z-20"
+                  initial={{opacity: 1}}
+                  animate={{opacity: 1}}
+                  exit={{opacity: 0}}
+                  transition={{duration: 1.2, ease: "easeInOut"}}
+                >
+                  {fondoPrevio.tipo === "imagen" ? (
+                    <div
+                      className="w-full h-full bg-cover bg-center bg-no-repeat"
+                      style={{
+                        backgroundImage: `url(${fondoPrevio.url})`,
+                        filter: "contrast(1.1) brightness(1.05)",
+                        backfaceVisibility: "hidden",
+                      }}
+                    />
+                  ) : (
+                    <video
+                      className="w-full h-full object-cover bg-black"
+                      src={fondoPrevio.url}
+                      autoPlay loop muted playsInline
+                      style={{filter: "contrast(1.05) brightness(1.02)", backfaceVisibility: "hidden"}}
+                    />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ── Capa superior: fondo NUEVO fade-in encima del anterior ── */}
+            <AnimatePresence>
               <motion.div
                 key={fondoActual}
-                className="absolute top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat -z-10"
-                style={{
-                  backgroundImage: `url(${fondoActual})`,
-                  // ✨ MEJORAS PARA CALIDAD DE IMÁGENES DE FONDO
-                  imageRendering: "high-quality",
-                  filter: "contrast(1.1) brightness(1.05)", // Mejorar contraste y brillo
-                  backfaceVisibility: "hidden",
-                }}
-                initial={{scale: 1.05, opacity: 0}}
-                animate={{scale: 1, opacity: 1}}
-                exit={{scale: 0.95, opacity: 0}}
-                transition={{duration: 0.8, ease: "easeInOut"}}
-              />
-            ) : (
-              <motion.video
-                key={fondoActual}
-                className="absolute top-0 left-0 w-full h-full object-cover -z-10 bg-black"
-                src={fondoActual}
-                autoPlay
-                loop
-                muted
-                // ✨ MEJORAS PARA CALIDAD DE VIDEO
-                style={{
-                  filter: "contrast(1.05) brightness(1.02)", // Ligera mejora de contraste
-                  backfaceVisibility: "hidden",
-                }}
-                // ✨ ATRIBUTOS PARA MEJOR CALIDAD DE VIDEO
-                preload="auto"
-                playsInline
-                initial={{scale: 1.05, opacity: 0}}
-                animate={{scale: 1, opacity: 1}}
-                exit={{scale: 0.95, opacity: 0}}
-                transition={{duration: 0.8, ease: "easeInOut"}}
-                onError={(e) => {
-                  console.error("❌ Error cargando video:", fondoActual);
-                  if (!usandoFondoDefecto) {
-                    console.log("🔄 Fallback a videos por defecto");
-                    setUsandoFondoDefecto(true);
-                    seleccionarVideoDefecto();
-                  }
-                }}
-              />
-            )}
-          </AnimatePresence>
+                className="absolute top-0 left-0 w-full h-full -z-10"
+                initial={{opacity: 0}}
+                animate={{opacity: 1}}
+                exit={{opacity: 0}}
+                transition={{duration: 1.0, ease: "easeInOut"}}
+              >
+                {fondoActivo?.tipo === "imagen" ? (
+                  <div
+                    className="w-full h-full bg-cover bg-center bg-no-repeat"
+                    style={{
+                      backgroundImage: `url(${fondoActual})`,
+                      imageRendering: "high-quality",
+                      filter: "contrast(1.1) brightness(1.05)",
+                      backfaceVisibility: "hidden",
+                    }}
+                  />
+                ) : (
+                  <video
+                    className="w-full h-full object-cover bg-black"
+                    src={fondoActual}
+                    autoPlay loop muted playsInline preload="auto"
+                    style={{filter: "contrast(1.05) brightness(1.02)", backfaceVisibility: "hidden"}}
+                    onError={() => {
+                      console.error("❌ Error cargando video:", fondoActual);
+                      if (!usandoFondoDefecto) {
+                        setUsandoFondoDefecto(true);
+                        seleccionarVideoDefecto();
+                      }
+                    }}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </>
         )}
 
         {/* Overlay gradient mejorado */}
@@ -2218,26 +2289,26 @@ const Proyector = () => {
 
         {/* ✨ TEXTO MODERNO PARA HIMNOS/VERSÍCULOS */}
         <AnimatePresence mode="wait">
-          {(() => {
-            // ✨ Solo requiere párrafo, título es opcional (para himnos sin título arriba)
-            const shouldShow =
-              parrafo && showContent && modoProyector === "himno";
-            console.log("🔍 [Proyector] Condición renderizado texto:", {
-              parrafo: !!parrafo,
-              titulo: !!titulo,
-              showContent,
-              modoProyector,
-              shouldShow,
-            });
-            return shouldShow;
-          })() && (
-            <ModernTextDisplay
-              titulo={titulo}
-              parrafo={parrafo}
-              numero={numero}
-              configuracion={configuracion}
-              mostrarTitulo={mostrarTituloHimno}
-            />
+          {parrafo && showContent && modoProyector === "himno" && (
+            gsapGlobal?.plantillaId && gsapGlobal.plantillaId !== "ninguna" ? (
+              <div key={`gsap-${gsapGlobal.plantillaId}`} className="absolute inset-0 z-10 w-full h-screen">
+                <PlantillaGSAP
+                  titulo={titulo?.trim() || ""}
+                  texto={parrafo}
+                  plantillaId={gsapGlobal.plantillaId}
+                  config={gsapGlobal.config || {}}
+                  configuracion={configuracion}
+                />
+              </div>
+            ) : (
+              <ModernTextDisplay
+                titulo={titulo}
+                parrafo={parrafo}
+                numero={numero}
+                configuracion={configuracion}
+                mostrarTitulo={mostrarTituloHimno}
+              />
+            )
           )}
         </AnimatePresence>
 
@@ -2316,14 +2387,17 @@ const Proyector = () => {
                     backgroundRepeat: "no-repeat",
                   }}
                 >
-                  {/* Overlay para mejorar legibilidad (no aplicar a PPTX renderizado) */}
+                  {/* Overlay configurable (no aplicar a PPTX renderizado) */}
                   {!(
                     presentacionActiva.slides?.[slideActual]?.renderMode ===
                       "pptx" ||
                     presentacionActiva.slides?.[slideActual]?.layout ===
                       "pptx-image"
-                  ) && (
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm rounded-xl"></div>
+                  ) && (presentacionActiva.slides?.[slideActual]?.overlayOpacity ?? 0.3) > 0 && (
+                    <div
+                      className="absolute inset-0 rounded-xl"
+                      style={{backgroundColor: `rgba(0,0,0,${presentacionActiva.slides[slideActual].overlayOpacity ?? 0.3})`}}
+                    />
                   )}
 
                   {/* Indicador de carga de imagen */}
@@ -2339,97 +2413,80 @@ const Proyector = () => {
                   )}
 
                   {/* Contenido de la slide */}
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center px-8 py-4 max-h-screen overflow-hidden">
-                    {/* Título */}
-                    {presentacionActiva.slides[slideActual].title && (
-                      <motion.h1
-                        className="font-bold mb-6 leading-tight"
+                  {(() => {
+                    const sl = presentacionActiva.slides[slideActual];
+                    return (
+                      <div
+                        className="relative z-10 w-full h-full flex flex-col px-8 py-6 overflow-hidden"
                         style={{
-                          fontSize:
-                            presentacionActiva.slides[slideActual]
-                              .titleFontSize || "4rem",
-                          textAlign:
-                            presentacionActiva.slides[slideActual].textAlign ||
-                            "center",
-                          // ✨ MEJORAS PARA CALIDAD DE TEXTO
-                          textRendering: "optimizeLegibility",
-                          WebkitFontSmoothing: "antialiased",
-                          MozOsxFontSmoothing: "grayscale",
-                          fontKerning: "normal",
-                          textShadow: "0 2px 4px rgba(0,0,0,0.5)", // Sombra para mejor contraste
+                          fontFamily: sl.fontFamily || "inherit",
+                          justifyContent: sl.verticalAlign === "top" ? "flex-start" : sl.verticalAlign === "bottom" ? "flex-end" : "center",
+                          alignItems: sl.textAlign === "left" ? "flex-start" : sl.textAlign === "right" ? "flex-end" : "center",
                         }}
-                        initial={{opacity: 0, y: 30}}
-                        animate={{opacity: 1, y: 0}}
-                        transition={{delay: 0.2, duration: 0.6}}
                       >
-                        {presentacionActiva.slides[slideActual].title}
-                      </motion.h1>
-                    )}
+                        {sl.title && (
+                          <motion.h1
+                            className="mb-4 leading-tight"
+                            style={{
+                              fontSize: sl.titleFontSize || "4rem",
+                              color: sl.textColor || "#ffffff",
+                              textAlign: sl.textAlign || "center",
+                              fontWeight: sl.titleBold !== false ? "bold" : "normal",
+                              fontStyle: sl.titleItalic ? "italic" : "normal",
+                              textDecoration: sl.titleUnderline ? "underline" : "none",
+                              textShadow: sl.textShadow !== false ? "0 2px 8px rgba(0,0,0,0.9), 0 0 30px rgba(0,0,0,0.5)" : "none",
+                              textRendering: "optimizeLegibility",
+                              WebkitFontSmoothing: "antialiased",
+                            }}
+                            initial={{opacity: 0, y: 30}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{delay: 0.2, duration: 0.6}}
+                          >
+                            {sl.title}
+                          </motion.h1>
+                        )}
+                        {sl.content && (
+                          <motion.div
+                            className="leading-relaxed overflow-hidden"
+                            style={{
+                              fontSize: sl.fontSize || "2.5rem",
+                              color: sl.textColor || "#ffffff",
+                              textAlign: sl.textAlign || "center",
+                              fontWeight: sl.contentBold ? "bold" : "normal",
+                              fontStyle: sl.contentItalic ? "italic" : "normal",
+                              textDecoration: sl.contentUnderline ? "underline" : "none",
+                              textShadow: sl.textShadow !== false ? "0 1px 4px rgba(0,0,0,0.9)" : "none",
+                              textRendering: "optimizeLegibility",
+                              WebkitFontSmoothing: "antialiased",
+                            }}
+                            initial={{opacity: 0, y: 30}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{delay: 0.4, duration: 0.6}}
+                          >
+                            {sl.content.split("\n").map((line, index) => (
+                              <p key={index} className="mb-3">{line}</p>
+                            ))}
+                          </motion.div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
-                    {/* Contenido */}
-                    {presentacionActiva.slides[slideActual].content && (
-                      <motion.div
-                        className="leading-relaxed max-h-96 overflow-hidden"
-                        style={{
-                          fontSize:
-                            presentacionActiva.slides[slideActual].fontSize ||
-                            "2.5rem",
-                          textAlign:
-                            presentacionActiva.slides[slideActual].textAlign ||
-                            "center",
-                          // ✨ MEJORAS PARA CALIDAD DE TEXTO DEL CONTENIDO
-                          textRendering: "optimizeLegibility",
-                          WebkitFontSmoothing: "antialiased",
-                          MozOsxFontSmoothing: "grayscale",
-                          fontKerning: "normal",
-                          textShadow: "0 1px 3px rgba(0,0,0,0.5)", // Sombra más sutil para contenido
-                        }}
-                        initial={{opacity: 0, y: 30}}
-                        animate={{opacity: 1, y: 0}}
-                        transition={{delay: 0.4, duration: 0.6}}
-                      >
-                        {presentacionActiva.slides[slideActual].content
-                          .split("\n")
-                          .map((line, index) => (
-                            <p key={index} className="mb-4">
-                              {line}
-                            </p>
-                          ))}
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Indicador / nombre (no mostrar en PPTX renderizado) */}
+                  {/* Indicador de diapositiva (no mostrar en PPTX renderizado) */}
                   {!(
-                    presentacionActiva.slides?.[slideActual]?.renderMode ===
-                      "pptx" ||
-                    presentacionActiva.slides?.[slideActual]?.layout ===
-                      "pptx-image"
+                    presentacionActiva.slides?.[slideActual]?.renderMode === "pptx" ||
+                    presentacionActiva.slides?.[slideActual]?.layout === "pptx-image"
                   ) && (
-                    <>
-                      <motion.div
-                        className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                        initial={{opacity: 0}}
-                        animate={{opacity: 1}}
-                        transition={{delay: 0.6}}
-                      >
-                        <p className="text-sm font-medium">
-                          {slideActual + 1} /{" "}
-                          {presentacionActiva.slides?.length || 0}
-                        </p>
-                      </motion.div>
-
-                      <motion.div
-                        className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                        initial={{opacity: 0}}
-                        animate={{opacity: 1}}
-                        transition={{delay: 0.6}}
-                      >
-                        <p className="text-sm font-medium">
-                          📊 {presentacionActiva.name}
-                        </p>
-                      </motion.div>
-                    </>
+                    <motion.div
+                      className="absolute bottom-4 right-4 bg-black/50 rounded-lg px-2.5 py-1 border border-white/10"
+                      initial={{opacity: 0}}
+                      animate={{opacity: 1}}
+                      transition={{delay: 0.6}}
+                    >
+                      <p className="text-xs font-medium text-white/70">
+                        {slideActual + 1} / {presentacionActiva.slides?.length || 0}
+                      </p>
+                    </motion.div>
                   )}
                 </div>
               )}
@@ -2437,9 +2494,33 @@ const Proyector = () => {
           )}
         </AnimatePresence>
 
+        {/* ✨ TEMPORIZADOR DEDICADO */}
+        {modoProyector === "temporizador" && timerData && showContent && (
+          <div className="absolute inset-0 z-40">
+            <TimerDisplay
+              segundos={timerData.segundos}
+              total={timerData.total}
+              mensaje={timerData.mensaje}
+              terminado={timerData.terminado}
+            />
+          </div>
+        )}
+
         {/* ✨ SLIDES INDIVIDUALES (NUEVO MODO) */}
         <AnimatePresence mode="wait">
-          {modoProyector === "slide" && slideData && showContent && (
+          {/* ── Plantilla GSAP (modo slide con gsapTemplate) ── */}
+          {modoProyector === "slide" && slideData?.slide?.gsapTemplate && showContent && (
+            <div key={`gsap-${slideData.slide.id}`} className="absolute inset-0 z-30">
+              <PlantillaGSAP
+                titulo={slideData.slide.title || ""}
+                texto={slideData.slide.content || ""}
+                plantillaId={slideData.slide.gsapTemplate}
+                config={slideData.slide.gsapConfig || {}}
+              />
+            </div>
+          )}
+
+          {modoProyector === "slide" && slideData && showContent && !slideData.slide?.gsapTemplate && (
             <motion.div
               key={`slide-${slideData.slide?.id || Date.now()}`}
               className="w-full h-screen flex items-center justify-center relative z-30 overflow-hidden"
@@ -2468,66 +2549,76 @@ const Proyector = () => {
                   backgroundRepeat: "no-repeat",
                 }}
               >
-                {/* Overlay para mejorar legibilidad (no aplicar a PPTX renderizado) */}
+                {/* Overlay configurable (no aplicar a PPTX renderizado) */}
                 {!(
                   slideData.slide?.renderMode === "pptx" ||
                   slideData.slide?.layout === "pptx-image"
-                ) && (
-                  <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+                ) && (slideData.slide?.overlayOpacity ?? 0.3) > 0 && (
+                  <div
+                    className="absolute inset-0"
+                    style={{backgroundColor: `rgba(0,0,0,${slideData.slide?.overlayOpacity ?? 0.3})`}}
+                  />
                 )}
 
                 {/* Contenido de la slide */}
-                <div className="relative z-10 w-full h-full flex flex-col items-center justify-center px-8 py-4 max-h-screen overflow-hidden">
-                  {/* Título */}
-                  {slideData.slide?.title && (
-                    <motion.h1
-                      className="font-bold mb-6 leading-tight"
+                {(() => {
+                  const sl = slideData.slide;
+                  return (
+                    <div
+                      className="relative z-10 w-full h-full flex flex-col px-8 py-8 overflow-hidden"
                       style={{
-                        fontSize: slideData.slide.titleFontSize || "4rem",
-                        textAlign: slideData.slide.textAlign || "center",
-                        // ✨ MEJORAS PARA CALIDAD DE TEXTO - SLIDES INDIVIDUALES
-                        textRendering: "optimizeLegibility",
-                        WebkitFontSmoothing: "antialiased",
-                        MozOsxFontSmoothing: "grayscale",
-                        fontKerning: "normal",
-                        textShadow: "0 2px 4px rgba(0,0,0,0.5)",
+                        fontFamily: sl?.fontFamily || "inherit",
+                        justifyContent: sl?.verticalAlign === "top" ? "flex-start" : sl?.verticalAlign === "bottom" ? "flex-end" : "center",
+                        alignItems: sl?.textAlign === "left" ? "flex-start" : sl?.textAlign === "right" ? "flex-end" : "center",
                       }}
-                      initial={{opacity: 0, y: 30}}
-                      animate={{opacity: 1, y: 0}}
-                      transition={{delay: 0.2, duration: 0.6}}
                     >
-                      {slideData.slide.title}
-                    </motion.h1>
-                  )}
-
-                  {/* Contenido */}
-                  {slideData.slide?.content && (
-                    <motion.div
-                      className="leading-relaxed max-h-96 overflow-hidden"
-                      style={{
-                        fontSize: slideData.slide.fontSize || "2.5rem",
-                        textAlign: slideData.slide.textAlign || "center",
-                        // ✨ MEJORAS PARA CALIDAD DE CONTENIDO - SLIDES INDIVIDUALES
-                        textRendering: "optimizeLegibility",
-                        WebkitFontSmoothing: "antialiased",
-                        MozOsxFontSmoothing: "grayscale",
-                        fontKerning: "normal",
-                        textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-                      }}
-                      initial={{opacity: 0, y: 30}}
-                      animate={{opacity: 1, y: 0}}
-                      transition={{delay: 0.4, duration: 0.6}}
-                    >
-                      {slideData.slide.content
-                        .split("\n")
-                        .map((line, index) => (
-                          <p key={index} className="mb-4">
-                            {line}
-                          </p>
-                        ))}
-                    </motion.div>
-                  )}
-                </div>
+                      {sl?.title && (
+                        <motion.h1
+                          className="mb-4 leading-tight"
+                          style={{
+                            fontSize: sl.titleFontSize || "4rem",
+                            color: sl.textColor || "#ffffff",
+                            textAlign: sl.textAlign || "center",
+                            fontWeight: sl.titleBold !== false ? "bold" : "normal",
+                            fontStyle: sl.titleItalic ? "italic" : "normal",
+                            textDecoration: sl.titleUnderline ? "underline" : "none",
+                            textShadow: sl.textShadow !== false ? "0 2px 8px rgba(0,0,0,0.9), 0 0 30px rgba(0,0,0,0.5)" : "none",
+                            textRendering: "optimizeLegibility",
+                            WebkitFontSmoothing: "antialiased",
+                          }}
+                          initial={{opacity: 0, y: 30}}
+                          animate={{opacity: 1, y: 0}}
+                          transition={{delay: 0.2, duration: 0.6}}
+                        >
+                          {sl.title}
+                        </motion.h1>
+                      )}
+                      {sl?.content && (
+                        <motion.div
+                          className="leading-relaxed overflow-hidden"
+                          style={{
+                            fontSize: sl.fontSize || "2.5rem",
+                            color: sl.textColor || "#ffffff",
+                            textAlign: sl.textAlign || "center",
+                            fontWeight: sl.contentBold ? "bold" : "normal",
+                            fontStyle: sl.contentItalic ? "italic" : "normal",
+                            textDecoration: sl.contentUnderline ? "underline" : "none",
+                            textShadow: sl.textShadow !== false ? "0 1px 4px rgba(0,0,0,0.9)" : "none",
+                            textRendering: "optimizeLegibility",
+                            WebkitFontSmoothing: "antialiased",
+                          }}
+                          initial={{opacity: 0, y: 30}}
+                          animate={{opacity: 1, y: 0}}
+                          transition={{delay: 0.4, duration: 0.6}}
+                        >
+                          {sl.content.split("\n").map((line, index) => (
+                            <p key={index} className="mb-3">{line}</p>
+                          ))}
+                        </motion.div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Indicador de slide */}
                 {slideData.presentation &&
@@ -2536,32 +2627,14 @@ const Proyector = () => {
                     slideData.slide?.layout === "pptx-image"
                   ) && (
                     <motion.div
-                      className="absolute bottom-8 right-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
+                      className="absolute bottom-4 right-4 bg-black/50 rounded-lg px-2.5 py-1 border border-white/10"
                       initial={{opacity: 0}}
                       animate={{opacity: 1}}
                       transition={{delay: 0.6}}
                     >
-                      <p className="text-sm font-medium">
+                      <p className="text-xs font-medium text-white/70">
                         {slideData.presentation.currentIndex + 1} /{" "}
                         {slideData.presentation.totalSlides || 1}
-                      </p>
-                    </motion.div>
-                  )}
-
-                {/* Nombre de la presentación */}
-                {slideData.presentation?.name &&
-                  !(
-                    slideData.slide?.renderMode === "pptx" ||
-                    slideData.slide?.layout === "pptx-image"
-                  ) && (
-                    <motion.div
-                      className="absolute top-8 left-8 backdrop-blur-md bg-white/10 rounded-xl px-4 py-2 border border-white/20"
-                      initial={{opacity: 0}}
-                      animate={{opacity: 1}}
-                      transition={{delay: 0.6}}
-                    >
-                      <p className="text-sm font-medium">
-                        📊 {slideData.presentation.name}
                       </p>
                     </motion.div>
                   )}

@@ -101,6 +101,9 @@ contextBridge.exposeInMainWorld("electron", {
   //Enviar versiculo
   enviarVersiculo: (versiculo) => ipcRenderer.send("proyectar-versiculo", versiculo),
 
+  // Temporizador dedicado (sin animaciones de himno)
+  proyectarTemporizador: (data) => ipcRenderer.send("proyectar-temporizador", data),
+
   //Eliminar y actualizar himnos
   actualizarHimno: (himno) => ipcRenderer.invoke("actualizar-himno", himno),
   eliminarHimno: (id) => ipcRenderer.invoke("eliminar-himno", id),
@@ -185,6 +188,7 @@ contextBridge.exposeInMainWorld("electron", {
     const validChannels = [
       "mostrar-himno",
       "mostrar-versiculo",
+      "mostrar-temporizador",
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
@@ -228,6 +232,7 @@ contextBridge.exposeInMainWorld("electron", {
     const validChannels = [
       "mostrar-himno",
       "mostrar-versiculo",
+      "mostrar-temporizador",
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
@@ -266,6 +271,7 @@ contextBridge.exposeInMainWorld("electron", {
     const validChannels = [
       "mostrar-himno",
       "mostrar-versiculo",
+      "mostrar-temporizador",
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
@@ -379,7 +385,25 @@ contextBridge.exposeInMainWorld("electron", {
         ipcRenderer.off(channel, func);
       }
     }
-  }
+  },
+
+  // ====================================
+  // ÓRDENES DE SERVICIO
+  // ====================================
+  obtenerOrdenesServicio: () => ipcRenderer.invoke("obtener-ordenes-servicio"),
+  obtenerOrdenServicio: (id) => ipcRenderer.invoke("obtener-orden-servicio", id),
+  agregarOrdenServicio: (data) => ipcRenderer.invoke("agregar-orden-servicio", data),
+  actualizarOrdenServicio: (data) => ipcRenderer.invoke("actualizar-orden-servicio", data),
+  eliminarOrdenServicio: (id) => ipcRenderer.invoke("eliminar-orden-servicio", id),
+
+  // ====================================
+  // ANUNCIOS
+  // ====================================
+  obtenerAnuncios: () => ipcRenderer.invoke("obtener-anuncios"),
+  agregarAnuncio: (data) => ipcRenderer.invoke("agregar-anuncio", data),
+  actualizarAnuncio: (data) => ipcRenderer.invoke("actualizar-anuncio", data),
+  eliminarAnuncio: (id) => ipcRenderer.invoke("eliminar-anuncio", id),
+  reordenarAnuncios: (ids) => ipcRenderer.invoke("reordenar-anuncios", ids),
 });
 
 // ✨ AGREGAR ALIAS PARA COMPATIBILIDAD CON electronAPI
@@ -411,7 +435,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ✨ MÉTODO DE PRUEBA PARA DEBUG IPC
   testDuplicado: (datos) => {
-    // console.log('🧪 [PRELOAD] Llamando test-duplicado con datos:', datos);
     return ipcRenderer.invoke('test-duplicado', datos);
   },
 });

@@ -146,6 +146,18 @@ const {
   exportarPresentacionSlides,
   importarPresentacionSlides,
   obtenerEstadisticasPresentacionesSlides,
+  // Órdenes de servicio
+  obtenerOrdenesServicio,
+  obtenerOrdenServicioPorId,
+  agregarOrdenServicio,
+  actualizarOrdenServicio,
+  eliminarOrdenServicio,
+  // Anuncios
+  obtenerAnuncios,
+  agregarAnuncio,
+  actualizarAnuncio,
+  eliminarAnuncio,
+  reordenarAnuncios,
 } = require("./db");
 
 // Crear aliases para las funciones de presentaciones de la nueva base de datos
@@ -225,16 +237,32 @@ const limpiarHandlers = () => {
 // PowerPoint -> Imágenes (preserva diseño)
 // ==================================================
 function encontrarLibreOfficeBin() {
-  // Importante: NO devolver "soffice" sin comprobar.
-  // En apps GUI de macOS el PATH suele ser limitado y `spawn('soffice')` puede quedarse fallando.
-  const candidatosAbsolutos = [
-    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-    "/Applications/LibreOffice.app/Contents/MacOS/soffice.bin",
+  // NO devolver "soffice" sin comprobar — en apps GUI el PATH suele ser limitado.
+  const platform = process.platform;
+  const candidatosAbsolutos = [];
 
-    // Homebrew (Apple Silicon / Intel)
-    "/opt/homebrew/bin/soffice",
-    "/usr/local/bin/soffice",
-  ];
+  if (platform === "win32") {
+    const pf = process.env["PROGRAMFILES"] || "C:\\Program Files";
+    const pf86 = process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)";
+    candidatosAbsolutos.push(
+      path.join(pf, "LibreOffice", "program", "soffice.exe"),
+      path.join(pf86, "LibreOffice", "program", "soffice.exe"),
+    );
+  } else if (platform === "darwin") {
+    candidatosAbsolutos.push(
+      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+      "/Applications/LibreOffice.app/Contents/MacOS/soffice.bin",
+      "/opt/homebrew/bin/soffice",
+      "/usr/local/bin/soffice",
+    );
+  } else {
+    // Linux
+    candidatosAbsolutos.push(
+      "/usr/bin/soffice",
+      "/usr/lib/libreoffice/program/soffice",
+      "/opt/libreoffice/program/soffice",
+    );
+  }
 
   for (const candidato of candidatosAbsolutos) {
     try {
@@ -244,9 +272,11 @@ function encontrarLibreOfficeBin() {
     }
   }
 
-  // Intentar resolver por PATH
+  // Intentar resolver por PATH como último recurso
   try {
-    const res = spawnSync("which", ["soffice"], {
+    const whichCmd = platform === "win32" ? "where" : "which";
+    const sofficeName = platform === "win32" ? "soffice.exe" : "soffice";
+    const res = spawnSync(whichCmd, [sofficeName], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -308,10 +338,12 @@ function spawnConPromise(cmd, args, opts = {}) {
 }
 
 function ordenarPngPorSlide(files) {
-  // Orden natural por sufijo numérico si existe.
+  // LibreOffice nombra la primera PNG sin número (ej: "slide.png") y las demás con
+  // sufijo incremental ("slide1.png", "slide2.png"...). Sin número → -1 para que
+  // quede primera en el orden, no al final.
   const parse = (name) => {
     const m = String(name).match(/(\d+)(?=\.png$)/i);
-    return m ? Number(m[1]) : Number.POSITIVE_INFINITY;
+    return m ? Number(m[1]) : -1;
   };
 
   return [...files].sort((a, b) => {
@@ -3488,12 +3520,34 @@ app.whenReady().then(async () => {
     } catch (error) {
       writeLog(`❌ Error registrando handlers: ${error.message}`);
       console.error("Error registrando handlers:", error);
-      // Mostrar diálogo de error crítico
       dialog.showErrorBox(
         "Error Crítico - GloryView",
         `No se pudieron registrar los handlers IPC:\n\n${error.message}\n\nLa aplicación puede no funcionar correctamente.`
       );
     }
+
+    // ====================================
+    // HANDLERS: ORDENES DE SERVICIO
+    // (registrados aquí para garantizar que siempre se cargan)
+    // ====================================
+    const safeHandle = (channel, fn) => {
+      try { ipcMain.removeHandler(channel); } catch {}
+      ipcMain.handle(channel, fn);
+    };
+    safeHandle("obtener-ordenes-servicio", () => { try { return obtenerOrdenesServicio(); } catch(e) { console.error(e); return []; } });
+    safeHandle("obtener-orden-servicio",   (_, id)   => { try { return obtenerOrdenServicioPorId(id); } catch(e) { return null; } });
+    safeHandle("agregar-orden-servicio",   (_, data) => { try { return agregarOrdenServicio(data); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("actualizar-orden-servicio",(_, data) => { try { return actualizarOrdenServicio(data); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("eliminar-orden-servicio",  (_, id)   => { try { return eliminarOrdenServicio(id); } catch(e) { return {success:false,error:e.message}; } });
+    // ====================================
+    // HANDLERS: ANUNCIOS
+    // ====================================
+    safeHandle("obtener-anuncios",   ()        => { try { return obtenerAnuncios(); } catch(e) { return []; } });
+    safeHandle("agregar-anuncio",    (_, data) => { try { return agregarAnuncio(data); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("actualizar-anuncio", (_, data) => { try { return actualizarAnuncio(data); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("eliminar-anuncio",   (_, id)   => { try { return eliminarAnuncio(id); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("reordenar-anuncios", (_, ids)  => { try { return reordenarAnuncios(ids); } catch(e) { return {success:false,error:e.message}; } });
+    console.log("✅ [Main] Handlers de órdenes y anuncios registrados");
 
     // ✨ INICIAR SERVIDOR DE MULTIMEDIA PRIMERO (ANTES DE CREAR VENTANAS EN PRODUCCIÓN)
     // Liberar puerto 3001 si hay una instancia anterior colgada antes de iniciar
@@ -3688,36 +3742,46 @@ function registrarHandlers() {
       console.log("📋 [Main] Obteniendo fondos...");
       const fondos = await dbNew.obtenerFondos();
 
-      // Transformar los datos para que sean compatibles con el frontend
-      const fondosTransformados = fondos.map(fondo => {
-        // Convertir la ruta de archivo local a URL del servidor Express
-        let rutaURL = fondo.url;
+      // Verificar si un archivo local existe en disco
+      const archivoExiste = (rawUrl) => {
+        if (!rawUrl || rawUrl.startsWith('http')) return true;
+        const relativePath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+        const publicPath = path.join(obtenerRutaBase(), 'public', relativePath);
+        const buildPath = path.join(obtenerRutaRecursos(), 'build', relativePath);
+        return fs.existsSync(publicPath) || fs.existsSync(buildPath);
+      };
 
-        // 1) Si ya es absoluta, dejarla tal cual
-        // 2) Si es una ruta relativa tipo "/fondos/..." o "/images/...", solo prefijar host
-        // 3) Si es una ruta local (filesystem) u otra forma, fallback a /fondos/<basename>
-        if (typeof rutaURL === 'string') {
-          if (rutaURL.startsWith('http')) {
-            // noop
-          } else if (rutaURL.startsWith('/')) {
-            rutaURL = `http://localhost:3001${rutaURL}`;
-          } else {
-            const fileName = path.basename(rutaURL);
-            rutaURL = `http://localhost:3001/fondos/${fileName}`;
+      const fondosTransformados = fondos
+        .filter(fondo => {
+          const existe = archivoExiste(fondo.url);
+          if (!existe) {
+            console.warn(`⚠️ [Main] Fondo sin archivo en disco, omitiendo: ${fondo.url} (id=${fondo.id})`);
           }
-        }
+          return existe;
+        })
+        .map(fondo => {
+          let rutaURL = fondo.url;
+          if (typeof rutaURL === 'string') {
+            if (rutaURL.startsWith('http')) {
+              // noop
+            } else if (rutaURL.startsWith('/')) {
+              rutaURL = `http://localhost:3001${rutaURL}`;
+            } else {
+              const fileName = path.basename(rutaURL);
+              rutaURL = `http://localhost:3001/fondos/${fileName}`;
+            }
+          }
+          return {
+            id: fondo.id,
+            url: rutaURL,
+            tipo: fondo.tipo || 'imagen',
+            nombre: fondo.nombre || `Fondo ${fondo.id}`,
+            activo: Boolean(fondo.activo),
+            created_at: fondo.created_at || new Date().toISOString()
+          };
+        });
 
-        return {
-          id: fondo.id,
-          url: rutaURL, // ✨ Usar 'url' en lugar de 'ruta' para compatibilidad con frontend
-          tipo: fondo.tipo || 'imagen',
-          nombre: fondo.nombre || `Fondo ${fondo.id}`,
-          activo: Boolean(fondo.activo),
-          created_at: fondo.created_at || new Date().toISOString()
-        };
-      });
-
-      console.log("✅ [Main] Fondos transformados:", fondosTransformados?.length || 0);
+      console.log(`✅ [Main] Fondos con archivo: ${fondosTransformados.length} / ${fondos.length} total`);
       return fondosTransformados;
     } catch (error) {
       console.error("❌ [Main] Error obteniendo fondos:", error);
@@ -3746,8 +3810,13 @@ function registrarHandlers() {
       console.log("🖼️ [Main] Obteniendo fondo activo...");
       const fondos = await dbNew.obtenerFondos();
       const fondo = fondos.find(f => f.activo);
-      console.log("✅ [Main] Fondo activo obtenido:", fondo);
-      return fondo || null;
+      if (!fondo) return null;
+      // Devolver siempre URL completa para que el proyector no tenga que transformar
+      const url = fondo.url && !fondo.url.startsWith('http')
+        ? `http://localhost:3001${fondo.url}`
+        : fondo.url;
+      console.log("✅ [Main] Fondo activo obtenido:", fondo.url, '->', url);
+      return { ...fondo, url };
     } catch (error) {
       console.error("❌ [Main] Error obteniendo fondo activo:", error);
       return null;
@@ -3796,6 +3865,7 @@ function registrarHandlers() {
       const resultado = await dbNew.crearFondo({
         url,
         tipo,
+        nombre: nombre || null,
         activo: activo ? 1 : 0
       });
 
@@ -3823,7 +3893,15 @@ function registrarHandlers() {
 
       if (resultado) {
         const fondos = await dbNew.obtenerFondos();
-        const fondoActivo = fondos.find(f => f.activo);
+        const fondoRaw = fondos.find(f => f.activo);
+
+        // Transformar a URL completa antes de enviar al proyector
+        const fondoActivo = fondoRaw ? {
+          ...fondoRaw,
+          url: fondoRaw.url && !fondoRaw.url.startsWith('http')
+            ? `http://localhost:3001${fondoRaw.url}`
+            : fondoRaw.url
+        } : null;
 
         // Notificar a todas las ventanas sobre el cambio
         const todasLasVentanas = BrowserWindow.getAllWindows();
@@ -3833,7 +3911,7 @@ function registrarHandlers() {
           }
         });
 
-        console.log("✅ [Main] Fondo activo establecido:", fondoActivo);
+        console.log("✅ [Main] Fondo activo establecido:", fondoActivo?.url);
       }
 
       return resultado;
@@ -4589,7 +4667,6 @@ function registrarHandlers() {
       if (!nuevaVentana) return;
 
       nuevaVentana.webContents.once("did-finish-load", () => {
-        // ✨ Dar tiempo para que React monte los componentes (1 segundo)
         setTimeout(() => {
           if (nuevaVentana && !nuevaVentana.isDestroyed()) {
             console.log("📤 [MAIN] Enviando versículo a nuevo proyector:", versiculo.titulo);
@@ -4600,6 +4677,13 @@ function registrarHandlers() {
     } else {
       console.log("📤 [MAIN] Enviando versículo a proyector existente:", versiculo.titulo);
       proyectorWindow.webContents.send("mostrar-versiculo", versiculo);
+    }
+  });
+
+  // Temporizador dedicado — canal separado para evitar animaciones de himno
+  ipcMain.on("proyectar-temporizador", (event, data) => {
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send("mostrar-temporizador", data);
     }
   });
 
@@ -4991,10 +5075,13 @@ function registrarHandlers() {
         'nombreIglesia', 'eslogan', 'pastor', 'telefono', 'email',
         'direccion', 'sitioWeb', 'horarioCultos', 'logoUrl',
         'colorPrimario', 'colorSecundario',
-        // ✨ Claves de fontSize
+        // Claves de fontSize
         'fontSizeTitulo', 'fontSizeParrafo', 'fontSizeEslogan',
-        // ✨ NUEVAS CLAVES DE VISIBILIDAD
-        'mostrarLogo', 'mostrarNombreIglesia', 'mostrarEslogan'
+        // Claves de visibilidad
+        'mostrarLogo', 'mostrarNombreIglesia', 'mostrarEslogan',
+        // Plantillas GSAP
+        'plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2',
+        'plantillaGsapColorAcc', 'plantillaGsapVelocidad',
       ];
 
       for (const clave of claves) {

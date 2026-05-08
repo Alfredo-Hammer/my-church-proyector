@@ -72,6 +72,8 @@ async function migrateDatabase() {
   const migrations = [
     "ALTER TABLE himnos ADD COLUMN autor TEXT",
     "ALTER TABLE himnos ADD COLUMN categoria TEXT",
+    "ALTER TABLE fondos ADD COLUMN nombre TEXT",
+    "ALTER TABLE fondos ADD COLUMN created_at DATETIME",
   ];
   for (const sql of migrations) {
     await new Promise((resolve) => {
@@ -557,8 +559,8 @@ async function obtenerFondos() {
 async function crearFondo(fondo) {
   try {
     const result = await runQuery(
-      'INSERT INTO fondos (url, tipo, activo) VALUES (?, ?, ?)',
-      [fondo.url, fondo.tipo, fondo.activo || 0]
+      'INSERT INTO fondos (url, tipo, nombre, activo, created_at) VALUES (?, ?, ?, ?, datetime(\'now\'))',
+      [fondo.url, fondo.tipo, fondo.nombre || null, fondo.activo || 0]
     );
     return result.lastID;
   } catch (error) {

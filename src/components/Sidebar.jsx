@@ -1,171 +1,237 @@
+import {useCallback, useEffect, useRef, useState} from "react";
 import {Link, useLocation} from "react-router-dom";
 import {
-  FaHome,
-  FaMusic,
-  FaStar,
-  FaBars,
-  FaTimes,
-  FaPlus,
-  FaBookOpen,
-  FaMobileAlt,
-  FaVial,
-  FaDev,
-  FaSteam,
-  FaPlay,
-  FaImage,
-  FaBook,
-  FaChevronRight,
+  FaHome, FaMusic, FaStar, FaBookOpen, FaCog,
+  FaList, FaPlay, FaImage, FaBook,
+  FaChevronLeft, FaChevronRight, FaHeadset,
+  FaBullhorn, FaClock, FaMagic, FaPlus, FaMobileAlt,
 } from "react-icons/fa";
 
-const menuItems = [
-  {id: "inicio",         path: "/",              icon: <FaHome />,      label: "Inicio"},
-  {id: "himnos",         path: "/himnos",         icon: <FaMusic />,     label: "Himnario Moravo"},
-  {id: "vida-cristiana", path: "/vida-cristiana", icon: <FaBookOpen />,  label: "Vida Cristiana"},
-  {id: "agregar-himno",  path: "/agregar-himno",  icon: <FaPlus />,      label: "Agregar Himno"},
-  {id: "biblia",         path: "/biblia",         icon: <FaBook />,      label: "Biblia"},
-  {id: "multimedia",     path: "/multimedia",     icon: <FaPlay />,      label: "Fuentes Multimedia"},
-  {id: "gestion-fondos", path: "/gestion-fondos", icon: <FaImage />,     label: "Gestión de Fondos"},
-  {id: "favoritos",      path: "/favoritos",      icon: <FaStar />,      label: "Favoritos"},
-  {id: "app-movil",      path: "/app-movil",      icon: <FaMobileAlt />, label: "App móvil"},
-  {id: "configuracion",  path: "/configuracion",  icon: <FaVial />,      label: "Configuración"},
-  {id: "contactos",      path: "/contactos",      icon: <FaSteam />,     label: "Soporte"},
-  {id: "version", icon: <FaDev />, label: "Versión 1.0.0", isLabel: true},
+const COLLAPSED_W = 56;
+const MIN_W       = 180;
+const MAX_W       = 400;
+const DEFAULT_W   = 224;
+
+const MENU = [
+  {id: "sep-1",          isSection: true,  label: "Contenido"},
+  {id: "inicio",         path: "/",        icon: <FaHome />,      label: "Inicio"},
+  {id: "himnos",         path: "/himnos",  icon: <FaMusic />,     label: "Himnario Moravo"},
+  {id: "vida-cristiana", path: "/vida-cristiana", icon: <FaBookOpen />, label: "Vida Cristiana"},
+  {id: "biblia",         path: "/biblia",  icon: <FaBook />,      label: "Biblia"},
+  {id: "favoritos",      path: "/favoritos", icon: <FaStar />,    label: "Favoritos"},
+  {id: "agregar-himno",  path: "/agregar-himno", icon: <FaPlus />, label: "Agregar Himno"},
+
+  {id: "sep-2",          isSection: true,  label: "Servicio"},
+  {id: "presentaciones", path: "/presentaciones", icon: <FaList />,    label: "Orden de Servicio"},
+  {id: "anuncios",       path: "/anuncios", icon: <FaBullhorn />,  label: "Anuncios"},
+  {id: "temporizador",   path: "/temporizador", icon: <FaClock />, label: "Temporizador"},
+  {id: "plantillas",     path: "/plantillas", icon: <FaMagic />,  label: "Plantillas"},
+
+  {id: "sep-3",          isSection: true,  label: "Herramientas"},
+  {id: "multimedia",     path: "/multimedia",    icon: <FaPlay />,      label: "Multimedia"},
+  {id: "gestion-fondos", path: "/gestion-fondos", icon: <FaImage />,   label: "Gestión de Fondos"},
+  {id: "app-movil",      path: "/app-movil",     icon: <FaMobileAlt />, label: "App Móvil"},
+  {id: "configuracion",  path: "/configuracion", icon: <FaCog />,       label: "Configuración"},
+  {id: "contactos",      path: "/contactos",     icon: <FaHeadset />,   label: "Soporte"},
 ];
 
-const Sidebar = ({isCollapsed, setIsCollapsed}) => {
+export default function Sidebar() {
   const location = useLocation();
 
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("sidebar-collapsed") === "true"
+  );
+  const [width, setWidth] = useState(() => {
+    const v = parseInt(localStorage.getItem("sidebar-width") || "");
+    return isNaN(v) ? DEFAULT_W : Math.max(MIN_W, Math.min(MAX_W, v));
+  });
+  const [resizing, setResizing] = useState(false);
+
+  const dragging   = useRef(false);
+  const startX     = useRef(0);
+  const startW     = useRef(0);
+
+  /* ── Toggle ── */
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("sidebar-collapsed", String(next));
+  };
+
+  /* ── Resize drag ── */
+  const onHandleDown = useCallback((e) => {
+    e.preventDefault();
+    dragging.current  = true;
+    startX.current    = e.clientX;
+    startW.current    = width;
+    setResizing(true);
+    document.body.style.cursor     = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [width]);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragging.current) return;
+      const next = Math.max(MIN_W, Math.min(MAX_W, startW.current + e.clientX - startX.current));
+      setWidth(next);
+    };
+    const onUp = (e) => {
+      if (!dragging.current) return;
+      dragging.current               = false;
+      document.body.style.cursor     = "";
+      document.body.style.userSelect = "";
+      setResizing(false);
+      const final = Math.max(MIN_W, Math.min(MAX_W, startW.current + e.clientX - startX.current));
+      localStorage.setItem("sidebar-width", String(final));
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",   onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",   onUp);
+    };
+  }, []);
+
+  const resetWidth = () => {
+    setWidth(DEFAULT_W);
+    localStorage.setItem("sidebar-width", String(DEFAULT_W));
+  };
+
+  const currentW = collapsed ? COLLAPSED_W : width;
+
   return (
-    <div
-      className={`${
-        isCollapsed ? "w-[60px]" : "w-52 lg:w-56 xl:w-60"
-      } h-screen bg-gray-950 text-white flex flex-col transition-all duration-300 shrink-0 border-r border-white/6 relative z-40`}
+    <aside
+      style={{width: currentW}}
+      className={`relative h-screen bg-[#0d0f14] text-white flex flex-col shrink-0 border-r border-white/[0.06] z-40 select-none
+        ${!resizing ? "transition-[width] duration-200 ease-in-out" : ""}`}
     >
+
       {/* ── HEADER ── */}
-      <div
-        className={`flex items-center border-b border-white/6 shrink-0 ${
-          isCollapsed ? "justify-center px-0 py-3" : "justify-between px-3 py-3"
-        }`}
-      >
-        {!isCollapsed && (
-          <div className="flex items-center gap-2 min-w-0">
-            <img
-              src="/images/icon-256.png"
-              alt="GloryView"
-              className="w-8 h-8 rounded-lg object-contain shrink-0"
-              draggable={false}
-            />
-            <h1 className="text-sm font-semibold tracking-wide text-gray-100 truncate">
-              GloryView
-            </h1>
+      <div className="flex items-center h-11 px-2 shrink-0 border-b border-white/[0.06] gap-1.5">
+        <div className="shrink-0 w-8 h-8 flex items-center justify-center">
+          <img src="/images/icon-256.png" alt="GloryView"
+            className="w-7 h-7 rounded-lg object-contain" draggable={false} />
+        </div>
+
+        {!collapsed && (
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="text-[12.5px] font-bold text-white leading-none truncate">GloryView</p>
           </div>
         )}
 
-        {isCollapsed && (
-          <img
-            src="/images/icon-256.png"
-            alt="GloryView"
-            className="w-8 h-8 rounded-lg object-contain"
-            draggable={false}
-          />
-        )}
-
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={`shrink-0 w-7 h-7 rounded-lg bg-white/5 hover:bg-white/12 border border-white/8 flex items-center justify-center transition-colors text-gray-400 hover:text-white ${
-            isCollapsed ? "absolute -right-3 top-4 bg-gray-900 border-white/15 shadow-lg" : ""
-          }`}
-          aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+          onClick={toggle}
+          title={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+          className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center
+            text-white/25 hover:text-white/70 hover:bg-white/8 transition-all
+            ${collapsed ? "mx-auto" : ""}`}
         >
-          {isCollapsed
-            ? <FaChevronRight className="text-[10px]" />
-            : <FaTimes className="text-[10px]" />}
+          {collapsed
+            ? <FaChevronRight className="text-[9px]" />
+            : <FaChevronLeft  className="text-[9px]" />}
         </button>
       </div>
 
       {/* ── NAVEGACIÓN ── */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-0.5">
-        {menuItems.map((item) => {
-          if (item.isLabel) {
-            return (
-              <div
-                key={item.id}
-                className={`group relative flex items-center rounded-lg opacity-50 cursor-default mt-2 ${
-                  isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-2 py-2"
-                }`}
-              >
-                <span className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-white/4 border border-white/6 text-gray-500 text-sm">
-                  {item.icon}
-                </span>
-                {!isCollapsed && (
-                  <span className="text-[10px] text-gray-500 leading-tight truncate">
-                    {item.label}
-                  </span>
-                )}
-                {isCollapsed && (
-                  <div className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 border border-white/10 rounded-lg text-xs text-gray-300 whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    {item.label}
-                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
-                  </div>
-                )}
-              </div>
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1.5 px-1.5 space-y-px
+        scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+
+        {MENU.map((item) => {
+          /* Separador de sección */
+          if (item.isSection) {
+            return collapsed ? (
+              <div key={item.id} className="my-2 mx-2 h-px bg-white/[0.07]" />
+            ) : (
+              <p key={item.id}
+                className="text-[9.5px] uppercase tracking-widest font-bold text-white/20
+                  px-2.5 pt-4 pb-1 first:pt-2 select-none">
+                {item.label}
+              </p>
             );
           }
 
-          const isActive = location.pathname === item.path;
+          const isActive =
+            item.path === "/"
+              ? location.pathname === "/"
+              : location.pathname === item.path || location.pathname.startsWith(item.path + "/");
 
           return (
             <Link
               key={item.id}
               to={item.path}
-              className={`group relative flex items-center rounded-lg transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 ${
-                isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-2 py-2"
-              } ${
-                isActive
-                  ? "bg-indigo-500/15 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/6"
-              }`}
+              className={`group relative flex items-center gap-2.5 rounded-lg h-8 transition-colors focus-visible:outline-none
+                ${collapsed ? "justify-center px-0" : "px-2"}
+                ${isActive
+                  ? "bg-indigo-500/[0.13] text-white"
+                  : "text-white/35 hover:text-white/80 hover:bg-white/[0.055]"}`}
             >
-              {/* Indicador activo */}
+              {/* Barra indicadora activa */}
               {isActive && (
-                <span className={`absolute ${isCollapsed ? "left-0" : "left-0"} top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-400 rounded-r-full`} />
+                <span className="absolute left-0 top-[7px] bottom-[7px] w-[3px] bg-indigo-400 rounded-r-full" />
               )}
 
               {/* Icono */}
-              <span
-                className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border text-base transition-all ${
-                  isActive
-                    ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
-                    : "bg-white/4 border-white/6 text-gray-400 group-hover:bg-white/8 group-hover:border-white/10 group-hover:text-gray-200"
-                }`}
-              >
+              <span className={`shrink-0 w-[26px] h-[26px] rounded-md flex items-center justify-center text-[12px] transition-colors
+                ${isActive
+                  ? "bg-indigo-500/20 text-indigo-300"
+                  : "group-hover:bg-white/[0.07] group-hover:text-white/70"}`}>
                 {item.icon}
               </span>
 
-              {/* Label (expandido) */}
-              {!isCollapsed && (
-                <span
-                  className={`text-[11px] xl:text-xs leading-tight truncate ${
-                    isActive ? "font-semibold text-white" : ""
-                  }`}
-                >
+              {/* Label */}
+              {!collapsed && (
+                <span className={`text-[11.5px] leading-none truncate
+                  ${isActive ? "font-semibold text-white" : ""}`}>
                   {item.label}
                 </span>
               )}
 
-              {/* Tooltip (colapsado) */}
-              {isCollapsed && (
-                <div className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 border border-white/10 rounded-lg text-xs text-gray-200 whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+              {/* Tooltip en modo colapsado */}
+              {collapsed && (
+                <div className="pointer-events-none absolute left-full ml-2 px-2.5 py-1.5
+                  bg-[#1a1d24] border border-white/10 rounded-lg text-[11.5px] text-white/85
+                  whitespace-nowrap shadow-2xl opacity-0 group-hover:opacity-100
+                  transition-opacity duration-100 z-[60]">
                   {item.label}
-                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+                  <div className="absolute right-full top-1/2 -translate-y-1/2
+                    border-4 border-transparent border-r-[#1a1d24]" />
                 </div>
               )}
             </Link>
           );
         })}
       </nav>
-    </div>
-  );
-};
 
-export default Sidebar;
+      {/* ── FOOTER ── */}
+      <div className={`shrink-0 border-t border-white/[0.06] ${collapsed ? "py-2 flex justify-center" : "px-3 py-2"}`}>
+        {collapsed ? (
+          <span className="w-5 h-5 rounded-md bg-white/5 flex items-center justify-center text-white/20">
+            <FaCog className="text-[9px]" />
+          </span>
+        ) : (
+          <p className="text-[9px] text-white/18 text-center tracking-wide">
+            GloryView © 2025 — v0.2.0
+          </p>
+        )}
+      </div>
+
+      {/* ── HANDLE DE REDIMENSIONADO ── */}
+      {!collapsed && (
+        <div
+          onMouseDown={onHandleDown}
+          onDoubleClick={resetWidth}
+          title="Arrastrar para redimensionar · Doble clic para restablecer"
+          className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-50 group/rh flex items-center justify-center"
+        >
+          {/* línea visual */}
+          <div className={`h-full transition-all duration-150
+            ${resizing
+              ? "w-[2px] bg-indigo-500/70"
+              : "w-px bg-white/[0.06] group-hover/rh:w-[2px] group-hover/rh:bg-indigo-500/45"}`} />
+          {/* zona de agarre ampliada invisible */}
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+        </div>
+      )}
+    </aside>
+  );
+}

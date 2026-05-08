@@ -33,10 +33,15 @@ files:
   - INSTRUCCIONES-WINDOWS.txt
   - "!node_modules/@types/**/*"
   - "!node_modules/.cache/**/*"
+  - "!build/uploads/**"
+  - "!build/multimedia/**"
+  - "!build/multimedia_thumbs/**"
 
 asarUnpack:
   - "**/node_modules/ffmpeg-static/**"
-  - "build/**/*"
+  - "build/fondos/**"
+  - "build/images/**"
+  - "build/static/**"
 
 extraResources:
   - from: data
@@ -53,9 +58,6 @@ extraResources:
 # ============================================================
 win:
   target:
-    - target: portable
-      arch:
-        - x64
     - target: nsis
       arch:
         - x64
@@ -89,7 +91,6 @@ nsis:
   warningsAsErrors: false
   differentialPackage: true
   displayLanguageSelector: false
-  include: build/installer.nsh
 
 portable:
   artifactName: "${productName}-${version}-Portable.${ext}"

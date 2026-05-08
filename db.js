@@ -183,6 +183,32 @@ const configuracionPorDefecto = {
     valor: "true",
     tipo: "boolean",
     descripcion: "Mostrar eslogan en la pantalla de bienvenida"
+  },
+  // ── Plantillas GSAP ──
+  plantillaGsapActiva: {
+    valor: "ninguna",
+    tipo: "string",
+    descripcion: "Plantilla GSAP activa para anuncios (ninguna | revelar | neon | iglesia | cinematica | particulas)"
+  },
+  plantillaGsapColor1: {
+    valor: "#e2e8f0",
+    tipo: "string",
+    descripcion: "Color primario/texto de la plantilla GSAP"
+  },
+  plantillaGsapColor2: {
+    valor: "#0f172a",
+    tipo: "string",
+    descripcion: "Color de fondo de la plantilla GSAP"
+  },
+  plantillaGsapColorAcc: {
+    valor: "#34d399",
+    tipo: "string",
+    descripcion: "Color de acento de la plantilla GSAP"
+  },
+  plantillaGsapVelocidad: {
+    valor: "media",
+    tipo: "string",
+    descripcion: "Velocidad de animación GSAP (lenta | media | rapida)"
   }
 };
 
@@ -245,7 +271,13 @@ function obtenerConfiguracion() {
       // ✨ NUEVOS CAMPOS DE VISIBILIDAD
       mostrarLogo: config.mostrarLogo !== undefined ? config.mostrarLogo : true,
       mostrarNombreIglesia: config.mostrarNombreIglesia !== undefined ? config.mostrarNombreIglesia : true,
-      mostrarEslogan: config.mostrarEslogan !== undefined ? config.mostrarEslogan : true
+      mostrarEslogan: config.mostrarEslogan !== undefined ? config.mostrarEslogan : true,
+      // Plantillas GSAP
+      plantillaGsapActiva:    config.plantillaGsapActiva    || "ninguna",
+      plantillaGsapColor1:    config.plantillaGsapColor1    || "#e2e8f0",
+      plantillaGsapColor2:    config.plantillaGsapColor2    || "#0f172a",
+      plantillaGsapColorAcc:  config.plantillaGsapColorAcc  || "#34d399",
+      plantillaGsapVelocidad: config.plantillaGsapVelocidad || "media",
     };
   } catch (error) {
     console.error('Error obteniendo configuración:', error);
@@ -347,13 +379,15 @@ function obtenerConfiguracionPorClave(clave) {
   }
 }
 
-// Actualizar valor específico
+// Actualizar valor específico (UPSERT — inserta si no existe, actualiza si existe)
 function actualizarConfiguracionPorClave(clave, valor) {
   try {
     const stmt = db.prepare(`
-      UPDATE configuracion 
-      SET valor = ?, fecha_actualizacion = CURRENT_TIMESTAMP 
-      WHERE clave = ?
+      INSERT INTO configuracion (clave, valor, tipo, descripcion, fecha_actualizacion)
+      VALUES (?, ?, 'string', '', CURRENT_TIMESTAMP)
+      ON CONFLICT(clave) DO UPDATE SET
+        valor = excluded.valor,
+        fecha_actualizacion = CURRENT_TIMESTAMP
     `);
 
     let valorFormateado = valor;
@@ -365,7 +399,7 @@ function actualizarConfiguracionPorClave(clave, valor) {
       valorFormateado = valor.toString();
     }
 
-    stmt.run(valorFormateado, clave);
+    stmt.run(clave, valorFormateado); // orden: clave, valor
     return true;
   } catch (error) {
     console.error('Error actualizando configuración:', error);
@@ -822,145 +856,88 @@ function inicializarFondosPorDefecto() {
   try {
     console.log("🎨 [DB] Verificando fondos por defecto...");
 
+    // Rutas en disco donde buscar los archivos de fondos
+    const fondosPublicDir = isDev
+      ? path.join(__dirname, 'public', 'fondos')
+      : path.join(app.getPath('userData'), 'public', 'fondos');
+    const fondosBuildDir = path.join(__dirname, 'build', 'fondos');
+
+    // Resolver ruta relativa "/fondos/X" a disco
+    const existeEnDisco = (relativeUrl) => {
+      if (!relativeUrl || relativeUrl.startsWith('http')) return true;
+      const fileName = relativeUrl.replace(/^\/fondos\//, '');
+      return fs.existsSync(path.join(fondosPublicDir, fileName)) ||
+             fs.existsSync(path.join(fondosBuildDir, fileName));
+    };
+
     // Primero, limpiar duplicados existentes
     limpiarDuplicadosFondos();
 
-    // 🔧 Normalizar rutas legacy (si antes se guardaron como .jpg pero ahora son .png)
-    // Mantener siempre las rutas canónicas que existen en public/fondos.
-    const legacyMappings = [
-      { oldUrl: '/fondos/imagen2.jpg', newUrl: '/fondos/imagen2.png' },
-      { oldUrl: '/fondos/imagen4.jpg', newUrl: '/fondos/imagen4.png' }
-    ];
-
-    for (const { oldUrl, newUrl } of legacyMappings) {
-      const oldRow = db.prepare('SELECT id FROM fondos WHERE url = ?').get(oldUrl);
-      if (!oldRow) continue;
-
-      const newRow = db.prepare('SELECT id FROM fondos WHERE url = ?').get(newUrl);
-      if (newRow) {
-        db.prepare('DELETE FROM fondos WHERE url = ?').run(oldUrl);
-        console.log(`  🗑️ [DB] Eliminada URL legacy duplicada: ${oldUrl}`);
-      } else {
-        db.prepare('UPDATE fondos SET url = ? WHERE url = ?').run(newUrl, oldUrl);
-        console.log(`  🔄 [DB] URL legacy actualizada: ${oldUrl} -> ${newUrl}`);
+    // Eliminar de la DB registros de fondos por defecto cuyos archivos no existen
+    const todosLosFondos = db.prepare("SELECT id, url FROM fondos WHERE url LIKE '/fondos/%'").all();
+    for (const fondo of todosLosFondos) {
+      if (!existeEnDisco(fondo.url)) {
+        db.prepare('DELETE FROM fondos WHERE id = ?').run(fondo.id);
+        console.log(`  🗑️ [DB] Eliminado registro de fondo sin archivo: ${fondo.url}`);
       }
     }
 
-    // Fondos requeridos que deben existir (4 videos + 4 imágenes)
-    // Deben coincidir con los archivos de la carpeta public/fondos
-    const fondosRequeridos = [
-      "/fondos/video1.mp4",
-      "/fondos/video2.mp4",
-      "/fondos/video3.mp4",
-      "/fondos/video4.mp4",
-      "/fondos/imagen1.jpg",
-      "/fondos/imagen2.png",
-      "/fondos/imagen3.jpg",
-      "/fondos/imagen4.png"
+    // Fondos requeridos — solo los que existen físicamente en disco
+    const fondosCandidatos = [
+      { url: "/fondos/video1.mp4", tipo: "video", nombre: "Video 1", activo: 1 },
+      { url: "/fondos/video2.mp4", tipo: "video", nombre: "Video 2", activo: 0 },
+      { url: "/fondos/video3.mp4", tipo: "video", nombre: "Video 3", activo: 0 },
+      { url: "/fondos/video4.mp4", tipo: "video", nombre: "Video 4", activo: 0 },
+      { url: "/fondos/imagen1.jpg", tipo: "imagen", nombre: "Imagen 1", activo: 0 },
+      { url: "/fondos/imagen2.png", tipo: "imagen", nombre: "Imagen 2", activo: 0 },
+      { url: "/fondos/imagen3.jpg", tipo: "imagen", nombre: "Imagen 3", activo: 0 },
+      { url: "/fondos/imagen4.png", tipo: "imagen", nombre: "Imagen 4", activo: 0 },
     ];
 
-    // Verificar cuántos de los fondos por defecto ya existen
+    // Filtrar solo los que tienen archivo en disco
+    const fondosDisponibles = fondosCandidatos.filter(f => existeEnDisco(f.url));
+    console.log(`📊 [DB] Fondos por defecto con archivo en disco: ${fondosDisponibles.length}/${fondosCandidatos.length}`);
+
+    if (fondosDisponibles.length === 0) {
+      console.log("ℹ️ [DB] Sin archivos de fondos por defecto disponibles");
+      return;
+    }
+
+    const fondosRequeridos = fondosDisponibles.map(f => f.url);
+
+    // Verificar cuántos ya están en la DB
     const placeholders = fondosRequeridos.map(() => '?').join(',');
     const checkStmt = db.prepare(`SELECT url FROM fondos WHERE url IN (${placeholders})`);
     const existingFondos = checkStmt.all(...fondosRequeridos);
     const existingCount = existingFondos.length;
 
-    console.log(`📊 [DB] Fondos por defecto existentes: ${existingCount}/${fondosRequeridos.length}`);
+    console.log(`📊 [DB] Fondos por defecto en DB: ${existingCount}/${fondosRequeridos.length}`);
 
-    // Si ya existen TODOS los fondos, solo verificar que haya uno activo
+    // Si ya existen todos, verificar fondo activo
     if (existingCount === fondosRequeridos.length) {
-      console.log("✅ [DB] Todos los fondos por defecto ya existen");
+      console.log("✅ [DB] Todos los fondos por defecto ya existen en DB");
 
-      // 🧹 CRÍTICO: Volver a limpiar duplicados después del conteo
-      // porque pueden haberse creado en ejecuciones anteriores
-      console.log("🔄 [DB] Re-verificando duplicados después del conteo inicial...");
-      limpiarDuplicadosFondos();
-
-      // Verificar si hay al menos un fondo activo
-      const activoStmt = db.prepare("SELECT COUNT(*) as count FROM fondos WHERE activo = 1");
-      const activoResult = activoStmt.get();
-
+      const activoResult = db.prepare("SELECT COUNT(*) as count FROM fondos WHERE activo = 1").get();
       if (activoResult.count === 0) {
-        console.log("⚠️ [DB] No hay fondos activos, activando video1.mp4...");
-        const video1Stmt = db.prepare("SELECT id FROM fondos WHERE url = ?");
-        const video1 = video1Stmt.get("/fondos/video1.mp4");
-
-        if (video1) {
-          establecerFondoActivo(video1.id);
-          console.log(`✅ [DB] video1.mp4 activado por defecto`);
+        const primerFondo = db.prepare("SELECT id FROM fondos WHERE url = ?").get(fondosDisponibles[0].url);
+        if (primerFondo) {
+          establecerFondoActivo(primerFondo.id);
+          console.log(`✅ [DB] Fondo activo establecido: ${fondosDisponibles[0].url}`);
         }
       }
 
       return;
     }
 
-    // 🔥 ESTRATEGIA NUEVA: Si faltan fondos, eliminar TODOS los por defecto y reinsertar
-    // Esto asegura que nunca haya duplicados
-    if (existingCount > 0 && existingCount < fondosRequeridos.length) {
-      console.log("⚠️ [DB] Fondos por defecto incompletos, eliminando todos para reinsertar...");
+    // Eliminar incompletos y reinsertar
+    if (existingCount > 0) {
       const deletePlaceholders = fondosRequeridos.map(() => '?').join(',');
-      const deleteStmt = db.prepare(`DELETE FROM fondos WHERE url IN (${deletePlaceholders})`);
-      deleteStmt.run(...fondosRequeridos);
-      console.log("🗑️ [DB] Fondos por defecto eliminados para reinserción limpia");
+      db.prepare(`DELETE FROM fondos WHERE url IN (${deletePlaceholders})`).run(...fondosRequeridos);
+      console.log("🗑️ [DB] Fondos por defecto incompletos eliminados para reinserción");
     }
 
-    console.log(`🆕 [DB] Insertando fondos por defecto (${fondosRequeridos.length} fondos)...`);
+    const fondosPorDefecto = fondosDisponibles;
 
-    // Fondos por defecto de la aplicación - 4 videos y 4 imágenes
-    const fondosPorDefecto = [
-      // Videos
-      {
-        url: "/fondos/video1.mp4",
-        tipo: "video",
-        nombre: "Video 1",
-        activo: 1 // Este será el fondo activo inicial
-      },
-      {
-        url: "/fondos/video2.mp4",
-        tipo: "video",
-        nombre: "Video 2",
-        activo: 0
-      },
-      {
-        url: "/fondos/video3.mp4",
-        tipo: "video",
-        nombre: "Video 3",
-        activo: 0
-      },
-      {
-        url: "/fondos/video4.mp4",
-        tipo: "video",
-        nombre: "Video 4",
-        activo: 0
-      },
-      // Imágenes
-      {
-        url: "/fondos/imagen1.jpg",
-        tipo: "imagen",
-        nombre: "Imagen 1",
-        activo: 0
-      },
-      {
-        url: "/fondos/imagen2.png",
-        tipo: "imagen",
-        nombre: "Imagen 2",
-        activo: 0
-      },
-      {
-        url: "/fondos/imagen3.jpg",
-        tipo: "imagen",
-        nombre: "Imagen 3",
-        activo: 0
-      },
-      {
-        url: "/fondos/imagen4.png",
-        tipo: "imagen",
-        nombre: "Imagen 4",
-        activo: 0
-      }
-    ];
-
-    // Insertar solo los fondos que no existen
     const insertStmt = db.prepare(`
       INSERT INTO fondos (url, tipo, nombre, activo, created_at)
       VALUES (?, ?, ?, ?, datetime('now'))
@@ -984,13 +961,13 @@ function inicializarFondosPorDefecto() {
 
     console.log(`✅ [DB] ${insertados} fondos por defecto insertados correctamente`);
 
-    // Asegurar que video1.mp4 sea el activo si no hay ningún fondo activo
+    // Asegurar que haya un fondo activo
     const activoCheck = db.prepare("SELECT COUNT(*) as count FROM fondos WHERE activo = 1").get();
-    if (activoCheck.count === 0) {
-      const video1 = db.prepare("SELECT id FROM fondos WHERE url = ?").get("/fondos/video1.mp4");
-      if (video1) {
-        establecerFondoActivo(video1.id);
-        console.log("✅ [DB] Fondo activo establecido: /fondos/video1.mp4");
+    if (activoCheck.count === 0 && fondosDisponibles.length > 0) {
+      const primerFondoInsertado = db.prepare("SELECT id FROM fondos WHERE url = ?").get(fondosDisponibles[0].url);
+      if (primerFondoInsertado) {
+        establecerFondoActivo(primerFondoInsertado.id);
+        console.log(`✅ [DB] Fondo activo establecido: ${fondosDisponibles[0].url}`);
       }
     }
 
@@ -2650,6 +2627,145 @@ migrarTablaPresentacionesSlides();
 // EXPORTAR TODAS LAS FUNCIONES - ACTUALIZADAS
 // ====================================
 
+// ====================================
+// TABLA Y FUNCIONES: ORDENES DE SERVICIO
+// ====================================
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS ordenes_servicio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    fecha TEXT DEFAULT '',
+    items TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`).run();
+
+function obtenerOrdenesServicio() {
+  try {
+    const rows = db.prepare("SELECT * FROM ordenes_servicio ORDER BY updated_at DESC").all();
+    return rows.map((r) => ({...r, items: JSON.parse(r.items || "[]")}));
+  } catch (e) {
+    console.error("[DB] Error obtenerOrdenesServicio:", e);
+    return [];
+  }
+}
+
+function obtenerOrdenServicioPorId(id) {
+  try {
+    const row = db.prepare("SELECT * FROM ordenes_servicio WHERE id = ?").get(id);
+    if (!row) return null;
+    return {...row, items: JSON.parse(row.items || "[]")};
+  } catch (e) {
+    return null;
+  }
+}
+
+function agregarOrdenServicio({titulo, fecha, items}) {
+  try {
+    const info = db.prepare(
+      "INSERT INTO ordenes_servicio (titulo, fecha, items) VALUES (?, ?, ?)"
+    ).run(titulo, fecha || "", JSON.stringify(items || []));
+    return {success: true, id: info.lastInsertRowid};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+function actualizarOrdenServicio({id, titulo, fecha, items}) {
+  try {
+    db.prepare(
+      "UPDATE ordenes_servicio SET titulo = ?, fecha = ?, items = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(titulo, fecha || "", JSON.stringify(items || []), id);
+    return {success: true};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+function eliminarOrdenServicio(id) {
+  try {
+    db.prepare("DELETE FROM ordenes_servicio WHERE id = ?").run(id);
+    return {success: true};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+// ====================================
+// TABLA Y FUNCIONES: ANUNCIOS
+// ====================================
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS anuncios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    texto TEXT NOT NULL,
+    titulo TEXT DEFAULT '',
+    plantilla TEXT DEFAULT 'moderno',
+    activo INTEGER DEFAULT 1,
+    orden INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`).run();
+
+// Migración: agregar columnas nuevas si no existen
+["ALTER TABLE anuncios ADD COLUMN titulo TEXT DEFAULT ''",
+ "ALTER TABLE anuncios ADD COLUMN plantilla TEXT DEFAULT 'moderno'",
+].forEach(sql => { try { db.prepare(sql).run(); } catch {} });
+
+function obtenerAnuncios() {
+  try {
+    return db.prepare("SELECT * FROM anuncios ORDER BY orden ASC, id ASC").all().map(
+      (r) => ({...r, activo: Boolean(r.activo), titulo: r.titulo || "", plantilla: r.plantilla || "moderno"})
+    );
+  } catch (e) {
+    return [];
+  }
+}
+
+function agregarAnuncio({texto, titulo = "", plantilla = "moderno", activo = true, orden = 0}) {
+  try {
+    const maxOrden = db.prepare("SELECT MAX(orden) AS m FROM anuncios").get()?.m ?? 0;
+    const info = db.prepare(
+      "INSERT INTO anuncios (texto, titulo, plantilla, activo, orden) VALUES (?, ?, ?, ?, ?)"
+    ).run(texto, titulo, plantilla, activo ? 1 : 0, maxOrden + 1);
+    return {success: true, id: info.lastInsertRowid};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+function actualizarAnuncio({id, texto, titulo = "", plantilla = "moderno", activo, orden}) {
+  try {
+    db.prepare(
+      "UPDATE anuncios SET texto = ?, titulo = ?, plantilla = ?, activo = ?, orden = ? WHERE id = ?"
+    ).run(texto, titulo, plantilla, activo ? 1 : 0, orden ?? 0, id);
+    return {success: true};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+function eliminarAnuncio(id) {
+  try {
+    db.prepare("DELETE FROM anuncios WHERE id = ?").run(id);
+    return {success: true};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
+function reordenarAnuncios(ids) {
+  try {
+    const stmt = db.prepare("UPDATE anuncios SET orden = ? WHERE id = ?");
+    ids.forEach((id, idx) => stmt.run(idx, id));
+    return {success: true};
+  } catch (e) {
+    return {success: false, error: e.message};
+  }
+}
+
 module.exports = {
   db,
   // Funciones de himnos
@@ -2713,6 +2829,18 @@ module.exports = {
   importarPresentacionSlides,
   obtenerEstadisticasPresentacionesSlides,
   migrarTablaPresentacionesSlides,
+  // Órdenes de servicio
+  obtenerOrdenesServicio,
+  obtenerOrdenServicioPorId,
+  agregarOrdenServicio,
+  actualizarOrdenServicio,
+  eliminarOrdenServicio,
+  // Anuncios
+  obtenerAnuncios,
+  agregarAnuncio,
+  actualizarAnuncio,
+  eliminarAnuncio,
+  reordenarAnuncios,
 };
 
 

@@ -21,6 +21,14 @@ import {
   FaBroadcastTower,
 } from "react-icons/fa";
 
+const TAMANOS_TEXTO = [
+  { proyector: "text-3xl", local: "text-lg xl:text-xl" },
+  { proyector: "text-4xl", local: "text-xl xl:text-2xl" },
+  { proyector: "text-5xl", local: "text-2xl xl:text-3xl 2xl:text-4xl" },
+  { proyector: "text-6xl", local: "text-3xl xl:text-4xl 2xl:text-5xl" },
+  { proyector: "text-7xl", local: "text-4xl xl:text-5xl 2xl:text-6xl" },
+];
+
 const HimnoDetalle = () => {
   const {id, numero} = useParams();
   const {state} = useLocation();
@@ -31,6 +39,10 @@ const HimnoDetalle = () => {
   const [historial, setHistorial] = useState([0]);
   const [posicionHistorial, setPosicionHistorial] = useState(0);
   const [toasts, setToasts] = useState([]);
+  const [tamano, setTamano] = useState(() => {
+    const n = parseInt(localStorage.getItem("himno-font-size") || "2", 10);
+    return Number.isFinite(n) && n >= 0 && n < TAMANOS_TEXTO.length ? n : 2;
+  });
 
   const API_BASE = "http://localhost:3001";
   const navigate = useNavigate();
@@ -156,6 +168,23 @@ const HimnoDetalle = () => {
       window.electron.enviarVersiculo({parrafo: "", titulo: "", numero: "", origen: "clear"});
       setIsProyectando(false);
       addToast("Proyección limpiada", "info");
+    }
+  };
+
+  const cambiarTamano = async (delta) => {
+    const nuevo = Math.max(0, Math.min(TAMANOS_TEXTO.length - 1, tamano + delta));
+    setTamano(nuevo);
+    localStorage.setItem("himno-font-size", String(nuevo));
+    try {
+      await window.electron?.actualizarConfiguracionPorClave?.("fontSize.parrafo", TAMANOS_TEXTO[nuevo].proyector);
+    } catch {}
+    if (isProyectando && himno) {
+      window.electron.enviarHimno({
+        parrafo: himno.parrafos[selectedParrafo],
+        titulo: himno.titulo,
+        numero: himno.numero,
+        origen: "himno",
+      });
     }
   };
 
@@ -364,6 +393,25 @@ const HimnoDetalle = () => {
 
             <div className="w-px h-5 bg-white/10 mx-1" />
 
+            {/* Tamaño de texto */}
+            <div className="flex items-center shrink-0" title="Tamaño del texto proyectado">
+              <button
+                onClick={() => cambiarTamano(-1)}
+                disabled={tamano === 0}
+                className="w-7 h-8 xl:w-8 xl:h-9 rounded-l-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-25 disabled:cursor-not-allowed text-white/60 hover:text-white text-[10px] font-bold"
+              >A-</button>
+              <div className="h-8 xl:h-9 px-1.5 bg-white/5 border-y border-white/8 flex items-center text-[10px] text-white/35 font-mono tabular-nums">
+                {tamano + 1}
+              </div>
+              <button
+                onClick={() => cambiarTamano(1)}
+                disabled={tamano === TAMANOS_TEXTO.length - 1}
+                className="w-7 h-8 xl:w-8 xl:h-9 rounded-r-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-25 disabled:cursor-not-allowed text-white/60 hover:text-white text-[11px] font-bold"
+              >A+</button>
+            </div>
+
+            <div className="w-px h-5 bg-white/10 mx-1" />
+
             {/* Limpiar */}
             <button
               onClick={limpiarProyeccion}
@@ -524,7 +572,7 @@ const HimnoDetalle = () => {
               <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-4 xl:px-8 py-3 xl:py-5 overflow-hidden">
                 <div className="w-full max-w-4xl mx-auto min-h-0 flex flex-col">
                   <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-700/40 via-slate-800/30 to-slate-700/20 shadow-inner shadow-black/30 px-5 sm:px-8 xl:px-12 py-5 xl:py-8 min-h-0 overflow-y-auto">
-                    <p className="whitespace-pre-line text-center text-2xl sm:text-3xl xl:text-4xl 2xl:text-5xl font-medium leading-relaxed xl:leading-loose text-white/93 tracking-wide drop-shadow-sm">
+                    <p className={`whitespace-pre-line text-center ${TAMANOS_TEXTO[tamano].local} font-medium leading-relaxed xl:leading-loose text-white/93 tracking-wide drop-shadow-sm`}>
                       {himno.parrafos[selectedParrafo]}
                     </p>
                   </div>

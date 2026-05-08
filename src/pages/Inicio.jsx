@@ -227,18 +227,47 @@ const Inicio = () => {
   const itemVariants       = {hidden:{opacity:0, y:16}, visible:{opacity:1, y:0, transition:{duration:0.35}}};
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-slate-900 border-l border-white/5 flex flex-col">
+    <div className="relative w-full h-screen overflow-hidden bg-[#060d1a] border-l border-white/5 flex flex-col">
 
-      {/* Fondo */}
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0" style={{backgroundImage:"url(/fondos/imagen4.png)"}} />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/80 z-10 pointer-events-none" />
+      {/* ── Fondo: gradiente profesional en capas ── */}
+      {/* Base navy profunda con dirección diagonal */}
+      <div className="absolute inset-0 z-0" style={{
+        background: "linear-gradient(155deg, #07101f 0%, #0c1830 18%, #101f40 38%, #0b1a34 55%, #081426 75%, #050d1c 100%)"
+      }} />
+      {/* Orbe violeta — arriba derecha, evoca espiritualidad */}
+      <div className="absolute -top-48 -right-24 w-[560px] h-[560px] rounded-full pointer-events-none z-0" style={{
+        background: "radial-gradient(circle at center, rgba(109,40,217,0.22) 0%, rgba(79,30,170,0.10) 45%, transparent 70%)"
+      }} />
+      {/* Orbe esmeralda — abajo izquierda, esperanza y vida */}
+      <div className="absolute -bottom-32 -left-24 w-[480px] h-[480px] rounded-full pointer-events-none z-0" style={{
+        background: "radial-gradient(circle at center, rgba(5,150,105,0.18) 0%, rgba(4,120,87,0.08) 45%, transparent 70%)"
+      }} />
+      {/* Orbe dorado central suave — luz divina */}
+      <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[260px] rounded-full pointer-events-none z-0" style={{
+        background: "radial-gradient(ellipse at center, rgba(146,100,12,0.13) 0%, rgba(100,65,5,0.06) 50%, transparent 70%)"
+      }} />
+      {/* Orbe índigo secundario — arriba izquierda */}
+      <div className="absolute -top-16 -left-16 w-[300px] h-[300px] rounded-full pointer-events-none z-0" style={{
+        background: "radial-gradient(circle at center, rgba(55,48,163,0.18) 0%, transparent 65%)"
+      }} />
+      {/* Viñeta periférica para profundidad */}
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{
+        background: "radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)"
+      }} />
+      {/* Línea luminosa horizontal sutil a media altura */}
+      <div className="absolute left-0 right-0 z-0 pointer-events-none" style={{
+        top: "42%", height: "1px",
+        background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.18) 25%, rgba(16,185,129,0.12) 50%, rgba(99,102,241,0.18) 75%, transparent 100%)"
+      }} />
 
       {/* ── HEADER (media player) ── */}
       <motion.header
         initial={{opacity:0, y:-20}} animate={{opacity:1, y:0}}
-        className="sticky top-0 z-50 backdrop-blur-md border-b border-emerald-500/20 shadow-lg overflow-hidden shrink-0"
+        className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/8 shadow-2xl overflow-hidden shrink-0"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
+        <div className="absolute inset-0" style={{
+          background: "linear-gradient(90deg, rgba(6,13,26,0.92) 0%, rgba(11,24,52,0.88) 50%, rgba(6,13,26,0.92) 100%)"
+        }} />
         {mediaContext?.isPlaying && (
           <>
             <div className="absolute inset-0 opacity-60" style={{background:"linear-gradient(45deg,rgba(239,68,68,.4),rgba(16,185,129,.4),rgba(59,130,246,.4),rgba(168,85,247,.4))",backgroundSize:"400% 400%",animation:"gradientShift 8s ease infinite"}} />
@@ -322,7 +351,7 @@ const Inicio = () => {
       </motion.header>
 
       {/* ── CONTENIDO PRINCIPAL ── */}
-      <div className="relative z-20 flex-1 min-h-0 overflow-y-auto flex items-center justify-center">
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto flex items-center justify-center">
         <motion.main
           className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 xl:px-8 py-5 xl:py-7 flex flex-col gap-5 xl:gap-7"
           variants={containerVariants} initial="hidden" animate="visible"
@@ -331,16 +360,36 @@ const Inicio = () => {
           {/* ── Cita del día ── */}
           {citaDelDia && (
             <motion.section variants={itemVariants} className="text-center">
-              <p className="text-base sm:text-lg xl:text-xl text-white/80 italic font-light leading-relaxed max-w-3xl mx-auto">
-                "{citaDelDia.texto}"
-              </p>
-              <p className="text-xs text-white/40 mt-2 font-medium tracking-wide">{citaDelDia.referencia}</p>
+              <div className="relative inline-block max-w-3xl mx-auto px-6 xl:px-10 py-5 xl:py-6 rounded-2xl overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                {/* Línea dorada decorativa arriba */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  style={{background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)"}} />
+                <p className="text-base sm:text-lg xl:text-xl text-white/85 italic font-light leading-relaxed">
+                  "{citaDelDia.texto}"
+                </p>
+                <p className="text-xs text-amber-400/60 mt-3 font-medium tracking-widest uppercase">
+                  — {citaDelDia.referencia}
+                </p>
+                {/* Línea dorada decorativa abajo */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  style={{background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)"}} />
+              </div>
             </motion.section>
           )}
 
           {/* ── Accesos rápidos ── */}
           <motion.section variants={itemVariants}>
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Accesos Rápidos</h3>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, transparent, rgba(99,102,241,0.3))"}} />
+              <h3 className="text-xs font-semibold text-indigo-300/60 uppercase tracking-widest">Accesos Rápidos</h3>
+              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, rgba(99,102,241,0.3), transparent)"}} />
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 xl:gap-3">
               {accesos.map((item) => (
                 <motion.button
@@ -370,7 +419,11 @@ const Inicio = () => {
 
           {/* ── Estadísticas ── */}
           <motion.section variants={itemVariants}>
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Catálogo</h3>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, transparent, rgba(16,185,129,0.3))"}} />
+              <h3 className="text-xs font-semibold text-emerald-300/60 uppercase tracking-widest">Catálogo</h3>
+              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, rgba(16,185,129,0.3), transparent)"}} />
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 xl:gap-3">
               {stats.map((s) => (
                 <div key={s.label} className={`flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3.5 xl:py-4 rounded-2xl border ${s.bg} backdrop-blur-sm`}>

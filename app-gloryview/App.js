@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import {
+  Alert,
   Animated,
   AppState,
   ActivityIndicator,
@@ -23,6 +24,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -229,7 +231,8 @@ const getThumbCandidatesForItem = (item) => {
 };
 
 export default function App() {
-  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos'
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos' | 'anuncios' | 'temporizador' | 'plantillas' | 'presentaciones'
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   const [serverBaseUrl, setServerBaseUrl] = useState('');
@@ -247,6 +250,14 @@ export default function App() {
 
   const [catalogoHimnos, setCatalogoHimnos] = useState([]);
   const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
+
+  // Formulario agregar/editar himno personalizado
+  const [modalHimnoForm, setModalHimnoForm] = useState(false);
+  const [himnoFormId, setHimnoFormId] = useState(null);
+  const [himnoFormNumero, setHimnoFormNumero] = useState('');
+  const [himnoFormTitulo, setHimnoFormTitulo] = useState('');
+  const [himnoFormLetra, setHimnoFormLetra] = useState('');
+  const [guardandoHimno, setGuardandoHimno] = useState(false);
 
   const [favoritosHimnos, setFavoritosHimnos] = useState([]);
   const [cargandoFavoritosHimnos, setCargandoFavoritosHimnos] = useState(false);
@@ -311,15 +322,66 @@ export default function App() {
   const scrubbingRef = useRef(false);
   const [scrubTime, setScrubTime] = useState(0);
 
-  const [presentacionesSlides, setPresentacionesSlides] = useState([]);
-  const [cargandoPresentaciones, setCargandoPresentaciones] = useState(false);
-  const [presentacionSeleccionada, setPresentacionSeleccionada] = useState(null);
-  const [controlandoPresentacion, setControlandoPresentacion] = useState(false);
+  const [ordenes, setOrdenes] = useState([]);
+  const [cargandoOrdenes, setCargandoOrdenes] = useState(false);
+  const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
+  const [itemOrdActivo, setItemOrdActivo] = useState(0);
+  const [parrafoOrdActivo, setParrafoOrdActivo] = useState(0);
+  const [proyectandoOrden, setProyectandoOrden] = useState(false);
+
+  // Editor orden
+  const [modalOrdenEditor, setModalOrdenEditor] = useState(false);
+  const [ordenEditId, setOrdenEditId] = useState(null);
+  const [ordenEditTitulo, setOrdenEditTitulo] = useState('');
+  const [ordenEditFecha, setOrdenEditFecha] = useState('');
+  const [ordenEditItems, setOrdenEditItems] = useState([]);
+  const [guardandoOrden, setGuardandoOrden] = useState(false);
+
+  // Picker himnos (dentro del editor)
+  const [modalPickerHimno, setModalPickerHimno] = useState(false);
+  const [pickerHimnoTipo, setPickerHimnoTipo] = useState('moravo');
+  const [pickerHimnoBusqueda, setPickerHimnoBusqueda] = useState('');
+  const [pickerHimnoLista, setPickerHimnoLista] = useState([]);
+  const [cargandoPickerHimno, setCargandoPickerHimno] = useState(false);
+
+  // Picker versículo (dentro del editor)
+  const [modalPickerVersi, setModalPickerVersi] = useState(false);
+  const [pickerVersiLibro, setPickerVersiLibro] = useState(null);
+  const [pickerVersiCap, setPickerVersiCap] = useState(null);
+  const [pickerVersiVersos, setPickerVersiVersos] = useState([]);
+  const [pickerVersiCantidadCaps, setPickerVersiCantidadCaps] = useState(0);
+  const [cargandoPickerVersi, setCargandoPickerVersi] = useState(false);
+  const [pickerVersiBusqueda, setPickerVersiBusqueda] = useState('');
+
+  // Picker nota
+  const [modalPickerNota, setModalPickerNota] = useState(false);
+  const [pickerNotaTexto, setPickerNotaTexto] = useState('');
 
   const [fondos, setFondos] = useState([]);
   const [cargandoFondos, setCargandoFondos] = useState(false);
   const [fondoActivoId, setFondoActivoId] = useState(null);
   const [estableciendoFondo, setEstableciendoFondo] = useState(false);
+
+  // Anuncios
+  const [anuncios, setAnuncios] = useState([]);
+  const [cargandoAnuncios, setCargandoAnuncios] = useState(false);
+  const [proyectandoAnuncioId, setProyectandoAnuncioId] = useState(null);
+  const [limpiandoAnuncio, setLimpiandoAnuncio] = useState(false);
+
+  // Temporizador
+  const [timerEstado, setTimerEstado] = useState({
+    corriendo: false, segundosRestantes: 600, total: 600,
+    mensaje: 'El culto comienza en', proyectando: false, terminado: false,
+  });
+  const [timerMinutos, setTimerMinutos] = useState(10);
+  const [timerMensajeInput, setTimerMensajeInput] = useState('El culto comienza en');
+  const [controlandoTimer, setControlandoTimer] = useState(false);
+
+  // Plantillas
+  const [plantillas, setPlantillas] = useState([]);
+  const [plantillaActivaId, setPlantillaActivaId] = useState(null);
+  const [cargandoPlantillas, setCargandoPlantillas] = useState(false);
+  const [activandoPlantillaId, setActivandoPlantillaId] = useState(null);
 
   // Estado de conectividad a internet
   const [hayInternet, setHayInternet] = useState(true);
@@ -370,6 +432,12 @@ export default function App() {
     return `${base}/api/himnos/favoritos?tipo=all`;
   }, [serverBaseUrl]);
 
+  const himnosPersonalCrudUrl = useMemo(() => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return '';
+    return `${base}/api/himnos/personal`;
+  }, [serverBaseUrl]);
+
   const bibliaFavoritosApiUrl = useMemo(() => {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
@@ -413,28 +481,22 @@ export default function App() {
     return `${base}/api/control/multimedia/solo-audio/control`;
   }, [serverBaseUrl]);
 
-  const presentacionesSlidesApiUrl = useMemo(() => {
+  const ordenesApiUrl = useMemo(() => {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
-    return `${base}/api/presentaciones-slides`;
+    return `${base}/api/ordenes-servicio`;
   }, [serverBaseUrl]);
 
-  const presentacionesSlidesProyectarApiUrl = useMemo(() => {
+  const bibliaCapituloUrl = useMemo(() => {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
-    return `${base}/api/control/presentaciones-slides/proyectar`;
+    return `${base}/api/biblia/capitulo`;
   }, [serverBaseUrl]);
 
-  const presentacionesSlidesSiguienteApiUrl = useMemo(() => {
+  const ordenesProyectarItemUrl = useMemo(() => {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
-    return `${base}/api/control/presentaciones-slides/siguiente`;
-  }, [serverBaseUrl]);
-
-  const presentacionesSlidesAnteriorApiUrl = useMemo(() => {
-    const base = normalizarBaseUrl(serverBaseUrl);
-    if (!base) return '';
-    return `${base}/api/control/presentaciones-slides/anterior`;
+    return `${base}/api/control/ordenes-servicio/proyectar-item`;
   }, [serverBaseUrl]);
 
   const fondosApiUrl = useMemo(() => {
@@ -447,6 +509,24 @@ export default function App() {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
     return `${base}/api/fondos/activo`;
+  }, [serverBaseUrl]);
+
+  const anunciosApiUrl = useMemo(() => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return '';
+    return `${base}/api/anuncios`;
+  }, [serverBaseUrl]);
+
+  const timerApiBase = useMemo(() => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return '';
+    return `${base}/api`;
+  }, [serverBaseUrl]);
+
+  const plantillasApiUrl = useMemo(() => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return '';
+    return `${base}/api/plantillas`;
   }, [serverBaseUrl]);
 
   const resolverUrlMedia = (value) => {
@@ -992,13 +1072,24 @@ export default function App() {
         const stP = resP?.ok ? resP.status : null;
         const stPC = resPC?.ok ? resPC.status : null;
 
-        const activo = (!stP?.paused && stP?.id != null)
-          ? { st: stP, destino: 'proyector' }
-          : (!stPC?.paused && stPC?.id != null)
+        // Verificar si el video llegó al final por posición (no depende de relojes)
+        const videoTerminado = (st) => {
+          if (!st) return false;
+          const dur = Number(st.duration);
+          const cur = Number(st.currentTime);
+          return dur > 1 && cur > 0 && cur >= dur - 0.5;
+        };
+
+        const activoP  = stP  && stP.id  != null && !videoTerminado(stP);
+        const activoPC = stPC && stPC.id != null && !videoTerminado(stPC);
+
+        const activo = (activoP && !stP?.paused)
+          ? { st: stP,  destino: 'proyector' }
+          : (activoPC && !stPC?.paused)
             ? { st: stPC, destino: 'pc' }
-            : (stP?.id != null)
-              ? { st: stP, destino: 'proyector' }
-              : (stPC?.id != null)
+            : activoP
+              ? { st: stP,  destino: 'proyector' }
+              : activoPC
                 ? { st: stPC, destino: 'pc' }
                 : null;
 
@@ -1006,8 +1097,9 @@ export default function App() {
           // El servidor respondió y no hay nada activo → limpiar indicador
           const serverResponded = resP?.ok || resPC?.ok;
           if (serverResponded) {
-            setMultimediaSesion(null);
+            setMultimediaSesion((prev) => prev?.id != null ? null : prev);
             setEstadoReproduccion('stopped');
+            setMultimediaActiva(null);
           }
           return;
         }
@@ -1018,9 +1110,9 @@ export default function App() {
           return { id: st.id, destino };
         });
 
-        if (st.state === 'playing' || (!st.paused && st.currentTime != null)) {
+        if (!st.paused && st.currentTime != null) {
           setEstadoReproduccion('playing');
-        } else if (st.state === 'paused' || st.paused) {
+        } else if (st.paused) {
           setEstadoReproduccion('paused');
         }
 
@@ -1733,6 +1825,103 @@ export default function App() {
     }
   };
 
+  const abrirFormHimno = (himno = null) => {
+    if (himno) {
+      const rawId = String(himno.id || '').replace('db:', '');
+      setHimnoFormId(rawId);
+      setHimnoFormNumero(String(himno.numero || ''));
+      setHimnoFormTitulo(String(himno.titulo || ''));
+      setHimnoFormLetra(Array.isArray(himno.parrafos) ? himno.parrafos.join('\n\n') : '');
+    } else {
+      setHimnoFormId(null);
+      setHimnoFormNumero('');
+      setHimnoFormTitulo('');
+      setHimnoFormLetra('');
+    }
+    setModalHimnoForm(true);
+  };
+
+  const guardarHimnoPersonal = async () => {
+    if (!himnoFormTitulo.trim()) {
+      Alert.alert('Campo requerido', 'El título es obligatorio.');
+      return;
+    }
+    if (!himnoFormLetra.trim()) {
+      Alert.alert('Campo requerido', 'La letra es obligatoria.');
+      return;
+    }
+    if (!himnosPersonalCrudUrl) {
+      Alert.alert('Sin conexión', 'Conéctate al servidor antes de guardar.');
+      return;
+    }
+    Keyboard.dismiss();
+    setGuardandoHimno(true);
+    try {
+      const body = {
+        numero: himnoFormNumero.trim(),
+        titulo: himnoFormTitulo.trim(),
+        letra: himnoFormLetra,
+      };
+      const url = himnoFormId
+        ? `${himnosPersonalCrudUrl}/${himnoFormId}`
+        : himnosPersonalCrudUrl;
+      const method = himnoFormId ? 'PUT' : 'POST';
+
+      const { res, json } = await fetchJsonTimeout(url, {
+        method,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        timeoutMs: 15000,
+      });
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Error HTTP ${res.status}`);
+      }
+
+      setModalHimnoForm(false);
+      await cargarCatalogoHimnos();
+    } catch (err) {
+      Alert.alert('Error al guardar', err?.message || 'No se pudo guardar el himno.');
+    } finally {
+      setGuardandoHimno(false);
+    }
+  };
+
+  const eliminarHimnoPersonal = async (himno) => {
+    const rawId = String(himno?.id || '').replace('db:', '');
+    if (!rawId) { Alert.alert('Error', 'ID de himno inválido.'); return; }
+    if (!himnosPersonalCrudUrl) { Alert.alert('Sin conexión', 'Conéctate al servidor antes de eliminar.'); return; }
+
+    Alert.alert(
+      'Eliminar himno',
+      `¿Eliminar "${himno?.titulo || 'este himno'}"? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setGuardandoHimno(true);
+            try {
+              const { res, json } = await fetchJsonTimeout(`${himnosPersonalCrudUrl}/${rawId}`, {
+                method: 'DELETE',
+                headers: { Accept: 'application/json' },
+                timeoutMs: 15000,
+              });
+              if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+              setModalHimnoForm(false);
+              await cargarCatalogoHimnos();
+            } catch (err) {
+              Alert.alert('Error al eliminar', err?.message || 'No se pudo eliminar el himno.');
+            } finally {
+              setGuardandoHimno(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const cargarMultimedia = async () => {
     if (!multimediaApiUrl) return;
     if (cargandoMultimedia) return;
@@ -1836,8 +2025,7 @@ export default function App() {
     // Estado local optimista: actualizar UI sin esperar al roundtrip HTTP.
     if (action === 'play') setEstadoReproduccion('playing');
     if (action === 'pause') setEstadoReproduccion('paused');
-    // En Proyector, "stop" se comporta como pausa (no reinicia al inicio).
-    if (action === 'stop') setEstadoReproduccion('paused');
+    if (action === 'stop') setEstadoReproduccion('stopped');
     if (action === 'limpiar') setEstadoReproduccion('stopped');
     if (action === 'play' || action === 'pause' || action === 'stop' || action === 'limpiar') {
       setUltimoComandoControl(action);
@@ -1882,8 +2070,7 @@ export default function App() {
       // Estado local (optimista) para habilitar/deshabilitar botones.
       if (action === 'play') setEstadoReproduccion('playing');
       if (action === 'pause') setEstadoReproduccion('paused');
-      // En Proyector, "stop" se comporta como pausa (no reinicia al inicio).
-      if (action === 'stop') setEstadoReproduccion('paused');
+      if (action === 'stop') setEstadoReproduccion('stopped');
       if (action === 'limpiar') setEstadoReproduccion('stopped');
       if (action === 'play' || action === 'pause' || action === 'stop' || action === 'limpiar') {
         setUltimoComandoControl(action);
@@ -2013,6 +2200,34 @@ export default function App() {
       return;
     }
 
+    const prevEstadoReproduccion = estadoReproduccion;
+    const prevMultimediaSesion = multimediaSesion;
+    const prevUltimoComando = ultimoComandoControl;
+    const prevVolumenNivel = volumenNivel;
+
+    // Actualizar UI inmediatamente sin esperar respuesta del servidor.
+    if (action === 'play') setEstadoReproduccion('playing');
+    if (action === 'pause') setEstadoReproduccion('paused');
+    if (action === 'stop' || action === 'limpiar') setEstadoReproduccion('stopped');
+    if (action === 'play' || action === 'pause' || action === 'stop' || action === 'limpiar') {
+      setUltimoComandoControl(action);
+    }
+    if (action === 'stop' || action === 'limpiar') {
+      setMultimediaSesion({ id: null, destino: null });
+    } else if (action === 'play' || action === 'pause') {
+      const candidateId =
+        (multimediaSesion?.destino === 'pc' ? multimediaSesion?.id : null) ??
+        multimediaSeleccionada?.id ??
+        multimediaSesion?.id ??
+        null;
+      setMultimediaSesion({ id: candidateId, destino: 'pc' });
+    }
+    if (action === 'volume' && typeof extraPayload?.volume === 'number') {
+      const v = Math.max(0, Math.min(1, Number(extraPayload.volume)));
+      setVolumenNivel(v);
+      if (v > 0) volumenPrevioRef.current = v;
+    }
+
     soloAudioControlInFlightRef.current = true;
     setControlandoSoloAudio(true);
     try {
@@ -2068,6 +2283,11 @@ export default function App() {
                   : 'Comando enviado.',
       }));
     } catch (err) {
+      // Revertir estado optimista si falló.
+      setEstadoReproduccion(prevEstadoReproduccion);
+      setMultimediaSesion(prevMultimediaSesion);
+      setUltimoComandoControl(prevUltimoComando);
+      setVolumenNivel(prevVolumenNivel);
       reportarErrorSinDesconectar(
         err?.name === 'AbortError'
           ? 'Timeout controlando solo audio (PC).'
@@ -2231,162 +2451,215 @@ export default function App() {
     }
   };
 
-  const cargarPresentacionesSlides = async () => {
-    if (!presentacionesSlidesApiUrl) return;
-    if (cargandoPresentaciones) return;
-    setCargandoPresentaciones(true);
+  const cargarOrdenes = async () => {
+    if (!ordenesApiUrl) return;
+    if (cargandoOrdenes) return;
+    setCargandoOrdenes(true);
     try {
-      const { res, json } = await fetchJsonTimeout(presentacionesSlidesApiUrl, {
+      const { res, json } = await fetchJsonTimeout(ordenesApiUrl, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         timeoutMs: 15000,
       });
-      if (!res.ok || !json?.ok || !Array.isArray(json?.presentaciones)) {
+      if (!res.ok || !json?.ok || !Array.isArray(json?.ordenes)) {
         throw new Error(json?.error || `Error HTTP ${res.status}`);
       }
-      setPresentacionesSlides(json.presentaciones);
+      setOrdenes(json.ordenes);
     } catch (err) {
-      setPresentacionesSlides([]);
+      setOrdenes([]);
       reportarErrorSinDesconectar(
-        err?.name === 'AbortError' ? 'Timeout cargando presentaciones.' : err?.message || 'Error cargando presentaciones.',
+        err?.name === 'AbortError' ? 'Timeout cargando órdenes.' : err?.message || 'Error cargando órdenes.',
       );
     } finally {
-      setCargandoPresentaciones(false);
+      setCargandoOrdenes(false);
     }
   };
 
-  const proyectarPresentacion = async () => {
-    if (!presentacionesSlidesProyectarApiUrl || !presentacionSeleccionada?.id) return;
-    if (controlandoPresentacion) return;
-
-    setControlandoPresentacion(true);
+  const proyectarItemOrden = async (itemIdx, parrafoIdx = 0) => {
+    if (!ordenesProyectarItemUrl || !ordenSeleccionada?.id) return;
+    if (proyectandoOrden) return;
+    // Actualizar posición inmediatamente para que Anterior/Siguiente respondan al instante
+    setItemOrdActivo(itemIdx);
+    setParrafoOrdActivo(parrafoIdx);
+    setProyectandoOrden(true);
     try {
-      const { res, json } = await fetchJsonTimeout(presentacionesSlidesProyectarApiUrl, {
+      const { res, json } = await fetchJsonTimeout(ordenesProyectarItemUrl, {
         method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: presentacionSeleccionada.id }),
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ordenId: ordenSeleccionada.id, itemIdx, parrafoIdx }),
         timeoutMs: 20000,
       });
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Error HTTP ${res.status}`);
-      }
-
-      setPresentacionSeleccionada((prev) =>
-        prev ? { ...prev, slide_actual: json.slideIndex ?? prev.slide_actual } : prev,
-      );
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
     } catch (err) {
-      reportarErrorSinDesconectar(
-        err?.name === 'AbortError' ? 'Timeout proyectando presentación.' : err?.message || 'Error proyectando presentación.',
-      );
+      reportarErrorSinDesconectar(err?.message || 'Error proyectando item.');
     } finally {
-      setControlandoPresentacion(false);
+      setProyectandoOrden(false);
     }
   };
 
-  const siguienteSlidePresentacion = async () => {
-    if (!presentacionesSlidesSiguienteApiUrl || !presentacionSeleccionada?.id) return;
-    if (controlandoPresentacion) return;
-
-    setControlandoPresentacion(true);
-    try {
-      const { res, json } = await fetchJsonTimeout(presentacionesSlidesSiguienteApiUrl, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: presentacionSeleccionada.id }),
-        timeoutMs: 20000,
-      });
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Error HTTP ${res.status}`);
-      }
-
-      setPresentacionSeleccionada((prev) =>
-        prev ? { ...prev, slide_actual: json.slideIndex ?? prev.slide_actual } : prev,
-      );
-    } catch (err) {
-      reportarErrorSinDesconectar(
-        err?.name === 'AbortError' ? 'Timeout cambiando slide.' : err?.message || 'Error cambiando slide.',
-      );
-    } finally {
-      setControlandoPresentacion(false);
+  const siguienteItemOrden = () => {
+    if (!ordenSeleccionada) return;
+    const items = Array.isArray(ordenSeleccionada.items) ? ordenSeleccionada.items : [];
+    const item = items[itemOrdActivo];
+    const parrafos = item?.tipo === 'himno' && Array.isArray(item.parrafos) ? item.parrafos : [];
+    // Solo avanza dentro de las estrofas del himno actual — no salta al siguiente ítem
+    if (parrafos.length > 0 && parrafoOrdActivo < parrafos.length - 1) {
+      proyectarItemOrden(itemOrdActivo, parrafoOrdActivo + 1);
     }
   };
 
-  const anteriorSlidePresentacion = async () => {
-    if (!presentacionesSlidesAnteriorApiUrl || !presentacionSeleccionada?.id) return;
-    if (controlandoPresentacion) return;
-
-    setControlandoPresentacion(true);
-    try {
-      const { res, json } = await fetchJsonTimeout(presentacionesSlidesAnteriorApiUrl, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: presentacionSeleccionada.id }),
-        timeoutMs: 20000,
-      });
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Error HTTP ${res.status}`);
-      }
-
-      setPresentacionSeleccionada((prev) =>
-        prev ? { ...prev, slide_actual: json.slideIndex ?? prev.slide_actual } : prev,
-      );
-    } catch (err) {
-      reportarErrorSinDesconectar(
-        err?.name === 'AbortError' ? 'Timeout cambiando slide.' : err?.message || 'Error cambiando slide.',
-      );
-    } finally {
-      setControlandoPresentacion(false);
+  const anteriorItemOrden = () => {
+    if (!ordenSeleccionada) return;
+    // Solo retrocede dentro de las estrofas del himno actual — no salta al ítem anterior
+    if (parrafoOrdActivo > 0) {
+      proyectarItemOrden(itemOrdActivo, parrafoOrdActivo - 1);
     }
   };
 
-  const toggleFavoritoPresentacion = async (item) => {
-    const base = normalizarBaseUrl(serverBaseUrl);
-    if (!base || !item?.id) return;
+  const abrirEditorOrden = (orden = null) => {
+    if (orden) {
+      setOrdenEditId(orden.id);
+      setOrdenEditTitulo(orden.titulo || '');
+      setOrdenEditFecha(orden.fecha || '');
+      setOrdenEditItems(Array.isArray(orden.items) ? orden.items.map((it) => ({ ...it })) : []);
+    } else {
+      const hoy = new Date();
+      const yyyy = hoy.getFullYear();
+      const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+      const dd = String(hoy.getDate()).padStart(2, '0');
+      setOrdenEditId(null);
+      setOrdenEditTitulo('');
+      setOrdenEditFecha(`${yyyy}-${mm}-${dd}`);
+      setOrdenEditItems([]);
+    }
+    setModalOrdenEditor(true);
+  };
 
-    const url = `${base}/api/presentaciones-slides/${item.id}/favorito`;
-    const nextFav = !Boolean(item.favorito);
-
+  const guardarOrdenEdicion = async () => {
+    if (!ordenesApiUrl) return;
+    if (!ordenEditTitulo.trim()) {
+      Alert.alert('Error', 'El título es requerido.');
+      return;
+    }
+    setGuardandoOrden(true);
     try {
+      const url = ordenEditId ? `${ordenesApiUrl}/${ordenEditId}` : ordenesApiUrl;
+      const method = ordenEditId ? 'PUT' : 'POST';
       const { res, json } = await fetchJsonTimeout(url, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ favorito: nextFav }),
-        timeoutMs: 12000,
+        method,
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: ordenEditTitulo.trim(), fecha: ordenEditFecha.trim(), items: ordenEditItems }),
+        timeoutMs: 15000,
       });
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Error HTTP ${res.status}`);
-      }
-
-      setPresentacionesSlides((prev) =>
-        (Array.isArray(prev) ? prev : []).map((p) =>
-          String(p?.id) === String(item.id) ? { ...p, favorito: nextFav } : p,
-        ),
-      );
-
-      setPresentacionSeleccionada((prev) =>
-        prev && String(prev?.id) === String(item.id) ? { ...prev, favorito: nextFav } : prev,
-      );
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setModalOrdenEditor(false);
+      await cargarOrdenes();
     } catch (err) {
-      reportarErrorSinDesconectar(
-        err?.name === 'AbortError' ? 'Timeout actualizando favorito.' : err?.message || 'Error actualizando favorito.',
-      );
+      Alert.alert('Error', err?.message || 'No se pudo guardar la orden.');
+    } finally {
+      setGuardandoOrden(false);
     }
+  };
+
+  const eliminarOrdenEdicion = () => {
+    if (!ordenesApiUrl || !ordenEditId) return;
+    Alert.alert('Eliminar orden', '¿Seguro que deseas eliminar esta orden de servicio?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive',
+        onPress: async () => {
+          try {
+            const { res, json } = await fetchJsonTimeout(`${ordenesApiUrl}/${ordenEditId}`, {
+              method: 'DELETE',
+              headers: { Accept: 'application/json' },
+              timeoutMs: 10000,
+            });
+            if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+            setModalOrdenEditor(false);
+            setOrdenSeleccionada(null);
+            await cargarOrdenes();
+          } catch (err) {
+            Alert.alert('Error', err?.message || 'No se pudo eliminar la orden.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const cargarHimnosParaPicker = async (tipo) => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    const tipoApi = tipo === 'vidaCristiana' ? 'vida' : tipo === 'personal' ? 'personal' : 'moravo';
+    setCargandoPickerHimno(true);
+    setPickerHimnoLista([]);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/himnos?tipo=${tipoApi}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        timeoutMs: 15000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setPickerHimnoLista(Array.isArray(json?.himnos) ? json.himnos : []);
+    } catch (err) {
+      setPickerHimnoLista([]);
+    } finally {
+      setCargandoPickerHimno(false);
+    }
+  };
+
+  const addItemHimno = (himno) => {
+    const newItem = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      tipo: 'himno',
+      tituloHimno: himno.titulo,
+      numeroHimno: himno.numero,
+      tipoHimno: pickerHimnoTipo,
+      parrafos: Array.isArray(himno.parrafos) ? himno.parrafos : [],
+    };
+    setOrdenEditItems((prev) => [...prev, newItem]);
+    setModalPickerHimno(false);
+  };
+
+  const addItemVersiculo = (libroId, libroNombre, cap, verIdx, texto) => {
+    const newItem = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      tipo: 'versiculo',
+      libroId,
+      libroNombre,
+      capitulo: cap,
+      versiculo: verIdx + 1,
+      texto,
+    };
+    // No cierra el modal — el usuario puede seguir agregando versículos del mismo capítulo
+    setOrdenEditItems((prev) => [...prev, newItem]);
+  };
+
+  const addItemNota = () => {
+    if (!pickerNotaTexto.trim()) return;
+    const newItem = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      tipo: 'nota',
+      texto: pickerNotaTexto.trim(),
+    };
+    setOrdenEditItems((prev) => [...prev, newItem]);
+    setModalPickerNota(false);
+    setPickerNotaTexto('');
+  };
+
+  const removeOrdenItem = (idx) => {
+    setOrdenEditItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const moveOrdenItem = (idx, dir) => {
+    setOrdenEditItems((prev) => {
+      const arr = [...prev];
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= arr.length) return arr;
+      const tmp = arr[idx];
+      arr[idx] = arr[newIdx];
+      arr[newIdx] = tmp;
+      return arr;
+    });
   };
 
   const cargarFondos = async () => {
@@ -2450,6 +2723,154 @@ export default function App() {
     }
   };
 
+  // ── Anuncios ───────────────────────────────────────────────────────────────
+  const cargarAnuncios = async () => {
+    if (!anunciosApiUrl) return;
+    if (cargandoAnuncios) return;
+    setCargandoAnuncios(true);
+    try {
+      const { res, json } = await fetchJsonTimeout(anunciosApiUrl, {
+        method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 12000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setAnuncios(Array.isArray(json.anuncios) ? json.anuncios : []);
+    } catch (err) {
+      setAnuncios([]);
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout cargando anuncios.' : err?.message || 'Error cargando anuncios.');
+    } finally {
+      setCargandoAnuncios(false);
+    }
+  };
+
+  const proyectarAnuncio = async (id) => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base || !id) return;
+    setProyectandoAnuncioId(id);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/control/anuncios/proyectar`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }), timeoutMs: 12000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout proyectando anuncio.' : err?.message || 'Error proyectando anuncio.');
+    } finally {
+      setProyectandoAnuncioId(null);
+    }
+  };
+
+  const limpiarAnuncioProyector = async () => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    setLimpiandoAnuncio(true);
+    try {
+      await fetchJsonTimeout(`${base}/api/control/anuncios/limpiar`, {
+        method: 'POST', headers: { Accept: 'application/json' }, timeoutMs: 8000,
+      });
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.message || 'Error limpiando pantalla.');
+    } finally {
+      setLimpiandoAnuncio(false);
+    }
+  };
+
+  // ── Temporizador ───────────────────────────────────────────────────────────
+  const cargarTimerEstado = async () => {
+    if (!timerApiBase) return;
+    try {
+      const { res, json } = await fetchJsonTimeout(`${timerApiBase}/temporizador/estado`, {
+        method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 5000,
+      });
+      if (res.ok && json?.ok && json?.estado) setTimerEstado(json.estado);
+    } catch {}
+  };
+
+  const configurarTimer = async (min) => {
+    setTimerMinutos(min);
+    if (!timerApiBase || !conectado) return;
+    try {
+      const { res, json } = await fetchJsonTimeout(`${timerApiBase}/control/temporizador/configurar`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutos: min }), timeoutMs: 8000,
+      });
+      if (res.ok && json?.ok && json?.estado) setTimerEstado(json.estado);
+    } catch {}
+  };
+
+  const controlarTimer = async (accion, params = {}) => {
+    if (!timerApiBase || controlandoTimer) return;
+    setControlandoTimer(true);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${timerApiBase}/control/temporizador/${accion}`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(params), timeoutMs: 10000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      if (json?.estado) setTimerEstado(json.estado);
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout controlando temporizador.' : err?.message || 'Error controlando temporizador.');
+    } finally {
+      setControlandoTimer(false);
+    }
+  };
+
+  // ── Plantillas ─────────────────────────────────────────────────────────────
+  const cargarPlantillas = async () => {
+    if (!plantillasApiUrl) return;
+    if (cargandoPlantillas) return;
+    setCargandoPlantillas(true);
+    try {
+      const { res, json } = await fetchJsonTimeout(plantillasApiUrl, {
+        method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 12000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setPlantillas(Array.isArray(json.plantillas) ? json.plantillas : []);
+      setPlantillaActivaId(json.activa || null);
+    } catch (err) {
+      setPlantillas([]);
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout cargando plantillas.' : err?.message || 'Error cargando plantillas.');
+    } finally {
+      setCargandoPlantillas(false);
+    }
+  };
+
+  const activarPlantilla = async (id) => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base || !id) return;
+    setActivandoPlantillaId(id);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/control/plantillas/activar`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }), timeoutMs: 10000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setPlantillaActivaId(id);
+      setPlantillas((prev) => prev.map((p) => ({ ...p, activa: p.id === id })));
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.message || 'Error activando plantilla.');
+    } finally {
+      setActivandoPlantillaId(null);
+    }
+  };
+
+  const desactivarPlantilla = async () => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    setActivandoPlantillaId('desactivar');
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/control/plantillas/desactivar`, {
+        method: 'POST', headers: { Accept: 'application/json' }, timeoutMs: 10000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setPlantillaActivaId(null);
+      setPlantillas((prev) => prev.map((p) => ({ ...p, activa: false })));
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.message || 'Error desactivando plantilla.');
+    } finally {
+      setActivandoPlantillaId(null);
+    }
+  };
+
   const multimediaFiltrada = useMemo(() => {
     const term = (multimediaBusqueda || '').trim().toLowerCase();
     const base = Array.isArray(multimediaFiles) ? multimediaFiles : [];
@@ -2472,10 +2893,7 @@ export default function App() {
     [multimediaFiles],
   );
 
-  const favoritosPresentaciones = useMemo(
-    () => (Array.isArray(presentacionesSlides) ? presentacionesSlides : []).filter((p) => Boolean(p?.favorito)),
-    [presentacionesSlides],
-  );
+  const favoritosPresentaciones = [];
 
   const favoritosBibliaIds = useMemo(() => {
     const ids = new Set();
@@ -2503,8 +2921,57 @@ export default function App() {
       cargarFavoritosHimnos();
       cargarFavoritosBiblia();
     }
+    if (seccion === 'anuncios') {
+      cargarAnuncios();
+    }
+    if (seccion === 'temporizador') {
+      // Al abrir la sección: carga estado y sincroniza preset con el total del servidor (una sola vez)
+      (async () => {
+        if (!timerApiBase) return;
+        try {
+          const { res, json } = await fetchJsonTimeout(`${timerApiBase}/temporizador/estado`, {
+            method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 5000,
+          });
+          if (res?.ok && json?.ok && json?.estado) {
+            setTimerEstado(json.estado);
+            if (!json.estado.corriendo && !json.estado.terminado && json.estado.total) {
+              const min = Math.round(json.estado.total / 60);
+              if (min >= 1) setTimerMinutos(min);
+            }
+          }
+        } catch {}
+      })();
+    }
+    if (seccion === 'plantillas') {
+      cargarPlantillas();
+    }
+    if (seccion === 'presentaciones') {
+      cargarOrdenes();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seccion, conectado]);
+
+  // Polling global del timer — cuando está corriendo, actualizar en cualquier sección (para el indicador del header)
+  useEffect(() => {
+    if (!conectado || !timerApiBase) return;
+    const interval = setInterval(async () => {
+      // Solo hacer fetch si el timer está activo O si estamos en la sección del timer
+      const timerActivo = timerEstado?.corriendo && timerEstado?.proyectando && !timerEstado?.terminado;
+      if (timerActivo || seccion === 'temporizador') {
+        await cargarTimerEstado();
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conectado, timerApiBase, timerEstado?.corriendo, timerEstado?.proyectando]);
+
+  // Polling del temporizador cuando la sección está activa (redundante pero más frecuente en la vista)
+  useEffect(() => {
+    if (seccion !== 'temporizador' || !conectado) return;
+    const interval = setInterval(cargarTimerEstado, 2000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seccion, conectado, timerApiBase]);
 
   useEffect(() => {
     if (seccion !== 'multimedia') {
@@ -2537,6 +3004,32 @@ export default function App() {
                 {conectado ? 'Conectado al PC' : 'Sin conexión'}
               </Text>
             </View>
+
+            {/* Indicador de timer activo — visible en cualquier sección */}
+            {timerEstado?.proyectando && timerEstado?.corriendo && !timerEstado?.terminado && (
+              <Pressable
+                onPress={() => setSeccion('temporizador')}
+                style={({ pressed }) => [{
+                  flexDirection: 'row', alignItems: 'center', gap: 5,
+                  backgroundColor: 'rgba(99,102,241,0.18)',
+                  borderColor: 'rgba(99,102,241,0.40)',
+                  borderWidth: 1, borderRadius: 10,
+                  paddingHorizontal: 8, paddingVertical: 4,
+                  marginRight: 6,
+                }, pressed && { opacity: 0.75 }]}
+              >
+                <Ionicons name="timer" size={13} color="#818cf8" />
+                <Text style={{ color: '#a5b4fc', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                  {(() => {
+                    const seg = Number(timerEstado?.segundosRestantes ?? 0);
+                    const m = Math.floor(seg / 60);
+                    const s = seg % 60;
+                    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                  })()}
+                </Text>
+              </Pressable>
+            )}
+
             <View
               style={[
                 styles.badge,
@@ -2759,6 +3252,54 @@ export default function App() {
                     </Text>
                   </Pressable>
 
+                  <Pressable
+                    onPress={() => { setSeccion('anuncios'); setMenuAbierto(false); }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'anuncios' && { backgroundColor: 'rgba(236,72,153,0.16)', borderColor: 'rgba(236,72,153,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons name="megaphone" size={20} color={seccion === 'anuncios' ? '#ec4899' : '#cbd5e1'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.drawerItemText, seccion === 'anuncios' && { color: '#ec4899' }]}>Anuncios</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => { setSeccion('temporizador'); setMenuAbierto(false); }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'temporizador' && { backgroundColor: 'rgba(99,102,241,0.16)', borderColor: 'rgba(99,102,241,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons name="timer" size={20} color={seccion === 'temporizador' ? '#6366f1' : '#cbd5e1'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.drawerItemText, seccion === 'temporizador' && { color: '#6366f1' }]}>Temporizador</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => { setSeccion('plantillas'); setMenuAbierto(false); }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'plantillas' && { backgroundColor: 'rgba(20,184,166,0.16)', borderColor: 'rgba(20,184,166,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons name="color-palette" size={20} color={seccion === 'plantillas' ? '#14b8a6' : '#cbd5e1'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.drawerItemText, seccion === 'plantillas' && { color: '#14b8a6' }]}>Plantillas</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => { setSeccion('presentaciones'); setMenuAbierto(false); }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'presentaciones' && { backgroundColor: 'rgba(251,146,60,0.16)', borderColor: 'rgba(251,146,60,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons name="list" size={20} color={seccion === 'presentaciones' ? '#fb923c' : '#cbd5e1'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.drawerItemText, seccion === 'presentaciones' && { color: '#fb923c' }]}>Orden de Servicio</Text>
+                  </Pressable>
+
                   <View style={{ flex: 1 }} />
 
                   <View style={styles.drawerFooter}>
@@ -2783,119 +3324,194 @@ export default function App() {
           )}
 
           <View style={styles.content}>
-            {seccion === 'inicio' && (
-              <View style={styles.homeContainer}>
-                <View style={styles.homeGrid}>
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('conexion');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(59,130,246,0.18)', 'rgba(59,130,246,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
-                    >
-                      <Ionicons name="wifi" size={48} color="#60a5fa" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Conexión</Text>
-                    </LinearGradient>
-                  </Pressable>
+            {seccion === 'inicio' && (() => {
+              const isTablet   = screenWidth >= 600;
+              const cols       = screenWidth >= 900 ? 4 : 3;
+              const padH       = isTablet ? 20 : 16;
+              const gap        = isTablet ? 12 : 10;
+              // Móvil: altura fija. Tablet: altura calculada para llenar pantalla
+              const pillH      = 60; // barra de estado aprox
+              const footerH    = 36;
+              const vertPad    = 14 + 20; // paddingTop + paddingBottom
+              const numRows    = Math.ceil(9 / cols);
+              const tabletCardH = Math.min(
+                130,
+                Math.max(80, (screenHeight - pillH - footerH - vertPad - (numRows - 1) * gap) / numRows)
+              );
+              const cardH      = isTablet ? tabletCardH : 90;
+              const iconBoxSz  = isTablet ? 50 : 42;
+              const iconSz     = isTablet ? 24 : 20;
+              const iconRadius = 13;
+              const lblSz      = isTablet ? 13 : 11;
 
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('himnos');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(16,185,129,0.18)', 'rgba(16,185,129,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
-                    >
-                      <Ionicons name="musical-notes" size={48} color="#10b981" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Himnos</Text>
-                    </LinearGradient>
-                  </Pressable>
+              const ITEMS = [
+                { id: 'himnos',         label: 'Himnos',           icon: 'musical-notes',  color: '#10b981' },
+                { id: 'biblia',         label: 'Biblia',           icon: 'book',           color: '#818cf8' },
+                { id: 'presentaciones', label: 'Orden de Servicio',icon: 'list',           color: '#fb923c' },
+                { id: 'multimedia',     label: 'Multimedia',       icon: 'play-circle',    color: '#f59e0b' },
+                { id: 'fondos',         label: 'Fondos',           icon: 'image',          color: '#a855f7' },
+                { id: 'favoritos',      label: 'Favoritos',        icon: 'heart',          color: '#f43f5e' },
+                { id: 'anuncios',       label: 'Anuncios',         icon: 'megaphone',      color: '#ec4899' },
+                { id: 'temporizador',   label: 'Temporizador',     icon: 'timer',          color: '#6366f1' },
+                { id: 'plantillas',     label: 'Plantillas',       icon: 'color-palette',  color: '#14b8a6' },
+              ];
 
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('biblia');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(99,102,241,0.18)', 'rgba(99,102,241,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
-                    >
-                      <Ionicons name="book" size={48} color="#6366f1" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Biblia</Text>
-                    </LinearGradient>
-                  </Pressable>
+              const toRows = (arr) => {
+                const rows = [];
+                for (let i = 0; i < arr.length; i += cols) rows.push(arr.slice(i, i + cols));
+                return rows;
+              };
+              const rows = toRows(ITEMS);
 
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('multimedia');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(245,158,11,0.18)', 'rgba(245,158,11,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
-                    >
-                      <Ionicons name="play-circle" size={48} color="#f59e0b" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Multimedia</Text>
-                    </LinearGradient>
-                  </Pressable>
+              // fixedH: height fija (móvil). undefined: la fila padre define la altura (tablet)
+              const Card = ({ item, isLast, fixedH }) => (
+                <Pressable
+                  onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
+                  style={({ pressed }) => [{
+                    flex: 1,
+                    ...(fixedH ? { height: fixedH } : {}),
+                    marginRight: isLast ? 0 : gap,
+                    borderRadius: 16,
+                    backgroundColor: 'rgba(15,23,42,0.55)',
+                    borderWidth: 1,
+                    borderColor: item.color + '40',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 10,
+                  },
+                  pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+                  ]}
+                >
+                  <View style={{
+                    width: iconBoxSz, height: iconBoxSz,
+                    borderRadius: iconRadius,
+                    backgroundColor: item.color + '22',
+                    alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 8,
+                  }}>
+                    <Ionicons name={item.icon} size={iconSz} color={item.color} />
+                  </View>
+                  <Text style={{
+                    color: '#cbd5e1', fontSize: lblSz, fontWeight: '600',
+                    textAlign: 'center', letterSpacing: 0.1,
+                  }} numberOfLines={2}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
 
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('fondos');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
-                    >
-                      <Ionicons name="image" size={48} color="#a855f7" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Fondos</Text>
-                    </LinearGradient>
-                  </Pressable>
+              const proyectando = estadoReproduccion === 'playing';
+              const enPausa     = estadoReproduccion === 'paused';
+              const hayMedia    = proyectando || enPausa;
+              const nombreMedia = String(multimediaActiva?.nombre || multimediaUltimaProyectada?.nombre || '');
 
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSeccion('favoritos');
-                    }}
-                    style={({ pressed }) => [styles.homeCard, pressed && styles.homeCardPressed]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(244,63,94,0.18)', 'rgba(244,63,94,0.08)', 'rgba(0,0,0,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.homeCardGradient}
+              // Barra de estado — igual para móvil y tablet
+              const StatusPill = () => hayMedia && !!nombreMedia ? (
+                <Pressable
+                  onPress={() => { Keyboard.dismiss(); setSeccion('multimedia'); }}
+                  style={({ pressed }) => [{
+                    borderRadius: 14, marginBottom: 14,
+                    borderWidth: 1, borderColor: proyectando ? 'rgba(245,158,11,0.30)' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: proyectando ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.04)',
+                  }, pressed && { opacity: 0.75 }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 12 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: proyectando ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={proyectando ? 'volume-high' : 'pause'} size={17} color={proyectando ? '#f59e0b' : '#64748b'} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: proyectando ? '#fbbf24' : '#64748b', fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 1 }}>
+                        {proyectando ? 'Reproduciendo' : 'En pausa'}
+                      </Text>
+                      <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{nombreMedia}</Text>
+                    </View>
+                    {proyectando && <AnimatedSoundBars />}
+                    <Ionicons name="chevron-forward" size={14} color="#334155" />
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
+                  style={({ pressed }) => [{
+                    borderRadius: 14, marginBottom: 14,
+                    borderWidth: 1,
+                    borderColor: conectado ? 'rgba(16,185,129,0.20)' : 'rgba(96,165,250,0.18)',
+                    backgroundColor: conectado ? 'rgba(16,185,129,0.07)' : 'rgba(59,130,246,0.07)',
+                  }, pressed && { opacity: 0.75 }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 10 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? '#10b981' : '#60a5fa'} />
+                    </View>
+                    <Text style={{ flex: 1, color: conectado ? '#6ee7b7' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
+                      {conectado ? '' : 'Sin conexión — toca para conectar'}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="#334155" />
+                  </View>
+                </Pressable>
+              );
+
+              // tablet=true → filas con flex:1 para llenar toda la altura disponible
+              const Grid = ({ tablet = false }) => (
+                <View style={tablet ? { flex: 1 } : { gap: gap }}>
+                  {rows.map((row, ri) => (
+                    <View
+                      key={ri}
+                      style={[
+                        { flexDirection: 'row' },
+                        tablet
+                          ? { flex: 1, marginBottom: ri < rows.length - 1 ? gap : 0 }
+                          : {},
+                      ]}
                     >
-                      <Ionicons name="heart" size={48} color="#f43f5e" style={{ marginBottom: 12 }} />
-                      <Text style={styles.homeCardTitle}>Favoritos</Text>
-                    </LinearGradient>
-                  </Pressable>
+                      {row.map((item, ci) => (
+                        <Card
+                          key={item.id}
+                          item={item}
+                          isLast={ci === row.length - 1}
+                          fixedH={tablet ? undefined : cardH}
+                        />
+                      ))}
+                      {Array(cols - row.length).fill(null).map((_, i) => (
+                        <View key={`fill${i}`} style={{ flex: 1, marginRight: i < cols - row.length - 1 ? gap : 0 }} />
+                      ))}
+                    </View>
+                  ))}
                 </View>
-              </View>
-            )}
+              );
+
+              const Footer = () => (
+                <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+                  <Text style={{ color: '#475569', fontSize: 11, fontWeight: '600', letterSpacing: 0.4 }}>
+                    GloryView · Alfredo Hammer
+                  </Text>
+                </View>
+              );
+
+              // Tablet: filas con flex:1 llenan toda la pantalla
+              if (isTablet) {
+                return (
+                  <View style={{ flex: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 14 }}>
+                    <StatusPill />
+                    <Grid tablet />
+                    <Footer />
+                  </View>
+                );
+              }
+
+              // Móvil: ScrollView con alturas fijas
+              return (
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 14, paddingBottom: 20 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <StatusPill />
+                  <Grid />
+                  <Footer />
+                </ScrollView>
+              );
+            })()}
 
             {seccion === 'conexion' && (
               <View style={styles.card}>
@@ -3115,15 +3731,32 @@ export default function App() {
                       </Pressable>
                     </View>
 
-                    <TextInput
-                      value={busqueda}
-                      onChangeText={setBusqueda}
-                      placeholder="Buscar por número o título"
-                      placeholderTextColor="#7c7c7c"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      style={styles.input}
-                    />
+                    {/* Barra búsqueda + botón agregar (solo en Personalizados) */}
+                    <View style={styles.row}>
+                      <TextInput
+                        value={busqueda}
+                        onChangeText={setBusqueda}
+                        placeholder="Buscar por número o título"
+                        placeholderTextColor="#7c7c7c"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                      />
+                      {tipo === 'personal' && (
+                        <Pressable
+                          onPress={() => conectado && abrirFormHimno()}
+                          disabled={!conectado}
+                          style={({ pressed }) => [
+                            styles.smallButtonPrimary,
+                            { marginLeft: 8, paddingHorizontal: 14 },
+                            !conectado && styles.buttonDisabled,
+                            pressed && conectado && styles.buttonPressed,
+                          ]}
+                        >
+                          <Text style={styles.smallButtonPrimaryText}>＋</Text>
+                        </Pressable>
+                      )}
+                    </View>
 
                     <FlatList
                       data={listaFiltrada}
@@ -3133,7 +3766,7 @@ export default function App() {
                           `${tipo}:${String(item?.numero ?? '')}:${String(item?.titulo ?? '')}`,
                         )
                       }
-                      contentContainerStyle={styles.listContent}
+                      contentContainerStyle={[styles.listContent, { marginTop: 8 }]}
                       renderItem={({ item }) => (
                         <View style={styles.itemRow}>
                           <Pressable
@@ -3147,7 +3780,7 @@ export default function App() {
                             ]}
                           >
                             <Text style={styles.itemTitle} numberOfLines={1}>
-                              {item.numero}. {item.titulo}
+                              {item.numero ? `${item.numero}. ` : ''}{item.titulo}
                             </Text>
                             <Text style={styles.itemMeta} numberOfLines={1}>
                               {Array.isArray(item.parrafos)
@@ -3155,6 +3788,22 @@ export default function App() {
                                 : '—'}
                             </Text>
                           </Pressable>
+
+                          {/* Editar — solo himnos personalizados */}
+                          {String(item?.id || '').startsWith('db:') && (
+                            <Pressable
+                              onPress={() => conectado && abrirFormHimno(item)}
+                              disabled={!conectado}
+                              style={({ pressed }) => [
+                                styles.iconButton,
+                                !conectado && styles.buttonDisabled,
+                                pressed && conectado && styles.buttonPressed,
+                              ]}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="pencil" size={14} color="#94a3b8" />
+                            </Pressable>
+                          )}
 
                           <Pressable
                             onPress={() => toggleFavoritoHimno(item)}
@@ -3172,11 +3821,117 @@ export default function App() {
                           </Pressable>
                         </View>
                       )}
+                      ListEmptyComponent={
+                        tipo === 'personal' && !cargandoCatalogo ? (
+                          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                            <Text style={styles.smallText}>No hay himnos personalizados.</Text>
+                            <Pressable
+                              onPress={() => conectado && abrirFormHimno()}
+                              disabled={!conectado}
+                              style={({ pressed }) => [styles.smallButtonPrimary, { marginTop: 12 }, pressed && styles.buttonPressed]}
+                            >
+                              <Text style={styles.smallButtonPrimaryText}>Agregar el primero</Text>
+                            </Pressable>
+                          </View>
+                        ) : null
+                      }
                     />
                   </View>
                 )}
               </View>
             )}
+
+            {/* ── Modal: Formulario Himno Personalizado ──────────────────── */}
+            <Modal
+              visible={modalHimnoForm}
+              transparent
+              animationType="slide"
+              onRequestClose={() => !guardandoHimno && setModalHimnoForm(false)}
+            >
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+                <Pressable
+                  style={[styles.drawerBackdrop, { justifyContent: 'flex-end' }]}
+                  onPress={() => !guardandoHimno && setModalHimnoForm(false)}
+                >
+                  <Pressable onPress={() => {}} style={[styles.card, { borderRadius: 20, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, margin: 0, paddingBottom: 32, maxHeight: '90%' }]}>
+                    {/* Cabecera */}
+                    <View style={[styles.rowBetween, { marginBottom: 16 }]}>
+                      <Text style={styles.sectionTitle}>
+                        {himnoFormId ? 'Editar Himno' : 'Nuevo Himno'}
+                      </Text>
+                      <Pressable onPress={() => !guardandoHimno && setModalHimnoForm(false)}>
+                        <Ionicons name="close" size={22} color="#94a3b8" />
+                      </Pressable>
+                    </View>
+
+                    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                      {/* Número */}
+                      <Text style={[styles.smallText, { marginBottom: 4 }]}>Número (opcional)</Text>
+                      <TextInput
+                        value={himnoFormNumero}
+                        onChangeText={setHimnoFormNumero}
+                        placeholder="Ej: 145"
+                        placeholderTextColor="#7c7c7c"
+                        keyboardType="default"
+                        style={[styles.input, { marginBottom: 12 }]}
+                      />
+
+                      {/* Título */}
+                      <Text style={[styles.smallText, { marginBottom: 4 }]}>Título *</Text>
+                      <TextInput
+                        value={himnoFormTitulo}
+                        onChangeText={setHimnoFormTitulo}
+                        placeholder="Ej: Sublime Gracia"
+                        placeholderTextColor="#7c7c7c"
+                        style={[styles.input, { marginBottom: 12 }]}
+                      />
+
+                      {/* Letra */}
+                      <Text style={[styles.smallText, { marginBottom: 4 }]}>Letra * <Text style={{ color: '#475569' }}>(separa estrofas con una línea en blanco)</Text></Text>
+                      <TextInput
+                        value={himnoFormLetra}
+                        onChangeText={setHimnoFormLetra}
+                        placeholder={"Primera estrofa…\n\nSegunda estrofa…"}
+                        placeholderTextColor="#7c7c7c"
+                        multiline
+                        textAlignVertical="top"
+                        style={[styles.input, { height: 200, marginBottom: 16 }]}
+                      />
+
+                      {/* Botones */}
+                      <Pressable
+                        onPress={guardarHimnoPersonal}
+                        disabled={guardandoHimno}
+                        style={({ pressed }) => [styles.smallButtonPrimary, { paddingVertical: 14, marginBottom: 10 }, guardandoHimno && styles.buttonDisabled, pressed && !guardandoHimno && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonPrimaryText}>
+                          {guardandoHimno ? 'Guardando…' : himnoFormId ? 'Guardar cambios' : 'Agregar himno'}
+                        </Text>
+                      </Pressable>
+
+                      {himnoFormId && (
+                        <Pressable
+                          onPress={() => eliminarHimnoPersonal({
+                            id: `db:${himnoFormId}`,
+                            titulo: himnoFormTitulo,
+                          })}
+                          disabled={guardandoHimno}
+                          style={({ pressed }) => [
+                            { paddingVertical: 14, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', alignItems: 'center' },
+                            guardandoHimno && styles.buttonDisabled,
+                            pressed && !guardandoHimno && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text style={{ color: '#f87171', fontWeight: '600', fontSize: 14 }}>
+                            {guardandoHimno ? 'Eliminando…' : 'Eliminar himno'}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </ScrollView>
+                  </Pressable>
+                </Pressable>
+              </KeyboardAvoidingView>
+            </Modal>
 
             {seccion === 'biblia' && (
               <View style={{ flex: 1, minHeight: 0 }}>
@@ -4066,7 +4821,932 @@ export default function App() {
                 </View>
               </ScrollView>
             )}
+
+            {/* ── Anuncios ────────────────────────────────────────────────────── */}
+            {seccion === 'anuncios' && (
+              <View style={{ flex: 1, minHeight: 0 }}>
+                <View style={[styles.card, { flex: 1, minHeight: 0 }]}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.sectionTitle}>Anuncios</Text>
+                    <View style={styles.row}>
+                      <Pressable
+                        onPress={limpiarAnuncioProyector}
+                        disabled={!conectado || limpiandoAnuncio}
+                        style={({ pressed }) => [styles.smallButton, (!conectado || limpiandoAnuncio) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonText}>Limpiar</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={cargarAnuncios}
+                        disabled={!conectado || cargandoAnuncios}
+                        style={({ pressed }) => [styles.smallButton, (!conectado || cargandoAnuncios) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonText}>Actualizar</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Text style={styles.smallText}>Proyecta anuncios en el proyector.</Text>
+                  {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+                  {cargandoAnuncios && (
+                    <View style={[styles.row, { marginTop: 6, marginBottom: 6 }]}>
+                      <ActivityIndicator color="#ffffff" />
+                      <Text style={styles.smallText}>Cargando…</Text>
+                    </View>
+                  )}
+                  <FlatList
+                    data={anuncios}
+                    keyExtractor={(item) => String(item?.id ?? item?.orden)}
+                    keyboardDismissMode="on-drag"
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.listContent}
+                    renderItem={({ item }) => (
+                      <View style={styles.itemRow}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          {!!item?.titulo && (
+                            <Text style={styles.itemTitle} numberOfLines={1}>{String(item.titulo)}</Text>
+                          )}
+                          <Text style={[styles.itemMeta, item?.titulo ? {} : { color: '#e2e8f0', fontSize: 14 }]} numberOfLines={2}>
+                            {String(item?.texto || '—')}
+                          </Text>
+                          <Text style={[styles.itemMeta, { fontSize: 11, marginTop: 2 }]}>
+                            {String(item?.plantilla || 'moderno')}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => proyectarAnuncio(item.id)}
+                          disabled={!conectado || !!proyectandoAnuncioId}
+                          style={({ pressed }) => [
+                            styles.smallButtonPrimary,
+                            (!conectado || !!proyectandoAnuncioId) && styles.buttonDisabled,
+                            pressed && conectado && styles.buttonPressed,
+                          ]}
+                        >
+                          <Text style={styles.smallButtonPrimaryText}>
+                            {proyectandoAnuncioId === item.id ? '…' : 'Proyectar'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    ListEmptyComponent={!cargandoAnuncios ? <Text style={styles.smallText}>No hay anuncios. Créalos desde el PC.</Text> : null}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* ── Temporizador ────────────────────────────────────────────────── */}
+            {seccion === 'temporizador' && (() => {
+              const corriendo = Boolean(timerEstado?.corriendo);
+              const proyectando = Boolean(timerEstado?.proyectando);
+              const terminado = Boolean(timerEstado?.terminado);
+              // Cuando el timer está parado, mostrar el preset seleccionado como preview
+              const enReposo = !corriendo && !terminado;
+              const seg = enReposo
+                ? timerMinutos * 60
+                : Number(timerEstado?.segundosRestantes ?? 0);
+              const total = enReposo
+                ? timerMinutos * 60
+                : Number(timerEstado?.total ?? 600);
+              const progreso = total > 0 ? Math.min(100, ((total - seg) / total) * 100) : 0;
+              const esCritico = seg <= 60 && seg > 0 && !enReposo;
+              const m = Math.floor(seg / 60);
+              const s = seg % 60;
+              const tiempoStr = terminado ? '¡Ya!' : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+              return (
+                <ScrollView contentContainerStyle={{ paddingBottom: 14 }} keyboardShouldPersistTaps="handled">
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Temporizador</Text>
+                    <Text style={styles.smallText}>Cuenta regresiva en el proyector.</Text>
+                    {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+
+                    {/* Mensaje */}
+                    <Text style={styles.label}>Mensaje en pantalla</Text>
+                    <TextInput
+                      value={timerMensajeInput}
+                      onChangeText={setTimerMensajeInput}
+                      placeholder="El culto comienza en"
+                      placeholderTextColor="#64748b"
+                      style={styles.input}
+                      editable={!corriendo}
+                    />
+
+                    {/* Presets */}
+                    <Text style={[styles.label, { marginTop: 8 }]}>Duración</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                      {[5, 10, 15, 20, 30].map((min) => (
+                        <Pressable
+                          key={min}
+                          onPress={() => configurarTimer(min)}
+                          disabled={corriendo}
+                          style={({ pressed }) => [
+                            styles.bibliaButton,
+                            timerMinutos === min && styles.bibliaButtonActive,
+                            corriendo && styles.buttonDisabled,
+                            pressed && !corriendo && styles.bibliaButtonPressed,
+                          ]}
+                        >
+                          <Text style={[styles.bibliaButtonText, timerMinutos === min && styles.bibliaButtonTextActive]}>
+                            {min}m
+                          </Text>
+                        </Pressable>
+                      ))}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+                        <Pressable
+                          onPress={() => !corriendo && timerMinutos > 1 && configurarTimer(timerMinutos - 1)}
+                          disabled={corriendo || timerMinutos <= 1}
+                          style={({ pressed }) => [{ width: 32, height: 34, alignItems: 'center', justifyContent: 'center' }, (corriendo || timerMinutos <= 1) && { opacity: 0.3 }]}
+                        >
+                          <Text style={{ color: '#e2e8f0', fontSize: 16 }}>−</Text>
+                        </Pressable>
+                        <Text style={{ color: '#fff', fontWeight: '700', minWidth: 28, textAlign: 'center', fontSize: 13 }}>{timerMinutos}m</Text>
+                        <Pressable
+                          onPress={() => !corriendo && timerMinutos < 99 && configurarTimer(timerMinutos + 1)}
+                          disabled={corriendo || timerMinutos >= 99}
+                          style={({ pressed }) => [{ width: 32, height: 34, alignItems: 'center', justifyContent: 'center' }, (corriendo || timerMinutos >= 99) && { opacity: 0.3 }]}
+                        >
+                          <Text style={{ color: '#e2e8f0', fontSize: 16 }}>+</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    {/* Pantalla timer */}
+                    <View style={{
+                      borderRadius: 16, borderWidth: 1, marginBottom: 12, overflow: 'hidden',
+                      borderColor: terminado ? 'rgba(16,185,129,0.4)' : esCritico ? 'rgba(239,68,68,0.4)' : proyectando ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.12)',
+                      backgroundColor: terminado ? 'rgba(16,185,129,0.07)' : esCritico ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.04)',
+                    }}>
+                      <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        <View style={{ height: 4, width: `${progreso}%`, backgroundColor: terminado ? '#10b981' : esCritico ? '#ef4444' : '#6366f1' }} />
+                      </View>
+                      <View style={{ paddingVertical: 28, paddingHorizontal: 16, alignItems: 'center' }}>
+                        {!!timerEstado?.mensaje && <Text style={{ color: '#94a3b8', fontSize: 13, marginBottom: 8 }}>{timerEstado.mensaje}</Text>}
+                        <Text style={{ fontSize: 64, fontWeight: '800', color: terminado ? '#10b981' : esCritico ? '#ef4444' : '#fff', letterSpacing: -2 }}>
+                          {tiempoStr}
+                        </Text>
+                        {proyectando && !terminado && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#6366f1' }} />
+                            <Text style={{ color: '#818cf8', fontSize: 11, fontWeight: '700' }}>EN PANTALLA</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Controles */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      {!corriendo ? (
+                        <Pressable
+                          onPress={() => controlarTimer('iniciar', { minutos: timerMinutos, mensaje: timerMensajeInput })}
+                          disabled={!conectado || controlandoTimer || terminado}
+                          style={({ pressed }) => [
+                            styles.buttonSecondary, { flex: 1 },
+                            (!conectado || controlandoTimer || terminado) && styles.buttonDisabled,
+                            pressed && conectado && styles.buttonPressed,
+                          ]}
+                        >
+                          <Text style={styles.buttonSecondaryText}>▶ Iniciar</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          onPress={() => controlarTimer('pausar')}
+                          disabled={!conectado || controlandoTimer}
+                          style={({ pressed }) => [
+                            { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(251,191,36,0.15)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)', alignItems: 'center' },
+                            (!conectado || controlandoTimer) && styles.buttonDisabled,
+                            pressed && conectado && styles.buttonPressed,
+                          ]}
+                        >
+                          <Text style={{ color: '#fbbf24', fontWeight: '700' }}>⏸ Pausar</Text>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        onPress={() => controlarTimer('reiniciar')}
+                        disabled={!conectado || controlandoTimer}
+                        style={({ pressed }) => [
+                          styles.buttonSecondary, { flex: 1 },
+                          (!conectado || controlandoTimer) && styles.buttonDisabled,
+                          pressed && conectado && styles.buttonPressed,
+                        ]}
+                      >
+                        <Text style={styles.buttonSecondaryText}>↺ Reiniciar</Text>
+                      </Pressable>
+                    </View>
+
+                    {!proyectando ? (
+                      <Pressable
+                        onPress={() => controlarTimer('proyectar', { minutos: timerMinutos, mensaje: timerMensajeInput })}
+                        disabled={!conectado || controlandoTimer}
+                        style={({ pressed }) => [
+                          styles.button,
+                          (!conectado || controlandoTimer) && styles.buttonDisabled,
+                          pressed && conectado && styles.buttonPressed,
+                        ]}
+                      >
+                        <Text style={styles.buttonText}>📺 Proyectar en pantalla</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => controlarTimer('detener')}
+                        disabled={!conectado || controlandoTimer}
+                        style={({ pressed }) => [
+                          { paddingVertical: 14, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', alignItems: 'center' },
+                          (!conectado || controlandoTimer) && styles.buttonDisabled,
+                          pressed && conectado && styles.buttonPressed,
+                        ]}
+                      >
+                        <Text style={{ color: '#f87171', fontWeight: '700' }}>⏹ Detener proyección</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </ScrollView>
+              );
+            })()}
+
+            {/* ── Plantillas ──────────────────────────────────────────────────── */}
+            {seccion === 'plantillas' && (
+              <View style={{ flex: 1, minHeight: 0 }}>
+                <View style={[styles.card, { flex: 1, minHeight: 0 }]}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.sectionTitle}>Plantillas</Text>
+                    <View style={styles.row}>
+                      {plantillaActivaId && (
+                        <Pressable
+                          onPress={desactivarPlantilla}
+                          disabled={!conectado || activandoPlantillaId === 'desactivar'}
+                          style={({ pressed }) => [styles.smallButton, (!conectado || activandoPlantillaId === 'desactivar') && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                        >
+                          <Text style={styles.smallButtonText}>Desactivar</Text>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        onPress={cargarPlantillas}
+                        disabled={!conectado || cargandoPlantillas}
+                        style={({ pressed }) => [styles.smallButton, (!conectado || cargandoPlantillas) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonText}>Actualizar</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Text style={styles.smallText}>Selecciona una animación global para el proyector.</Text>
+                  {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+                  {cargandoPlantillas && (
+                    <View style={[styles.row, { marginTop: 6, marginBottom: 6 }]}>
+                      <ActivityIndicator color="#ffffff" />
+                      <Text style={styles.smallText}>Cargando…</Text>
+                    </View>
+                  )}
+                  <FlatList
+                    data={plantillas}
+                    keyExtractor={(item) => String(item?.id)}
+                    keyboardDismissMode="on-drag"
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.listContent}
+                    renderItem={({ item }) => {
+                      const isActiva = Boolean(item?.activa) || item?.id === plantillaActivaId;
+                      return (
+                        <View style={[styles.itemRow, isActiva && styles.itemRowActive]}>
+                          <View style={{ width: 32, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 20, color: isActiva ? '#14b8a6' : '#94a3b8' }}>{String(item?.icono || '◈')}</Text>
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.itemTitle} numberOfLines={1}>{String(item?.nombre || item?.id)}</Text>
+                            <Text style={styles.itemMeta} numberOfLines={1}>{String(item?.desc || '')}</Text>
+                            {isActiva && <Text style={{ color: '#14b8a6', fontSize: 11, fontWeight: '700', marginTop: 2 }}>ACTIVA</Text>}
+                          </View>
+                          <Pressable
+                            onPress={() => isActiva ? desactivarPlantilla() : activarPlantilla(item.id)}
+                            disabled={!conectado || !!activandoPlantillaId}
+                            style={({ pressed }) => [
+                              isActiva ? styles.smallButton : styles.smallButtonPrimary,
+                              (!conectado || !!activandoPlantillaId) && styles.buttonDisabled,
+                              pressed && conectado && styles.buttonPressed,
+                            ]}
+                          >
+                            <Text style={isActiva ? styles.smallButtonText : styles.smallButtonPrimaryText}>
+                              {activandoPlantillaId === item.id ? '…' : isActiva ? 'Desact.' : 'Activar'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      );
+                    }}
+                    ListEmptyComponent={!cargandoPlantillas ? <Text style={styles.smallText}>No se cargaron plantillas.</Text> : null}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* ── Orden de Servicio ────────────────────────────────────────────── */}
+            {seccion === 'presentaciones' && (
+              <View style={{ flex: 1, minHeight: 0 }}>
+                <View style={[styles.card, { flex: 1, minHeight: 0 }]}>
+
+                  {/* Cabecera */}
+                  <View style={styles.rowBetween}>
+                    <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
+                      {ordenSeleccionada && (
+                        <Pressable onPress={() => setOrdenSeleccionada(null)} style={{ marginRight: 6, padding: 2 }}>
+                          <Ionicons name="arrow-back" size={18} color="#94a3b8" />
+                        </Pressable>
+                      )}
+                      <Text style={[styles.sectionTitle, { flex: 1 }]} numberOfLines={1}>
+                        {ordenSeleccionada ? ordenSeleccionada.titulo : 'Orden de Servicio'}
+                      </Text>
+                    </View>
+                    <View style={styles.row}>
+                      {!ordenSeleccionada && !modalOrdenEditor && (
+                        <Pressable
+                          onPress={() => abrirEditorOrden()}
+                          disabled={!conectado}
+                          style={({ pressed }) => [styles.smallButtonPrimary, !conectado && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                        >
+                          <Text style={styles.smallButtonPrimaryText}>＋ Nueva</Text>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        onPress={cargarOrdenes}
+                        disabled={!conectado || cargandoOrdenes}
+                        style={({ pressed }) => [styles.smallButton, (!conectado || cargandoOrdenes) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonText}>Actualizar</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+
+                  {cargandoOrdenes && (
+                    <View style={[styles.row, { marginTop: 6, marginBottom: 6 }]}>
+                      <ActivityIndicator color="#ffffff" />
+                      <Text style={styles.smallText}>Cargando…</Text>
+                    </View>
+                  )}
+
+                  {/* Barra de navegación rápida — solo cuando hay orden abierta */}
+                  {ordenSeleccionada && (() => {
+                    const items = Array.isArray(ordenSeleccionada.items) ? ordenSeleccionada.items : [];
+                    const item = items[itemOrdActivo];
+                    const parrafos = item?.tipo === 'himno' && Array.isArray(item.parrafos) ? item.parrafos : [];
+                    const totalParrafos = parrafos.length;
+                    const puedeAnterior = parrafoOrdActivo > 0;
+                    const puedeSiguiente = totalParrafos > 0 && parrafoOrdActivo < totalParrafos - 1;
+                    return (
+                      <View style={{ backgroundColor: 'rgba(251,146,60,0.08)', borderColor: 'rgba(251,146,60,0.25)', borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                        <Text style={[styles.itemMeta, { marginBottom: 6 }]} numberOfLines={1}>
+                          {item
+                            ? (item.tipo === 'himno'
+                                ? `#${item.numeroHimno} ${item.tituloHimno || ''}`
+                                : item.tipo === 'versiculo'
+                                  ? `${item.libroNombre || ''} ${item.capitulo}:${item.versiculo}`
+                                  : (item.texto || '').substring(0, 50) || 'Nota')
+                            : 'Sin elementos'}
+                          {totalParrafos > 1 ? ` · Estrofa ${parrafoOrdActivo + 1}/${totalParrafos}` : ''}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <Pressable
+                            onPress={anteriorItemOrden}
+                            disabled={!conectado || proyectandoOrden || !puedeAnterior}
+                            style={({ pressed }) => [styles.buttonSecondaryCompact, { flex: 1 }, (!conectado || proyectandoOrden || !puedeAnterior) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                          >
+                            <Text style={styles.buttonSecondaryText}>← Anterior</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => proyectarItemOrden(itemOrdActivo, parrafoOrdActivo)}
+                            disabled={!conectado || proyectandoOrden || !item}
+                            style={({ pressed }) => [styles.smallButtonPrimary, { flex: 1, paddingVertical: 8 }, (!conectado || proyectandoOrden || !item) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                          >
+                            <Text style={styles.smallButtonPrimaryText}>Proyectar</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={siguienteItemOrden}
+                            disabled={!conectado || proyectandoOrden || !puedeSiguiente}
+                            style={({ pressed }) => [styles.buttonSecondaryCompact, { flex: 1 }, (!conectado || proyectandoOrden || !puedeSiguiente) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                          >
+                            <Text style={styles.buttonSecondaryText}>Siguiente →</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })()}
+
+                  {/* Lista de órdenes — o lista de elementos si hay orden seleccionada */}
+                  {!ordenSeleccionada ? (
+                    <FlatList
+                      data={ordenes}
+                      keyExtractor={(item) => String(item?.id)}
+                      keyboardDismissMode="on-drag"
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={styles.listContent}
+                      renderItem={({ item }) => {
+                        const totalItems = Array.isArray(item?.items) ? item.items.length : 0;
+                        return (
+                          <Pressable
+                            onPress={() => { setOrdenSeleccionada(item); setItemOrdActivo(0); setParrafoOrdActivo(0); }}
+                            style={({ pressed }) => [styles.itemRow, pressed && styles.buttonPressed]}
+                          >
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.itemTitle} numberOfLines={1}>{String(item?.titulo || 'Orden')}</Text>
+                              <Text style={styles.itemMeta} numberOfLines={1}>
+                                {totalItems} {totalItems === 1 ? 'elemento' : 'elementos'}
+                                {item?.fecha ? ` · ${item.fecha}` : ''}
+                              </Text>
+                            </View>
+                            <Pressable
+                              onPress={(e) => { e.stopPropagation(); abrirEditorOrden(item); }}
+                              disabled={!conectado}
+                              style={({ pressed }) => [{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)' }, !conectado && styles.buttonDisabled, pressed && styles.buttonPressed]}
+                            >
+                              <Ionicons name="pencil" size={15} color="#94a3b8" />
+                            </Pressable>
+                            <Ionicons name="chevron-forward" size={18} color="#475569" />
+                          </Pressable>
+                        );
+                      }}
+                      ListEmptyComponent={!cargandoOrdenes ? <Text style={styles.smallText}>No hay órdenes de servicio. Toca "＋ Nueva" para crear una.</Text> : null}
+                    />
+                  ) : (
+                    <FlatList
+                      data={Array.isArray(ordenSeleccionada.items) ? ordenSeleccionada.items : []}
+                      keyExtractor={(_, idx) => String(idx)}
+                      keyboardDismissMode="on-drag"
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={styles.listContent}
+                      renderItem={({ item, index }) => {
+                        const isActivo = index === itemOrdActivo;
+                        let label = '';
+                        let sub = '';
+                        if (item?.tipo === 'himno') {
+                          label = `#${item.numeroHimno} ${item.tituloHimno || ''}`;
+                          sub = item.tipoHimno === 'vida' ? 'Vida Cristiana' : 'Himno Moravo';
+                        } else if (item?.tipo === 'versiculo') {
+                          label = `${item.libroNombre || ''} ${item.capitulo}:${item.versiculo}`;
+                          sub = (item.texto || '').substring(0, 60) + ((item.texto || '').length > 60 ? '…' : '');
+                        } else {
+                          label = (item?.texto || '').substring(0, 50) || 'Nota';
+                          sub = 'Nota / Separador';
+                        }
+                        return (
+                          <View style={[styles.itemRow, isActivo && styles.itemRowActive]}>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.itemTitle} numberOfLines={1}>{label}</Text>
+                              <Text style={styles.itemMeta} numberOfLines={1}>{sub}</Text>
+                            </View>
+                            <Pressable
+                              onPress={() => proyectarItemOrden(index, 0)}
+                              disabled={!conectado || proyectandoOrden}
+                              style={({ pressed }) => [styles.smallButtonPrimary, (!conectado || proyectandoOrden) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                            >
+                              <Text style={styles.smallButtonPrimaryText}>Proyectar</Text>
+                            </Pressable>
+                          </View>
+                        );
+                      }}
+                      ListEmptyComponent={<Text style={styles.smallText}>Este orden no tiene elementos.</Text>}
+                    />
+                  )}
+                </View>
+              </View>
+            )}
           </View>
+
+          {/* ── Modal Editor Orden de Servicio ─────────────────────────────── */}
+          <Modal
+            visible={modalOrdenEditor}
+            animationType="slide"
+            onRequestClose={() => setModalOrdenEditor(false)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                {/* Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' }}>
+                  <Pressable onPress={() => setModalOrdenEditor(false)} style={{ padding: 4 }}>
+                    <Ionicons name="close" size={22} color="#94a3b8" />
+                  </Pressable>
+                  <Text style={styles.sectionTitle}>{ordenEditId ? 'Editar Orden' : 'Nueva Orden'}</Text>
+                  <Pressable
+                    onPress={guardarOrdenEdicion}
+                    disabled={guardandoOrden}
+                    style={({ pressed }) => [styles.smallButtonPrimary, guardandoOrden && styles.buttonDisabled, pressed && !guardandoOrden && styles.buttonPressed]}
+                  >
+                    {guardandoOrden ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.smallButtonPrimaryText}>Guardar</Text>}
+                  </Pressable>
+                </View>
+
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+                  {/* Título */}
+                  <Text style={styles.label}>Título</Text>
+                  <TextInput
+                    value={ordenEditTitulo}
+                    onChangeText={setOrdenEditTitulo}
+                    placeholder="Título de la orden"
+                    placeholderTextColor="#64748b"
+                    style={styles.input}
+                  />
+
+                  {/* Fecha */}
+                  <Text style={styles.label}>Fecha</Text>
+                  <TextInput
+                    value={ordenEditFecha}
+                    onChangeText={setOrdenEditFecha}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#64748b"
+                    style={styles.input}
+                  />
+
+                  {/* Elementos */}
+                  <Text style={[styles.label, { marginTop: 4 }]}>Elementos ({ordenEditItems.length})</Text>
+                  {ordenEditItems.length === 0 && (
+                    <Text style={styles.smallText}>No hay elementos. Agrégalos abajo.</Text>
+                  )}
+                  {ordenEditItems.map((it, idx) => {
+                    let label = '';
+                    if (it.tipo === 'himno') {
+                      label = `#${it.numeroHimno} ${it.tituloHimno || ''}`;
+                    } else if (it.tipo === 'versiculo') {
+                      label = `${it.libroNombre || ''} ${it.capitulo}:${it.versiculo}`;
+                    } else {
+                      label = (it.texto || '').substring(0, 50) || 'Nota';
+                    }
+                    return (
+                      <View key={it.id || idx} style={[styles.itemRow, { marginBottom: 8 }]}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.itemTitle} numberOfLines={1}>{label}</Text>
+                          <Text style={styles.itemMeta} numberOfLines={1}>
+                            {it.tipo === 'himno' ? (it.tipoHimno === 'vida' ? 'Vida Cristiana' : it.tipoHimno === 'personal' ? 'Personal' : 'Moravo') : it.tipo === 'versiculo' ? 'Versículo' : 'Nota'}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          <Pressable onPress={() => moveOrdenItem(idx, -1)} disabled={idx === 0} style={({ pressed }) => [{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)' }, idx === 0 && { opacity: 0.3 }, pressed && styles.buttonPressed]}>
+                            <Ionicons name="arrow-up" size={15} color="#94a3b8" />
+                          </Pressable>
+                          <Pressable onPress={() => moveOrdenItem(idx, 1)} disabled={idx === ordenEditItems.length - 1} style={({ pressed }) => [{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)' }, idx === ordenEditItems.length - 1 && { opacity: 0.3 }, pressed && styles.buttonPressed]}>
+                            <Ionicons name="arrow-down" size={15} color="#94a3b8" />
+                          </Pressable>
+                          <Pressable onPress={() => removeOrdenItem(idx)} style={({ pressed }) => [{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.12)' }, pressed && styles.buttonPressed]}>
+                            <Ionicons name="trash" size={15} color="#f87171" />
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  {/* Barra agregar */}
+                  <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', paddingTop: 12 }}>
+                    <Text style={[styles.label, { marginBottom: 10 }]}>Agregar elemento:</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                      <Pressable
+                        onPress={() => { setPickerHimnoTipo('moravo'); setPickerHimnoBusqueda(''); setPickerHimnoLista([]); setModalPickerHimno(true); cargarHimnosParaPicker('moravo'); }}
+                        style={({ pressed }) => [styles.smallButtonPrimary, { flex: 1 }, pressed && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonPrimaryText}>🎵 Himno</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => { setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); setModalPickerVersi(true); }}
+                        style={({ pressed }) => [styles.smallButtonPrimary, { flex: 1 }, pressed && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonPrimaryText}>📖 Versículo</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => { setPickerNotaTexto(''); setModalPickerNota(true); }}
+                        style={({ pressed }) => [styles.smallButtonPrimary, { flex: 1 }, pressed && styles.buttonPressed]}
+                      >
+                        <Text style={styles.smallButtonPrimaryText}>📝 Nota</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Eliminar orden */}
+                  {ordenEditId && (
+                    <Pressable
+                      onPress={eliminarOrdenEdicion}
+                      style={({ pressed }) => [{ marginTop: 24, paddingVertical: 14, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', alignItems: 'center' }, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={{ color: '#f87171', fontWeight: '700' }}>Eliminar esta orden</Text>
+                    </Pressable>
+                  )}
+                </ScrollView>
+              </KeyboardAvoidingView>
+            </SafeAreaView>
+          </Modal>
+
+          {/* ── Modal Picker Himno ──────────────────────────────────────────── */}
+          <Modal
+            visible={modalPickerHimno}
+            animationType="slide"
+            onRequestClose={() => setModalPickerHimno(false)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' }}>
+                <Pressable onPress={() => setModalPickerHimno(false)} style={{ padding: 4 }}>
+                  <Ionicons name="arrow-back" size={22} color="#94a3b8" />
+                </Pressable>
+                <Text style={styles.sectionTitle}>Seleccionar Himno</Text>
+                <View style={{ width: 30 }} />
+              </View>
+
+              {/* Tabs tipo */}
+              <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+                {[{ key: 'moravo', label: 'Moravo' }, { key: 'vidaCristiana', label: 'Vida' }, { key: 'personal', label: 'Personal' }].map((t) => (
+                  <Pressable
+                    key={t.key}
+                    onPress={() => { setPickerHimnoTipo(t.key); setPickerHimnoBusqueda(''); cargarHimnosParaPicker(t.key); }}
+                    style={({ pressed }) => [styles.tabPill, pickerHimnoTipo === t.key && styles.tabPillActive, { flex: 1 }, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={[styles.tabText, pickerHimnoTipo === t.key && styles.tabTextActive]}>{t.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Búsqueda */}
+              <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+                <TextInput
+                  value={pickerHimnoBusqueda}
+                  onChangeText={setPickerHimnoBusqueda}
+                  placeholder="Buscar por número o título…"
+                  placeholderTextColor="#64748b"
+                  style={[styles.input, { marginBottom: 0 }]}
+                />
+              </View>
+
+              {cargandoPickerHimno && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8 }}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.smallText}>Cargando…</Text>
+                </View>
+              )}
+
+              <FlatList
+                data={pickerHimnoLista.filter((h) => {
+                  if (!pickerHimnoBusqueda.trim()) return true;
+                  const q = pickerHimnoBusqueda.toLowerCase();
+                  return String(h.numero || '').includes(q) || (h.titulo || '').toLowerCase().includes(q);
+                })}
+                keyExtractor={(item, i) => String(item?.id || item?.numero || i)}
+                keyboardDismissMode="on-drag"
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => addItemHimno(item)}
+                    style={({ pressed }) => [styles.itemRow, pressed && styles.buttonPressed]}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.itemTitle} numberOfLines={1}>#{item.numero} {item.titulo || ''}</Text>
+                      {item.parrafos?.length > 0 && (
+                        <Text style={styles.itemMeta} numberOfLines={1}>{item.parrafos.length} {item.parrafos.length === 1 ? 'estrofa' : 'estrofas'}</Text>
+                      )}
+                    </View>
+                    <Ionicons name="add-circle-outline" size={20} color="#10b981" />
+                  </Pressable>
+                )}
+                ListEmptyComponent={!cargandoPickerHimno ? <Text style={styles.smallText}>No hay himnos.</Text> : null}
+              />
+            </SafeAreaView>
+          </Modal>
+
+          {/* ── Modal Picker Versículo ──────────────────────────────────────── */}
+          <Modal
+            visible={modalPickerVersi}
+            animationType="slide"
+            onRequestClose={() => { setModalPickerVersi(false); setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); }}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    if (pickerVersiCap !== null) { setPickerVersiCap(null); setPickerVersiVersos([]); }
+                    else if (pickerVersiLibro !== null) { setPickerVersiLibro(null); setPickerVersiCantidadCaps(0); }
+                    else { setModalPickerVersi(false); setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); }
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons name="arrow-back" size={22} color="#94a3b8" />
+                </Pressable>
+
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.sectionTitle, { flex: 1 }]} numberOfLines={1}>
+                    {pickerVersiCap !== null
+                      ? `${pickerVersiLibro?.nombre || ''} ${pickerVersiCap}`
+                      : pickerVersiLibro !== null ? pickerVersiLibro.nombre : 'Seleccionar Libro'}
+                  </Text>
+                  {(() => {
+                    const count = pickerVersiCap !== null && pickerVersiLibro
+                      ? ordenEditItems.filter(it => it.tipo === 'versiculo' && it.libroId === pickerVersiLibro.id && it.capitulo === pickerVersiCap).length
+                      : 0;
+                    return count > 0 ? (
+                      <View style={{ backgroundColor: 'rgba(99,102,241,0.18)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                        <Text style={{ color: '#818cf8', fontSize: 11, fontWeight: '700' }}>{count} ✓</Text>
+                      </View>
+                    ) : null;
+                  })()}
+                </View>
+
+                {pickerVersiCap !== null ? (
+                  <Pressable
+                    onPress={() => { setModalPickerVersi(false); setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); }}
+                    style={({ pressed }) => [styles.smallButtonPrimary, { paddingHorizontal: 14 }, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={styles.smallButtonPrimaryText}>Listo</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => { setModalPickerVersi(false); setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); }}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons name="close" size={22} color="#94a3b8" />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Step 1: lista de libros */}
+              {pickerVersiLibro === null && (
+                <>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+                    <TextInput
+                      value={pickerVersiBusqueda}
+                      onChangeText={setPickerVersiBusqueda}
+                      placeholder="Buscar libro…"
+                      placeholderTextColor="#64748b"
+                      style={[styles.input, { marginBottom: 0 }]}
+                    />
+                  </View>
+                  <FlatList
+                    data={librosBiblia.filter((l) => {
+                      if (!pickerVersiBusqueda.trim()) return true;
+                      const q = pickerVersiBusqueda.toLowerCase();
+                      return (l.nombre || '').toLowerCase().includes(q) || (l.abbreviation || '').toLowerCase().includes(q);
+                    })}
+                    keyExtractor={(item) => String(item?.id)}
+                    keyboardDismissMode="on-drag"
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={async () => {
+                          setPickerVersiLibro(item);
+                          setPickerVersiCap(null);
+                          setPickerVersiVersos([]);
+                          setPickerVersiCantidadCaps(0);
+                          setCargandoPickerVersi(true);
+                          try {
+                            const base = normalizarBaseUrl(serverBaseUrl);
+                            if (!base) throw new Error('Sin URL de servidor');
+                            const { res, json } = await fetchJsonTimeout(
+                              `${base}/api/biblia/estructura/${encodeURIComponent(item.id)}`,
+                              { method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 10000 }
+                            );
+                            if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+                            setPickerVersiCantidadCaps(json.capitulos || 0);
+                          } catch (e) {
+                            Alert.alert('Error', `No se pudo cargar ${item.nombre}: ${e.message}`);
+                          } finally { setCargandoPickerVersi(false); }
+                        }}
+                        style={({ pressed }) => [styles.itemRow, pressed && styles.buttonPressed]}
+                      >
+                        <Text style={styles.itemTitle}>{item.nombre}</Text>
+                        <Ionicons name="chevron-forward" size={18} color="#475569" />
+                      </Pressable>
+                    )}
+                  />
+                </>
+              )}
+
+              {/* Step 2: grilla de capítulos */}
+              {pickerVersiLibro !== null && pickerVersiCap === null && (
+                <>
+                  {cargandoPickerVersi && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={styles.smallText}>Cargando…</Text>
+                    </View>
+                  )}
+                  <ScrollView contentContainerStyle={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} keyboardShouldPersistTaps="handled">
+                    {Array.from({ length: pickerVersiCantidadCaps }, (_, i) => i + 1).map((cap) => (
+                      <Pressable
+                        key={cap}
+                        onPress={async () => {
+                          setPickerVersiCap(cap);
+                          setPickerVersiVersos([]);
+                          setCargandoPickerVersi(true);
+                          try {
+                            const base = normalizarBaseUrl(serverBaseUrl);
+                            if (!base) throw new Error('Sin URL de servidor');
+                            const { res, json } = await fetchJsonTimeout(
+                              `${base}/api/biblia/capitulo/${encodeURIComponent(pickerVersiLibro.id)}/${cap}`,
+                              { method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 10000 }
+                            );
+                            if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+                            setPickerVersiVersos(Array.isArray(json.versos) ? json.versos : []);
+                          } catch (e) {
+                            Alert.alert('Error', `No se pudo cargar el capítulo: ${e.message}`);
+                            setPickerVersiVersos([]);
+                          } finally { setCargandoPickerVersi(false); }
+                        }}
+                        style={({ pressed }) => [styles.bibliaButton, { minWidth: 44 }, pressed && styles.bibliaButtonPressed]}
+                      >
+                        <Text style={styles.bibliaButtonText}>{cap}</Text>
+                      </Pressable>
+                    ))}
+                    {pickerVersiCantidadCaps === 0 && !cargandoPickerVersi && (
+                      <Text style={styles.smallText}>No se encontraron capítulos.</Text>
+                    )}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Step 3: lista de versículos */}
+              {pickerVersiLibro !== null && pickerVersiCap !== null && (
+                <>
+                  {cargandoPickerVersi && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={styles.smallText}>Cargando…</Text>
+                    </View>
+                  )}
+                  <FlatList
+                    data={pickerVersiVersos}
+                    keyExtractor={(_, i) => String(i)}
+                    keyboardDismissMode="on-drag"
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                    renderItem={({ item: texto, index: verIdx }) => {
+                      const yaAgregado = ordenEditItems.some(
+                        it => it.tipo === 'versiculo' && it.libroId === pickerVersiLibro.id &&
+                              it.capitulo === pickerVersiCap && it.versiculo === verIdx + 1
+                      );
+                      return (
+                        <Pressable
+                          onPress={() => addItemVersiculo(pickerVersiLibro.id, pickerVersiLibro.nombre, pickerVersiCap, verIdx, texto)}
+                          style={({ pressed }) => [
+                            styles.itemRow,
+                            yaAgregado && { backgroundColor: 'rgba(99,102,241,0.10)', borderColor: 'rgba(99,102,241,0.25)' },
+                            pressed && styles.buttonPressed,
+                          ]}
+                        >
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[styles.itemMeta, { fontWeight: '800', marginTop: 0, marginBottom: 2, color: yaAgregado ? '#818cf8' : undefined }]}>{verIdx + 1}</Text>
+                            <Text style={[styles.itemTitle, yaAgregado && { color: '#c7d2fe' }]} numberOfLines={3}>{texto}</Text>
+                          </View>
+                          <Ionicons
+                            name={yaAgregado ? "checkmark-circle" : "add-circle-outline"}
+                            size={20}
+                            color={yaAgregado ? "#6366f1" : "#10b981"}
+                          />
+                        </Pressable>
+                      );
+                    }}
+                    ListEmptyComponent={!cargandoPickerVersi ? <Text style={styles.smallText}>No hay versículos.</Text> : null}
+                  />
+                </>
+              )}
+            </SafeAreaView>
+          </Modal>
+
+          {/* ── Modal Picker Nota ───────────────────────────────────────────── */}
+          <Modal
+            visible={modalPickerNota}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setModalPickerNota(false)}
+          >
+            <Pressable
+              onPress={() => setModalPickerNota(false)}
+              style={[styles.drawerBackdrop, { justifyContent: 'center', padding: 20 }]}
+            >
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <Pressable
+                  onPress={() => {}}
+                  style={[styles.card, { backgroundColor: 'rgba(15,23,42,0.97)', borderColor: 'rgba(255,255,255,0.15)' }]}
+                >
+                  <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Agregar Nota</Text>
+                  <TextInput
+                    value={pickerNotaTexto}
+                    onChangeText={setPickerNotaTexto}
+                    placeholder="Texto de la nota o separador…"
+                    placeholderTextColor="#64748b"
+                    multiline
+                    style={[styles.input, { minHeight: 80 }]}
+                    autoFocus
+                  />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Pressable
+                      onPress={() => setModalPickerNota(false)}
+                      style={({ pressed }) => [styles.smallButton, { flex: 1 }, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={[styles.smallButtonText, { textAlign: 'center' }]}>Cancelar</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={addItemNota}
+                      disabled={!pickerNotaTexto.trim()}
+                      style={({ pressed }) => [styles.smallButtonPrimary, { flex: 1 }, !pickerNotaTexto.trim() && styles.buttonDisabled, pressed && pickerNotaTexto.trim() && styles.buttonPressed]}
+                    >
+                      <Text style={[styles.smallButtonPrimaryText, { textAlign: 'center' }]}>Agregar</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </KeyboardAvoidingView>
+            </Pressable>
+          </Modal>
 
           <StatusBar style="light" />
 
@@ -4193,9 +5873,9 @@ export default function App() {
 
                       // Proyector: si no está proyectada, proyectar primero y luego reproducir.
                       setDestinoControlMultimedia('proyector');
-                      if (multimediaSesion?.destino === 'proyector' && estadoReproduccion !== 'stopped') {
+                      if (multimediaSesion?.destino === 'proyector' && estadoDestino !== 'stopped') {
                         await controlarMultimedia(
-                          estadoReproduccion === 'playing' ? 'pause' : 'play',
+                          estadoDestino === 'playing' ? 'pause' : 'play',
                         );
                         return;
                       }
@@ -4303,72 +5983,56 @@ export default function App() {
                       await controlarMultimediaEnDestino('seek', { time });
                     };
 
+                    // ── Colores según estado ──────────────────────────────
+                    const stateColor =
+                      estadoDestino === 'playing' ? '#10b981' :
+                      estadoDestino === 'paused'  ? '#f59e0b' : '#475569';
+                    const stateColorBg =
+                      estadoDestino === 'playing' ? 'rgba(16,185,129,0.12)' :
+                      estadoDestino === 'paused'  ? 'rgba(245,158,11,0.12)' : 'rgba(71,85,105,0.12)';
+
                     return (
                       <>
-                        <View style={styles.playerHeader}>
+                        {/* ── CABECERA ──────────────────────────────────── */}
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
                           <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={styles.sectionTitle} numberOfLines={1}>
+                            <Text style={{ color: '#f1f5f9', fontSize: 16, fontWeight: '700', marginBottom: 4 }} numberOfLines={2}>
                               {tituloItem}
                             </Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                              <Text style={[styles.playerSubtitle, { marginTop: 0, flex: 1 }]} numberOfLines={1}>
-                                {tipoItem} · {isImagen ? 'Proyector' : esPC ? 'PC (audio)' : 'Proyector'} · {estadoLabel}
+                            {/* Pill de estado */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: stateColorBg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
+                                {estadoDestino === 'playing' && <AnimatedSoundBars />}
+                                {estadoDestino !== 'playing' && (
+                                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: stateColor }} />
+                                )}
+                                <Text style={{ color: stateColor, fontSize: 11, fontWeight: '700' }}>{estadoLabel}</Text>
+                              </View>
+                              <Text style={{ color: '#475569', fontSize: 11 }}>
+                                {tipoItem.toUpperCase()} · {isImagen ? 'PROYECTOR' : esPC ? 'PC' : 'PROYECTOR'}
                               </Text>
-                              {estadoDestino === 'playing' && (
-                                <View key="player-sound-bars" style={{ minWidth: 24, height: 14 }}>
-                                  <AnimatedSoundBars />
-                                </View>
-                              )}
                             </View>
                           </View>
                           <Pressable
-                            accessibilityLabel="Cerrar"
                             onPress={() => setModalControlMultimediaVisible(false)}
-                            style={({ pressed }) => [styles.playerIconButton, pressed && styles.buttonPressed]}
+                            style={({ pressed }) => [{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.6 }]}
                           >
-                            <Ionicons name="close" size={20} color="#e2e8f0" />
+                            <Ionicons name="close" size={18} color="#94a3b8" />
                           </Pressable>
                         </View>
 
+                        {/* ── ADVERTENCIA INTERNET ──────────────────────── */}
                         {mostrarAdvertenciaInternet && (
-                          <View
-                            style={{
-                              backgroundColor: 'rgba(245,158,11,0.15)',
-                              borderColor: 'rgba(245,158,11,0.35)',
-                              borderWidth: 1,
-                              borderRadius: 12,
-                              padding: 12,
-                              marginBottom: 12,
-                            }}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                              <Ionicons name="wifi-outline" size={24} color="#f59e0b" />
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '600', marginBottom: 2 }}>
-                                  Se requiere conexión a Internet
-                                </Text>
-                                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
-                                  {isYouTubeVideo ? 'YouTube necesita conexión activa para reproducir.' : 'Este contenido requiere Internet.'}
-                                </Text>
-                              </View>
-                            </View>
+                          <View style={{ backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.30)', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <Ionicons name="wifi-outline" size={20} color="#f59e0b" />
+                            <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '600', flex: 1 }}>
+                              {isYouTubeVideo ? 'YouTube necesita conexión a Internet.' : 'Este contenido requiere Internet.'}
+                            </Text>
                           </View>
                         )}
 
-                        <View
-                          style={{
-                            width: '100%',
-                            height: 170,
-                            borderRadius: 14,
-                            overflow: 'hidden',
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.10)',
-                            backgroundColor: 'rgba(255,255,255,0.04)',
-                            marginBottom: 12,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
+                        {/* ── THUMBNAIL ─────────────────────────────────── */}
+                        <View style={{ width: '100%', height: 160, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(0,0,0,0.3)', marginBottom: 14, alignItems: 'center', justifyContent: 'center' }}>
                           {kind === 'video' && !isYouTubeVideo ? (
                             <VideoThumbPreview uri={localVideoThumb || thumb || ''} />
                           ) : canShowVideoPreview ? (
@@ -4376,238 +6040,177 @@ export default function App() {
                           ) : thumb ? (
                             <Image source={{ uri: thumb }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                           ) : (
-                            <Text style={styles.thumbFallbackText}>{fallbackLabel}</Text>
+                            <View style={{ alignItems: 'center', gap: 8 }}>
+                              <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 24 }}>{fallbackLabel}</Text>
+                              </View>
+                              <Text style={{ color: '#475569', fontSize: 11 }}>{tipoItem}</Text>
+                            </View>
+                          )}
+                          {/* Overlay de estado sobre thumbnail */}
+                          {estadoDestino === 'playing' && (
+                            <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(16,185,129,0.85)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <AnimatedSoundBars />
+                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>EN VIVO</Text>
+                            </View>
                           )}
                         </View>
 
+                        {/* ── SEEK BAR ──────────────────────────────────── */}
                         {!isImagen && (
-                          <View style={{ marginBottom: 10 }}>
-                            <View style={styles.seekTimeRow}>
-                              <Text style={styles.seekTimeText}>{formatTimeSec(currentSec)}</Text>
-                              <Text style={styles.seekTimeText}>
-                                {durationSec > 0 ? formatTimeSec(durationSec) : '--:--'}
-                              </Text>
-                            </View>
-
+                          <View style={{ marginBottom: 14 }}>
                             <View
-                              style={[styles.seekBarTrack, !canSeek && styles.seekBarTrackDisabled]}
+                              style={[styles.seekBarTrack, !canSeek && { opacity: 0.35 }]}
                               onLayout={(e) => setSeekBarWidth(e?.nativeEvent?.layout?.width || 1)}
                               onStartShouldSetResponder={() => Boolean(canSeek)}
                               onMoveShouldSetResponder={() => Boolean(canSeek)}
-                              onResponderGrant={(evt) => {
-                                if (!canSeek) return;
-                                setScrubbing(true);
-                                scrubbingRef.current = true;
-                                const t = seekFromEvent(evt);
-                                setScrubTime(t);
-                              }}
-                              onResponderMove={(evt) => {
-                                if (!canSeek) return;
-                                const t = seekFromEvent(evt);
-                                setScrubTime(t);
-                              }}
-                              onResponderRelease={async (evt) => {
-                                if (!canSeek) return;
-                                const t = seekFromEvent(evt);
-                                setScrubbing(false);
-                                scrubbingRef.current = false;
-                                setScrubTime(0);
-                                await commitSeek(t);
-                              }}
-                              onResponderTerminate={async (evt) => {
-                                if (!canSeek) return;
-                                const t = seekFromEvent(evt);
-                                setScrubbing(false);
-                                scrubbingRef.current = false;
-                                setScrubTime(0);
-                                await commitSeek(t);
-                              }}
+                              onResponderGrant={(evt) => { if (!canSeek) return; setScrubbing(true); scrubbingRef.current = true; setScrubTime(seekFromEvent(evt)); }}
+                              onResponderMove={(evt) => { if (!canSeek) return; setScrubTime(seekFromEvent(evt)); }}
+                              onResponderRelease={async (evt) => { if (!canSeek) return; const t = seekFromEvent(evt); setScrubbing(false); scrubbingRef.current = false; setScrubTime(0); await commitSeek(t); }}
+                              onResponderTerminate={async (evt) => { if (!canSeek) return; const t = seekFromEvent(evt); setScrubbing(false); scrubbingRef.current = false; setScrubTime(0); await commitSeek(t); }}
                             >
-                              <View style={[styles.seekBarFill, { width: `${percent * 100}%` }]} />
-                              <View style={[styles.seekBarKnob, { left: knobLeft }]} />
+                              <View style={[styles.seekBarFill, { width: `${percent * 100}%`, backgroundColor: stateColor }]} />
+                              <View style={[styles.seekBarKnob, { left: knobLeft, backgroundColor: stateColor }]} />
                             </View>
-
-                            {!canSeek && (
-                              <Text style={[styles.smallText, { marginTop: 6 }]}>
-                                Tip: inicia la reproducción para activar la barra.
-                              </Text>
-                            )}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+                              <Text style={{ color: '#64748b', fontSize: 11 }}>{formatTimeSec(currentSec)}</Text>
+                              <Text style={{ color: '#64748b', fontSize: 11 }}>{durationSec > 0 ? formatTimeSec(durationSec) : '--:--'}</Text>
+                            </View>
                           </View>
                         )}
 
+                        {/* ── SELECTOR DESTINO ──────────────────────────── */}
                         {!isImagen && (
-                          <View style={styles.playerSegmentRow}>
-                            <Pressable
-                              accessibilityLabel="Destino: Proyector"
-                              onPress={() => puedeControlarDestino && setDestinoControlMultimedia('proyector')}
-                              style={({ pressed }) => [
-                                styles.playerSegment,
-                                destinoControlMultimedia === 'proyector' && styles.playerSegmentActive,
-                                pressed && styles.buttonPressed,
-                              ]}
-                            >
-                              <Ionicons
-                                name="tv-outline"
-                                size={18}
-                                color={destinoControlMultimedia === 'proyector' ? '#10b981' : '#e2e8f0'}
-                              />
-                            </Pressable>
-
-                            <Pressable
-                              accessibilityLabel="Destino: PC (solo audio)"
-                              onPress={() => puedeControlarDestino && setDestinoControlMultimedia('pc')}
-                              style={({ pressed }) => [
-                                styles.playerSegment,
-                                destinoControlMultimedia === 'pc' && styles.playerSegmentActive,
-                                pressed && styles.buttonPressed,
-                              ]}
-                            >
-                              <Ionicons
-                                name="laptop-outline"
-                                size={18}
-                                color={destinoControlMultimedia === 'pc' ? '#10b981' : '#e2e8f0'}
-                              />
-                            </Pressable>
+                          <View style={{ flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 3, marginBottom: 16, gap: 3 }}>
+                            {[
+                              { key: 'proyector', icon: 'tv-outline', label: 'Proyector' },
+                              { key: 'pc', icon: 'laptop-outline', label: 'PC (audio)' },
+                            ].map(({ key, icon, label }) => {
+                              const active = destinoControlMultimedia === key;
+                              return (
+                                <Pressable
+                                  key={key}
+                                  onPress={() => puedeControlarDestino && setDestinoControlMultimedia(key)}
+                                  style={({ pressed }) => [{
+                                    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    paddingVertical: 9, borderRadius: 10,
+                                    backgroundColor: active ? 'rgba(16,185,129,0.15)' : 'transparent',
+                                    borderWidth: active ? 1 : 0,
+                                    borderColor: active ? 'rgba(16,185,129,0.30)' : 'transparent',
+                                  }, pressed && { opacity: 0.7 }]}
+                                >
+                                  <Ionicons name={icon} size={16} color={active ? '#10b981' : '#64748b'} />
+                                  <Text style={{ color: active ? '#10b981' : '#64748b', fontSize: 13, fontWeight: active ? '700' : '500' }}>{label}</Text>
+                                </Pressable>
+                              );
+                            })}
                           </View>
                         )}
 
-                        <View style={styles.playerControlsRow}>
+                        {/* ── CONTROLES PRINCIPALES ─────────────────────── */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 14 }}>
+                          {/* Botón Detener */}
+                          {!isImagen && (
+                            <Pressable
+                              onPress={onPressStop}
+                              disabled={!puedeStop}
+                              style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: puedeStop ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)' }, !puedeStop && { opacity: 0.35 }, pressed && puedeStop && { opacity: 0.6 }]}
+                            >
+                              <Ionicons name="stop" size={20} color={puedeStop ? '#e2e8f0' : '#475569'} />
+                            </Pressable>
+                          )}
+
+                          {/* Botón Play/Pause principal */}
                           <Pressable
-                            accessibilityLabel={isImagen ? 'Proyectar' : 'Reproducir / Pausar'}
                             onPress={onPressPrimary}
-                            disabled={!primaryEnabled}
-                            style={({ pressed }) => [
-                              styles.playerPrimaryButton,
-                              primaryIcon === 'pause' && styles.playerPrimaryButtonPause,
-                              !primaryEnabled && styles.playerPrimaryButtonDisabled,
-                              pressed && primaryEnabled && styles.buttonPressed,
-                            ]}
+                            disabled={!primaryEnabled || (ocupado && estadoDestino === 'stopped')}
+                            style={({ pressed }) => [{
+                              width: 68, height: 68, borderRadius: 34,
+                              backgroundColor: primaryEnabled
+                                ? (estadoDestino === 'playing' ? 'rgba(245,158,11,0.20)' : 'rgba(16,185,129,0.20)')
+                                : 'rgba(255,255,255,0.05)',
+                              borderWidth: 2,
+                              borderColor: primaryEnabled
+                                ? (estadoDestino === 'playing' ? '#f59e0b' : '#10b981')
+                                : 'rgba(255,255,255,0.08)',
+                              alignItems: 'center', justifyContent: 'center',
+                            }, pressed && primaryEnabled && { transform: [{ scale: 0.94 }] }]}
                           >
-                            <Ionicons
-                              name={primaryIcon}
-                              size={primaryIcon === 'pause' ? 42 : 36}
-                              color={primaryEnabled ? '#ffffff' : '#94a3b8'}
-                            />
+                            {ocupado
+                              ? <ActivityIndicator size="small" color={estadoDestino === 'playing' ? '#f59e0b' : '#10b981'} />
+                              : <Ionicons
+                                  name={primaryIcon}
+                                  size={primaryIcon === 'pause' ? 30 : 28}
+                                  color={primaryEnabled ? (estadoDestino === 'playing' ? '#f59e0b' : '#10b981') : '#475569'}
+                                />
+                            }
                           </Pressable>
 
-                          <View style={styles.playerActionsRow}>
-                            {!isImagen && (
-                              <Pressable
-                                accessibilityLabel="Detener"
-                                onPress={onPressStop}
-                                disabled={!puedeStop}
-                                style={({ pressed }) => [
-                                  styles.playerIconButton,
-                                  !puedeStop && styles.playerIconButtonDisabled,
-                                  pressed && puedeStop && styles.buttonPressed,
-                                ]}
-                              >
-                                <Ionicons name="stop" size={20} color={puedeStop ? '#e2e8f0' : '#64748b'} />
-                              </Pressable>
-                            )}
-
+                          {/* Botón Proyectar / Limpiar */}
+                          {!isImagen && destinoControlMultimedia === 'proyector' ? (
                             <Pressable
-                              accessibilityLabel="Limpiar"
+                              onPress={onPressProyectar}
+                              disabled={!puedeForzarProyectar}
+                              style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: puedeForzarProyectar ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)' }, !puedeForzarProyectar && { opacity: 0.35 }, pressed && puedeForzarProyectar && { opacity: 0.6 }]}
+                            >
+                              <Ionicons name="tv-outline" size={20} color={puedeForzarProyectar ? '#e2e8f0' : '#475569'} />
+                            </Pressable>
+                          ) : (
+                            <Pressable
                               onPress={onPressLimpiar}
                               disabled={!puedeLimpiar}
-                              style={({ pressed }) => [
-                                styles.playerIconButton,
-                                !puedeLimpiar && styles.playerIconButtonDisabled,
-                                pressed && puedeLimpiar && styles.buttonPressed,
-                              ]}
+                              style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: puedeLimpiar ? 'rgba(239,68,68,0.20)' : 'rgba(255,255,255,0.04)' }, !puedeLimpiar && { opacity: 0.35 }, pressed && puedeLimpiar && { opacity: 0.6 }]}
                             >
-                              <Ionicons
-                                name="trash-outline"
-                                size={20}
-                                color={puedeLimpiar ? '#e2e8f0' : '#64748b'}
-                              />
+                              <Ionicons name="trash-outline" size={20} color={puedeLimpiar ? '#ef4444' : '#475569'} />
                             </Pressable>
-
-                            {(!isImagen && destinoControlMultimedia === 'proyector') && (
-                              <Pressable
-                                accessibilityLabel="Proyectar"
-                                onPress={onPressProyectar}
-                                disabled={!puedeForzarProyectar}
-                                style={({ pressed }) => [
-                                  styles.playerIconButton,
-                                  !puedeForzarProyectar && styles.playerIconButtonDisabled,
-                                  pressed && puedeForzarProyectar && styles.buttonPressed,
-                                ]}
-                              >
-                                <Ionicons
-                                  name="tv-outline"
-                                  size={20}
-                                  color={puedeForzarProyectar ? '#e2e8f0' : '#64748b'}
-                                />
-                              </Pressable>
-                            )}
-                          </View>
+                          )}
                         </View>
 
+                        {/* Botón limpiar separado cuando está en proyector (ya que proyectar ocupa el tercer slot) */}
+                        {!isImagen && destinoControlMultimedia === 'proyector' && (
+                          <Pressable
+                            onPress={onPressLimpiar}
+                            disabled={!puedeLimpiar}
+                            style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: puedeLimpiar ? 'rgba(239,68,68,0.20)' : 'rgba(255,255,255,0.05)', marginBottom: 14 }, !puedeLimpiar && { opacity: 0.35 }, pressed && puedeLimpiar && { opacity: 0.7 }]}
+                          >
+                            <Ionicons name="trash-outline" size={15} color={puedeLimpiar ? '#ef4444' : '#475569'} />
+                            <Text style={{ color: puedeLimpiar ? '#ef4444' : '#475569', fontSize: 12, fontWeight: '600' }}>Limpiar proyector</Text>
+                          </Pressable>
+                        )}
+
+                        {/* ── VOLUMEN ───────────────────────────────────── */}
                         {!isImagen && (
-                          <View style={styles.playerVolumeRow}>
-                            <Pressable
-                              accessibilityLabel={volumenNivel > 0 ? 'Mute' : 'Unmute'}
-                              onPress={onPressToggleMute}
-                              disabled={!puedeVolumen}
-                              style={({ pressed }) => [
-                                styles.playerIconButton,
-                                !puedeVolumen && styles.playerIconButtonDisabled,
-                                pressed && puedeVolumen && styles.buttonPressed,
-                              ]}
-                            >
-                              <Ionicons
-                                name={volumenNivel > 0 ? 'volume-high' : 'volume-mute'}
-                                size={20}
-                                color={puedeVolumen ? '#e2e8f0' : '#64748b'}
-                              />
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <Pressable onPress={onPressToggleMute} disabled={!puedeVolumen} style={({ pressed }) => [{ opacity: puedeVolumen ? 1 : 0.35 }, pressed && { opacity: 0.5 }]}>
+                              <Ionicons name={volumenNivel === 0 ? 'volume-mute' : volumenNivel < 0.5 ? 'volume-low' : 'volume-high'} size={18} color="#94a3b8" />
                             </Pressable>
-
-                            <Pressable
-                              accessibilityLabel="Bajar volumen"
-                              onPress={onPressVolDown}
-                              disabled={!puedeVolumen}
-                              style={({ pressed }) => [
-                                styles.playerIconButton,
-                                !puedeVolumen && styles.playerIconButtonDisabled,
-                                pressed && puedeVolumen && styles.buttonPressed,
-                              ]}
-                            >
-                              <Ionicons name="remove" size={20} color={puedeVolumen ? '#e2e8f0' : '#64748b'} />
-                            </Pressable>
-
-                            <Text style={styles.playerVolumeText}>
+                            {/* Barra de volumen visual */}
+                            <View style={{ flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 2 }}>
+                              <View style={{ height: 4, width: `${Math.round(Number(volumenNivel) * 100)}%`, backgroundColor: puedeVolumen ? '#10b981' : '#334155', borderRadius: 2 }} />
+                            </View>
+                            <Text style={{ color: puedeVolumen ? '#94a3b8' : '#334155', fontSize: 11, fontWeight: '600', minWidth: 30, textAlign: 'right' }}>
                               {Math.round(Number(volumenNivel) * 100)}%
                             </Text>
-
-                            <Pressable
-                              accessibilityLabel="Subir volumen"
-                              onPress={onPressVolUp}
-                              disabled={!puedeVolumen}
-                              style={({ pressed }) => [
-                                styles.playerIconButton,
-                                !puedeVolumen && styles.playerIconButtonDisabled,
-                                pressed && puedeVolumen && styles.buttonPressed,
-                              ]}
-                            >
-                              <Ionicons name="add" size={20} color={puedeVolumen ? '#e2e8f0' : '#64748b'} />
-                            </Pressable>
+                            <View style={{ flexDirection: 'row', gap: 4 }}>
+                              <Pressable onPress={onPressVolDown} disabled={!puedeVolumen} style={({ pressed }) => [{ width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' }, !puedeVolumen && { opacity: 0.35 }, pressed && { opacity: 0.5 }]}>
+                                <Ionicons name="remove" size={16} color="#e2e8f0" />
+                              </Pressable>
+                              <Pressable onPress={onPressVolUp} disabled={!puedeVolumen} style={({ pressed }) => [{ width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' }, !puedeVolumen && { opacity: 0.35 }, pressed && { opacity: 0.5 }]}>
+                                <Ionicons name="add" size={16} color="#e2e8f0" />
+                              </Pressable>
+                            </View>
                           </View>
                         )}
 
+                        {/* ── MENSAJE CONTEXTUAL ────────────────────────── */}
                         {!conectado && (
-                          <Text style={[styles.smallText, { marginTop: 10 }]}>
-                            Conéctate primero para proyectar y controlar.
-                          </Text>
-                        )}
-                        {conectado && destinoControlMultimedia === 'proyector' && item?.id && !isImagen && !isProyectada && (
-                          <Text style={[styles.smallText, { marginTop: 10 }]}>
-                            Tip: presiona Play y se proyecta automáticamente.
+                          <Text style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+                            Conéctate al servidor para controlar la reproducción.
                           </Text>
                         )}
                         {conectado && destinoControlMultimedia === 'pc' && !isImagen && (
-                          <Text style={[styles.smallText, { marginTop: 10 }]}>
-                            En modo PC (solo audio) no afecta lo proyectado.
+                          <Text style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+                            Modo PC: el audio se reproduce en el PC sin cambiar lo proyectado.
                           </Text>
                         )}
                       </>
@@ -4785,38 +6388,6 @@ const styles = StyleSheet.create({
   },
   tabText: { color: '#e2e8f0', fontWeight: '700' },
   tabTextActive: { color: '#10b981' },
-
-  homeContainer: {
-    flex: 1,
-    padding: 16,
-  },
-
-  homeGrid: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignContent: 'space-between',
-    gap: 16,
-  },
-
-  homeCard: {
-    width: '46%',
-    height: '29%',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  homeCardPressed: { opacity: 0.88 },
-  homeCardGradient: {
-    flex: 1,
-    paddingVertical: 20,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  homeCardTitle: { color: '#ffffff', fontSize: 18, fontWeight: '900', textAlign: 'center' },
 
   filterRow: {
     flexDirection: 'row',

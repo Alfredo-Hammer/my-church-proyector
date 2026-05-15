@@ -527,6 +527,7 @@ function migrarTablaFondos() {
           tipo TEXT DEFAULT 'imagen',
           nombre TEXT,
           activo INTEGER DEFAULT 0,
+          es_defecto INTEGER DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -543,7 +544,8 @@ function migrarTablaFondos() {
     // Agregar columnas faltantes
     const columnasRequeridas = [
       { nombre: 'nombre', tipo: 'TEXT' },
-      { nombre: 'created_at', tipo: 'DATETIME' } // ✨ Sin DEFAULT en ALTER TABLE
+      { nombre: 'created_at', tipo: 'DATETIME' },
+      { nombre: 'es_defecto', tipo: 'INTEGER DEFAULT 0' }
     ];
 
     for (const columna of columnasRequeridas) {
@@ -586,6 +588,7 @@ function obtenerFondos() {
     if (nombresColumnas.includes('tipo')) selectFields += ", tipo";
     if (nombresColumnas.includes('nombre')) selectFields += ", nombre";
     if (nombresColumnas.includes('activo')) selectFields += ", activo";
+    if (nombresColumnas.includes('es_defecto')) selectFields += ", es_defecto";
     if (nombresColumnas.includes('created_at')) selectFields += ", created_at";
 
     const query = `SELECT ${selectFields} FROM fondos ORDER BY id DESC`;
@@ -601,6 +604,7 @@ function obtenerFondos() {
       tipo: fondo.tipo || 'imagen',
       nombre: fondo.nombre || `Fondo ${fondo.id}`,
       activo: fondo.activo || 0,
+      es_defecto: fondo.es_defecto || 0,
       created_at: fondo.created_at || null
     }));
 
@@ -689,6 +693,13 @@ function agregarFondo(url, tipo = 'imagen', nombre = null, activo = false) {
 function eliminarFondo(id) {
   try {
     console.log("🗑️ [DB] Eliminando fondo:", id);
+
+    // Proteger fondos por defecto
+    const fondo = db.prepare("SELECT es_defecto FROM fondos WHERE id = ?").get(id);
+    if (fondo && fondo.es_defecto === 1) {
+      console.warn("⚠️ [DB] Intento de eliminar fondo por defecto bloqueado, id:", id);
+      return false;
+    }
 
     const stmt = db.prepare("DELETE FROM fondos WHERE id = ?");
     const info = stmt.run(id);
@@ -913,9 +924,11 @@ function inicializarFondosPorDefecto() {
 
     console.log(`📊 [DB] Fondos por defecto en DB: ${existingCount}/${fondosRequeridos.length}`);
 
-    // Si ya existen todos, verificar fondo activo
+    // Si ya existen todos, asegurar que tengan es_defecto = 1 (migración retroactiva)
     if (existingCount === fondosRequeridos.length) {
       console.log("✅ [DB] Todos los fondos por defecto ya existen en DB");
+      const updatePlaceholders = fondosRequeridos.map(() => '?').join(',');
+      db.prepare(`UPDATE fondos SET es_defecto = 1 WHERE url IN (${updatePlaceholders}) AND (es_defecto IS NULL OR es_defecto = 0)`).run(...fondosRequeridos);
 
       const activoResult = db.prepare("SELECT COUNT(*) as count FROM fondos WHERE activo = 1").get();
       if (activoResult.count === 0) {
@@ -939,8 +952,8 @@ function inicializarFondosPorDefecto() {
     const fondosPorDefecto = fondosDisponibles;
 
     const insertStmt = db.prepare(`
-      INSERT INTO fondos (url, tipo, nombre, activo, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
+      INSERT INTO fondos (url, tipo, nombre, activo, es_defecto, created_at)
+      VALUES (?, ?, ?, ?, 1, datetime('now'))
     `);
 
     const insertMany = db.transaction((fondos) => {

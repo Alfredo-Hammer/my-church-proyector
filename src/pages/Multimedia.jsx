@@ -2150,7 +2150,7 @@ const Multimedia = () => {
   });
 
   return (
-    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 h-full min-h-0 overflow-hidden flex flex-col">
+    <div className="bg-[#080c14] text-slate-100 h-full min-h-0 overflow-hidden flex flex-col">
       {/* ✨ CONTENEDOR DE NOTIFICACIONES */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
         {notifications.map((notification) => (
@@ -3073,8 +3073,8 @@ const Multimedia = () => {
       {/* ✨ MODAL PARA AGREGAR URL */}
       {showUrlModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-700/50">
+          <div className="bg-slate-900/95 backdrop-blur border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="bg-blue-500/20 p-3 rounded-full">

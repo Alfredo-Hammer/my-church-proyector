@@ -210,47 +210,51 @@ export const MediaPlayerProvider = ({children}) => {
       // noop
     }
 
-    const mediaType = media.tipo || media.type;
+    const mediaType = String(media.tipo || media.type || "").toLowerCase();
     const soloAudio = Boolean(media?.soloAudio);
+    const isYoutubeMedia = Boolean(media?.isYoutube) || mediaType === "youtube";
+    const isImageMedia = mediaType === "imagen" || mediaType === "image";
 
-    // Para audio
-    if (mediaType === "audio") {
+    // En modo solo-audio usamos el elemento <audio> para cualquier tipo (audio o video),
+    // excepto YouTube e imágenes que no tienen archivo local.
+    const usarAudioRef = mediaType === "audio" || (soloAudio && !isYoutubeMedia && !isImageMedia);
+    if (usarAudioRef) {
       const url = media.validatedUrl || media.url;
       audioRef.current.src = url;
       audioRef.current.play().catch((err) => {
         console.error("❌ Error reproduciendo audio:", err);
-        setIsPlaying(false); // Si falla, marcar como no reproduciendo
+        setIsPlaying(false);
       });
-      if (!soloAudio) {
-        sendProjectorControl({action: "play"});
-      }
     }
-    // Para video, YouTube e imágenes, se renderizarán en el componente
-    else {
-      if (!soloAudio) {
-        sendProjectorControl({action: "play"});
-      }
+    if (!soloAudio) {
+      sendProjectorControl({action: "play"});
     }
   };
 
   const pause = () => {
-    if (audioRef.current && currentMedia?.tipo === "audio") {
+    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const soloAudio = Boolean(currentMedia?.soloAudio);
+    const usarAudioRef = mediaType === "audio" || soloAudio;
+    if (audioRef.current && usarAudioRef) {
       audioRef.current.pause();
     }
     setIsPlaying(false);
-    if (!currentMedia?.soloAudio) {
+    if (!soloAudio) {
       sendProjectorControl({action: "pause"});
     }
   };
 
   const resume = () => {
-    if (audioRef.current && currentMedia?.tipo === "audio") {
+    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const soloAudio = Boolean(currentMedia?.soloAudio);
+    const usarAudioRef = mediaType === "audio" || soloAudio;
+    if (audioRef.current && usarAudioRef) {
       audioRef.current.play().catch((err) => {
         console.error("❌ Error resumiendo audio:", err);
       });
     }
     setIsPlaying(true);
-    if (!currentMedia?.soloAudio) {
+    if (!soloAudio) {
       sendProjectorControl({action: "play"});
     }
   };
@@ -305,16 +309,15 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const seek = (time) => {
-    if (audioRef.current && currentMedia?.tipo === "audio") {
+    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const soloAudio = Boolean(currentMedia?.soloAudio);
+    const usarAudioRef = mediaType === "audio" || soloAudio;
+    if (audioRef.current && usarAudioRef) {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
     }
-
-    // También intentar sincronizar el proyector (video/audio/youtube)
-    if (typeof time === "number" && !Number.isNaN(time)) {
-      if (!currentMedia?.soloAudio) {
-        sendProjectorControl({action: "seek", time});
-      }
+    if (typeof time === "number" && !Number.isNaN(time) && !soloAudio) {
+      sendProjectorControl({action: "seek", time});
     }
   };
 

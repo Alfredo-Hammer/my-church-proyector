@@ -41,23 +41,84 @@ const AnimatedSoundBars = () => (
 );
 
 const CITAS_BIBLICAS = [
-  {texto: "Confía en el Señor de todo corazón y no dependas de tu propia inteligencia.", referencia: "Proverbios 3:5"},
-  {texto: "Porque Dios no nos ha dado espíritu de cobardía, sino de poder, de amor y de dominio propio.", referencia: "2 Timoteo 1:7"},
-  {texto: "He aquí, yo estoy con vosotros todos los días, hasta el fin del mundo.", referencia: "Mateo 28:20"},
-  {texto: "Venid a mí, todos los que estáis trabajados y cargados, y yo os haré descansar.", referencia: "Mateo 11:28"},
-  {texto: "Porque por gracia sois salvos por medio de la fe; y esto no de vosotros, pues es don de Dios.", referencia: "Efesios 2:8"},
-  {texto: "El Señor es mi luz y mi salvación; ¿de quién temeré?", referencia: "Salmos 27:1"},
-  {texto: "Deléitarte en el Señor, y he te concederá los deseos de tu corazón.", referencia: "Salmos 37:4"},
-  {texto: "Dios es amor; y el que permanece en amor, permanece en Dios, y Dios en él.", referencia: "1 Juan 4:16"},
-  {texto: "Todo lo puedo en Cristo que me fortalece.", referencia: "Filipenses 4:13"},
-  {texto: "La paz os dejo, mi paz os doy; no os la doy como el mundo la da.", referencia: "Juan 14:27"},
-  {texto: "Porque sabemos que a los que aman a Dios, todas las cosas les ayudan a bien.", referencia: "Romanos 8:28"},
-  {texto: "Bienaventurados los que creen sin haber visto.", referencia: "Juan 20:29"},
-  {texto: "Llamaré a ti en los tiempos de angustia; te libraré, y tú me honrarás.", referencia: "Salmos 50:15"},
-  {texto: "Guarda tu corazón más que todas las cosas, porque de él mana la vida.", referencia: "Proverbios 4:23"},
-  {texto: "Y conoceréis la verdad, y la verdad os hará libres.", referencia: "Juan 8:32"},
-  {texto: "Pero los que esperan en el Señor tendrán nuevas fuerzas.", referencia: "Isaías 40:31"},
-  {texto: "La alegría del Señor es vuestra fortaleza.", referencia: "Nehemías 8:10"},
+  {
+    texto:
+      "Confía en el Señor de todo corazón y no dependas de tu propia inteligencia.",
+    referencia: "Proverbios 3:5",
+  },
+  {
+    texto:
+      "Porque Dios no nos ha dado espíritu de cobardía, sino de poder, de amor y de dominio propio.",
+    referencia: "2 Timoteo 1:7",
+  },
+  {
+    texto:
+      "He aquí, yo estoy con vosotros todos los días, hasta el fin del mundo.",
+    referencia: "Mateo 28:20",
+  },
+  {
+    texto:
+      "Venid a mí, todos los que estáis trabajados y cargados, y yo os haré descansar.",
+    referencia: "Mateo 11:28",
+  },
+  {
+    texto:
+      "Porque por gracia sois salvos por medio de la fe; y esto no de vosotros, pues es don de Dios.",
+    referencia: "Efesios 2:8",
+  },
+  {
+    texto: "El Señor es mi luz y mi salvación; ¿de quién temeré?",
+    referencia: "Salmos 27:1",
+  },
+  {
+    texto:
+      "Deléitarte en el Señor, y he te concederá los deseos de tu corazón.",
+    referencia: "Salmos 37:4",
+  },
+  {
+    texto:
+      "Dios es amor; y el que permanece en amor, permanece en Dios, y Dios en él.",
+    referencia: "1 Juan 4:16",
+  },
+  {
+    texto: "Todo lo puedo en Cristo que me fortalece.",
+    referencia: "Filipenses 4:13",
+  },
+  {
+    texto: "La paz os dejo, mi paz os doy; no os la doy como el mundo la da.",
+    referencia: "Juan 14:27",
+  },
+  {
+    texto:
+      "Porque sabemos que a los que aman a Dios, todas las cosas les ayudan a bien.",
+    referencia: "Romanos 8:28",
+  },
+  {
+    texto: "Bienaventurados los que creen sin haber visto.",
+    referencia: "Juan 20:29",
+  },
+  {
+    texto:
+      "Llamaré a ti en los tiempos de angustia; te libraré, y tú me honrarás.",
+    referencia: "Salmos 50:15",
+  },
+  {
+    texto:
+      "Guarda tu corazón más que todas las cosas, porque de él mana la vida.",
+    referencia: "Proverbios 4:23",
+  },
+  {
+    texto: "Y conoceréis la verdad, y la verdad os hará libres.",
+    referencia: "Juan 8:32",
+  },
+  {
+    texto: "Pero los que esperan en el Señor tendrán nuevas fuerzas.",
+    referencia: "Isaías 40:31",
+  },
+  {
+    texto: "La alegría del Señor es vuestra fortaleza.",
+    referencia: "Nehemías 8:10",
+  },
 ];
 
 const Inicio = () => {
@@ -80,7 +141,9 @@ const Inicio = () => {
 
   const obtenerCitaDelDia = () => {
     const hoy = new Date();
-    const diaDelAno = Math.floor((hoy - new Date(hoy.getFullYear(), 0, 1)) / 86400000);
+    const diaDelAno = Math.floor(
+      (hoy - new Date(hoy.getFullYear(), 0, 1)) / 86400000,
+    );
     return CITAS_BIBLICAS[diaDelAno % CITAS_BIBLICAS.length];
   };
 
@@ -105,15 +168,21 @@ const Inicio = () => {
 
   const cargarEstadisticas = () => {
     try {
-      const parse = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
-      const himnosFav        = parse("himnosFavoritos").length;
-      const vcFav            = parse("himnosVidaCristianaFavoritos").length;
-      const personalizados   = parse("favoritosPersonalizados").length;
-      const biblia           = parse("favoritosBiblia").length;
+      const parse = (key) => {
+        try {
+          return JSON.parse(localStorage.getItem(key) || "[]");
+        } catch {
+          return [];
+        }
+      };
+      const himnosFav = parse("himnosFavoritos").length;
+      const vcFav = parse("himnosVidaCristianaFavoritos").length;
+      const personalizados = parse("favoritosPersonalizados").length;
+      const biblia = parse("favoritosBiblia").length;
       setEstadisticas({
-        totalHimnos:      himnosFav,
+        totalHimnos: himnosFav,
         totalVidaCristiana: vcFav,
-        totalFavoritos:   personalizados + biblia + himnosFav + vcFav,
+        totalFavoritos: personalizados + biblia + himnosFav + vcFav,
       });
     } catch (e) {
       console.error("❌ [Inicio] Error cargando estadísticas:", e);
@@ -128,12 +197,16 @@ const Inicio = () => {
         setConfiguracion((prev) => ({...prev, ...nuevaConfig}));
       });
     }
-    return () => { window.electron?.removeAllListeners?.("configuracion-actualizada"); };
+    return () => {
+      window.electron?.removeAllListeners?.("configuracion-actualizada");
+    };
   }, []);
 
   useEffect(() => {
     const hora = new Date().getHours();
-    setMensaje(hora < 12 ? "Buenos días" : hora < 18 ? "Buenas tardes" : "Buenas noches");
+    setMensaje(
+      hora < 12 ? "Buenos días" : hora < 18 ? "Buenas tardes" : "Buenas noches",
+    );
     setCitaDelDia(obtenerCitaDelDia());
   }, []);
 
@@ -155,13 +228,20 @@ const Inicio = () => {
     return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   };
   const getMediaIcon = () => {
-    const tipo = mediaContext?.currentMedia?.tipo || mediaContext?.currentMedia?.type;
-    if (tipo === "audio") return <FaMusic className="text-green-400" size={14} />;
-    if (tipo === "youtube") return <FaYoutube className="text-red-400" size={14} />;
-    if (tipo === "video") return <FaVideo className="text-purple-400" size={14} />;
+    const tipo =
+      mediaContext?.currentMedia?.tipo || mediaContext?.currentMedia?.type;
+    if (tipo === "audio")
+      return <FaMusic className="text-green-400" size={14} />;
+    if (tipo === "youtube")
+      return <FaYoutube className="text-red-400" size={14} />;
+    if (tipo === "video")
+      return <FaVideo className="text-purple-400" size={14} />;
     return <FaMusic className="text-gray-400" size={14} />;
   };
-  const getMediaName = () => mediaContext?.currentMedia?.nombre || mediaContext?.currentMedia?.name || "Sin título";
+  const getMediaName = () =>
+    mediaContext?.currentMedia?.nombre ||
+    mediaContext?.currentMedia?.name ||
+    "Sin título";
 
   // ── Datos calculados ──
   const totalFavoritosDisplay = estadisticas.totalFavoritos;
@@ -169,108 +249,140 @@ const Inicio = () => {
   // ── Accesos rápidos ──
   const accesos = [
     {
-      icon: FaMusic, label: "Himno Moravo",
+      icon: FaMusic,
+      label: "Himno Moravo",
       sub: `${himnosData.length} himnos`,
       path: "/himnos",
-      from: "from-emerald-500/25", to: "to-emerald-600/10",
+      from: "from-emerald-500/25",
+      to: "to-emerald-600/10",
       border: "border-emerald-500/25 hover:border-emerald-400/50",
-      iconBg: "bg-emerald-500/20", iconColor: "text-emerald-300",
+      iconBg: "bg-emerald-500/20",
+      iconColor: "text-emerald-300",
       glow: "hover:shadow-emerald-900/40",
     },
     {
-      icon: FaBookOpen, label: "Vida Cristiana",
+      icon: FaBookOpen,
+      label: "Vida Cristiana",
       sub: `${vidacristianaData.length} himnos`,
       path: "/vida-cristiana",
-      from: "from-amber-500/25", to: "to-amber-600/10",
+      from: "from-amber-500/25",
+      to: "to-amber-600/10",
       border: "border-amber-500/25 hover:border-amber-400/50",
-      iconBg: "bg-amber-500/20", iconColor: "text-amber-300",
+      iconBg: "bg-amber-500/20",
+      iconColor: "text-amber-300",
       glow: "hover:shadow-amber-900/40",
     },
     {
-      icon: FaBible, label: "Biblia",
+      icon: FaBible,
+      label: "Biblia",
       sub: "66 libros · RVR60",
       path: "/biblia",
-      from: "from-indigo-500/25", to: "to-indigo-600/10",
+      from: "from-indigo-500/25",
+      to: "to-indigo-600/10",
       border: "border-indigo-500/25 hover:border-indigo-400/50",
-      iconBg: "bg-indigo-500/20", iconColor: "text-indigo-300",
+      iconBg: "bg-indigo-500/20",
+      iconColor: "text-indigo-300",
       glow: "hover:shadow-indigo-900/40",
     },
     {
-      icon: FaHeart, label: "Favoritos",
-      sub: totalFavoritosDisplay > 0 ? `${totalFavoritosDisplay} guardados` : "Tus favoritos",
+      icon: FaHeart,
+      label: "Favoritos",
+      sub:
+        totalFavoritosDisplay > 0
+          ? `${totalFavoritosDisplay} guardados`
+          : "Tus favoritos",
       path: "/favoritos",
-      from: "from-rose-500/25", to: "to-rose-600/10",
+      from: "from-rose-500/25",
+      to: "to-rose-600/10",
       border: "border-rose-500/25 hover:border-rose-400/50",
-      iconBg: "bg-rose-500/20", iconColor: "text-rose-300",
+      iconBg: "bg-rose-500/20",
+      iconColor: "text-rose-300",
       glow: "hover:shadow-rose-900/40",
     },
     {
-      icon: FaFilm, label: "Multimedia",
+      icon: FaFilm,
+      label: "Multimedia",
       sub: "Audio · Video · YouTube",
       path: "/multimedia",
-      from: "from-violet-500/25", to: "to-violet-600/10",
+      from: "from-violet-500/25",
+      to: "to-violet-600/10",
       border: "border-violet-500/25 hover:border-violet-400/50",
-      iconBg: "bg-violet-500/20", iconColor: "text-violet-300",
+      iconBg: "bg-violet-500/20",
+      iconColor: "text-violet-300",
       glow: "hover:shadow-violet-900/40",
     },
   ];
 
   // ── Stats ──
   const stats = [
-    {icon: FaMusic,    value: himnosData.length,          label: "Himnos Moravo",     color: "text-emerald-400", bg: "bg-emerald-500/8  border-emerald-500/20"},
-    {icon: FaBookOpen, value: vidacristianaData.length,   label: "Vida Cristiana",    color: "text-amber-400",   bg: "bg-amber-500/8   border-amber-500/20"},
-    {icon: FaBible,    value: 66,                         label: "Libros Bíblicos",   color: "text-indigo-400",  bg: "bg-indigo-500/8  border-indigo-500/20"},
-    {icon: FaStar,     value: totalFavoritosDisplay,      label: "Tus Favoritos",     color: "text-rose-400",    bg: "bg-rose-500/8    border-rose-500/20"},
+    {
+      icon: FaMusic,
+      value: himnosData.length,
+      label: "Himnos Moravo",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/8  border-emerald-500/20",
+    },
+    {
+      icon: FaBookOpen,
+      value: vidacristianaData.length,
+      label: "Vida Cristiana",
+      color: "text-amber-400",
+      bg: "bg-amber-500/8   border-amber-500/20",
+    },
+    {
+      icon: FaBible,
+      value: 66,
+      label: "Libros Bíblicos",
+      color: "text-indigo-400",
+      bg: "bg-indigo-500/8  border-indigo-500/20",
+    },
+    {
+      icon: FaStar,
+      value: totalFavoritosDisplay,
+      label: "Tus Favoritos",
+      color: "text-rose-400",
+      bg: "bg-rose-500/8    border-rose-500/20",
+    },
   ];
 
-  const containerVariants = {hidden:{opacity:0}, visible:{opacity:1, transition:{staggerChildren:0.07, delayChildren:0.1}}};
-  const itemVariants       = {hidden:{opacity:0, y:16}, visible:{opacity:1, y:0, transition:{duration:0.35}}};
+  const containerVariants = {
+    hidden: {opacity: 0},
+    visible: {
+      opacity: 1,
+      transition: {staggerChildren: 0.07, delayChildren: 0.1},
+    },
+  };
+  const itemVariants = {
+    hidden: {opacity: 0, y: 16},
+    visible: {opacity: 1, y: 0, transition: {duration: 0.35}},
+  };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#060d1a] border-l border-white/5 flex flex-col">
-
-      {/* ── Fondo: gradiente profesional en capas ── */}
-      {/* Base navy profunda con dirección diagonal */}
-      <div className="absolute inset-0 z-0" style={{
-        background: "linear-gradient(155deg, #07101f 0%, #0c1830 18%, #101f40 38%, #0b1a34 55%, #081426 75%, #050d1c 100%)"
-      }} />
-      {/* Orbe violeta — arriba derecha, evoca espiritualidad */}
-      <div className="absolute -top-48 -right-24 w-[560px] h-[560px] rounded-full pointer-events-none z-0" style={{
-        background: "radial-gradient(circle at center, rgba(109,40,217,0.22) 0%, rgba(79,30,170,0.10) 45%, transparent 70%)"
-      }} />
-      {/* Orbe esmeralda — abajo izquierda, esperanza y vida */}
-      <div className="absolute -bottom-32 -left-24 w-[480px] h-[480px] rounded-full pointer-events-none z-0" style={{
-        background: "radial-gradient(circle at center, rgba(5,150,105,0.18) 0%, rgba(4,120,87,0.08) 45%, transparent 70%)"
-      }} />
-      {/* Orbe dorado central suave — luz divina */}
-      <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[260px] rounded-full pointer-events-none z-0" style={{
-        background: "radial-gradient(ellipse at center, rgba(146,100,12,0.13) 0%, rgba(100,65,5,0.06) 50%, transparent 70%)"
-      }} />
-      {/* Orbe índigo secundario — arriba izquierda */}
-      <div className="absolute -top-16 -left-16 w-[300px] h-[300px] rounded-full pointer-events-none z-0" style={{
-        background: "radial-gradient(circle at center, rgba(55,48,163,0.18) 0%, transparent 65%)"
-      }} />
-      {/* Viñeta periférica para profundidad */}
-      <div className="absolute inset-0 z-0 pointer-events-none" style={{
-        background: "radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)"
-      }} />
-      {/* Línea luminosa horizontal sutil a media altura */}
-      <div className="absolute left-0 right-0 z-0 pointer-events-none" style={{
-        top: "42%", height: "1px",
-        background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.18) 25%, rgba(16,185,129,0.12) 50%, rgba(99,102,241,0.18) 75%, transparent 100%)"
-      }} />
-
+    <div className="relative w-full h-screen overflow-hidden bg-[#080c14] border-l border-white/5 flex flex-col">
       {/* ── HEADER (media player) ── */}
       <motion.header
-        initial={{opacity:0, y:-20}} animate={{opacity:1, y:0}}
+        initial={{opacity: 0, y: -20}}
+        animate={{opacity: 1, y: 0}}
         className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/8 shadow-2xl overflow-hidden shrink-0"
       >
-        <div className="absolute inset-0" style={{
-          background: "linear-gradient(90deg, rgba(6,13,26,0.92) 0%, rgba(11,24,52,0.88) 50%, rgba(6,13,26,0.92) 100%)"
-        }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(6,13,26,0.92) 0%, rgba(11,24,52,0.88) 50%, rgba(6,13,26,0.92) 100%)",
+          }}
+        />
         {mediaContext?.isPlaying && (
           <>
-            <div className="absolute inset-0 opacity-60" style={{background:"linear-gradient(45deg,rgba(239,68,68,.4),rgba(16,185,129,.4),rgba(59,130,246,.4),rgba(168,85,247,.4))",backgroundSize:"400% 400%",animation:"gradientShift 8s ease infinite"}} />
+            <div
+              className="absolute inset-0 opacity-60"
+              style={{
+                background:
+                  "linear-gradient(45deg,rgba(239,68,68,.4),rgba(16,185,129,.4),rgba(59,130,246,.4),rgba(168,85,247,.4))",
+                backgroundSize: "400% 400%",
+                animation: "gradientShift 8s ease infinite",
+              }}
+            />
             <style>{`@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}`}</style>
           </>
         )}
@@ -283,67 +395,146 @@ const Inicio = () => {
             <div className="flex items-center gap-4 xl:gap-6 flex-1 min-w-0 justify-center">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-2 rounded-lg border border-red-500/40">
-                  <div className="flex items-center gap-2">{getMediaIcon()}{mediaContext.isPlaying && <AnimatedSoundBars />}</div>
-                  {mediaContext.isPlaying && <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />}
+                  <div className="flex items-center gap-2">
+                    {getMediaIcon()}
+                    {mediaContext.isPlaying && <AnimatedSoundBars />}
+                  </div>
+                  {mediaContext.isPlaying && (
+                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
+                  )}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-white font-semibold truncate text-xs">{getMediaName()}</h3>
+                  <h3 className="text-white font-semibold truncate text-xs">
+                    {getMediaName()}
+                  </h3>
                   <div className="flex items-center gap-2">
-                    <p className="text-gray-400 text-xs capitalize">{mediaContext.currentMedia?.tipo || mediaContext.currentMedia?.type}</p>
-                    {mediaContext.isPlaying && <span className="flex items-center gap-1 text-green-400 text-xs"><span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />Reproduciendo</span>}
+                    <p className="text-gray-400 text-xs capitalize">
+                      {mediaContext.currentMedia?.tipo ||
+                        mediaContext.currentMedia?.type}
+                    </p>
+                    {mediaContext.isPlaying && (
+                      <span className="flex items-center gap-1 text-green-400 text-xs">
+                        <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
+                        Reproduciendo
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <button onClick={mediaContext.togglePlayPause} className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all hover:scale-105 shadow-md" title={mediaContext.isPlaying?"Pausar":"Reproducir"}>
-                  {mediaContext.isPlaying ? <FaPause size={11}/> : <FaPlay size={11}/>}
+                <button
+                  onClick={mediaContext.togglePlayPause}
+                  className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all hover:scale-105 shadow-md"
+                  title={mediaContext.isPlaying ? "Pausar" : "Reproducir"}
+                >
+                  {mediaContext.isPlaying ? (
+                    <FaPause size={11} />
+                  ) : (
+                    <FaPlay size={11} />
+                  )}
                 </button>
-                <button onClick={mediaContext.stop} className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm" title="Detener"><FaStop size={11}/></button>
+                <button
+                  onClick={mediaContext.stop}
+                  className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm"
+                  title="Detener"
+                >
+                  <FaStop size={11} />
+                </button>
               </div>
 
-              {(mediaContext.currentMedia?.tipo==="audio"||mediaContext.currentMedia?.type==="audio") && (
+              {(mediaContext.currentMedia?.tipo === "audio" ||
+                mediaContext.currentMedia?.type === "audio") && (
                 <div className="flex items-center gap-2 flex-1 max-w-xs">
-                  <span className="text-xs text-gray-400 font-mono">{formatTime(mediaContext.currentTime)}</span>
-                  <input type="range" min="0" max={mediaContext.duration||0} value={mediaContext.currentTime} onChange={(e)=>mediaContext.seek(parseFloat(e.target.value))}
+                  <span className="text-xs text-gray-400 font-mono">
+                    {formatTime(mediaContext.currentTime)}
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={mediaContext.duration || 0}
+                    value={mediaContext.currentTime}
+                    onChange={(e) =>
+                      mediaContext.seek(parseFloat(e.target.value))
+                    }
                     className="flex-1 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
-                    style={{background:`linear-gradient(to right,#ef4444 0%,#ef4444 ${(mediaContext.currentTime/(mediaContext.duration||1))*100}%,#374151 ${(mediaContext.currentTime/(mediaContext.duration||1))*100}%,#374151 100%)`}}
+                    style={{
+                      background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 100%)`,
+                    }}
                   />
-                  <span className="text-xs text-gray-400 font-mono">{formatTime(mediaContext.duration)}</span>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {formatTime(mediaContext.duration)}
+                  </span>
                 </div>
               )}
 
               <div className="flex items-center gap-2 bg-gray-700/30 rounded-lg px-3 py-1.5">
-                <button onClick={()=>mediaContext.setVolume(mediaContext.volume===0?50:0)} className="text-gray-400 hover:text-white transition-colors">
-                  {mediaContext.volume===0 ? <FaVolumeMute size={11}/> : <FaVolumeUp size={11}/>}
+                <button
+                  onClick={() =>
+                    mediaContext.setVolume(mediaContext.volume === 0 ? 50 : 0)
+                  }
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  {mediaContext.volume === 0 ? (
+                    <FaVolumeMute size={11} />
+                  ) : (
+                    <FaVolumeUp size={11} />
+                  )}
                 </button>
-                <input type="range" min="0" max="100" value={mediaContext.volume} onChange={(e)=>mediaContext.setVolume(parseInt(e.target.value))}
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={mediaContext.volume}
+                  onChange={(e) =>
+                    mediaContext.setVolume(parseInt(e.target.value))
+                  }
                   className="w-16 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
-                  style={{background:`linear-gradient(to right,#ef4444 0%,#ef4444 ${mediaContext.volume}%,#4b5563 ${mediaContext.volume}%,#4b5563 100%)`}}
+                  style={{
+                    background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${mediaContext.volume}%,#4b5563 ${mediaContext.volume}%,#4b5563 100%)`,
+                  }}
                 />
-                <span className="text-xs text-gray-400 font-mono w-6 text-center">{mediaContext.volume}%</span>
+                <span className="text-xs text-gray-400 font-mono w-6 text-center">
+                  {mediaContext.volume}%
+                </span>
               </div>
 
-              <button onClick={mediaContext.stop} className="text-gray-400 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg" title="Cerrar">
-                <FaTimes size={13}/>
+              <button
+                onClick={mediaContext.stop}
+                className="text-gray-400 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
+                title="Cerrar"
+              >
+                <FaTimes size={13} />
               </button>
             </div>
-          ) : <div />}
+          ) : (
+            <div />
+          )}
 
           {/* Logo + saludo */}
           <div className="flex items-center gap-3 justify-end">
             <div className="text-right hidden lg:block">
-              <p className="text-xs xl:text-sm font-semibold text-emerald-400">{mensaje}</p>
+              <p className="text-xs xl:text-sm font-semibold text-emerald-400">
+                {mensaje}
+              </p>
               {configuracion.nombreIglesia && (
-                <p className="text-[10px] xl:text-xs text-white/60 truncate max-w-[150px] xl:max-w-none">{configuracion.nombreIglesia}</p>
+                <p className="text-[10px] xl:text-xs text-white/60 truncate max-w-[150px] xl:max-w-none">
+                  {configuracion.nombreIglesia}
+                </p>
               )}
             </div>
             <div className="rounded-full p-0.5 bg-gradient-to-br from-emerald-500/25 to-amber-500/25 border border-emerald-500/30">
               <img
-                src={configuracion.logoUrl&&configuracion.logoUrl!=="undefined"?configuracion.logoUrl:"/images/icon-256.png"}
+                src={
+                  configuracion.logoUrl && configuracion.logoUrl !== "undefined"
+                    ? configuracion.logoUrl
+                    : "/images/icon-256.png"
+                }
                 alt="Logo"
                 className="w-9 h-9 xl:w-11 xl:h-11 rounded-full object-cover"
-                onError={(e)=>{e.target.src="/images/icon-256.png";}}
+                onError={(e) => {
+                  e.target.src = "/images/icon-256.png";
+                }}
               />
             </div>
           </div>
@@ -354,22 +545,30 @@ const Inicio = () => {
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto flex items-center justify-center">
         <motion.main
           className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 xl:px-8 py-5 xl:py-7 flex flex-col gap-5 xl:gap-7"
-          variants={containerVariants} initial="hidden" animate="visible"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
         >
-
           {/* ── Cita del día ── */}
           {citaDelDia && (
             <motion.section variants={itemVariants} className="text-center">
-              <div className="relative inline-block max-w-3xl mx-auto px-6 xl:px-10 py-5 xl:py-6 rounded-2xl overflow-hidden"
+              <div
+                className="relative inline-block max-w-3xl mx-auto px-6 xl:px-10 py-5 xl:py-6 rounded-2xl overflow-hidden"
                 style={{
-                  background: "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
                   border: "1px solid rgba(255,255,255,0.08)",
                   backdropFilter: "blur(12px)",
                 }}
               >
                 {/* Línea dorada decorativa arriba */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-px"
-                  style={{background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)"}} />
+                <div
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                  }}
+                />
                 <p className="text-base sm:text-lg xl:text-xl text-white/85 italic font-light leading-relaxed">
                   "{citaDelDia.texto}"
                 </p>
@@ -377,8 +576,13 @@ const Inicio = () => {
                   — {citaDelDia.referencia}
                 </p>
                 {/* Línea dorada decorativa abajo */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-px"
-                  style={{background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)"}} />
+                <div
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                  }}
+                />
               </div>
             </motion.section>
           )}
@@ -386,9 +590,23 @@ const Inicio = () => {
           {/* ── Accesos rápidos ── */}
           <motion.section variants={itemVariants}>
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, transparent, rgba(99,102,241,0.3))"}} />
-              <h3 className="text-xs font-semibold text-indigo-300/60 uppercase tracking-widest">Accesos Rápidos</h3>
-              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, rgba(99,102,241,0.3), transparent)"}} />
+              <div
+                className="h-px flex-1"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(99,102,241,0.3))",
+                }}
+              />
+              <h3 className="text-xs font-semibold text-indigo-300/60 uppercase tracking-widest">
+                Accesos Rápidos
+              </h3>
+              <div
+                className="h-px flex-1"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(99,102,241,0.3), transparent)",
+                }}
+              />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 xl:gap-3">
               {accesos.map((item) => (
@@ -400,18 +618,30 @@ const Inicio = () => {
                   className={`group relative flex flex-col items-start gap-3 p-4 xl:p-5 rounded-2xl border bg-gradient-to-br ${item.from} ${item.to} ${item.border} backdrop-blur-sm transition-all duration-200 shadow-lg ${item.glow} hover:shadow-xl text-left overflow-hidden`}
                 >
                   {/* Glow de fondo en hover */}
-                  <div className={`absolute inset-0 ${item.from} opacity-0 group-hover:opacity-50 transition-opacity duration-300 rounded-2xl blur-sm`} />
+                  <div
+                    className={`absolute inset-0 ${item.from} opacity-0 group-hover:opacity-50 transition-opacity duration-300 rounded-2xl blur-sm`}
+                  />
 
-                  <div className={`relative shrink-0 w-10 h-10 xl:w-11 xl:h-11 rounded-xl ${item.iconBg} flex items-center justify-center`}>
-                    <item.icon className={`${item.iconColor} text-lg xl:text-xl`} />
+                  <div
+                    className={`relative shrink-0 w-10 h-10 xl:w-11 xl:h-11 rounded-xl ${item.iconBg} flex items-center justify-center`}
+                  >
+                    <item.icon
+                      className={`${item.iconColor} text-lg xl:text-xl`}
+                    />
                   </div>
 
                   <div className="relative min-w-0 flex-1">
-                    <p className="text-sm xl:text-base font-semibold text-white leading-tight">{item.label}</p>
-                    <p className="text-[10px] xl:text-xs text-white/45 mt-0.5 leading-tight">{item.sub}</p>
+                    <p className="text-sm xl:text-base font-semibold text-white leading-tight">
+                      {item.label}
+                    </p>
+                    <p className="text-[10px] xl:text-xs text-white/45 mt-0.5 leading-tight">
+                      {item.sub}
+                    </p>
                   </div>
 
-                  <FaArrowRight className={`relative self-end ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`} />
+                  <FaArrowRight
+                    className={`relative self-end ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`}
+                  />
                 </motion.button>
               ))}
             </div>
@@ -420,19 +650,42 @@ const Inicio = () => {
           {/* ── Estadísticas ── */}
           <motion.section variants={itemVariants}>
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, transparent, rgba(16,185,129,0.3))"}} />
-              <h3 className="text-xs font-semibold text-emerald-300/60 uppercase tracking-widest">Catálogo</h3>
-              <div className="h-px flex-1" style={{background:"linear-gradient(90deg, rgba(16,185,129,0.3), transparent)"}} />
+              <div
+                className="h-px flex-1"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(16,185,129,0.3))",
+                }}
+              />
+              <h3 className="text-xs font-semibold text-emerald-300/60 uppercase tracking-widest">
+                Catálogo
+              </h3>
+              <div
+                className="h-px flex-1"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(16,185,129,0.3), transparent)",
+                }}
+              />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 xl:gap-3">
               {stats.map((s) => (
-                <div key={s.label} className={`flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3.5 xl:py-4 rounded-2xl border ${s.bg} backdrop-blur-sm`}>
-                  <div className={`shrink-0 w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center`}>
+                <div
+                  key={s.label}
+                  className={`flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3.5 xl:py-4 rounded-2xl border ${s.bg} backdrop-blur-sm`}
+                >
+                  <div
+                    className={`shrink-0 w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center`}
+                  >
                     <s.icon className={`${s.color} text-base`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xl xl:text-2xl font-bold text-white leading-none">{s.value}</p>
-                    <p className="text-[10px] xl:text-xs text-white/50 mt-0.5 leading-tight truncate">{s.label}</p>
+                    <p className="text-xl xl:text-2xl font-bold text-white leading-none">
+                      {s.value}
+                    </p>
+                    <p className="text-[10px] xl:text-xs text-white/50 mt-0.5 leading-tight truncate">
+                      {s.label}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -442,11 +695,13 @@ const Inicio = () => {
           {/* ── Footer ── */}
           <motion.footer variants={itemVariants} className="text-center pb-2">
             <p className="text-white/25 text-xs">
-              Desarrollado con <span className="text-emerald-500/60">♥</span> por{" "}
-              <span className="text-emerald-400/50 font-medium">Alfredo Hammer</span>
+              Desarrollado con <span className="text-emerald-500/60">♥</span>{" "}
+              por{" "}
+              <span className="text-emerald-400/50 font-medium">
+                Alfredo Hammer
+              </span>
             </p>
           </motion.footer>
-
         </motion.main>
       </div>
     </div>

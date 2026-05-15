@@ -104,6 +104,18 @@ contextBridge.exposeInMainWorld("electron", {
   // Temporizador dedicado (sin animaciones de himno)
   proyectarTemporizador: (data) => ipcRenderer.send("proyectar-temporizador", data),
 
+  // ====================================
+  // TIMER PERSISTENTE (main process)
+  // Estos métodos permiten que el timer sobreviva la navegación entre páginas
+  // ====================================
+  timerEstado:    ()       => ipcRenderer.invoke('timer-estado'),
+  timerIniciar:   (data)   => ipcRenderer.invoke('timer-iniciar',    data),
+  timerPausar:    ()       => ipcRenderer.invoke('timer-pausar'),
+  timerReiniciar: (data)   => ipcRenderer.invoke('timer-reiniciar',  data),
+  timerProyectar: (data)   => ipcRenderer.invoke('timer-proyectar',  data),
+  timerDetener:   ()       => ipcRenderer.invoke('timer-detener'),
+  timerSetMensaje:(data)   => ipcRenderer.invoke('timer-set-mensaje', data),
+
   //Eliminar y actualizar himnos
   actualizarHimno: (himno) => ipcRenderer.invoke("actualizar-himno", himno),
   eliminarHimno: (id) => ipcRenderer.invoke("eliminar-himno", id),
@@ -189,6 +201,7 @@ contextBridge.exposeInMainWorld("electron", {
       "mostrar-himno",
       "mostrar-versiculo",
       "mostrar-temporizador",
+      "timer-tick",
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",

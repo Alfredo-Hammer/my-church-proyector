@@ -143,7 +143,7 @@ const UpdateNotification = () => {
           initial={{opacity: 0, scale: 0.9, y: 20}}
           animate={{opacity: 1, scale: 1, y: 0}}
           exit={{opacity: 0, scale: 0.9, y: 20}}
-          className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4"
+          className="bg-slate-900/95 backdrop-blur border border-slate-700/50 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4"
         >
           {/* Botón cerrar */}
           {(updateState === "not-available" || updateState === "error") && (

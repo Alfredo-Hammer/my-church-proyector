@@ -12,6 +12,8 @@ import {
   IoRefresh,
   IoSearch,
   IoArrowBack,
+  IoWifi,
+  IoAlertCircle,
 } from "react-icons/io5";
 
 const GestionFondos = () => {
@@ -36,10 +38,15 @@ const GestionFondos = () => {
   const [fondoAEliminar, setFondoAEliminar] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
+  const [estaOnline, setEstaOnline] = useState(navigator.onLine);
 
   // ✨ NUEVOS ESTADOS PARA BÚSQUEDA
   const [terminoBusqueda, setTerminoBusqueda] = useState("");
   const [ultimaBusqueda, setUltimaBusqueda] = useState("");
+
+  // Páginas de paginación: inician en valor aleatorio para variedad en carga inicial
+  const [paginaImagenes, setPaginaImagenes] = useState(() => Math.ceil(Math.random() * 8));
+  const [paginaVideos, setPaginaVideos] = useState(() => Math.ceil(Math.random() * 8));
 
   // ✨ CARGAR DATOS AL INICIALIZAR
   useEffect(() => {
@@ -52,9 +59,9 @@ const GestionFondos = () => {
     if (tabActivo === "mis-imagenes") {
       cargarFondos();
     } else if (tabActivo === "imagenes") {
-      cargarPixabayImages(); // Usa término por defecto
+      cargarPixabayImages(undefined, paginaImagenes);
     } else if (tabActivo === "videos") {
-      cargarPixabayVideos(); // Usa término por defecto
+      cargarPixabayVideos(undefined, paginaVideos);
     }
   }, [tabActivo]);
 
@@ -84,6 +91,35 @@ const GestionFondos = () => {
       }
     };
   }, []);
+
+  // Detectar cambios de conexión a internet
+  useEffect(() => {
+    const handleOnline = () => {
+      setEstaOnline(true);
+      mostrarMensaje("Conexión restaurada", "success");
+    };
+    const handleOffline = () => {
+      setEstaOnline(false);
+      mostrarMensaje("Sin conexión a internet", "error");
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Auto-recargar la pestaña online activa cuando regresa la conexión
+  useEffect(() => {
+    if (estaOnline) {
+      if (tabActivo === "imagenes" && pixabayImages.length === 0) {
+        cargarPixabayImages(undefined, paginaImagenes);
+      } else if (tabActivo === "videos" && pixabayVideos.length === 0) {
+        cargarPixabayVideos(undefined, paginaVideos);
+      }
+    }
+  }, [estaOnline]);
 
   // ✨ CARGAR FONDO ACTIVO DESDE LA BD
   const cargarFondoActivo = async () => {
@@ -234,10 +270,6 @@ const GestionFondos = () => {
           fondosProcesados.length,
         );
         console.log("📋 [GestionFondos] Primer fondo:", fondosProcesados[0]);
-        mostrarMensaje(
-          `${fondosProcesados.length} fondos cargados correctamente`,
-          "success",
-        );
       } else {
         setFondos([]);
         console.log(
@@ -248,8 +280,6 @@ const GestionFondos = () => {
             "Error al obtener fondos de la base de datos",
             "error",
           );
-        } else {
-          mostrarMensaje("No hay fondos guardados", "info");
         }
       }
     } catch (error) {
@@ -269,25 +299,22 @@ const GestionFondos = () => {
     process.env.REACT_APP_PIXABAY_API_KEY ||
     "29325243-29bd81b56bd1800c81b3482a7";
 
-  const cargarPixabayImages = async (busqueda = "church,landscape,nature") => {
+  const cargarPixabayImages = async (busqueda = "church,landscape,nature", pagina = paginaImagenes) => {
+    if (!navigator.onLine) {
+      setEstaOnline(false);
+      mostrarMensaje("Sin conexión a internet. Conéctate para ver imágenes online.", "error");
+      return;
+    }
     setCargando(true);
     try {
-      console.log(
-        "🔄 [GestionFondos] Cargando imágenes de Pixabay con término:",
-        busqueda,
-      );
+      console.log(`🔄 [GestionFondos] Cargando imágenes Pixabay — término: "${busqueda}", página: ${pagina}`);
       const response = await fetch(
-        `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(
-          busqueda,
-        )}&image_type=photo&min_width=1920&per_page=20&safesearch=true`,
+        `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(busqueda)}&image_type=photo&min_width=1920&per_page=20&safesearch=true&page=${pagina}`,
       );
       const data = await response.json();
       setPixabayImages(data.hits || []);
       setUltimaBusqueda(busqueda);
-      console.log(
-        "✅ [GestionFondos] Imágenes Pixabay cargadas:",
-        data.hits?.length || 0,
-      );
+      console.log(`✅ [GestionFondos] Imágenes cargadas: ${data.hits?.length || 0} (página ${pagina}/${Math.ceil((data.totalHits || 0) / 20)})`);
     } catch (error) {
       console.error("❌ Error al cargar imágenes de Pixabay:", error);
       mostrarMensaje("Error al cargar imágenes de Pixabay", "error");
@@ -296,17 +323,17 @@ const GestionFondos = () => {
     }
   };
 
-  const cargarPixabayVideos = async (busqueda = "church,nature,landscape") => {
+  const cargarPixabayVideos = async (busqueda = "church,nature,landscape", pagina = paginaVideos) => {
+    if (!navigator.onLine) {
+      setEstaOnline(false);
+      mostrarMensaje("Sin conexión a internet. Conéctate para ver videos online.", "error");
+      return;
+    }
     setCargando(true);
     try {
-      console.log(
-        "🔄 [GestionFondos] Cargando videos de Pixabay con término:",
-        busqueda,
-      );
+      console.log(`🔄 [GestionFondos] Cargando videos Pixabay — término: "${busqueda}", página: ${pagina}`);
       const response = await fetch(
-        `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(
-          busqueda,
-        )}&per_page=12&safesearch=true`,
+        `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(busqueda)}&per_page=12&safesearch=true&page=${pagina}`,
       );
       const data = await response.json();
       setPixabayVideos(data.hits || []);
@@ -333,9 +360,11 @@ const GestionFondos = () => {
     console.log("🔍 [GestionFondos] Buscando:", terminoBusqueda);
 
     if (tabActivo === "imagenes") {
-      await cargarPixabayImages(terminoBusqueda);
+      setPaginaImagenes(1);
+      await cargarPixabayImages(terminoBusqueda, 1);
     } else if (tabActivo === "videos") {
-      await cargarPixabayVideos(terminoBusqueda);
+      setPaginaVideos(1);
+      await cargarPixabayVideos(terminoBusqueda, 1);
     }
   };
 
@@ -343,6 +372,32 @@ const GestionFondos = () => {
   const manejarEnterBusqueda = (e) => {
     if (e.key === "Enter") {
       manejarBusqueda();
+    }
+  };
+
+  const irPaginaSiguiente = () => {
+    const termino = ultimaBusqueda || undefined;
+    if (tabActivo === "imagenes") {
+      const nueva = paginaImagenes + 1;
+      setPaginaImagenes(nueva);
+      cargarPixabayImages(termino, nueva);
+    } else if (tabActivo === "videos") {
+      const nueva = paginaVideos + 1;
+      setPaginaVideos(nueva);
+      cargarPixabayVideos(termino, nueva);
+    }
+  };
+
+  const irPaginaAnterior = () => {
+    const termino = ultimaBusqueda || undefined;
+    if (tabActivo === "imagenes" && paginaImagenes > 1) {
+      const nueva = paginaImagenes - 1;
+      setPaginaImagenes(nueva);
+      cargarPixabayImages(termino, nueva);
+    } else if (tabActivo === "videos" && paginaVideos > 1) {
+      const nueva = paginaVideos - 1;
+      setPaginaVideos(nueva);
+      cargarPixabayVideos(termino, nueva);
     }
   };
 
@@ -715,295 +770,267 @@ const GestionFondos = () => {
   };
 
   return (
-    <div className="text-slate-100 h-full p-4 overflow-y-auto bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-screen">
-      {/* Modal de confirmación */}
+    <div className="text-slate-100 min-h-screen bg-[#080c14] p-4 sm:p-6 overflow-y-auto">
       <ModalConfirmacion
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onConfirm={eliminarFondo}
         titulo="Confirmar eliminación"
-        mensaje={`¿Estás seguro de que deseas eliminar el fondo "${
-          fondoAEliminar?.nombre || "seleccionado"
-        }"? Esta acción no se puede deshacer.`}
+        mensaje={`¿Estás seguro de que deseas eliminar "${fondoAEliminar?.nombre || "este fondo"}"? Esta acción no se puede deshacer.`}
       />
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      {/* ── HEADER ─────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           {modoSeleccion && (
             <button
               onClick={() => navigate(volverA || "/")}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-xl flex items-center gap-2 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
               title="Volver sin seleccionar"
             >
-              <IoArrowBack /> Volver
+              <IoArrowBack />
             </button>
           )}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-              {modoSeleccion ? "📸 Seleccionar Imagen" : "🖼️ Gestión de Fondos"}
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              {modoSeleccion ? "Seleccionar Imagen" : "Gestión de Fondos"}
             </h1>
-            <p className="text-white/60 mt-1">
+            <p className="text-white/40 text-sm mt-0.5">
               {modoSeleccion
-                ? "Selecciona una imagen para tu presentación"
-                : "Gestiona fondos para el proyector"}
+                ? "Elige una imagen para tu presentación"
+                : "Administra los fondos del proyector"}
             </p>
           </div>
         </div>
 
-        {/* Indicador de fondo activo */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {fondoActivo && (
-            <div className="bg-emerald-500/15 border border-emerald-500/20 text-emerald-200 px-4 py-2 rounded-xl flex items-center gap-2">
-              <IoCheckmark />
-              <span className="text-sm">
-                Fondo activo: {fondoActivo.nombre || "Sin nombre"}
+            <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs text-emerald-300 font-medium max-w-[150px] truncate">
+                {fondoActivo.nombre || "Fondo activo"}
               </span>
             </div>
           )}
-
-          {/* Botón refrescar */}
           <button
             onClick={() => {
-              if (tabActivo === "mis-imagenes") {
-                cargarFondos();
-              } else {
-                cargarFondoActivo();
-              }
+              if (tabActivo === "mis-imagenes") cargarFondos();
+              else cargarFondoActivo();
             }}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-xl flex items-center gap-2 transition-colors"
             disabled={cargando}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm transition-colors disabled:opacity-50"
           >
             <IoRefresh className={cargando ? "animate-spin" : ""} />
-            Refrescar
+            <span className="hidden sm:inline">Refrescar</span>
           </button>
         </div>
       </div>
 
-      {/* Mensaje de estado */}
+      {/* ── MENSAJES ───────────────────────────────────────────────── */}
       {mensaje && (
         <div
-          className={`p-4 rounded-lg mb-6 flex items-center gap-3 ${
+          className={`px-4 py-3 rounded-xl mb-4 flex items-center gap-3 text-sm font-medium ${
             mensaje.tipo === "success"
-              ? "bg-green-800 text-green-200"
+              ? "bg-emerald-500/15 border border-emerald-500/25 text-emerald-300"
               : mensaje.tipo === "error"
-                ? "bg-red-800 text-red-200"
-                : "bg-blue-800 text-blue-200"
+                ? "bg-red-500/15 border border-red-500/25 text-red-300"
+                : "bg-blue-500/15 border border-blue-500/25 text-blue-300"
           }`}
         >
           {mensaje.texto}
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex gap-2">
+      {!estaOnline && (
+        <div className="bg-amber-500/10 border border-amber-500/25 px-4 py-3 rounded-xl mb-5 flex items-start sm:items-center gap-3">
+          <IoAlertCircle className="text-amber-400 text-xl flex-shrink-0 mt-0.5 sm:mt-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">Sin conexión a internet</p>
+            <p className="text-xs text-amber-200/60 mt-0.5">
+              Las imágenes y videos online no están disponibles. Tus fondos guardados siguen funcionando.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── TABS + ACCIÓN ──────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-1 flex gap-1 overflow-x-auto flex-shrink-0">
           <button
             onClick={() => setTabActivo("mis-imagenes")}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
               tabActivo === "mis-imagenes"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-700 hover:bg-gray-600"
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                : "text-white/50 hover:text-white hover:bg-white/5"
             }`}
           >
-            <IoFolder />
-            Mis Fondos ({fondos.length})
+            <IoFolder className="flex-shrink-0" />
+            Mis Fondos
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              tabActivo === "mis-imagenes" ? "bg-white/20" : "bg-white/10"
+            }`}>
+              {fondos.length}
+            </span>
           </button>
           <button
             onClick={() => setTabActivo("imagenes")}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+            title={!estaOnline ? "Requiere conexión a internet" : ""}
+            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
               tabActivo === "imagenes"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-700 hover:bg-gray-600"
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                : "text-white/50 hover:text-white hover:bg-white/5"
             }`}
           >
-            <IoImage />
-            Imágenes Online
+            <IoImage className="flex-shrink-0" />
+            <span className="hidden sm:inline">Imágenes Online</span>
+            <span className="sm:hidden">Imágenes</span>
+            {!estaOnline && <IoWifi className="text-amber-400/80 text-xs" />}
           </button>
           {!modoSeleccion && (
             <button
               onClick={() => setTabActivo("videos")}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+              title={!estaOnline ? "Requiere conexión a internet" : ""}
+              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
                 tabActivo === "videos"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 hover:bg-gray-600"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-white/50 hover:text-white hover:bg-white/5"
               }`}
             >
-              <IoVideocam />
-              Videos Online
+              <IoVideocam className="flex-shrink-0" />
+              <span className="hidden sm:inline">Videos Online</span>
+              <span className="sm:hidden">Videos</span>
+              {!estaOnline && <IoWifi className="text-amber-400/80 text-xs" />}
             </button>
           )}
         </div>
+
+        {tabActivo === "mis-imagenes" && (
+          <button
+            onClick={agregarFondoDesdeDispositivo}
+            disabled={cargando}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20 flex-shrink-0"
+          >
+            <IoAdd />
+            Agregar fondo
+          </button>
+        )}
       </div>
 
-      {/* ✨ BUSCADOR PARA IMÁGENES Y VIDEOS ONLINE */}
+      {/* ── BUSCADOR (tabs online) ─────────────────────────────────── */}
       {(tabActivo === "imagenes" || tabActivo === "videos") && (
-        <div className="mb-6">
-          <div className="flex gap-3 max-w-md mx-auto">
+        <div className="mb-6 space-y-3">
+          <div className="flex gap-2">
             <div className="flex-1 relative">
+              <IoSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm" />
               <input
                 type="text"
                 value={terminoBusqueda}
                 onChange={(e) => setTerminoBusqueda(e.target.value)}
                 onKeyPress={manejarEnterBusqueda}
-                placeholder={`Buscar ${
-                  tabActivo === "imagenes" ? "imágenes" : "videos"
-                }... (ej: naturaleza, montañas, cielo)`}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={cargando}
+                placeholder={`Buscar ${tabActivo === "imagenes" ? "imágenes" : "videos"}... (ej: naturaleza, cielo, montañas)`}
+                className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                disabled={cargando || !estaOnline}
               />
-              <IoSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              {terminoBusqueda && (
+                <button
+                  onClick={() => {
+                    setTerminoBusqueda("");
+                    setUltimaBusqueda("");
+                    const paginaAleatoria = Math.ceil(Math.random() * 8);
+                    if (tabActivo === "imagenes") {
+                      setPaginaImagenes(paginaAleatoria);
+                      cargarPixabayImages(undefined, paginaAleatoria);
+                    } else {
+                      setPaginaVideos(paginaAleatoria);
+                      cargarPixabayVideos(undefined, paginaAleatoria);
+                    }
+                  }}
+                  disabled={cargando}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors text-sm"
+                >
+                  ✕
+                </button>
+              )}
             </div>
             <button
               onClick={manejarBusqueda}
-              disabled={cargando || !terminoBusqueda.trim()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+              disabled={cargando || !terminoBusqueda.trim() || !estaOnline}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0"
             >
               <IoSearch />
               Buscar
             </button>
-            {/* Botón para limpiar búsqueda */}
-            {terminoBusqueda && (
-              <button
-                onClick={() => {
-                  setTerminoBusqueda("");
-                  setUltimaBusqueda("");
-                  if (tabActivo === "imagenes") {
-                    cargarPixabayImages(); // Cargar con términos por defecto
-                  } else if (tabActivo === "videos") {
-                    cargarPixabayVideos(); // Cargar con términos por defecto
-                  }
-                }}
-                disabled={cargando}
-                className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 px-3 py-2 rounded-lg text-sm transition-colors"
-                title="Limpiar búsqueda"
-              >
-                ✕
-              </button>
-            )}
           </div>
 
-          {/* Búsquedas rápidas sugeridas */}
-          <div className="flex flex-wrap justify-center gap-2 mt-3">
+          <div className="flex flex-wrap gap-2">
             {(tabActivo === "imagenes"
-              ? [
-                  "naturaleza",
-                  "cielo",
-                  "montañas",
-                  "mar",
-                  "cruz",
-                  "atardecer",
-                  "flores",
-                  "paisaje",
-                  "luz",
-                  "esperanza",
-                ]
-              : [
-                  "naturaleza",
-                  "cielo",
-                  "agua",
-                  "fuego",
-                  "nubes",
-                  "montañas",
-                  "mar",
-                  "bosque",
-                  "luz",
-                  "amanecer",
-                ]
+              ? ["naturaleza", "cielo", "montañas", "mar", "cruz", "atardecer", "flores", "paisaje", "luz", "esperanza"]
+              : ["naturaleza", "cielo", "agua", "fuego", "nubes", "montañas", "mar", "bosque", "luz", "amanecer"]
             ).map((termino) => (
               <button
                 key={termino}
                 onClick={() => {
                   setTerminoBusqueda(termino);
-                  setTimeout(() => {
-                    if (tabActivo === "imagenes") {
-                      cargarPixabayImages(termino);
-                    } else if (tabActivo === "videos") {
-                      cargarPixabayVideos(termino);
-                    }
-                  }, 100);
+                  if (tabActivo === "imagenes") {
+                    setPaginaImagenes(1);
+                    setTimeout(() => cargarPixabayImages(termino, 1), 100);
+                  } else {
+                    setPaginaVideos(1);
+                    setTimeout(() => cargarPixabayVideos(termino, 1), 100);
+                  }
                 }}
-                disabled={cargando}
-                className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-gray-300 rounded-full transition-colors"
+                disabled={cargando || !estaOnline}
+                className="px-3 py-1 text-xs bg-white/5 hover:bg-white/10 disabled:opacity-40 border border-white/10 text-white/60 hover:text-white rounded-full transition-all"
               >
                 {termino}
               </button>
             ))}
           </div>
 
-          {/* Mostrar última búsqueda */}
           {ultimaBusqueda && !cargando && (
-            <p className="text-center text-sm text-gray-400 mt-2">
-              Mostrando resultados para: "{ultimaBusqueda}"
+            <p className="text-xs text-white/30 text-center">
+              Resultados para: <span className="text-white/50">"{ultimaBusqueda}"</span>
             </p>
           )}
         </div>
       )}
 
-      {/* Indicator de carga con skeletons */}
+      {/* ── SKELETONS DE CARGA ─────────────────────────────────────── */}
       {cargando && (
-        <div>
-          <div className="flex justify-center items-center py-6">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-400"></div>
-            <span className="ml-3 text-lg">Cargando fondos...</span>
-          </div>
-          {/* Skeleton cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mt-4">
-            {[...Array(10)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-gray-700 rounded-lg overflow-hidden animate-pulse"
-              >
-                <div className="w-full h-40 bg-gray-600"></div>
-                <div className="p-3">
-                  <div className="h-4 bg-gray-600 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-600 rounded w-1/2"></div>
-                </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="rounded-2xl overflow-hidden border border-white/5 bg-white/3 animate-pulse">
+              <div className="h-44 bg-white/10" />
+              <div className="p-3 space-y-2">
+                <div className="h-3 bg-white/10 rounded-full w-3/4" />
+                <div className="h-2.5 bg-white/5 rounded-full w-1/2" />
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Botón para agregar fondo local */}
-      {tabActivo === "mis-imagenes" && (
-        <div className="mb-6 flex justify-center">
-          <button
-            onClick={agregarFondoDesdeDispositivo}
-            disabled={cargando}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 px-6 py-3 rounded-lg flex items-center gap-2 text-lg"
-          >
-            <IoAdd />
-            Agregar desde dispositivo
-          </button>
-        </div>
-      )}
+      {/* ── GRID DE CONTENIDO ─────────────────────────────────────── */}
+      {!cargando && (
+        <>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
 
-      {/* Grid de contenido */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {/* Fondos guardados - CORREGIDO */}
-        {tabActivo === "mis-imagenes" &&
-          !cargando &&
-          fondos.map((fondo) => (
+          {/* MIS FONDOS */}
+          {tabActivo === "mis-imagenes" && fondos.map((fondo) => (
             <div
               key={fondo.id}
-              className={`relative group border-2 rounded-lg overflow-hidden transition-colors ${
+              className={`relative group rounded-2xl overflow-hidden border transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl cursor-pointer ${
                 esFondoActivo(fondo)
-                  ? "border-green-400 ring-2 ring-green-400"
-                  : "border-gray-600 hover:border-blue-400"
+                  ? "border-emerald-400/50 ring-2 ring-emerald-400/25 shadow-lg shadow-emerald-500/15"
+                  : "border-white/10 hover:border-white/20 hover:shadow-black/40"
               }`}
             >
-              {/* ✨ RENDERIZADO MEJORADO DE MEDIA */}
               {fondo.tipo === "video" ? (
                 <video
                   src={fondo.url}
-                  className="w-full h-40 object-cover"
-                  autoPlay
-                  muted
-                  loop
-                  preload="metadata"
+                  className="w-full h-44 object-cover"
+                  autoPlay muted loop preload="metadata"
                   onError={(e) => {
-                    console.error("❌ Error cargando video:", fondo.url);
                     e.target.style.display = "none";
                     e.target.nextSibling.style.display = "flex";
                   }}
@@ -1012,253 +1039,307 @@ const GestionFondos = () => {
                 <img
                   src={fondo.url}
                   alt={fondo.nombre || `Fondo ${fondo.id}`}
-                  className="w-full h-40 object-cover"
+                  className="w-full h-44 object-cover"
                   loading="lazy"
                   onError={(e) => {
-                    console.error("❌ Error cargando imagen:", fondo.url);
                     e.target.style.display = "none";
                     e.target.nextSibling.style.display = "flex";
                   }}
                 />
               )}
 
-              {/* Fallback para errores de carga */}
               <div
-                className="w-full h-40 bg-gray-700 flex items-center justify-center text-gray-400"
+                className="w-full h-44 bg-white/5 flex-col items-center justify-center text-white/30 text-center p-4"
                 style={{display: "none"}}
               >
-                <div className="text-center">
-                  <IoImage className="mx-auto text-2xl mb-2" />
-                  <p className="text-sm">Error al cargar</p>
-                </div>
+                <IoImage className="text-3xl mb-1.5" />
+                <p className="text-xs">No se pudo cargar</p>
               </div>
 
-              {/* Indicator de activo */}
               {!modoSeleccion && esFondoActivo(fondo) && (
-                <div className="absolute top-2 left-2 bg-green-600 px-2 py-1 text-xs rounded flex items-center gap-1">
-                  <IoCheckmark />
+                <div className="absolute top-2.5 left-2.5 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   Activo
                 </div>
               )}
 
-              <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                {modoSeleccion ? (
-                  <button
-                    onClick={() => manejarClicEnImagen(fondo)}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 text-sm rounded flex items-center gap-2 font-semibold"
-                  >
-                    <IoCheckmark />
-                    Seleccionar
-                  </button>
-                ) : (
-                  <>
-                    {!esFondoActivo(fondo) && (
+              {fondo.tipo === "video" && !fondo.es_defecto && (
+                <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-xs flex items-center gap-1">
+                  <IoVideocam className="text-xs" /> Video
+                </div>
+              )}
+              {fondo.es_defecto ? (
+                <div className="absolute top-2.5 right-2.5 bg-blue-600/70 backdrop-blur-sm text-white/90 px-2 py-0.5 rounded-full text-xs font-medium">
+                  Predeterminado
+                </div>
+              ) : null}
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200">
+                <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-1 group-hover:translate-y-0 transition-transform duration-200">
+                  <p className="text-xs text-white/70 truncate mb-2">{fondo.nombre || `Fondo ${fondo.id}`}</p>
+                  <div className="flex gap-1.5">
+                    {modoSeleccion ? (
                       <button
                         onClick={() => manejarClicEnImagen(fondo)}
-                        className="bg-blue-600 hover:bg-blue-700 px-3 py-1 text-sm rounded flex items-center gap-1"
-                        disabled={cargando}
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                       >
-                        <IoCheckmark />
-                        Activar
+                        <IoCheckmark /> Seleccionar
                       </button>
-                    )}
-                    <button
-                      onClick={() => confirmarEliminarFondo(fondo)}
-                      className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm rounded flex items-center gap-1"
-                      disabled={cargando}
-                    >
-                      <IoTrash />
-                      Eliminar
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 px-2 py-1 text-xs rounded max-w-[calc(100%-1rem)] truncate">
-                {fondo.nombre || `Fondo ${fondo.id}`}
-              </div>
-            </div>
-          ))}
-
-        {/* Imágenes de Pixabay */}
-        {tabActivo === "imagenes" &&
-          !cargando &&
-          pixabayImages.map((image) => (
-            <div
-              key={image.id}
-              className="relative group border-2 border-gray-600 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
-            >
-              <img
-                src={image.webformatURL}
-                alt={image.tags}
-                className="w-full h-40 object-cover"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                {(() => {
-                  // Verificar si esta imagen ya está descargada en Mis Fondos
-                  const yaDescargada = fondos.some(
-                    (fondo) =>
-                      fondo.url.includes(`pixabay_${image.id}`) ||
-                      fondo.nombre.includes(`Pixabay ${image.id}`),
-                  );
-
-                  if (modoSeleccion) {
-                    return (
-                      <button
-                        onClick={() =>
-                          manejarClicEnImagenPixabay(image, "imagen")
-                        }
-                        className="bg-green-600 hover:bg-green-700 px-4 py-2 text-sm rounded flex items-center gap-2 font-semibold"
-                        disabled={cargando}
-                      >
-                        <IoCheckmark />
-                        {yaDescargada
-                          ? "✓ Seleccionar"
-                          : "Descargar y Seleccionar"}
-                      </button>
-                    );
-                  } else {
-                    return (
+                    ) : (
                       <>
-                        <button
-                          onClick={() =>
-                            manejarClicEnImagenPixabay(image, "imagen")
-                          }
-                          className="bg-blue-600 hover:bg-blue-700 px-3 py-1 text-sm rounded flex items-center gap-1"
-                          disabled={cargando}
-                        >
-                          <IoCheckmark />
-                          Usar
-                        </button>
-                        {!yaDescargada && (
+                        {!esFondoActivo(fondo) && (
                           <button
-                            onClick={() =>
-                              descargarYGuardarFondo(image, "imagen")
-                            }
-                            className="bg-green-600 hover:bg-green-700 px-3 py-1 text-sm rounded flex items-center gap-1"
+                            onClick={() => manejarClicEnImagen(fondo)}
                             disabled={cargando}
+                            className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                           >
-                            <IoCloudDownload />
-                            Guardar
+                            <IoCheckmark /> Activar
                           </button>
                         )}
-                        {yaDescargada && (
-                          <span className="bg-gray-600 px-3 py-1 text-sm rounded flex items-center gap-1">
-                            <IoCheckmark />
-                            Guardada
-                          </span>
+                        {!fondo.es_defecto && (
+                          <button
+                            onClick={() => confirmarEliminarFondo(fondo)}
+                            disabled={cargando}
+                            className="bg-red-500/80 hover:bg-red-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
+                          >
+                            <IoTrash />
+                          </button>
                         )}
                       </>
-                    );
-                  }
-                })()}
-              </div>
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 px-2 py-1 text-xs rounded">
-                {image.tags.split(",")[0]}
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
 
-        {/* Videos de Pixabay */}
-        {tabActivo === "videos" &&
-          !cargando &&
-          pixabayVideos.map((video) => (
+          {/* ESTADO VACÍO — MIS FONDOS */}
+          {tabActivo === "mis-imagenes" && fondos.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+                <IoFolder className="text-4xl text-white/20" />
+              </div>
+              <h3 className="text-lg font-semibold text-white/60 mb-1.5">Sin fondos guardados</h3>
+              <p className="text-white/30 text-sm mb-6">Agrega imágenes o videos desde tu dispositivo</p>
+              <button
+                onClick={agregarFondoDesdeDispositivo}
+                disabled={cargando}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20"
+              >
+                <IoAdd /> Agregar fondo
+              </button>
+            </div>
+          )}
+
+          {/* OFFLINE — IMÁGENES */}
+          {tabActivo === "imagenes" && !estaOnline && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                <IoWifi className="text-4xl text-amber-400/60" />
+              </div>
+              <h3 className="text-lg font-semibold text-amber-300/80 mb-1.5">Sin conexión a internet</h3>
+              <p className="text-white/30 text-sm mb-6">Conéctate para explorar imágenes de Pixabay</p>
+              <button
+                onClick={() => {
+                  if (navigator.onLine) { setEstaOnline(true); cargarPixabayImages(); }
+                  else mostrarMensaje("Aún no hay conexión a internet", "error");
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-sm font-medium transition-colors"
+              >
+                <IoRefresh /> Reintentar
+              </button>
+            </div>
+          )}
+
+          {/* IMÁGENES PIXABAY */}
+          {tabActivo === "imagenes" && estaOnline && pixabayImages.map((image) => {
+            const yaDescargada = fondos.some(
+              (f) => f.url.includes(`pixabay_${image.id}`) || f.nombre.includes(`Pixabay ${image.id}`)
+            );
+            return (
+              <div
+                key={image.id}
+                className="relative group rounded-2xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40 cursor-pointer"
+              >
+                <img
+                  src={image.webformatURL}
+                  alt={image.tags}
+                  className="w-full h-44 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200">
+                  <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-1 group-hover:translate-y-0 transition-transform duration-200">
+                    <p className="text-xs text-white/60 truncate mb-2">{image.tags.split(",")[0]}</p>
+                    <div className="flex gap-1.5">
+                      {modoSeleccion ? (
+                        <button
+                          onClick={() => manejarClicEnImagenPixabay(image, "imagen")}
+                          disabled={cargando}
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-400 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <IoCheckmark />
+                          {yaDescargada ? "Seleccionar" : "Descargar y usar"}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => manejarClicEnImagenPixabay(image, "imagen")}
+                            disabled={cargando}
+                            className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                          >
+                            <IoCheckmark /> Usar
+                          </button>
+                          {!yaDescargada ? (
+                            <button
+                              onClick={() => descargarYGuardarFondo(image, "imagen")}
+                              disabled={cargando}
+                              className="bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
+                            >
+                              <IoCloudDownload />
+                            </button>
+                          ) : (
+                            <div className="bg-white/10 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center text-white/50">
+                              <IoCheckmark />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* ESTADO VACÍO — IMÁGENES */}
+          {tabActivo === "imagenes" && estaOnline && pixabayImages.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+                <IoImage className="text-4xl text-white/20" />
+              </div>
+              <h3 className="text-lg font-semibold text-white/60 mb-1.5">
+                {ultimaBusqueda ? "Sin resultados" : "Busca imágenes"}
+              </h3>
+              <p className="text-white/30 text-sm">
+                {ultimaBusqueda ? `No se encontraron imágenes para "${ultimaBusqueda}"` : "Usa el buscador o elige una búsqueda rápida"}
+              </p>
+            </div>
+          )}
+
+          {/* OFFLINE — VIDEOS */}
+          {tabActivo === "videos" && !estaOnline && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                <IoWifi className="text-4xl text-amber-400/60" />
+              </div>
+              <h3 className="text-lg font-semibold text-amber-300/80 mb-1.5">Sin conexión a internet</h3>
+              <p className="text-white/30 text-sm mb-6">Conéctate para explorar videos de Pixabay</p>
+              <button
+                onClick={() => {
+                  if (navigator.onLine) { setEstaOnline(true); cargarPixabayVideos(); }
+                  else mostrarMensaje("Aún no hay conexión a internet", "error");
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-sm font-medium transition-colors"
+              >
+                <IoRefresh /> Reintentar
+              </button>
+            </div>
+          )}
+
+          {/* VIDEOS PIXABAY */}
+          {tabActivo === "videos" && estaOnline && pixabayVideos.map((video) => (
             <div
               key={video.id}
-              className="relative group border-2 border-gray-600 rounded-lg overflow-hidden hover:border-blue-400 transition-colors"
+              className="relative group rounded-2xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40 cursor-pointer"
             >
               <video
                 src={video.videos.small.url}
-                className="w-full h-40 object-cover"
-                autoPlay
-                muted
-                loop
+                className="w-full h-44 object-cover"
+                autoPlay muted loop
               />
-              <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                {modoSeleccion ? (
-                  <button
-                    onClick={() => manejarClicEnImagenPixabay(video, "video")}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 text-sm rounded flex items-center gap-2 font-semibold"
-                    disabled={cargando}
-                  >
-                    <IoCheckmark />
-                    Seleccionar
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => manejarClicEnImagenPixabay(video, "video")}
-                      className="bg-blue-600 hover:bg-blue-700 px-3 py-1 text-sm rounded flex items-center gap-1"
-                      disabled={cargando}
-                    >
-                      <IoCheckmark />
-                      Usar
-                    </button>
-                    <button
-                      onClick={() => descargarYGuardarFondo(video, "video")}
-                      className="bg-green-600 hover:bg-green-700 px-3 py-1 text-sm rounded flex items-center gap-1"
-                      disabled={cargando}
-                    >
-                      <IoCloudDownload />
-                      Guardar
-                    </button>
-                  </>
-                )}
-              </div>
-              <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 px-2 py-1 text-xs rounded">
-                {video.tags.split(",")[0]}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200">
+                <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-1 group-hover:translate-y-0 transition-transform duration-200">
+                  <p className="text-xs text-white/60 truncate mb-2">{video.tags.split(",")[0]}</p>
+                  <div className="flex gap-1.5">
+                    {modoSeleccion ? (
+                      <button
+                        onClick={() => manejarClicEnImagenPixabay(video, "video")}
+                        disabled={cargando}
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                      >
+                        <IoCheckmark /> Seleccionar
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => manejarClicEnImagenPixabay(video, "video")}
+                          disabled={cargando}
+                          className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <IoCheckmark /> Usar
+                        </button>
+                        <button
+                          onClick={() => descargarYGuardarFondo(video, "video")}
+                          disabled={cargando}
+                          className="bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
+                        >
+                          <IoCloudDownload />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
-      </div>
 
-      {/* Estado vacío */}
-      {!cargando && (
-        <>
-          {tabActivo === "mis-imagenes" && fondos.length === 0 && (
-            <div className="text-center py-12">
-              <IoFolder className="mx-auto text-6xl text-gray-600 mb-4" />
-              <h3 className="text-xl text-gray-400 mb-2">
-                No tienes fondos guardados
+          {/* ESTADO VACÍO — VIDEOS */}
+          {tabActivo === "videos" && estaOnline && pixabayVideos.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+                <IoVideocam className="text-4xl text-white/20" />
+              </div>
+              <h3 className="text-lg font-semibold text-white/60 mb-1.5">
+                {ultimaBusqueda ? "Sin resultados" : "Busca videos"}
               </h3>
-              <p className="text-gray-500 mb-4">
-                Agrega fondos desde tu dispositivo o descarga de la galería
-                online
+              <p className="text-white/30 text-sm">
+                {ultimaBusqueda ? `No se encontraron videos para "${ultimaBusqueda}"` : "Usa el buscador o elige una búsqueda rápida"}
               </p>
             </div>
           )}
 
-          {tabActivo === "imagenes" && pixabayImages.length === 0 && (
-            <div className="text-center py-12">
-              <IoImage className="mx-auto text-6xl text-gray-600 mb-4" />
-              <h3 className="text-xl text-gray-400 mb-2">
-                {ultimaBusqueda
-                  ? "No se encontraron imágenes"
-                  : "No se pudieron cargar las imágenes"}
-              </h3>
-              <p className="text-gray-500">
-                {ultimaBusqueda
-                  ? `Intenta con otros términos de búsqueda`
-                  : "Verifica tu conexión a internet o usa el buscador arriba"}
-              </p>
-            </div>
-          )}
+        </div>
 
-          {tabActivo === "videos" && pixabayVideos.length === 0 && (
-            <div className="text-center py-12">
-              <IoVideocam className="mx-auto text-6xl text-gray-600 mb-4" />
-              <h3 className="text-xl text-gray-400 mb-2">
-                {ultimaBusqueda
-                  ? "No se encontraron videos"
-                  : "No se pudieron cargar los videos"}
-              </h3>
-              <p className="text-gray-500">
-                {ultimaBusqueda
-                  ? `Intenta con otros términos de búsqueda`
-                  : "Verifica tu conexión a internet o usa el buscador arriba"}
-              </p>
+        {/* ── PAGINACIÓN ─────────────────────────────────────────── */}
+        {(tabActivo === "imagenes" || tabActivo === "videos") && estaOnline && (
+          <div className="flex items-center justify-center gap-3 mt-8 pb-4">
+            <button
+              onClick={irPaginaAnterior}
+              disabled={(tabActivo === "imagenes" ? paginaImagenes : paginaVideos) <= 1}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              ← Anterior
+            </button>
+
+            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-4 py-2 rounded-xl">
+              <span className="text-xs text-white/40">Página</span>
+              <span className="text-sm font-semibold text-white">
+                {tabActivo === "imagenes" ? paginaImagenes : paginaVideos}
+              </span>
             </div>
-          )}
+
+            <button
+              onClick={irPaginaSiguiente}
+              disabled={
+                (tabActivo === "imagenes" ? pixabayImages.length : pixabayVideos.length) <
+                (tabActivo === "imagenes" ? 20 : 12)
+              }
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
+
         </>
       )}
     </div>

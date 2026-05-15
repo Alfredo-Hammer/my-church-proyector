@@ -297,9 +297,19 @@ const GlobalMediaPlayer = () => {
       return `https://${instance}/embed/${videoId}?autoplay=0&quality=dash`;
     }
 
-    // YouTube normal
-    const origin = encodeURIComponent(window.location.origin);
-    return `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&controls=1&enablejsapi=1&origin=${origin}`;
+    // YouTube rechaza origin=localhost y origin=file:// (entornos Electron, dev y prod).
+    // Omitir el parámetro origin en esos casos para evitar ERR_CONNECTION_CLOSED.
+    const pageOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const skipOrigin = !pageOrigin ||
+      pageOrigin.startsWith('http://localhost') ||
+      pageOrigin.startsWith('https://localhost') ||
+      pageOrigin.startsWith('file://');
+
+    const baseParams = 'autoplay=0&rel=0&controls=1&enablejsapi=1&modestbranding=1';
+    if (skipOrigin) {
+      return `https://www.youtube.com/embed/${videoId}?${baseParams}`;
+    }
+    return `https://www.youtube.com/embed/${videoId}?${baseParams}&origin=${encodeURIComponent(pageOrigin)}`;
   };
 
   // Renderizar el iframe de YouTube/Invidious con fallback automático

@@ -41,7 +41,7 @@ const Contactos = () => {
   };
 
   return (
-    <div className="bg-slate-950 h-full flex flex-col overflow-hidden text-slate-100">
+    <div className="bg-[#080c14] h-full flex flex-col overflow-hidden text-slate-100">
       {/* Toolbar compacto */}
       <div className="shrink-0 bg-slate-900/98 backdrop-blur border-b border-slate-700/50 px-3 py-2">
         <div className="flex items-center gap-2">

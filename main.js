@@ -1066,6 +1066,72 @@ function iniciarServidorMultimedia() {
       }
     });
 
+    // ✅ CRUD Himnos Personalizados (App móvil)
+    // POST /api/himnos/personal — crear himno
+    expressApp.post('/api/himnos/personal', async (req, res) => {
+      try {
+        const { numero, titulo, letra } = req.body || {};
+        if (!titulo || !String(titulo).trim()) {
+          return res.status(400).json({ ok: false, error: 'El título es obligatorio' });
+        }
+        if (!letra || !String(letra).trim()) {
+          return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
+        }
+        const parrafos = String(letra).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        const id = await dbNew.crearHimno({
+          numero: String(numero || '').trim(),
+          titulo: String(titulo).trim(),
+          letra: JSON.stringify(parrafos),
+          autor: '', categoria: '', favorito: 0,
+        });
+        return res.json({ ok: true, id });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error POST /api/himnos/personal:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // PUT /api/himnos/personal/:id — actualizar himno
+    expressApp.put('/api/himnos/personal/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'id inválido' });
+        const { numero, titulo, letra } = req.body || {};
+        if (!titulo || !String(titulo).trim()) {
+          return res.status(400).json({ ok: false, error: 'El título es obligatorio' });
+        }
+        if (!letra || !String(letra).trim()) {
+          return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
+        }
+        const parrafos = String(letra).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        const ok = await dbNew.actualizarHimno(id, {
+          numero: String(numero || '').trim(),
+          titulo: String(titulo).trim(),
+          letra: JSON.stringify(parrafos),
+          autor: '', categoria: '', favorito: 0,
+        });
+        if (!ok) return res.status(404).json({ ok: false, error: 'Himno no encontrado' });
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error PUT /api/himnos/personal/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // DELETE /api/himnos/personal/:id — eliminar himno
+    expressApp.delete('/api/himnos/personal/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'id inválido' });
+        const ok = await dbNew.eliminarHimno(id);
+        if (!ok) return res.status(404).json({ ok: false, error: 'Himno no encontrado' });
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error DELETE /api/himnos/personal/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
     // ✅ Favoritos de Biblia (RV1960)
     // Respuesta: { ok:true, favoritos:[{ id, libroId, libroNombre, capitulo, versiculo, texto, creadoEn }] }
     const BIBLIA_FAVORITOS_KEY = 'biblia_favoritos_rv1960';
@@ -1402,17 +1468,16 @@ function iniciarServidorMultimedia() {
     // Respuesta: { ok:true }
     expressApp.post('/api/proyector/limpiar', async (req, res) => {
       try {
+        if (timerEstaProyectando()) {
+          timerRestaurarEnProyector();
+          return res.json({ ok: true, timerActivo: true });
+        }
         if (proyectorWindow && !proyectorWindow.isDestroyed()) {
           proyectorWindow.webContents.send('limpiar-proyector');
-          console.log('🧹 [MAIN] (API) Comando limpiar enviado al proyector');
           return res.json({ ok: true });
         }
-
-        return res
-          .status(500)
-          .json({ ok: false, error: 'Ventana del proyector no disponible' });
+        return res.status(500).json({ ok: false, error: 'Ventana del proyector no disponible' });
       } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/proyector/limpiar:', error);
         return res.status(500).json({ ok: false, error: error.message });
       }
     });
@@ -1667,6 +1732,22 @@ function iniciarServidorMultimedia() {
 
         const proyector = await asegurarProyectorListo();
         proyector.webContents.send('control-multimedia', payload);
+
+        // Actualizar estado del servidor inmediatamente para que la siguiente consulta
+        // de la app móvil ya vea el nuevo estado (sin esperar IPC de vuelta del proyector).
+        if (finalAction === 'play') {
+          multimediaPlaybackStatus['proyector'].paused = false;
+          multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+        } else if (finalAction === 'pause') {
+          multimediaPlaybackStatus['proyector'].paused = true;
+          multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+        } else if (finalAction === 'stop' || finalAction === 'limpiar') {
+          multimediaPlaybackStatus['proyector'].paused = true;
+          multimediaPlaybackStatus['proyector'].id = null;
+          multimediaPlaybackStatus['proyector'].currentTime = 0;
+          multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+        }
+
         return res.json({ ok: true });
       } catch (error) {
         console.error('❌ [MAIN] (API) Error /api/control/multimedia/control:', error);
@@ -1780,6 +1861,22 @@ function iniciarServidorMultimedia() {
         }
 
         mainWindow.webContents.send('solo-audio-control', payload);
+
+        // Actualizar estado del servidor inmediatamente para que la siguiente consulta
+        // de la app móvil ya vea el nuevo estado (sin esperar IPC de vuelta del renderer).
+        if (finalAction === 'play') {
+          multimediaPlaybackStatus['pc'].paused = false;
+          multimediaPlaybackStatus['pc'].updatedAt = Date.now();
+        } else if (finalAction === 'pause') {
+          multimediaPlaybackStatus['pc'].paused = true;
+          multimediaPlaybackStatus['pc'].updatedAt = Date.now();
+        } else if (finalAction === 'stop' || finalAction === 'limpiar') {
+          multimediaPlaybackStatus['pc'].paused = true;
+          multimediaPlaybackStatus['pc'].id = null;
+          multimediaPlaybackStatus['pc'].currentTime = 0;
+          multimediaPlaybackStatus['pc'].updatedAt = Date.now();
+        }
+
         return res.json({ ok: true });
       } catch (error) {
         console.error('❌ [MAIN] (API) Error /api/control/multimedia/solo-audio/control:', error);
@@ -2124,6 +2221,425 @@ function iniciarServidorMultimedia() {
           build: buildFiles.map(f => `http://localhost:3001/fondos/${f}`)
         }
       });
+    });
+
+    // ==================================================
+    // ✅ Órdenes de Servicio (App móvil)
+    // ==================================================
+
+    // GET /api/ordenes-servicio — lista con items completos
+    expressApp.get('/api/ordenes-servicio', async (req, res) => {
+      try {
+        const ordenes = await obtenerOrdenesServicio();
+        return res.json({ ok: true, ordenes: Array.isArray(ordenes) ? ordenes : [] });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/ordenes-servicio:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // GET /api/ordenes-servicio/:id — detalle con items
+    expressApp.get('/api/ordenes-servicio/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ ok: false, error: 'id inválido' });
+        }
+        const orden = await obtenerOrdenServicioPorId(id);
+        if (!orden) return res.status(404).json({ ok: false, error: 'No encontrada' });
+        return res.json({ ok: true, orden });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/ordenes-servicio/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // POST /api/ordenes-servicio — crear nueva orden
+    expressApp.post('/api/ordenes-servicio', async (req, res) => {
+      try {
+        const { titulo, fecha, items } = req.body || {};
+        if (!titulo) return res.status(400).json({ ok: false, error: 'titulo requerido' });
+        const result = agregarOrdenServicio({ titulo, fecha: fecha || '', items: Array.isArray(items) ? items : [] });
+        if (!result?.success) return res.status(500).json({ ok: false, error: 'Error al crear orden' });
+        return res.json({ ok: true, id: result.id });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error POST /api/ordenes-servicio:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // PUT /api/ordenes-servicio/:id — actualizar orden
+    expressApp.put('/api/ordenes-servicio/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'id inválido' });
+        const { titulo, fecha, items } = req.body || {};
+        if (!titulo) return res.status(400).json({ ok: false, error: 'titulo requerido' });
+        actualizarOrdenServicio({ id, titulo, fecha: fecha || '', items: Array.isArray(items) ? items : [] });
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error PUT /api/ordenes-servicio/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // DELETE /api/ordenes-servicio/:id — eliminar orden
+    expressApp.delete('/api/ordenes-servicio/:id', async (req, res) => {
+      try {
+        const id = Number(req.params?.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'id inválido' });
+        eliminarOrdenServicio(id);
+        return res.json({ ok: true });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error DELETE /api/ordenes-servicio/:id:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // GET /api/biblia/capitulo/:libroId/:cap — versículos de un capítulo
+    expressApp.get('/api/biblia/capitulo/:libroId/:cap', (req, res) => {
+      try {
+        const libroId = String(req.params?.libroId || '').trim();
+        const cap = parseInt(req.params?.cap, 10);
+        if (!libroId || !/^[a-z0-9_]+$/.test(libroId)) {
+          return res.status(400).json({ ok: false, error: 'libroId inválido' });
+        }
+        if (!Number.isFinite(cap) || cap < 1) {
+          return res.status(400).json({ ok: false, error: 'cap inválido' });
+        }
+
+        const candidatos = [
+          path.join(buildDir, 'data', 'biblia', `${libroId}.js`),
+          path.join(__dirname, 'build', 'data', 'biblia', `${libroId}.js`),
+          path.join(__dirname, 'src', 'data', 'biblia', `${libroId}.js`),
+          path.join(obtenerRutaBase(), 'public', 'data', 'biblia', `${libroId}.js`),
+        ];
+
+        let ruta = null;
+        for (const c of candidatos) {
+          if (fs.existsSync(c)) { ruta = c; break; }
+        }
+
+        if (!ruta) {
+          return res.status(404).json({ ok: false, error: `Libro "${libroId}" no encontrado` });
+        }
+
+        const vm = require('vm');
+        const contenido = fs.readFileSync(ruta, 'utf8');
+        let arrayStr = contenido.replace(/^\s*export\s+default\s+/, '').trim().replace(/;+\s*$/, '').trim();
+
+        let data;
+        try {
+          data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
+        } catch (vmError) {
+          try { data = eval(`(${arrayStr})`); } catch (evalError) { throw vmError; }
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          return res.status(404).json({ ok: false, error: `Libro "${libroId}" vacío o inválido` });
+        }
+
+        const capIdx = cap - 1;
+        if (capIdx < 0 || capIdx >= data.length) {
+          return res.status(404).json({ ok: false, error: `Capítulo ${cap} no existe en "${libroId}"` });
+        }
+
+        const versos = Array.isArray(data[capIdx]) ? data[capIdx] : [];
+        return res.json({ ok: true, libroId, capitulo: cap, versos });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/biblia/capitulo:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // POST /api/control/ordenes-servicio/proyectar-item
+    // Body: { ordenId, itemIdx, parrafoIdx? }
+    expressApp.post('/api/control/ordenes-servicio/proyectar-item', async (req, res) => {
+      try {
+        const { ordenId, itemIdx, parrafoIdx } = req.body || {};
+        const id = Number(ordenId);
+        const idx = Number(itemIdx);
+        const parIdx = Number.isFinite(Number(parrafoIdx)) ? Number(parrafoIdx) : 0;
+
+        if (!Number.isFinite(id) || !Number.isFinite(idx) || idx < 0) {
+          return res.status(400).json({ ok: false, error: 'ordenId/itemIdx inválidos' });
+        }
+
+        const orden = await obtenerOrdenServicioPorId(id);
+        if (!orden) return res.status(404).json({ ok: false, error: 'Orden no encontrada' });
+
+        const items = Array.isArray(orden.items) ? orden.items : [];
+        if (idx >= items.length) {
+          return res.status(400).json({ ok: false, error: 'itemIdx fuera de rango' });
+        }
+        const item = items[idx];
+
+        let payload;
+        let canal;
+
+        if (item.tipo === 'himno') {
+          const parrafos = Array.isArray(item.parrafos) ? item.parrafos : [];
+          const safeParIdx = parIdx >= 0 && parIdx < parrafos.length ? parIdx : 0;
+          payload = {
+            parrafo: parrafos[safeParIdx] || '',
+            titulo: item.tituloHimno || '',
+            numero: item.numeroHimno ?? '',
+            origen: 'himno',
+          };
+          canal = 'mostrar-himno';
+        } else {
+          payload = {
+            parrafo: item.texto || '',
+            titulo: item.tipo === 'versiculo' ? (item.libroNombre || '') : '',
+            numero: item.tipo === 'versiculo' ? `${item.capitulo}:${item.versiculo}` : '',
+            origen: item.tipo === 'versiculo' ? 'biblia' : 'himno',
+          };
+          canal = 'mostrar-versiculo';
+        }
+
+        const totalParrafos = item.tipo === 'himno' && Array.isArray(item.parrafos) ? item.parrafos.length : 1;
+
+        if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+          const nuevaVentana = createProyectorWindow();
+          if (!nuevaVentana) {
+            return res.status(500).json({ ok: false, error: 'No se pudo abrir proyector' });
+          }
+          nuevaVentana.webContents.once('did-finish-load', () => {
+            setTimeout(() => {
+              if (nuevaVentana && !nuevaVentana.isDestroyed()) {
+                nuevaVentana.webContents.send(canal, payload);
+              }
+            }, 1000);
+          });
+        } else {
+          proyectorWindow.webContents.send(canal, payload);
+        }
+
+        return res.json({ ok: true, itemIdx: idx, parrafoIdx: parIdx, totalItems: items.length, totalParrafos });
+      } catch (error) {
+        console.error('❌ [MAIN] (API) Error /api/control/ordenes-servicio/proyectar-item:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
+    // ✅ Anuncios (App móvil)
+    // ==================================================
+    expressApp.get('/api/anuncios', (req, res) => {
+      try {
+        const lista = obtenerAnuncios();
+        return res.json({ ok: true, anuncios: Array.isArray(lista) ? lista : [] });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/anuncios/proyectar', async (req, res) => {
+      try {
+        const { id } = req.body || {};
+        if (!id) return res.status(400).json({ ok: false, error: 'id requerido' });
+        const lista = obtenerAnuncios();
+        const anuncio = lista.find((a) => String(a.id) === String(id));
+        if (!anuncio) return res.status(404).json({ ok: false, error: 'Anuncio no encontrado' });
+
+        if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+          proyectorWindow = createProyectorWindow();
+          await new Promise((resolve) => proyectorWindow.webContents.once('did-finish-load', resolve));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        proyectorWindow.webContents.send('mostrar-versiculo', {
+          parrafo: anuncio.texto,
+          titulo: anuncio.titulo || '',
+          numero: '',
+          origen: 'anuncio',
+          anuncio: { ...anuncio, plantilla: anuncio.plantilla || 'moderno' },
+        });
+        return res.json({ ok: true });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/anuncios/limpiar', (req, res) => {
+      try {
+        if (timerEstaProyectando()) {
+          // El timer está activo — no limpiar, restaurar el timer en su lugar
+          timerRestaurarEnProyector();
+          return res.json({ ok: true, timerActivo: true });
+        }
+        if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+          proyectorWindow.webContents.send('mostrar-versiculo', {
+            parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
+          });
+        }
+        return res.json({ ok: true });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
+    // ✅ Temporizador (App móvil) — estado servidor
+    // ==================================================
+    expressApp.get('/api/temporizador/estado', (req, res) => {
+      return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+    });
+
+    expressApp.post('/api/control/temporizador/iniciar', (req, res) => {
+      try {
+        const { minutos, mensaje } = req.body || {};
+        if (minutos !== undefined) {
+          const total = Math.max(1, Number(minutos)) * 60;
+          timerEstadoServidor.total = total;
+          timerEstadoServidor.segundosRestantes = total;
+          timerEstadoServidor.terminado = false;
+        }
+        if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+        timerEstadoServidor.corriendo = true;
+        timerEstadoServidor.terminado = false;
+        timerIniciarIntervalServidor();
+        timerEnviarAlProyector();
+        return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/temporizador/pausar', (req, res) => {
+      timerEstadoServidor.corriendo = false;
+      return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+    });
+
+    expressApp.post('/api/control/temporizador/reiniciar', (req, res) => {
+      timerDetenerIntervalServidor();
+      timerEstadoServidor.corriendo = false;
+      timerEstadoServidor.segundosRestantes = timerEstadoServidor.total;
+      timerEstadoServidor.terminado = false;
+      timerEnviarAlProyector();
+      return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+    });
+
+    // Actualizar duración sin iniciar — sincroniza la PC con la app móvil
+    expressApp.post('/api/control/temporizador/configurar', (req, res) => {
+      try {
+        const { minutos, mensaje } = req.body || {};
+        if (timerEstadoServidor.corriendo) {
+          return res.status(400).json({ ok: false, error: 'No se puede cambiar la duración mientras corre' });
+        }
+        if (minutos !== undefined) {
+          const total = Math.max(1, Number(minutos)) * 60;
+          timerEstadoServidor.total = total;
+          timerEstadoServidor.segundosRestantes = total;
+          timerEstadoServidor.terminado = false;
+        }
+        if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+        return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/temporizador/proyectar', async (req, res) => {
+      try {
+        const { minutos, mensaje } = req.body || {};
+        if (minutos !== undefined) {
+          const total = Math.max(1, Number(minutos)) * 60;
+          timerEstadoServidor.total = total;
+          timerEstadoServidor.segundosRestantes = total;
+          timerEstadoServidor.terminado = false;
+        }
+        if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+        timerEstadoServidor.proyectando = true;
+        timerEstadoServidor.corriendo = true;
+        timerEstadoServidor.terminado = false;
+
+        if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+          proyectorWindow = createProyectorWindow();
+          await new Promise((resolve) => proyectorWindow.webContents.once('did-finish-load', resolve));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        timerIniciarIntervalServidor();
+        timerEnviarAlProyector();
+        return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/temporizador/detener', (req, res) => {
+      timerDetenerIntervalServidor();
+      timerEstadoServidor.corriendo = false;
+      timerEstadoServidor.proyectando = false;
+      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+        proyectorWindow.webContents.send('mostrar-versiculo', {
+          parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
+        });
+      }
+      return res.json({ ok: true, estado: { ...timerEstadoServidor } });
+    });
+
+    // ==================================================
+    // ✅ Plantillas GSAP (App móvil)
+    // ==================================================
+    expressApp.get('/api/plantillas', async (req, res) => {
+      try {
+        const claves = ['plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
+        const cfg = {};
+        for (const c of claves) cfg[c] = await dbNew.obtenerConfiguracion(c);
+        const activa = (cfg.plantillaGsapActiva && cfg.plantillaGsapActiva !== 'ninguna') ? cfg.plantillaGsapActiva : null;
+        const plantillas = Object.entries(PLANTILLAS_GSAP_META).map(([id, meta]) => ({
+          id, ...meta, activa: id === activa,
+        }));
+        return res.json({
+          ok: true, plantillas, activa,
+          config: {
+            color1: cfg.plantillaGsapColor1 || '#e2e8f0',
+            color2: cfg.plantillaGsapColor2 || '#0f172a',
+            colorAcc: cfg.plantillaGsapColorAcc || '#34d399',
+            velocidad: cfg.plantillaGsapVelocidad || 'media',
+          },
+        });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/plantillas/activar', async (req, res) => {
+      try {
+        const { id } = req.body || {};
+        if (!id || !PLANTILLAS_GSAP_META[id]) return res.status(400).json({ ok: false, error: 'Plantilla no válida' });
+        await dbNew.actualizarConfiguracion('plantillaGsapActiva', id);
+        const claves = ['plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
+        const cfg = {};
+        for (const c of claves) cfg[c] = await dbNew.obtenerConfiguracion(c);
+        const lsData = JSON.stringify({
+          plantillaId: id,
+          config: {
+            colorPrimario: cfg.plantillaGsapColor1 || '#e2e8f0',
+            colorFondo: cfg.plantillaGsapColor2 || '#0f172a',
+            colorAccento: cfg.plantillaGsapColorAcc || '#34d399',
+            velocidad: cfg.plantillaGsapVelocidad || 'media',
+          },
+        });
+        // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
+        const jsSet = `localStorage.setItem("gsap-plantilla-global", ${JSON.stringify(lsData)})`;
+        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsSet).catch(() => {});
+        return res.json({ ok: true, activa: id });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/plantillas/desactivar', async (req, res) => {
+      try {
+        await dbNew.actualizarConfiguracion('plantillaGsapActiva', 'ninguna');
+        // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
+        const jsRemove = `localStorage.removeItem("gsap-plantilla-global")`;
+        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsRemove).catch(() => {});
+        return res.json({ ok: true, activa: null });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
     });
 
     // Endpoint para servir archivos con corrección de extensión
@@ -2648,6 +3164,109 @@ if (!fs.existsSync(multimediaPublicDir)) {
 let mainWindow;
 let proyectorWindow;
 
+// ── Temporizador servidor ──────────────────────────────────────────────────
+const timerEstadoServidor = {
+  corriendo: false,
+  segundosRestantes: 600,
+  total: 600,
+  mensaje: 'El culto comienza en',
+  proyectando: false,
+  terminado: false,
+};
+let timerIntervalServidor = null;
+
+const timerGetData = () => ({
+  segundos:    timerEstadoServidor.segundosRestantes,
+  total:       timerEstadoServidor.total,
+  mensaje:     timerEstadoServidor.mensaje,
+  terminado:   timerEstadoServidor.terminado,
+  corriendo:   timerEstadoServidor.corriendo,
+  proyectando: timerEstadoServidor.proyectando,
+});
+
+const timerEnviarAlProyector = () => {
+  if (!timerEstadoServidor.proyectando) return;
+  if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+    proyectorWindow.webContents.send('mostrar-temporizador', timerGetData());
+  }
+};
+
+// Notifica al mainWindow (desktop UI) para que el componente Temporizador
+// pueda actualizarse aunque haya navegado a otra página
+const timerNotificarDesktop = () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('timer-tick', timerGetData());
+  }
+};
+
+const timerDetenerIntervalServidor = () => {
+  if (timerIntervalServidor) {
+    clearInterval(timerIntervalServidor);
+    timerIntervalServidor = null;
+  }
+};
+
+const timerIniciarIntervalServidor = () => {
+  timerDetenerIntervalServidor();
+  timerIntervalServidor = setInterval(() => {
+    if (!timerEstadoServidor.corriendo) {
+      timerNotificarDesktop();
+      return;
+    }
+    timerEstadoServidor.segundosRestantes = Math.max(0, timerEstadoServidor.segundosRestantes - 1);
+    timerEnviarAlProyector();
+    timerNotificarDesktop();
+    if (timerEstadoServidor.segundosRestantes <= 0) {
+      timerEstadoServidor.corriendo = false;
+      timerEstadoServidor.terminado = true;
+      timerDetenerIntervalServidor();
+      timerNotificarDesktop();
+      if (timerEstadoServidor.proyectando) {
+        setTimeout(() => {
+          timerEstadoServidor.proyectando = false;
+          timerNotificarDesktop();
+          if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+            proyectorWindow.webContents.send('mostrar-versiculo', {
+              parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
+            });
+          }
+        }, 4000);
+      }
+    }
+  }, 1000);
+};
+
+// Devuelve true si el timer del servidor está proyectando activamente
+const timerEstaProyectando = () =>
+  Boolean(timerEstadoServidor.proyectando && timerEstadoServidor.corriendo && !timerEstadoServidor.terminado);
+
+// Re-envía el estado del timer al proyector (para recuperación después de un clear)
+const timerRestaurarEnProyector = () => {
+  if (!timerEstaProyectando()) return;
+  if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+    proyectorWindow.webContents.send('mostrar-temporizador', {
+      segundos: timerEstadoServidor.segundosRestantes,
+      total: timerEstadoServidor.total,
+      mensaje: timerEstadoServidor.mensaje,
+      terminado: false,
+    });
+  }
+};
+
+// ── Plantillas GSAP metadata ───────────────────────────────────────────────
+const PLANTILLAS_GSAP_META = {
+  revelar:    { nombre: 'Revelar',    icono: '◈', desc: 'Marco que se dibuja desde las esquinas' },
+  neon:       { nombre: 'Neón',       icono: '⬡', desc: 'Borde luminoso con efecto flicker' },
+  iglesia:    { nombre: 'Iglesia',    icono: '✝', desc: 'Clásico con ornamentos y cruz' },
+  cinematica: { nombre: 'Cinemática', icono: '▶', desc: 'Barras de cine + texto con barrido' },
+  particulas: { nombre: 'Partículas', icono: '✦', desc: 'Partículas flotantes con halo' },
+  gloria:     { nombre: 'Gloria',     icono: '☀', desc: 'Rayos de luz desde el centro con halos' },
+  aurora:     { nombre: 'Aurora',     icono: '◉', desc: 'Bandas de aurora boreal flotando' },
+  minimal:    { nombre: 'Minimal',    icono: '—', desc: 'Ultra limpio con barrido de línea' },
+  majestad:   { nombre: 'Majestad',   icono: '◆', desc: 'Ornamentos reales púrpura y dorado' },
+  olas:       { nombre: 'Olas',       icono: '〜', desc: 'Líneas de onda en los bordes' },
+};
+
 // ✨ CREAR VENTANA PRINCIPAL CON CSP CONFIGURADA
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -2671,6 +3290,11 @@ function createMainWindow() {
   // ✨ APLICAR CSP Y BLOQUEADOR DE ANUNCIOS
   aplicarCSP(mainWindow);
   bloquearAnuncios(mainWindow);
+
+  // Remover "Electron/xx" del User-Agent para que YouTube y otros servicios no lo bloqueen
+  mainWindow.webContents.setUserAgent(
+    mainWindow.webContents.getUserAgent().replace(/\s*Electron\/[\d.]+/, '')
+  );
 
   // ✨ CARGAR URL SEGÚN ENTORNO
   const isDev = !app.isPackaged;
@@ -2716,13 +3340,16 @@ function createMainWindow() {
   });
 
   // Log si hay error de carga
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    // Ignorar fallos de subframes (iframes de YouTube, etc.) — solo reportar el frame principal
+    if (!isMainFrame) return;
+
     const errorMsg = `❌ Error al cargar página: ${errorDescription} (código: ${errorCode}) - URL: ${validatedURL}`;
     writeLog(errorMsg);
     console.error(errorMsg);
 
-    // Mostrar error al usuario si es crítico
-    if (errorCode !== -3) { // -3 es ERR_ABORTED (normal en navegación cancelada)
+    // -3 = ERR_ABORTED (navegación cancelada, normal); -100 = ERR_CONNECTION_CLOSED (red)
+    if (errorCode !== -3) {
       dialog.showErrorBox(
         "Error de Carga",
         `No se pudo cargar la aplicación.\n\nURL: ${validatedURL}\nError: ${errorDescription}\nCódigo: ${errorCode}\n\nLog: ${logFilePath}`
@@ -3611,7 +4238,7 @@ app.whenReady().then(async () => {
         }
 
         // ✨ Verificar actualizaciones automáticamente (solo en producción)
-        if (process.env.NODE_ENV !== 'development') {
+        if (app.isPackaged) {
           setTimeout(() => {
             try {
               writeLog('🔍 Verificando actualizaciones automáticamente...');
@@ -4461,12 +5088,12 @@ function registrarHandlers() {
   });
 
   ipcMain.on("proyector-limpiar", (event) => {
-    console.warn("🎮 [Main] Comando limpiar recibido para proyector");
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "limpiar" });
-      console.warn("🧹 [Main] Comando limpiar enviado al proyector");
-    } else {
-      console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar LIMPIAR");
+    }
+    // Si el timer estaba proyectando, restaurarlo tras el clear (200ms de margen)
+    if (timerEstaProyectando()) {
+      setTimeout(timerRestaurarEnProyector, 250);
     }
   });
 
@@ -4508,15 +5135,21 @@ function registrarHandlers() {
       const durationNum = Number(payload?.duration);
       const volumeNum = payload?.volume === null || payload?.volume === undefined ? null : Number(payload?.volume);
 
+      const cur = Number.isFinite(currentTimeNum) && currentTimeNum >= 0 ? currentTimeNum : 0;
+      const dur = Number.isFinite(durationNum) && durationNum >= 0 ? durationNum : 0;
+
+      // Si el video llegó al final, limpiar el id para que la app móvil lo detecte como terminado
+      const llego_al_final = dur > 1 && cur > 0 && cur >= dur - 0.5;
+
       multimediaPlaybackStatus[destino] = {
         updatedAt: Date.now(),
-        id: ('id' in payload) ? payload.id : (multimediaPlaybackStatus[destino]?.id ?? null),
-        nombre: ('nombre' in payload) ? (payload.nombre ? String(payload.nombre) : null) : (multimediaPlaybackStatus[destino]?.nombre ?? null),
-        currentTime: Number.isFinite(currentTimeNum) && currentTimeNum >= 0 ? currentTimeNum : 0,
-        duration: Number.isFinite(durationNum) && durationNum >= 0 ? durationNum : 0,
+        id: llego_al_final ? null : (('id' in payload) ? payload.id : (multimediaPlaybackStatus[destino]?.id ?? null)),
+        nombre: llego_al_final ? null : (('nombre' in payload) ? (payload.nombre ? String(payload.nombre) : null) : (multimediaPlaybackStatus[destino]?.nombre ?? null)),
+        currentTime: cur,
+        duration: dur,
         paused: Boolean(payload?.paused),
         volume: Number.isFinite(volumeNum) && volumeNum >= 0 ? Math.min(1, Math.max(0, volumeNum)) : null,
-        tipo: payload?.tipo ? String(payload.tipo) : null,
+        tipo: llego_al_final ? null : (payload?.tipo ? String(payload.tipo) : null),
       };
     } catch {
       // noop
@@ -5059,6 +5692,85 @@ function registrarHandlers() {
       console.error("❌ [MAIN] Error limpiando proyector:", error);
       return { success: false, error: error.message };
     }
+  });
+
+  // ====================================
+  // HANDLERS DEL TEMPORIZADOR (DESKTOP)
+  // El timer corre en main process para persistir entre navegaciones
+  // ====================================
+  ipcMain.handle('timer-estado', () => ({ ...timerEstadoServidor }));
+
+  ipcMain.handle('timer-iniciar', (_, { minutos, mensaje } = {}) => {
+    if (minutos !== undefined) {
+      const total = Math.max(1, Number(minutos)) * 60;
+      timerEstadoServidor.total = total;
+      timerEstadoServidor.segundosRestantes = total;
+    }
+    if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    timerEstadoServidor.corriendo = true;
+    timerEstadoServidor.terminado = false;
+    timerIniciarIntervalServidor();
+    timerNotificarDesktop();
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-pausar', () => {
+    timerEstadoServidor.corriendo = false;
+    timerNotificarDesktop();
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-reiniciar', (_, { minutos } = {}) => {
+    timerDetenerIntervalServidor();
+    timerEstadoServidor.corriendo = false;
+    timerEstadoServidor.terminado = false;
+    if (minutos !== undefined) {
+      const total = Math.max(1, Number(minutos)) * 60;
+      timerEstadoServidor.total = total;
+    }
+    timerEstadoServidor.segundosRestantes = timerEstadoServidor.total;
+    timerEnviarAlProyector();
+    timerNotificarDesktop();
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-proyectar', async (_, { minutos, mensaje } = {}) => {
+    if (minutos !== undefined) {
+      const total = Math.max(1, Number(minutos)) * 60;
+      timerEstadoServidor.total = total;
+      timerEstadoServidor.segundosRestantes = total;
+    }
+    if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    timerEstadoServidor.proyectando = true;
+    timerEstadoServidor.corriendo = true;
+    timerEstadoServidor.terminado = false;
+    if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+      proyectorWindow = createProyectorWindow();
+      await new Promise((r) => proyectorWindow.webContents.once('did-finish-load', r));
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    timerIniciarIntervalServidor();
+    timerEnviarAlProyector();
+    timerNotificarDesktop();
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-detener', () => {
+    timerDetenerIntervalServidor();
+    timerEstadoServidor.corriendo = false;
+    timerEstadoServidor.proyectando = false;
+    timerNotificarDesktop();
+    if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+      proyectorWindow.webContents.send('mostrar-versiculo', {
+        parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
+      });
+    }
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-set-mensaje', (_, { mensaje } = {}) => {
+    if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    return timerGetData();
   });
 
   // ====================================

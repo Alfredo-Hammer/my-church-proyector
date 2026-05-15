@@ -3759,6 +3759,7 @@ function createMainWindow() {
         {
           label: "Buscar Actualizaciones...",
           click: () => {
+            updateCheckManual = true;
             if (mainWindow) {
               mainWindow.webContents.send('check-updates-manual');
             }
@@ -4002,10 +4003,13 @@ function createProyectorWindow() {
 autoUpdater.autoDownload = false; // No descargar automáticamente, preguntar primero
 autoUpdater.autoInstallOnAppQuit = true; // Instalar al cerrar la app
 
+// Flag: true = el usuario pidió la verificación manualmente
+let updateCheckManual = false;
+
 // Eventos del autoUpdater
 autoUpdater.on('checking-for-update', () => {
   writeLog('🔍 Verificando actualizaciones...');
-  if (mainWindow) {
+  if (mainWindow && updateCheckManual) {
     mainWindow.webContents.send('update-checking');
   }
 });
@@ -4019,22 +4023,25 @@ autoUpdater.on('update-available', (info) => {
       releaseDate: info.releaseDate
     });
   }
+  updateCheckManual = false;
 });
 
 autoUpdater.on('update-not-available', (info) => {
   writeLog('ℹ️ No hay actualizaciones disponibles');
-  if (mainWindow) {
+  if (mainWindow && updateCheckManual) {
     mainWindow.webContents.send('update-not-available', info);
   }
+  updateCheckManual = false;
 });
 
 autoUpdater.on('error', (err) => {
   const errorMsg = `❌ Error en autoUpdater: ${err.message}`;
   writeLog(errorMsg);
-  console.error(errorMsg);
-  if (mainWindow) {
+  // Solo mostrar error al usuario si lo pidió manualmente
+  if (mainWindow && updateCheckManual) {
     mainWindow.webContents.send('update-error', { message: err.message });
   }
+  updateCheckManual = false;
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
@@ -5905,10 +5912,11 @@ function registrarHandlers() {
   ipcMain.handle('check-for-updates', async () => {
     try {
       writeLog('🔍 Usuario solicitó verificación manual de actualizaciones');
-      if (process.env.NODE_ENV === 'development') {
+      if (!app.isPackaged) {
         writeLog('⚠️ Actualizaciones deshabilitadas en modo desarrollo');
         return { available: false, isDev: true };
       }
+      updateCheckManual = true;
       await autoUpdater.checkForUpdates();
       return { checking: true };
     } catch (error) {

@@ -96,6 +96,8 @@ jobs:
           prerelease: false
           files: |
             dist-installer/*.exe
+            dist-installer/*.blockmap
+            dist-installer/latest.yml
             INSTRUCCIONES-WINDOWS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

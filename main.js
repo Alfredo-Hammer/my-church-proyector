@@ -4003,8 +4003,10 @@ function createProyectorWindow() {
 autoUpdater.autoDownload = false; // No descargar automáticamente, preguntar primero
 autoUpdater.autoInstallOnAppQuit = true; // Instalar al cerrar la app
 
-// Flag: true = el usuario pidió la verificación manualmente
+// true = verificación pedida manualmente por el usuario
 let updateCheckManual = false;
+// true = descarga en curso (errores siempre se muestran durante descarga)
+let isDownloading = false;
 
 // Eventos del autoUpdater
 autoUpdater.on('checking-for-update', () => {
@@ -4017,10 +4019,12 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   writeLog(`✅ Nueva actualización disponible: v${info.version}`);
   if (mainWindow) {
+    const fileSize = info.files?.[0]?.size ?? null;
     mainWindow.webContents.send('update-available', {
       version: info.version,
       releaseNotes: info.releaseNotes,
-      releaseDate: info.releaseDate
+      releaseDate: info.releaseDate,
+      fileSize,
     });
   }
   updateCheckManual = false;
@@ -4037,32 +4041,33 @@ autoUpdater.on('update-not-available', (info) => {
 autoUpdater.on('error', (err) => {
   const errorMsg = `❌ Error en autoUpdater: ${err.message}`;
   writeLog(errorMsg);
-  // Solo mostrar error al usuario si lo pidió manualmente
-  if (mainWindow && updateCheckManual) {
+  // Mostrar al usuario si: verificación manual O durante descarga activa
+  if (mainWindow && (updateCheckManual || isDownloading)) {
     mainWindow.webContents.send('update-error', { message: err.message });
   }
   updateCheckManual = false;
+  isDownloading = false;
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-  const logMessage = `📥 Descargando actualización: ${Math.round(progressObj.percent)}% (${Math.round(progressObj.bytesPerSecond / 1024)}KB/s)`;
-  writeLog(logMessage);
+  writeLog(`📥 Descargando: ${Math.round(progressObj.percent)}% (${Math.round(progressObj.bytesPerSecond / 1024)}KB/s)`);
   if (mainWindow) {
     mainWindow.webContents.send('update-download-progress', {
       percent: progressObj.percent,
       transferred: progressObj.transferred,
       total: progressObj.total,
-      bytesPerSecond: progressObj.bytesPerSecond
+      bytesPerSecond: progressObj.bytesPerSecond,
     });
   }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   writeLog(`✅ Actualización descargada: v${info.version}`);
+  isDownloading = false;
   if (mainWindow) {
     mainWindow.webContents.send('update-downloaded', {
       version: info.version,
-      releaseNotes: info.releaseNotes
+      releaseNotes: info.releaseNotes,
     });
   }
 });
@@ -5928,10 +5933,12 @@ function registrarHandlers() {
   ipcMain.handle('download-update', async () => {
     try {
       writeLog('📥 Usuario aceptó descargar actualización');
+      isDownloading = true;
       await autoUpdater.downloadUpdate();
       return { downloading: true };
     } catch (error) {
       writeLog(`❌ Error descargando actualización: ${error.message}`);
+      isDownloading = false;
       return { error: error.message };
     }
   });

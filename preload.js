@@ -231,6 +231,9 @@ contextBridge.exposeInMainWorld("electron", {
       "update-downloaded",
       "check-updates-manual",
 
+      // Modo un solo monitor
+      "proyector-modo-unico-monitor",
+
       // Control remoto: reproducir multimedia "solo audio" en el escritorio (sin proyectar)
       "solo-audio-play",
       "solo-audio-control",

@@ -95,6 +95,11 @@ const MENU = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    window.electron?.getAppVersion?.().then((v) => setAppVersion(v || "")).catch(() => {});
+  }, []);
 
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sidebar-collapsed") === "true",
@@ -302,7 +307,7 @@ export default function Sidebar() {
           </span>
         ) : (
           <p className="text-[9px] text-white/18 text-center tracking-wide">
-            GloryView © 2026 — v0.2.0
+            GloryView © 2026{appVersion ? ` — v${appVersion}` : ""}
           </p>
         )}
       </div>

@@ -11,6 +11,7 @@ import {
   FaVideo,
   FaYoutube,
   FaSyncAlt,
+  FaDesktop,
 } from "react-icons/fa";
 
 // Componente de barras animadas de reproducción
@@ -61,6 +62,7 @@ const Header = () => {
     logoUrl: "",
   });
   const [mensaje, setMensaje] = useState("Bienvenido");
+  const [modoUnicoMonitor, setModoUnicoMonitor] = useState(false);
 
   const {
     currentMedia,
@@ -105,6 +107,19 @@ const Header = () => {
     }
   }, []);
 
+  // Detectar cuando el proyector abre en modo un solo monitor
+  useEffect(() => {
+    if (!window.electron?.on) return;
+    const handler = () => {
+      setModoUnicoMonitor(true);
+      setTimeout(() => setModoUnicoMonitor(false), 8000);
+    };
+    window.electron.on("proyector-modo-unico-monitor", handler);
+    return () => {
+      window.electron.removeListener?.("proyector-modo-unico-monitor", handler);
+    };
+  }, []);
+
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -137,6 +152,20 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md border-b border-emerald-500/20 shadow-lg overflow-hidden">
+      {/* Banner: modo un solo monitor */}
+      {modoUnicoMonitor && (
+        <div className="relative z-10 bg-amber-500/90 text-amber-950 text-xs font-semibold px-4 py-1.5 flex items-center gap-2 justify-center">
+          <FaDesktop size={11} />
+          Proyector abierto en esta pantalla — conecta un segundo monitor para modo presentación
+          <button
+            onClick={() => setModoUnicoMonitor(false)}
+            className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            <FaTimes size={10} />
+          </button>
+        </div>
+      )}
+
       {/* Fondo base */}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
 

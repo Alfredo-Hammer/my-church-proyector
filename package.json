@@ -1,10 +1,10 @@
 {
   "name": "my-church-proyector",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "main": "main.js",
   "homepage": ".",
-  "description": "GloryView Proyector - Aplicación de proyección para iglesias",
+  "description": "GloryView - Aplicación de proyección para iglesias",
   "author": "Alfredo Hammer <coderhammer70@gmail.com>",
   "dependencies": {
     "@mantine/rte": "^5.10.5",
@@ -95,7 +95,7 @@
   },
   "build": {
     "appId": "com.gloryview.proyector",
-    "productName": "GloryView Proyector",
+    "productName": "GloryView",
     "copyright": "Copyright © 2025 Alfredo Hammer",
     "directories": {
       "output": "dist-installer",
@@ -135,7 +135,7 @@
       "icon": "assets/icon.ico",
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "asInvoker",
-      "executableName": "GloryViewProyector",
+      "executableName": "GloryView",
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -145,7 +145,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "GloryView Proyector",
+      "shortcutName": "GloryView",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeader": "assets/icon-256.png",

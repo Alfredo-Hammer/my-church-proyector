@@ -64,7 +64,7 @@ win:
   icon: assets/icon.ico
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
-  executableName: GloryViewProyector
+  executableName: GloryView
   # Firma deshabilitada para desarrollo
   sign: null
   signDlls: false
@@ -76,7 +76,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: GloryView Proyector
+  shortcutName: GloryView
   installerIcon: assets/icon.ico
   uninstallerIcon: assets/icon.ico
   installerHeader: assets/icon-256.png

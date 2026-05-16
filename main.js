@@ -26,7 +26,7 @@ process.on("uncaughtException", (error) => {
   // Mostrar diálogo de error al usuario
   if (app.isReady()) {
     dialog.showErrorBox(
-      "Error Crítico - GloryView Proyector",
+      "Error Crítico - GloryView",
       `La aplicación encontró un error crítico:\n\n${error.message}\n\nRevise el archivo de log en:\n${logFilePath}`
     );
   }
@@ -765,7 +765,7 @@ function iniciarServidorMultimedia() {
     expressApp.get('/api/ping', (req, res) => {
       res.json({
         ok: true,
-        app: 'GloryView Proyector',
+        app: 'GloryView',
         version: app.getVersion(),
         serverTime: new Date().toISOString(),
       });
@@ -801,7 +801,7 @@ function iniciarServidorMultimedia() {
 
         res.json({
           ok: true,
-          app: 'GloryView Proyector',
+          app: 'GloryView',
           version: app.getVersion(),
           port: PORT,
           urls,
@@ -3110,7 +3110,7 @@ function iniciarServidorMultimedia() {
     // La regla es solo por puerto (sin "program=") para que funcione tanto en dev como empaquetado.
     if (process.platform === 'win32') {
       const { exec } = require('child_process');
-      const ruleName = 'GloryView Proyector - Puerto 3001';
+      const ruleName = 'GloryView - Puerto 3001';
       // Primero eliminar regla anterior para evitar duplicados, luego agregar la nueva.
       const deleteRule = `netsh advfirewall firewall delete rule name="${ruleName}" >nul 2>&1`;
       const addRule = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${PORT} enable=yes`;
@@ -3873,18 +3873,37 @@ function createMainWindow() {
 // ✨ CREAR VENTANA DEL PROYECTOR CON CSP
 function createProyectorWindow() {
   const displays = screen.getAllDisplays();
-  const externalDisplay = displays.find(
-    (d) => d.bounds.x !== 0 || d.bounds.y !== 0
-  );
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const externalDisplay = displays.find((d) => d.id !== primaryDisplay.id);
+  const soloUnMonitor = displays.length === 1;
 
-  // ✨ Usar pantalla externa si está disponible, sino usar la principal
   let displayBounds;
+  let fullscreen;
+  let alwaysOnTop;
+
   if (externalDisplay) {
+    // Dos o más monitores: proyector en pantalla secundaria, pantalla completa
     displayBounds = externalDisplay.bounds;
-    console.log("✅ [MAIN] Usando pantalla externa para proyector");
+    fullscreen = true;
+    alwaysOnTop = true;
+    writeLog("✅ [MAIN] Proyector en pantalla externa (modo presentación)");
   } else {
-    displayBounds = displays[0].bounds;
-    console.log("⚠️ [MAIN] No se encontró pantalla externa, usando pantalla principal");
+    // Un solo monitor: ventana flotante redimensionable en la misma pantalla
+    const w = Math.round(primaryDisplay.workAreaSize.width * 0.55);
+    const h = Math.round(w * 9 / 16);
+    const x = primaryDisplay.bounds.x + Math.round((primaryDisplay.workAreaSize.width - w) / 2);
+    const y = primaryDisplay.bounds.y + 60;
+    displayBounds = { x, y, width: w, height: h };
+    fullscreen = false;
+    alwaysOnTop = false;
+    writeLog("⚠️ [MAIN] Un solo monitor: proyector en ventana flotante");
+
+    // Avisar a la ventana principal para mostrar un banner informativo
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      setTimeout(() => {
+        mainWindow.webContents.send('proyector-modo-unico-monitor');
+      }, 500);
+    }
   }
 
   proyectorWindow = new BrowserWindow({
@@ -3892,10 +3911,12 @@ function createProyectorWindow() {
     y: displayBounds.y,
     width: displayBounds.width,
     height: displayBounds.height,
-    icon: path.join(obtenerRutaRecursos(), 'assets', 'icon-256.png'), // ✨ ICONO HD PERSONALIZADO
-    fullscreen: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
+    icon: path.join(obtenerRutaRecursos(), 'assets', 'icon-256.png'),
+    fullscreen,
+    alwaysOnTop,
+    skipTaskbar: soloUnMonitor ? false : true,
+    resizable: soloUnMonitor,
+    minimizable: soloUnMonitor,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       webSecurity: true,
@@ -4075,7 +4096,7 @@ autoUpdater.on('update-downloaded', (info) => {
 // --- App Ready ---
 app.whenReady().then(async () => {
   try {
-    writeLog("✅ Electron app ready - Iniciando GloryView Proyector");
+    writeLog("✅ Electron app ready - Iniciando GloryView");
 
     // ✨ CONFIGURAR NOMBRE DE LA APLICACIÓN
     app.setName('GloryView');
@@ -4314,7 +4335,7 @@ app.whenReady().then(async () => {
       }
     });
 
-    writeLog("✅ GloryView Proyector iniciado exitosamente");
+    writeLog("✅ GloryView iniciado exitosamente");
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -4330,7 +4351,7 @@ app.whenReady().then(async () => {
     console.error(errorMsg);
 
     dialog.showErrorBox(
-      "Error Fatal - GloryView Proyector",
+      "Error Fatal - GloryView",
       `La aplicación no pudo iniciar correctamente:\n\n${error.message}\n\nDetalles en:\n${logFilePath}\n\nPresione OK para cerrar.`
     );
 

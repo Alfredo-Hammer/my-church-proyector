@@ -55,16 +55,16 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: GloryView Proyector ${{ steps.get_version.outputs.VERSION }}
+          name: GloryView ${{ steps.get_version.outputs.VERSION }}
           body: |
-            ## 🎉 GloryView Proyector ${{ steps.get_version.outputs.VERSION }}
+            ## 🎉 GloryView ${{ steps.get_version.outputs.VERSION }}
             
             ### 📦 Instalación
             
             1. Descarga el instalador `.exe`
             2. **IMPORTANTE:** Ejecuta el instalador como **Administrador** (clic derecho → Ejecutar como administrador)
             3. Sigue el asistente de instalación
-            4. Abre **GloryView Proyector** desde el escritorio o el menú inicio
+            4. Abre **GloryView** desde el escritorio o el menú inicio
             
             ### 📋 Requisitos
             - Windows 10/11 (64-bit)
@@ -73,7 +73,7 @@ jobs:
             
             ### 🔒 Configuración del Firewall (IMPORTANTE)
             
-            GloryView Proyector utiliza un servidor local (puerto 3001) para comunicación interna.
+            GloryView utiliza un servidor local (puerto 3001) para comunicación interna.
             
             **Primera ejecución:**
             - Ejecuta la aplicación como **Administrador** al menos la primera vez
@@ -81,13 +81,13 @@ jobs:
             
             **Si el Firewall bloquea la aplicación:**
             1. Ve a: `Configuración de Windows` → `Firewall` → `Permitir una app`
-            2. Busca "GloryView Proyector" en la lista
+            2. Busca "GloryView" en la lista
             3. Marca las casillas de "Red privada" y "Red pública"
             4. Haz clic en "Aceptar"
             
             ### 🔧 Solución de problemas
             - Si no abre: Clic derecho → Ejecutar como administrador
-            - Revisa logs en: `%APPDATA%\GloryView Proyector\gloryview-error.log`
+            - Revisa logs en: `%APPDATA%\GloryView\gloryview-error.log`
             - Consulta `INSTRUCCIONES-WINDOWS.txt` para más detalles
             
             ---

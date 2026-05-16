@@ -50,27 +50,28 @@ const UpdateNotification = () => {
       window.electron.getAppVersion().then(setCurrentVersion);
     }
 
-    const handleCheckingUpdate = () => {
+    // ipcRenderer.on pasa (event, data) — el primer arg es el evento IPC, el segundo son los datos
+    const handleCheckingUpdate = (_e) => {
       setUpdateState("checking");
       setError(null);
     };
 
-    const handleUpdateAvailable = (info) => {
+    const handleUpdateAvailable = (_e, info) => {
       setUpdateState("available");
       setUpdateInfo(info);
     };
 
-    const handleUpdateNotAvailable = () => {
+    const handleUpdateNotAvailable = (_e) => {
       setUpdateState("not-available");
       setTimeout(() => setUpdateState("idle"), 3000);
     };
 
-    const handleUpdateError = (err) => {
+    const handleUpdateError = (_e, err) => {
       setUpdateState("error");
-      setError(err.message || "No se pudo conectar con el servidor de actualizaciones.");
+      setError(err?.message || "No se pudo conectar con el servidor de actualizaciones.");
     };
 
-    const handleDownloadProgress = (progress) => {
+    const handleDownloadProgress = (_e, progress) => {
       setUpdateState("downloading");
       setDownloadProgress(Math.round(progress.percent));
       setDownloadSpeed(progress.bytesPerSecond);
@@ -78,12 +79,12 @@ const UpdateNotification = () => {
       setTotalBytes(progress.total);
     };
 
-    const handleUpdateDownloaded = (info) => {
+    const handleUpdateDownloaded = (_e, info) => {
       setUpdateState("downloaded");
       setUpdateInfo((prev) => ({...prev, ...info}));
     };
 
-    const handleCheckManual = () => handleCheckUpdate();
+    const handleCheckManual = (_e) => handleCheckUpdate();
 
     if (window.electron?.on) {
       window.electron.on("update-checking", handleCheckingUpdate);

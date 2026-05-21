@@ -65,9 +65,6 @@ win:
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
   executableName: GloryView
-  # Firma deshabilitada para desarrollo
-  sign: null
-  signDlls: false
 
 nsis:
   oneClick: false
@@ -123,4 +120,3 @@ mac:
 
 dmg:
   artifactName: "${productName}-${version}.${ext}"
-  sign: false

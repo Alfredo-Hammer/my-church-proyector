@@ -74,6 +74,7 @@ async function migrateDatabase() {
     "ALTER TABLE himnos ADD COLUMN categoria TEXT",
     "ALTER TABLE fondos ADD COLUMN nombre TEXT",
     "ALTER TABLE fondos ADD COLUMN created_at DATETIME",
+    "ALTER TABLE himnos ADD COLUMN fuente TEXT DEFAULT 'personal'",
   ];
   for (const sql of migrations) {
     await new Promise((resolve) => {
@@ -441,8 +442,8 @@ async function buscarHimnos(termino) {
 async function crearHimno(himno) {
   try {
     const result = await runQuery(
-      'INSERT INTO himnos (numero, titulo, letra, autor, categoria, favorito) VALUES (?, ?, ?, ?, ?, ?)',
-      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0]
+      'INSERT INTO himnos (numero, titulo, letra, autor, categoria, favorito, fuente) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0, himno.fuente || 'personal']
     );
     return result.lastID;
   } catch (error) {
@@ -455,8 +456,8 @@ async function crearHimno(himno) {
 async function actualizarHimno(id, himno) {
   try {
     const result = await runQuery(
-      'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, autor = ?, categoria = ?, favorito = ? WHERE id = ?',
-      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, id]
+      'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, autor = ?, categoria = ?, favorito = ?, fuente = ? WHERE id = ?',
+      [himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, himno.fuente || 'personal', id]
     );
     return result.changes > 0;
   } catch (error) {

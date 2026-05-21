@@ -104,7 +104,8 @@ export default function AgregarHimno() {
 
   const fetchHimnos = async () => {
     try {
-      setHimnos(await window.electron.obtenerHimnos());
+      const todos = await window.electron.obtenerHimnos();
+      setHimnos(todos.filter((h) => !h.fuente || h.fuente === "personal"));
     } catch {
       toast.error("Error al cargar los himnos");
     }

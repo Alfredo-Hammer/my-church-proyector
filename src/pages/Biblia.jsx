@@ -684,38 +684,40 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-1.5">
-              {librosDeLaBiblia.antiguoTestamento.map((libro, index) => (
+            <div
+              className="grid gap-1.5"
+              style={{gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))"}}
+            >
+              {librosDeLaBiblia.antiguoTestamento.map((libro) => (
                 <button
                   key={libro.id}
                   type="button"
                   onClick={() => manejarSeleccionarLibro(libro.id)}
-                  className={`group text-left rounded-lg px-2 py-1.5 border transition-all duration-200 hover:scale-[1.02] ${
+                  title={libro.nombre}
+                  className={`group flex flex-col items-center justify-center rounded-xl py-3 px-2 border transition-all duration-200 hover:scale-[1.04] hover:-translate-y-px ${
                     libroSeleccionado === libro.id
-                      ? "border-amber-400/60 bg-amber-500/15 shadow-sm shadow-amber-500/20"
-                      : "border-amber-500/15 bg-white/4 hover:border-amber-400/35 hover:bg-amber-500/8"
+                      ? "border-amber-400/70 bg-gradient-to-b from-amber-500/25 to-amber-600/15 shadow-md shadow-amber-500/20"
+                      : "border-amber-500/15 bg-white/3 hover:border-amber-400/40 hover:bg-amber-500/10 hover:shadow-sm hover:shadow-amber-500/10"
                   }`}
                 >
-                  <div className="flex items-start gap-1.5">
-                    <span
-                      className={`shrink-0 text-[9px] font-bold tabular-nums mt-0.5 w-4 ${
-                        libroSeleccionado === libro.id
-                          ? "text-amber-400"
-                          : "text-amber-600/60 group-hover:text-amber-500/80"
-                      }`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span
-                      className={`text-[10px] xl:text-[11px] leading-tight font-medium ${
-                        libroSeleccionado === libro.id
-                          ? "text-amber-200"
-                          : "text-slate-300 group-hover:text-amber-200"
-                      }`}
-                    >
-                      {libro.nombre}
-                    </span>
-                  </div>
+                  <span
+                    className={`text-base font-extrabold tracking-wide leading-none ${
+                      libroSeleccionado === libro.id
+                        ? "text-amber-300"
+                        : "text-amber-500/70 group-hover:text-amber-300"
+                    }`}
+                  >
+                    {libro.abrev}
+                  </span>
+                  <span
+                    className={`text-[9px] leading-tight text-center w-full truncate mt-1 ${
+                      libroSeleccionado === libro.id
+                        ? "text-amber-200/70"
+                        : "text-slate-400 group-hover:text-amber-200"
+                    }`}
+                  >
+                    {libro.nombre}
+                  </span>
                 </button>
               ))}
             </div>
@@ -735,38 +737,40 @@ const Biblia = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-1.5">
-              {librosDeLaBiblia.nuevoTestamento.map((libro, index) => (
+            <div
+              className="grid gap-1.5"
+              style={{gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))"}}
+            >
+              {librosDeLaBiblia.nuevoTestamento.map((libro) => (
                 <button
                   key={libro.id}
                   type="button"
                   onClick={() => manejarSeleccionarLibro(libro.id)}
-                  className={`group text-left rounded-lg px-2 py-1.5 border transition-all duration-200 hover:scale-[1.02] ${
+                  title={libro.nombre}
+                  className={`group flex flex-col items-center justify-center rounded-xl py-3 px-2 border transition-all duration-200 hover:scale-[1.04] hover:-translate-y-px ${
                     libroSeleccionado === libro.id
-                      ? "border-emerald-400/60 bg-emerald-500/15 shadow-sm shadow-emerald-500/20"
-                      : "border-emerald-500/15 bg-white/4 hover:border-emerald-400/35 hover:bg-emerald-500/8"
+                      ? "border-emerald-400/70 bg-gradient-to-b from-emerald-500/25 to-emerald-600/15 shadow-md shadow-emerald-500/20"
+                      : "border-emerald-500/15 bg-white/3 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:shadow-sm hover:shadow-emerald-500/10"
                   }`}
                 >
-                  <div className="flex items-start gap-1.5">
-                    <span
-                      className={`shrink-0 text-[9px] font-bold tabular-nums mt-0.5 w-4 ${
-                        libroSeleccionado === libro.id
-                          ? "text-emerald-400"
-                          : "text-emerald-600/60 group-hover:text-emerald-500/80"
-                      }`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span
-                      className={`text-[10px] xl:text-[11px] leading-tight font-medium ${
-                        libroSeleccionado === libro.id
-                          ? "text-emerald-200"
-                          : "text-slate-300 group-hover:text-emerald-200"
-                      }`}
-                    >
-                      {libro.nombre}
-                    </span>
-                  </div>
+                  <span
+                    className={`text-base font-extrabold tracking-wide leading-none ${
+                      libroSeleccionado === libro.id
+                        ? "text-emerald-300"
+                        : "text-emerald-500/70 group-hover:text-emerald-300"
+                    }`}
+                  >
+                    {libro.abrev}
+                  </span>
+                  <span
+                    className={`text-[9px] leading-tight text-center w-full truncate mt-1 ${
+                      libroSeleccionado === libro.id
+                        ? "text-emerald-200/70"
+                        : "text-slate-400 group-hover:text-emerald-200"
+                    }`}
+                  >
+                    {libro.nombre}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1390,42 +1394,11 @@ const Biblia = () => {
                             ({librosDeLaBiblia.antiguoTestamento.length})
                           </span>
                         </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                          {librosDeLaBiblia.antiguoTestamento.map(
-                            (libro, i) => (
-                              <button
-                                key={libro.id}
-                                type="button"
-                                onClick={() =>
-                                  seleccionarResultadoRapido({
-                                    tipo: "libro",
-                                    libro,
-                                    titulo: libro.nombre,
-                                    descripcion: "",
-                                  })
-                                }
-                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-amber-500/12 bg-amber-500/5 hover:border-amber-400/35 hover:bg-amber-500/12 text-left transition-all group"
-                              >
-                                <span className="shrink-0 text-[9px] text-amber-600/50 group-hover:text-amber-500/70 w-4 tabular-nums">
-                                  {i + 1}
-                                </span>
-                                <span className="text-[11px] text-slate-300 group-hover:text-amber-200 leading-tight truncate">
-                                  {libro.nombre}
-                                </span>
-                              </button>
-                            ),
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-emerald-500/70 font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <IoBook className="text-[9px]" /> Nuevo Testamento
-                          <span className="text-emerald-500/40">
-                            ({librosDeLaBiblia.nuevoTestamento.length})
-                          </span>
-                        </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                          {librosDeLaBiblia.nuevoTestamento.map((libro, i) => (
+                        <div
+                          className="grid gap-1"
+                          style={{gridTemplateColumns: "repeat(auto-fill, minmax(4.2rem, 1fr))"}}
+                        >
+                          {librosDeLaBiblia.antiguoTestamento.map((libro) => (
                             <button
                               key={libro.id}
                               type="button"
@@ -1437,12 +1410,49 @@ const Biblia = () => {
                                   descripcion: "",
                                 })
                               }
-                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-emerald-500/12 bg-emerald-500/5 hover:border-emerald-400/35 hover:bg-emerald-500/12 text-left transition-all group"
+                              title={libro.nombre}
+                              className="group flex flex-col items-center justify-center rounded-xl py-2.5 px-1.5 border border-amber-500/15 bg-amber-500/5 hover:border-amber-400/40 hover:bg-amber-500/12 transition-all hover:scale-[1.04]"
                             >
-                              <span className="shrink-0 text-[9px] text-emerald-600/50 group-hover:text-emerald-500/70 w-4 tabular-nums">
-                                {i + 1}
+                              <span className="text-sm font-extrabold tracking-wide text-amber-500/70 group-hover:text-amber-300 leading-none">
+                                {libro.abrev}
                               </span>
-                              <span className="text-[11px] text-slate-300 group-hover:text-emerald-200 leading-tight truncate">
+                              <span className="text-[9px] text-slate-400 group-hover:text-amber-200 leading-tight truncate w-full text-center mt-1">
+                                {libro.nombre}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-emerald-500/70 font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <IoBook className="text-[9px]" /> Nuevo Testamento
+                          <span className="text-emerald-500/40">
+                            ({librosDeLaBiblia.nuevoTestamento.length})
+                          </span>
+                        </p>
+                        <div
+                          className="grid gap-1"
+                          style={{gridTemplateColumns: "repeat(auto-fill, minmax(4.2rem, 1fr))"}}
+                        >
+                          {librosDeLaBiblia.nuevoTestamento.map((libro) => (
+                            <button
+                              key={libro.id}
+                              type="button"
+                              onClick={() =>
+                                seleccionarResultadoRapido({
+                                  tipo: "libro",
+                                  libro,
+                                  titulo: libro.nombre,
+                                  descripcion: "",
+                                })
+                              }
+                              title={libro.nombre}
+                              className="group flex flex-col items-center justify-center rounded-xl py-2.5 px-1.5 border border-emerald-500/15 bg-emerald-500/5 hover:border-emerald-400/40 hover:bg-emerald-500/12 transition-all hover:scale-[1.04]"
+                            >
+                              <span className="text-sm font-extrabold tracking-wide text-emerald-500/70 group-hover:text-emerald-300 leading-none">
+                                {libro.abrev}
+                              </span>
+                              <span className="text-[9px] text-slate-400 group-hover:text-emerald-200 leading-tight truncate w-full text-center mt-1">
                                 {libro.nombre}
                               </span>
                             </button>

@@ -5203,12 +5203,13 @@ function registrarHandlers() {
 
   ipcMain.handle("agregar-himno", async (event, nuevoHimno) => {
     try {
-      const { numero, titulo, letra, favorito } = nuevoHimno;
+      const { numero, titulo, letra, favorito, fuente } = nuevoHimno;
       const id = await dbNew.crearHimno({
         numero,
         titulo,
         letra: JSON.stringify(letra),
-        favorito: favorito ? 1 : 0
+        favorito: favorito ? 1 : 0,
+        fuente: fuente || 'personal',
       });
       return { success: true, id };
     } catch (error) {
@@ -5250,12 +5251,13 @@ function registrarHandlers() {
 
   ipcMain.handle("actualizar-himno", async (event, himno) => {
     try {
-      const { id, numero, titulo, letra } = himno;
+      const { id, numero, titulo, letra, fuente } = himno;
       const success = await dbNew.actualizarHimno(id, {
         numero,
         titulo,
         letra: JSON.stringify(letra),
-        favorito: himno.favorito ? 1 : 0
+        favorito: himno.favorito ? 1 : 0,
+        fuente: fuente || 'personal',
       });
       return { success };
     } catch (error) {

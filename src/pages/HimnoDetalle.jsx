@@ -1,9 +1,8 @@
 import {useParams, useNavigate, useLocation} from "react-router-dom";
-import {useState, useEffect} from "react";
+import {useState, useEffect, useMemo} from "react";
 import himnosData from "../data/himnos.json";
 import vidacristianaData from "../data/vidacristiana.json";
 import {
-  FaProjectDiagram,
   FaHeart,
   FaRegHeart,
   FaStop,
@@ -19,15 +18,61 @@ import {
   FaRedo,
   FaHome,
   FaBroadcastTower,
+  FaPen,
+  FaSave,
 } from "react-icons/fa";
 
-const TAMANOS_TEXTO = [
-  {proyector: "text-3xl", local: "text-lg xl:text-xl"},
-  {proyector: "text-4xl", local: "text-xl xl:text-2xl"},
-  {proyector: "text-5xl", local: "text-2xl xl:text-3xl 2xl:text-4xl"},
-  {proyector: "text-6xl", local: "text-3xl xl:text-4xl 2xl:text-5xl"},
-  {proyector: "text-7xl", local: "text-4xl xl:text-5xl 2xl:text-6xl"},
-];
+// Pixels aproximados por clase Tailwind (semibold, sans-serif)
+const FONT_CLASS_PX = {
+  "text-3xl": 30, "text-4xl": 36, "text-5xl": 48, "text-6xl": 60,
+  "text-7xl": 72, "text-8xl": 96, "text-9xl": 128,
+};
+
+// Divide un párrafo en diapositivas basándose en líneas visuales estimadas.
+// Calcula cuántos caracteres caben por línea según el tamaño de fuente elegido,
+// luego agrupa en diapositivas de maxLineas líneas cada una.
+function splitParrafoEnSlides(texto, maxLineas, fontClass = "text-8xl") {
+  // Si el texto tiene saltos de línea explícitos (himnos del usuario), respetarlos
+  const lineasExplicitas = texto.split("\n").filter((l) => l.trim());
+  if (lineasExplicitas.length > 1) {
+    if (lineasExplicitas.length <= maxLineas) return [texto];
+    const slides = [];
+    for (let i = 0; i < lineasExplicitas.length; i += maxLineas)
+      slides.push(lineasExplicitas.slice(i, i + maxLineas).join("\n"));
+    return slides;
+  }
+
+  // Estimar caracteres por línea según el tamaño de fuente y ancho típico (1766px útil)
+  // Fórmula: ancho_util / (px_fuente * 0.52) donde 0.52 ≈ ratio char-width/font-size
+  const px = FONT_CLASS_PX[fontClass] || 96;
+  const charsPerLine = Math.max(15, Math.round(1766 / (px * 0.52)));
+
+  // Dividir en líneas visuales por word-wrap
+  const words = texto.trim().split(/\s+/);
+  const lineas = [];
+  let lineActual = "";
+  for (const word of words) {
+    if (!lineActual) {
+      lineActual = word;
+    } else if ((lineActual + " " + word).length <= charsPerLine) {
+      lineActual += " " + word;
+    } else {
+      lineas.push(lineActual);
+      lineActual = word;
+    }
+  }
+  if (lineActual) lineas.push(lineActual);
+
+  // Si el texto completo cabe en una sola diapositiva, no dividir
+  if (lineas.length <= maxLineas) return [texto];
+
+  // Agrupar líneas en diapositivas
+  const slides = [];
+  for (let i = 0; i < lineas.length; i += maxLineas)
+    slides.push(lineas.slice(i, i + maxLineas).join("\n"));
+  return slides;
+}
+
 
 const HimnoDetalle = () => {
   const {id, numero} = useParams();
@@ -39,10 +84,51 @@ const HimnoDetalle = () => {
   const [historial, setHistorial] = useState([0]);
   const [posicionHistorial, setPosicionHistorial] = useState(0);
   const [toasts, setToasts] = useState([]);
-  const [tamano, setTamano] = useState(() => {
-    const n = parseInt(localStorage.getItem("himno-font-size") || "2", 10);
-    return Number.isFinite(n) && n >= 0 && n < TAMANOS_TEXTO.length ? n : 2;
+  const [fontClassProyector, setFontClassProyector] = useState("text-6xl");
+  const [autoSplit, setAutoSplit] = useState(
+    () => localStorage.getItem("himno-auto-split") === "true",
+  );
+  const [lineasPorSlide, setLineasPorSlide] = useState(() => {
+    const n = parseInt(localStorage.getItem("himno-split-lines") || "3", 10);
+    return [2, 3, 4].includes(n) ? n : 3;
   });
+  // dbId: para himnos base del JSON guardados como copia personal en DB
+  const [dbId, setDbId] = useState(id || null);
+  const [editingParrafo, setEditingParrafo] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+
+  // Lista plana de diapositivas (cada párrafo puede generar varias)
+  const slides = useMemo(() => {
+    if (!himno) return [];
+    return himno.parrafos.flatMap((texto, parrafoIdx) => {
+      // Los párrafos con \n explícitos (editados) SIEMPRE se dividen,
+      // aunque el modo auto-split esté apagado.
+      const tieneNewlines = texto.includes("\n");
+      const partes =
+        autoSplit || tieneNewlines
+          ? splitParrafoEnSlides(texto, lineasPorSlide, fontClassProyector)
+          : [texto];
+      return partes.map((slideTexto, slideIdx) => ({
+        parrafoIdx,
+        slideIdx,
+        texto: slideTexto,
+        total: partes.length,
+      }));
+    });
+  }, [himno, autoSplit, lineasPorSlide, fontClassProyector]);
+
+  // ¿Algún párrafo tiene saltos explícitos? (para el label del sidebar)
+  const hayNewlinesExplicitos = himno?.parrafos?.some((p) => p.includes("\n")) ?? false;
+
+  // Mantener selectedParrafo válido si los slides cambian
+  useEffect(() => {
+    if (slides.length > 0 && selectedParrafo >= slides.length) {
+      setSelectedParrafo(0);
+      setHistorial([0]);
+      setPosicionHistorial(0);
+    }
+  }, [slides.length]);
 
   const API_BASE = "http://localhost:3001";
   const navigate = useNavigate();
@@ -140,21 +226,25 @@ const HimnoDetalle = () => {
     const cargarHimno = async () => {
       try {
         if (numero) {
-          if (state?.tipo === "vidaCristiana") {
-            const h = vidacristianaData.find(
-              (h) => h.numero.toString() === numero,
-            );
-            if (h) {
-              setHimno(h);
-              return;
-            }
+          const fuenteKey = state?.tipo === "vidaCristiana" ? "vidaCristiana" : "moravo";
+          const jsonData  = state?.tipo === "vidaCristiana" ? vidacristianaData : himnosData;
+          const hBase     = jsonData.find((h) => h.numero.toString() === numero);
+          if (!hBase) throw new Error("Himno no encontrado");
+
+          // Buscar en la DB si el usuario editó este himno antes
+          const todosDB = await window.electron?.obtenerHimnos?.() ?? [];
+          const hDB = todosDB.find(
+            (d) => String(d.numero) === numero &&
+                   d.titulo === hBase.titulo &&
+                   d.fuente === fuenteKey,
+          );
+          if (hDB) {
+            setDbId(hDB.id);
+            setHimno({...hBase, parrafos: hDB.letra});
           } else {
-            const h = himnosData.find((h) => h.numero.toString() === numero);
-            if (h) {
-              setHimno(h);
-              return;
-            }
+            setHimno(hBase);
           }
+          return;
         }
         if (id) {
           const himnoDB = await window.electron?.obtenerHimnoPorId(id);
@@ -176,11 +266,18 @@ const HimnoDetalle = () => {
     cargarHimno();
   }, [id, numero, state]);
 
+  useEffect(() => {
+    window.electron?.obtenerConfiguracion?.()
+      .then((cfg) => { if (cfg?.fontSizeParrafo) setFontClassProyector(cfg.fontSizeParrafo); })
+      .catch(() => {});
+  }, []);
+
+
   const proyectarHimno = () => {
     if (himno && window.electron) {
       window.electron.abrirProyector();
       window.electron.enviarHimno({
-        parrafo: himno.parrafos[selectedParrafo],
+        parrafo: slides[selectedParrafo]?.texto ?? "",
         titulo: himno.titulo,
         numero: himno.numero,
         origen: "himno",
@@ -203,26 +300,87 @@ const HimnoDetalle = () => {
     }
   };
 
-  const cambiarTamano = async (delta) => {
-    const nuevo = Math.max(
-      0,
-      Math.min(TAMANOS_TEXTO.length - 1, tamano + delta),
+
+  const abrirEdicion = (parrafoIdx) => {
+    if (!himno) return;
+    setEditText(himno.parrafos[parrafoIdx]);
+    setEditingParrafo(parrafoIdx);
+  };
+
+  const guardarEdicion = async () => {
+    if (editingParrafo === null || !himno) return;
+    const textoNuevo = editText.trim();
+    if (!textoNuevo) return;
+    setGuardandoEdicion(true);
+
+    const nuevosParrafos = himno.parrafos.map((p, i) =>
+      i === editingParrafo ? textoNuevo : p,
     );
-    setTamano(nuevo);
-    localStorage.setItem("himno-font-size", String(nuevo));
+
+    const fuenteKey = state?.tipo === "vidaCristiana" ? "vidaCristiana" : "moravo";
+
     try {
-      await window.electron?.actualizarConfiguracionPorClave?.(
-        "fontSize.parrafo",
-        TAMANOS_TEXTO[nuevo].proyector,
-      );
-    } catch {}
-    if (isProyectando && himno) {
-      window.electron.enviarHimno({
-        parrafo: himno.parrafos[selectedParrafo],
-        titulo: himno.titulo,
-        numero: himno.numero,
-        origen: "himno",
+      if (dbId) {
+        await window.electron.actualizarHimno({
+          id: dbId,
+          numero: himno.numero,
+          titulo: himno.titulo,
+          letra: nuevosParrafos,
+          favorito: favoritos.has(himno.numero),
+          fuente: id ? "personal" : fuenteKey,
+        });
+        addToast("Párrafo guardado", "success");
+      } else {
+        // Himno base → guardar copia en DB con fuente correcta
+        const res = await window.electron.agregarHimno({
+          numero: himno.numero,
+          titulo: himno.titulo,
+          letra: nuevosParrafos,
+          favorito: false,
+          fuente: fuenteKey,
+        });
+        if (!res?.success) throw new Error(res?.error || "Error al guardar");
+        setDbId(res.id);
+        addToast("Versión personal guardada en tu colección", "success");
+      }
+
+      // Recalcular slides con el nuevo texto para sincronizar proyector y navegación
+      const nuevosSlides = nuevosParrafos.flatMap((texto, pIdx) => {
+        const tieneNL = texto.includes("\n");
+        const partes = (autoSplit || tieneNL)
+          ? splitParrafoEnSlides(texto, lineasPorSlide, fontClassProyector)
+          : [texto];
+        return partes.map((slideTexto, sIdx) => ({
+          parrafoIdx: pIdx, slideIdx: sIdx, texto: slideTexto, total: partes.length,
+        }));
       });
+
+      // Ir al primer slide del párrafo editado
+      const idxDestino = Math.max(
+        0,
+        nuevosSlides.findIndex((s) => s.parrafoIdx === editingParrafo),
+      );
+
+      setHimno({...himno, parrafos: nuevosParrafos});
+      setSelectedParrafo(idxDestino);
+      setHistorial([idxDestino]);
+      setPosicionHistorial(0);
+
+      // Actualizar proyector inmediatamente si está activo
+      if (isProyectando && window.electron) {
+        window.electron.enviarHimno({
+          parrafo: nuevosSlides[idxDestino]?.texto ?? "",
+          titulo: himno.titulo,
+          numero: himno.numero,
+        });
+      }
+
+      setEditingParrafo(null);
+    } catch (err) {
+      console.error("Error guardando edición:", err);
+      addToast("No se pudo guardar el párrafo", "error");
+    } finally {
+      setGuardandoEdicion(false);
     }
   };
 
@@ -279,7 +437,7 @@ const HimnoDetalle = () => {
     setSelectedParrafo(indice);
     if (window.electron && isProyectando) {
       window.electron.enviarHimno({
-        parrafo: himno.parrafos[indice],
+        parrafo: slides[indice]?.texto ?? "",
         titulo: himno.titulo,
         numero: himno.numero,
       });
@@ -303,6 +461,7 @@ const HimnoDetalle = () => {
   };
 
   const handleKeyDown = (e) => {
+    if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
     if (!himno) return;
     switch (e.key) {
       case "Escape":
@@ -320,9 +479,7 @@ const HimnoDetalle = () => {
       case "ArrowDown":
       case "ArrowRight":
         e.preventDefault();
-        cambiarParrafo(
-          Math.min(himno.parrafos.length - 1, selectedParrafo + 1),
-        );
+        cambiarParrafo(Math.min(slides.length - 1, selectedParrafo + 1));
         break;
       case "Home":
         e.preventDefault();
@@ -330,7 +487,7 @@ const HimnoDetalle = () => {
         break;
       case "End":
         e.preventDefault();
-        cambiarParrafo(himno.parrafos.length - 1);
+        cambiarParrafo(slides.length - 1);
         break;
       default:
         break;
@@ -343,8 +500,8 @@ const HimnoDetalle = () => {
   }, [himno, selectedParrafo, isProyectando, historial, posicionHistorial]);
 
   const esFavorito = favoritos.has(himno?.numero);
-  const progreso = himno
-    ? ((selectedParrafo + 1) / Math.max(1, himno.parrafos.length)) * 100
+  const progreso = slides.length
+    ? ((selectedParrafo + 1) / slides.length) * 100
     : 0;
 
   /* ─── Estado de carga / error ─── */
@@ -470,32 +627,6 @@ const HimnoDetalle = () => {
 
             <div className="w-px h-5 bg-white/10 mx-1" />
 
-            {/* Tamaño de texto */}
-            <div
-              className="flex items-center shrink-0"
-              title="Tamaño del texto proyectado"
-            >
-              <button
-                onClick={() => cambiarTamano(-1)}
-                disabled={tamano === 0}
-                className="w-7 h-8 xl:w-8 xl:h-9 rounded-l-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-25 disabled:cursor-not-allowed text-white/60 hover:text-white text-[10px] font-bold"
-              >
-                A-
-              </button>
-              <div className="h-8 xl:h-9 px-1.5 bg-white/5 border-y border-white/8 flex items-center text-[10px] text-white/35 font-mono tabular-nums">
-                {tamano + 1}
-              </div>
-              <button
-                onClick={() => cambiarTamano(1)}
-                disabled={tamano === TAMANOS_TEXTO.length - 1}
-                className="w-7 h-8 xl:w-8 xl:h-9 rounded-r-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center transition-colors disabled:opacity-25 disabled:cursor-not-allowed text-white/60 hover:text-white text-[11px] font-bold"
-              >
-                A+
-              </button>
-            </div>
-
-            <div className="w-px h-5 bg-white/10 mx-1" />
-
             {/* Limpiar */}
             <button
               onClick={limpiarProyeccion}
@@ -533,71 +664,158 @@ const HimnoDetalle = () => {
           <aside className="order-2 md:order-1 md:col-span-4 xl:col-span-3 min-h-0 flex flex-col max-h-[40vh] md:max-h-none">
             <div className="h-full min-h-0 rounded-2xl border border-white/8 bg-white/3 backdrop-blur-sm flex flex-col overflow-hidden">
               {/* Cabecera sidebar */}
-              <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between shrink-0">
+              <div className="px-3 py-2.5 border-b border-white/6 flex items-center justify-between gap-2 shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-white/8 border border-white/8 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-lg bg-white/8 border border-white/8 flex items-center justify-center shrink-0">
                     <FaMusic className="text-[9px] text-white/50" />
                   </div>
                   <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">
-                    Párrafos
+                    {autoSplit || hayNewlinesExplicitos ? "Diapositivas" : "Párrafos"}
                   </span>
                 </div>
-                <span className="text-xs text-white/30 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">
-                  {selectedParrafo + 1} / {himno.parrafos.length}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Toggle auto-split */}
+                  <button
+                    onClick={() => {
+                      const next = !autoSplit;
+                      setAutoSplit(next);
+                      setSelectedParrafo(0);
+                      setHistorial([0]);
+                      setPosicionHistorial(0);
+                      localStorage.setItem("himno-auto-split", String(next));
+                    }}
+                    title={autoSplit ? "Desactivar auto-dividir" : "Activar auto-dividir (como Holilics)"}
+                    className={`h-6 px-2 rounded-md text-[10px] font-semibold border transition-all ${
+                      autoSplit
+                        ? "bg-violet-500/20 border-violet-500/40 text-violet-300"
+                        : "bg-white/5 border-white/10 text-white/30 hover:text-white/50"
+                    }`}
+                  >
+                    ÷
+                  </button>
+                  {/* Selector de frases cuando autoSplit está activo */}
+                  {autoSplit && (
+                    <div className="flex items-center gap-0.5">
+                      {[2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => {
+                            setLineasPorSlide(n);
+                            setSelectedParrafo(0);
+                            setHistorial([0]);
+                            setPosicionHistorial(0);
+                            localStorage.setItem("himno-split-lines", String(n));
+                          }}
+                          className={`w-5 h-5 rounded text-[10px] font-bold border transition-all ${
+                            lineasPorSlide === n
+                              ? "bg-violet-500 border-violet-400/50 text-white"
+                              : "bg-white/5 border-white/10 text-white/35 hover:text-white/60"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <span className="text-xs text-white/30 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full tabular-nums">
+                    {(() => {
+                      const s = slides[selectedParrafo];
+                      if (!s) return "—";
+                      return s.total > 1
+                        ? `${s.parrafoIdx + 1}/${s.slideIdx + 1}`
+                        : `${s.parrafoIdx + 1}`;
+                    })()} · {slides.filter((s) => s.slideIdx === 0).length}P
+                  </span>
+                </div>
               </div>
 
               {/* Lista */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5">
-                {himno.parrafos.map((parrafo, index) => {
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+                {slides.map((slide, index) => {
                   const isActive = selectedParrafo === index;
+                  const showSep =
+                    autoSplit && slide.total > 1 && slide.slideIdx === 0 && slide.parrafoIdx > 0;
                   return (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => cambiarParrafo(index)}
-                      className={`w-full text-left rounded-xl border transition-all group ${
-                        isActive
-                          ? "border-emerald-500/35 bg-gradient-to-br from-emerald-500/12 to-emerald-600/6 shadow-lg shadow-emerald-900/20"
-                          : "border-white/6 bg-white/3 hover:bg-white/6 hover:border-white/12"
-                      }`}
-                    >
-                      <div className="px-3 py-2.5">
-                        <div className="flex items-center gap-2.5 mb-1.5">
-                          {/* Número */}
-                          <span
-                            className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold border transition-colors ${
-                              isActive
-                                ? "bg-emerald-500 border-emerald-400/50 text-white"
-                                : "bg-white/6 border-white/10 text-white/50 group-hover:text-white/70"
-                            }`}
-                          >
-                            {index + 1}
+                    <div key={index}>
+                      {/* Separador entre grupos de párrafos */}
+                      {showSep && (
+                        <div className="flex items-center gap-1.5 px-2 py-1">
+                          <div className="h-px flex-1 bg-white/6" />
+                          <span className="text-[9px] text-white/20 font-mono uppercase tracking-widest">
+                            P{slide.parrafoIdx + 1}
                           </span>
-                          <span
-                            className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                              isActive
-                                ? "text-emerald-300/80"
-                                : "text-white/30 group-hover:text-white/40"
-                            }`}
-                          >
-                            Párrafo
-                          </span>
-                          {isActive && isProyectando && (
-                            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          )}
+                          <div className="h-px flex-1 bg-white/6" />
                         </div>
-                        <p
-                          className={`text-xs leading-relaxed line-clamp-3 transition-colors ${
-                            isActive
-                              ? "text-white/85"
-                              : "text-white/45 group-hover:text-white/60"
-                          }`}
-                        >
-                          {parrafo}
-                        </p>
-                      </div>
-                    </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => cambiarParrafo(index)}
+                        className={`w-full text-left rounded-xl border transition-all group ${
+                          isActive
+                            ? "border-emerald-500/35 bg-gradient-to-br from-emerald-500/12 to-emerald-600/6 shadow-lg shadow-emerald-900/20"
+                            : "border-white/6 bg-white/3 hover:bg-white/6 hover:border-white/12"
+                        }`}
+                      >
+                        <div className="px-3 py-2.5">
+                          <div className="flex items-center gap-2.5 mb-1.5">
+                            <span
+                              className={`shrink-0 h-6 rounded-lg flex items-center justify-center font-bold border transition-colors tabular-nums ${
+                                slide.total > 1
+                                  ? "min-w-[2.6rem] px-1 text-[9px]"
+                                  : "w-6 text-[11px]"
+                              } ${
+                                isActive
+                                  ? "bg-emerald-500 border-emerald-400/50 text-white"
+                                  : "bg-white/6 border-white/10 text-white/50 group-hover:text-white/70"
+                              }`}
+                            >
+                              {slide.total > 1
+                                ? `${slide.parrafoIdx + 1}/${slide.slideIdx + 1}`
+                                : slide.parrafoIdx + 1}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                                isActive
+                                  ? "text-emerald-300/80"
+                                  : "text-white/30 group-hover:text-white/40"
+                              }`}
+                            >
+                              {slide.total > 1
+                                ? `parte ${slide.slideIdx + 1} de ${slide.total}`
+                                : "Párrafo"}
+                            </span>
+                            <span className="ml-auto flex items-center gap-1">
+                              {isActive && isProyectando && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              )}
+                              {/* Botón editar: solo en el primer slide de cada párrafo */}
+                              {slide.slideIdx === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirEdicion(slide.parrafoIdx);
+                                  }}
+                                  title="Editar párrafo"
+                                  className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded flex items-center justify-center text-white/40 hover:text-amber-300 hover:bg-amber-500/15 transition-all"
+                                >
+                                  <FaPen className="text-[8px]" />
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                          <p
+                            className={`text-xs leading-relaxed line-clamp-3 transition-colors ${
+                              isActive
+                                ? "text-white/85"
+                                : "text-white/45 group-hover:text-white/60"
+                            }`}
+                          >
+                            {slide.texto}
+                          </p>
+                        </div>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -605,21 +823,15 @@ const HimnoDetalle = () => {
               {/* Footer del sidebar: navegación rápida */}
               <div className="px-3 py-2.5 border-t border-white/6 flex items-center justify-between gap-2 shrink-0">
                 <button
-                  onClick={() =>
-                    cambiarParrafo(Math.max(0, selectedParrafo - 1))
-                  }
+                  onClick={() => cambiarParrafo(Math.max(0, selectedParrafo - 1))}
                   disabled={selectedParrafo === 0}
                   className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-white/50 hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-medium"
                 >
                   <FaArrowLeft className="text-[10px]" /> Anterior
                 </button>
                 <button
-                  onClick={() =>
-                    cambiarParrafo(
-                      Math.min(himno.parrafos.length - 1, selectedParrafo + 1),
-                    )
-                  }
-                  disabled={selectedParrafo === himno.parrafos.length - 1}
+                  onClick={() => cambiarParrafo(Math.min(slides.length - 1, selectedParrafo + 1))}
+                  disabled={selectedParrafo === slides.length - 1}
                   className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-white/50 hover:text-white/80 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-medium"
                 >
                   Siguiente <FaArrowRight className="text-[10px]" />
@@ -641,7 +853,7 @@ const HimnoDetalle = () => {
               <div className="relative z-10 px-4 xl:px-5 py-2.5 flex items-center justify-between shrink-0 border-b border-white/6 bg-white/3">
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1 flex-wrap">
-                    {himno.parrafos.map((_, i) => (
+                    {slides.map((s, i) => (
                       <button
                         key={i}
                         onClick={() => cambiarParrafo(i)}
@@ -650,12 +862,22 @@ const HimnoDetalle = () => {
                             ? "bg-emerald-400 w-6"
                             : "bg-white/20 hover:bg-white/40 w-1.5"
                         }`}
-                        title={`Párrafo ${i + 1}`}
+                        title={
+                          s.total > 1
+                            ? `Párrafo ${s.parrafoIdx + 1}, parte ${s.slideIdx + 1}/${s.total}`
+                            : `Párrafo ${s.parrafoIdx + 1}`
+                        }
                       />
                     ))}
                   </div>
                   <span className="text-xs text-white/40 font-medium tabular-nums">
-                    {selectedParrafo + 1} / {himno.parrafos.length}
+                    {(() => {
+                      const s = slides[selectedParrafo];
+                      if (!s) return "—";
+                      return s.total > 1
+                        ? `${s.parrafoIdx + 1}/${s.slideIdx + 1}`
+                        : `${s.parrafoIdx + 1}`;
+                    })()} · {slides.filter((s) => s.slideIdx === 0).length}P
                   </span>
                 </div>
 
@@ -671,12 +893,12 @@ const HimnoDetalle = () => {
 
               {/* Card interna con gradiente para el texto */}
               <div className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-4 xl:px-8 py-3 xl:py-5 overflow-hidden">
-                <div className="w-full max-w-4xl mx-auto min-h-0 flex flex-col">
-                  <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-700/40 via-slate-800/30 to-slate-700/20 shadow-inner shadow-black/30 px-5 sm:px-8 xl:px-12 py-5 xl:py-8 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-5xl mx-auto min-h-0 flex flex-col">
+                  <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-700/40 via-slate-800/30 to-slate-700/20 shadow-inner shadow-black/30 px-5 sm:px-8 xl:px-12 py-5 xl:py-8 min-h-0 overflow-hidden flex items-center justify-center">
                     <p
-                      className={`whitespace-pre-line text-center ${TAMANOS_TEXTO[tamano].local} font-medium leading-relaxed xl:leading-loose text-white/93 tracking-wide drop-shadow-sm`}
+                      className="whitespace-pre-line text-center text-xl xl:text-2xl 2xl:text-3xl font-medium leading-relaxed xl:leading-loose text-white/93 tracking-wide drop-shadow-sm"
                     >
-                      {himno.parrafos[selectedParrafo]}
+                      {slides[selectedParrafo]?.texto ?? ""}
                     </p>
                   </div>
                 </div>
@@ -709,6 +931,80 @@ const HimnoDetalle = () => {
           </div>
         </div>
       </main>
+
+      {/* ── MODAL EDITAR PÁRRAFO ── */}
+      {editingParrafo !== null && (
+        <div
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setEditingParrafo(null); }}
+        >
+          <div className="bg-[#0d1117] border border-white/12 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-white/8 flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <FaPen className="text-amber-400 text-xs" />
+                  <span className="text-sm font-semibold text-white">
+                    Editar párrafo {editingParrafo + 1}
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/35 leading-relaxed">
+                  Usa <kbd className="px-1 py-0.5 rounded bg-white/8 border border-white/12 font-mono text-white/40">Enter</kbd> para separar líneas manualmente.
+                  {!dbId && (
+                    <span className="ml-1 text-amber-400/70">
+                      Se guardará como tu versión personal.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingParrafo(null)}
+                className="shrink-0 w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+              >
+                <FaTimes className="text-xs" />
+              </button>
+            </div>
+
+            {/* Textarea */}
+            <div className="p-4">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setEditingParrafo(null);
+                  if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); guardarEdicion(); }
+                }}
+                autoFocus
+                rows={6}
+                placeholder="Escribe el texto del párrafo..."
+                className="w-full bg-slate-800/80 border border-white/10 focus:border-amber-500/50 rounded-xl px-4 py-3 text-sm text-white/90 placeholder-white/20 resize-none focus:outline-none transition-colors leading-relaxed font-medium"
+              />
+              <p className="text-[10px] text-white/20 mt-1.5">
+                <kbd className="px-1 py-0.5 rounded bg-white/6 border border-white/10 font-mono">Ctrl+Enter</kbd> para guardar · <kbd className="px-1 py-0.5 rounded bg-white/6 border border-white/10 font-mono">Esc</kbd> para cancelar
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 pb-4 flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setEditingParrafo(null)}
+                disabled={guardandoEdicion}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-xs text-white/60 hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarEdicion}
+                disabled={guardandoEdicion || !editText.trim()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/90 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-400/30 text-xs font-semibold text-white transition-all"
+              >
+                <FaSave className="text-[10px]" />
+                {guardandoEdicion ? "Guardando…" : "Guardar párrafo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .line-clamp-3 {

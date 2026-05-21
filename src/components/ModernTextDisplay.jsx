@@ -24,9 +24,10 @@ const wordVariants = (stagger) => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitulo = true}) => {
+const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitulo = true, maxFontPx: maxFontPxProp = null}) => {
   const textBoxRef   = useRef(null);
   const paragraphRef = useRef(null);
+  const measureRef   = useRef(null); // hidden clone for accurate font measurement
   const [fontSizePx, setFontSizePx] = useState(null);
 
   // ── Texto visible + clave de animación ───────────────────────────────────
@@ -50,45 +51,53 @@ const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitul
   }, [parrafo, titulo]);
 
   // ── Auto-sizing ───────────────────────────────────────────────────────────
+  // tamañoParrafo: reflects the user's chosen class (used as useLayoutEffect trigger)
   const tamañoParrafo = useMemo(() => {
-    const len = display.parrafo?.length || 0;
-    if (len > 450) return "text-4xl";
-    if (len > 320) return "text-5xl";
-    if (len > 220) return "text-6xl";
-    return configuracion?.fontSize?.parrafo || "text-7xl";
-  }, [display.parrafo, configuracion]);
+    return configuracion?.fontSize?.parrafo || "text-8xl";
+  }, [configuracion]);
 
   const ajustar = () => {
-    const box = textBoxRef.current;
-    const p   = paragraphRef.current;
-    if (!box || !p) return;
-    if (!display.parrafo?.trim()) { p.style.fontSize = ""; setFontSizePx(null); return; }
+    const box     = textBoxRef.current;
+    const measure = measureRef.current;
+    if (!box || !measure) return;
+    if (!display.parrafo?.trim()) { measure.style.fontSize = ""; setFontSizePx(null); return; }
 
-    p.style.fontSize = "";
-    const base = parseFloat(window.getComputedStyle(p).fontSize || "0");
-    if (!isFinite(base) || base <= 0) return;
+    // Margen de seguridad: el elemento visual tiene marginRight en cada palabra
+    // lo que causa que envuelva antes que el elemento de medición oculto.
+    // Se reduce avail un 10% para compensar y garantizar que el texto quepa.
+    const rawAvail = box.clientHeight;
+    if (rawAvail <= 0) return;
+    const avail = Math.max(0, rawAvail * 0.90 - 2);
 
-    const avail     = Math.max(0, box.clientHeight - 2);
-    const lines     = Math.max(1, String(display.parrafo).split("\n").filter(Boolean).length);
-    const heightMax = (avail / (lines * 1.3)) * 0.92;
-    const cap       = lines <= 1 ? 104 : lines <= 2 ? 98 : lines <= 3 ? 92 : lines <= 4 ? 86 : 80;
-    const maxPx     = Math.min(140, Math.max(28, Math.max(base, Math.min(heightMax, cap))));
-    const minPx     = Math.max(22, Math.round(maxPx * 0.42));
+    // Tamaño máximo: usa el valor enviado directamente desde HimnoDetalle (más confiable)
+    // y como fallback usa la configuración del sistema.
+    const CLASS_PX = {
+      "text-3xl": 30, "text-4xl": 36, "text-5xl": 48, "text-6xl": 60,
+      "text-7xl": 72, "text-8xl": 96, "text-9xl": 128, "text-10xl": 160,
+    };
+    const configClass = configuracion?.fontSize?.parrafo || "text-8xl";
+    // Cap dinámico: nunca superar 25% de la altura disponible del contenedor
+    // para que en pantallas grandes (2K/4K) el texto tampoco salga de su área.
+    const hardCap = Math.max(40, Math.round(rawAvail * 0.25));
+    const maxPx  = Math.min(hardCap, Math.max(40,
+      maxFontPxProp ?? CLASS_PX[configClass] ?? 96
+    ));
+    const minPx  = Math.max(14, Math.round(maxPx * 0.30));
 
-    p.style.fontSize = `${maxPx}px`;
-    if (p.scrollHeight <= avail) { setFontSizePx(maxPx); return; }
+    measure.style.fontSize = `${maxPx}px`;
+    if (measure.scrollHeight <= avail) { setFontSizePx(maxPx); return; }
 
     let lo = minPx, hi = maxPx, best = minPx;
-    for (let i = 0; i < 20 && hi - lo > 0.5; i++) {
+    for (let i = 0; i < 32 && hi - lo > 0.3; i++) {
       const mid = (lo + hi) / 2;
-      p.style.fontSize = `${mid}px`;
-      if (p.scrollHeight <= avail) { best = mid; lo = mid; } else hi = mid;
+      measure.style.fontSize = `${mid}px`;
+      if (measure.scrollHeight <= avail) { best = mid; lo = mid; } else hi = mid;
     }
     setFontSizePx(best);
   };
 
   // Sincrono (sin RAF) para que el tamaño esté listo antes del paint + animación
-  useLayoutEffect(ajustar, [display.parrafo, display.titulo, mostrarTitulo, tamañoParrafo]);
+  useLayoutEffect(ajustar, [display.parrafo, display.titulo, mostrarTitulo, tamañoParrafo, maxFontPxProp]);
   useEffect(() => {
     window.addEventListener("resize", ajustar);
     return () => window.removeEventListener("resize", ajustar);
@@ -115,7 +124,7 @@ const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitul
               transition: {duration: 0.45, ease: "easeOut"}}}
             exit={{opacity: 0, y: -12, filter: "blur(5px)",
               transition: EXIT_TRANSITION}}
-            className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-6 tracking-wide`}
+            className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-[2vh] tracking-wide shrink-0 overflow-hidden break-words max-h-[35%]`}
             style={{color: configuracion?.colorSecundario || "#ffffff"}}
           >
             {display.titulo}
@@ -126,6 +135,24 @@ const ModernTextDisplay = ({titulo, parrafo, numero, configuracion, mostrarTitul
       {/* Párrafo con stagger de palabras */}
       <div className="relative flex-1 min-h-0 flex flex-col">
         <div ref={textBoxRef} className="relative z-10 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+          {/* Hidden measurement element — always reflects current text without animation interference */}
+          <p
+            ref={measureRef}
+            className={`${tamañoParrafo} font-semibold`}
+            aria-hidden="true"
+            style={{
+              position:    "absolute",
+              visibility:  "hidden",
+              top:         0,
+              left:        0,
+              right:       0,
+              lineHeight:  1.3,
+              whiteSpace:  "pre-line",
+              pointerEvents: "none",
+            }}
+          >
+            {display.parrafo}
+          </p>
           <div className="w-full">
             <p
               ref={paragraphRef}

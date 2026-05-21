@@ -10,7 +10,10 @@ import {
   FaSave,
   FaTimes,
   FaPlay,
+  FaPause,
   FaStop,
+  FaVolumeUp,
+  FaVolumeMute,
   FaArrowUp,
   FaArrowDown,
   FaMusic,
@@ -23,6 +26,10 @@ import {
   FaCalendarAlt,
   FaList,
   FaRegStickyNote,
+  FaPhotoVideo,
+  FaImage,
+  FaFilm,
+  FaUpload,
 } from "react-icons/fa";
 import {IoClose, IoSearch} from "react-icons/io5";
 
@@ -74,6 +81,10 @@ const ItemIcon = ({item}) => {
   }
   if (item.tipo === "versiculo")
     return <FaBible className="text-indigo-400 text-xs shrink-0" />;
+  if (item.tipo === "multimedia")
+    return item.tipoMedia === "video"
+      ? <FaFilm className="text-pink-400 text-xs shrink-0" />
+      : <FaImage className="text-sky-400 text-xs shrink-0" />;
   return <FaRegStickyNote className="text-yellow-400 text-xs shrink-0" />;
 };
 
@@ -81,6 +92,7 @@ const itemLabel = (item) => {
   if (item.tipo === "himno") return `#${item.numeroHimno} ${item.tituloHimno}`;
   if (item.tipo === "versiculo")
     return `${item.libroNombre} ${item.capitulo}:${item.versiculo}`;
+  if (item.tipo === "multimedia") return item.nombre || "Multimedia";
   return item.texto?.substring(0, 50) || "Nota";
 };
 
@@ -91,10 +103,9 @@ const itemSub = (item) => {
     return "Himno Moravo";
   }
   if (item.tipo === "versiculo")
-    return (
-      (item.texto || "").substring(0, 70) +
-      ((item.texto || "").length > 70 ? "…" : "")
-    );
+    return (item.texto || "").substring(0, 70) + ((item.texto || "").length > 70 ? "…" : "");
+  if (item.tipo === "multimedia")
+    return item.tipoMedia === "video" ? "Video" : "Imagen";
   return "Nota / Separador";
 };
 
@@ -113,8 +124,17 @@ export default function Presentaciones() {
   const [proyectando, setProyectando] = useState(false);
   const [panelAbierto, setPanelAbierto] = useState(true);
 
-  // Modals: null | "himno" | "versiculo" | "nota"
+  // Modals: null | "himno" | "versiculo" | "nota" | "multimedia"
   const [modal, setModal] = useState(null);
+
+  // Controles de video del proyector
+  const [videoPausado, setVideoPausado] = useState(false);
+  const [videoVolumen, setVideoVolumen] = useState(1);
+
+  // Modal multimedia
+  const [fondosDisponibles, setFondosDisponibles] = useState([]);
+  const [cargandoFondos, setCargandoFondos] = useState(false);
+  const [filtroMedia, setFiltroMedia] = useState("todos"); // "todos" | "imagen" | "video"
   const [busquedaHimno, setBusquedaHimno] = useState("");
   const [tipoHimno, setTipoHimno] = useState("moravo");
   const [himnosPersonalizados, setHimnosPersonalizados] = useState([]);
@@ -233,11 +253,6 @@ export default function Presentaciones() {
           const p = parrafoActivo + 1;
           setParrafoActivo(p);
           if (proyectando) enviarHimno(item, p);
-        } else if (itemActivo < items.length - 1) {
-          const ni = itemActivo + 1;
-          setItemActivo(ni);
-          setParrafoActivo(0);
-          if (proyectando) enviarItem(items[ni], 0);
         }
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -290,6 +305,14 @@ export default function Presentaciones() {
         numero: `${item.capitulo}:${item.versiculo}`,
         origen: "biblia",
       });
+    } else if (item.tipo === "multimedia") {
+      // Proyectar imagen o video a pantalla completa en el proyector
+      window.electron.proyectarMultimedia?.({
+        tipo: item.tipoMedia,
+        url: item.url,
+        nombre: item.nombre,
+        id: item.fondoId,
+      });
     } else {
       window.electron.enviarVersiculo({
         parrafo: item.texto || "",
@@ -310,6 +333,10 @@ export default function Presentaciones() {
     setProyectando(false);
   };
 
+  const sendControlVideo = (action, extra = {}) => {
+    window.electron?.send?.("proyector-control-multimedia", {action, ...extra});
+  };
+
   const seleccionarYProyectar = (idx) => {
     const item = orden?.items?.[idx];
     if (!item) return;
@@ -317,6 +344,10 @@ export default function Presentaciones() {
     setParrafoActivo(0);
     enviarItem(item, 0);
     setProyectando(true);
+    if (item.tipo === "multimedia" && item.tipoMedia === "video") {
+      setVideoPausado(false);
+      setVideoVolumen(1);
+    }
   };
 
   // ── CRUD órdenes
@@ -479,6 +510,46 @@ export default function Presentaciones() {
     setItemsEdit((p) => [...p, {id: genId(), tipo: "nota", texto: notaTexto}]);
     setNotaTexto("");
     setModal(null);
+  };
+
+  // ── Agregar multimedia
+  const abrirModalMultimedia = async () => {
+    setModal("multimedia");
+    setFiltroMedia("todos");
+    setCargandoFondos(true);
+    try {
+      const data = await window.electron?.obtenerFondos?.();
+      setFondosDisponibles(data || []);
+    } catch { setFondosDisponibles([]); }
+    finally { setCargandoFondos(false); }
+  };
+
+  const agregarMultimedia = (fondo) => {
+    setItemsEdit((p) => [
+      ...p,
+      {
+        id: genId(),
+        tipo: "multimedia",
+        url: fondo.url,
+        tipoMedia: fondo.tipo,   // "imagen" | "video"
+        nombre: fondo.nombre,
+        fondoId: fondo.id,
+      },
+    ]);
+    mostrarToast(`"${fondo.nombre}" agregado`);
+    setModal(null);
+  };
+
+  const subirYAgregarMultimedia = async () => {
+    try {
+      const res = await window.electron?.subirFondo?.();
+      if (res) {
+        // Recargar fondos para obtener el nuevo
+        const data = await window.electron?.obtenerFondos?.();
+        setFondosDisponibles(data || []);
+        mostrarToast("Archivo subido. Selecciónalo para agregarlo.");
+      }
+    } catch { mostrarToast("Error al subir el archivo", "error"); }
   };
 
   // ── Libros filtrados para selector versículo
@@ -725,6 +796,14 @@ export default function Presentaciones() {
                         {itemSub(item)}
                       </p>
                     </div>
+                    {/* Miniatura multimedia en modo edición */}
+                    {item.tipo === "multimedia" && item.url && (
+                      <div className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950" style={{width:52,height:36}}>
+                        {item.tipoMedia === "video"
+                          ? <video src={item.url} className="w-full h-full object-cover" muted />
+                          : <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />}
+                      </div>
+                    )}
                     <div className="flex gap-0.5 shrink-0">
                       <button
                         onClick={() => moverItem(idx, -1)}
@@ -811,6 +890,12 @@ export default function Presentaciones() {
                 >
                   <FaRegStickyNote className="text-[9px]" /> Nota
                 </button>
+                <button
+                  onClick={abrirModalMultimedia}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-600/15 hover:bg-pink-600/25 border border-pink-500/20 text-pink-300 text-xs font-medium transition-colors"
+                >
+                  <FaPhotoVideo className="text-[9px]" /> Multimedia
+                </button>
               </div>
             </div>
           ) : orden ? (
@@ -859,6 +944,14 @@ export default function Presentaciones() {
                             {itemSub(item)}
                           </p>
                         </div>
+                        {/* Miniatura para todos los items multimedia */}
+                        {item.tipo === "multimedia" && item.url && (
+                          <div className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950" style={{width:52,height:36}}>
+                            {item.tipoMedia === "video"
+                              ? <video src={item.url} className="w-full h-full object-cover" muted />
+                              : <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />}
+                          </div>
+                        )}
                         {isActive && proyectando && (
                           <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -869,6 +962,91 @@ export default function Presentaciones() {
                           <FaBroadcastTower className="text-[10px] text-slate-600 shrink-0" />
                         )}
                       </button>
+
+                      {/* Thumbnail multimedia activo */}
+                      {isActive && item.tipo === "multimedia" && item.url && (
+                        <div className="px-3 pb-2.5 space-y-2">
+                          <div className="relative rounded-lg overflow-hidden border border-white/8 bg-slate-950" style={{height:"80px"}}>
+                            {item.tipoMedia === "video" ? (
+                              <video src={item.url} className="w-full h-full object-cover" muted />
+                            ) : (
+                              <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-3 gap-2">
+                              {item.tipoMedia === "video"
+                                ? <FaFilm className="text-pink-300 text-sm" />
+                                : <FaImage className="text-sky-300 text-sm" />}
+                              <span className="text-xs text-white/80 font-medium">{item.nombre}</span>
+                            </div>
+                          </div>
+
+                          {/* Controles de video */}
+                          {item.tipoMedia === "video" && proyectando && (
+                            <div className="flex items-center gap-2 px-1">
+                              {/* Play / Pause */}
+                              <button
+                                onClick={() => {
+                                  if (videoPausado) {
+                                    sendControlVideo("play");
+                                    setVideoPausado(false);
+                                  } else {
+                                    sendControlVideo("pause");
+                                    setVideoPausado(true);
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/30 flex items-center justify-center text-pink-300 transition-colors"
+                                title={videoPausado ? "Reproducir" : "Pausar"}
+                              >
+                                {videoPausado
+                                  ? <FaPlay className="text-[10px]" />
+                                  : <FaPause className="text-[10px]" />}
+                              </button>
+
+                              {/* Stop (volver al inicio) */}
+                              <button
+                                onClick={() => {
+                                  sendControlVideo("seek", {time: 0});
+                                  sendControlVideo("pause");
+                                  setVideoPausado(true);
+                                }}
+                                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                                title="Reiniciar"
+                              >
+                                <FaStop className="text-[10px]" />
+                              </button>
+
+                              {/* Volumen */}
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <button
+                                  onClick={() => {
+                                    const muted = videoVolumen > 0;
+                                    const newVol = muted ? 0 : 1;
+                                    sendControlVideo("volume", {volume: newVol});
+                                    setVideoVolumen(newVol);
+                                  }}
+                                  className="shrink-0 text-slate-400 hover:text-white transition-colors"
+                                  title={videoVolumen === 0 ? "Activar sonido" : "Silenciar"}
+                                >
+                                  {videoVolumen === 0
+                                    ? <FaVolumeMute className="text-xs" />
+                                    : <FaVolumeUp className="text-xs" />}
+                                </button>
+                                <input
+                                  type="range"
+                                  min="0" max="1" step="0.05"
+                                  value={videoVolumen}
+                                  onChange={(e) => {
+                                    const v = parseFloat(e.target.value);
+                                    setVideoVolumen(v);
+                                    sendControlVideo("volume", {volume: v});
+                                  }}
+                                  className="flex-1 h-1 accent-pink-500 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Sub-párrafos del himno activo */}
                       {isActive &&
@@ -943,19 +1121,14 @@ export default function Presentaciones() {
                         const p = parrafoActivo + 1;
                         setParrafoActivo(p);
                         if (proyectando) enviarHimno(item, p);
-                      } else if (itemActivo < orden.items.length - 1) {
-                        const ni = itemActivo + 1;
-                        setItemActivo(ni);
-                        setParrafoActivo(0);
-                        if (proyectando) enviarItem(orden.items[ni], 0);
                       }
                     }}
-                    disabled={
-                      itemActivo === orden.items.length - 1 &&
-                      (orden.items[itemActivo]?.tipo !== "himno" ||
-                        parrafoActivo ===
-                          (orden.items[itemActivo]?.parrafos?.length || 1) - 1)
-                    }
+                    disabled={(() => {
+                      const item = orden.items[itemActivo];
+                      const pars =
+                        item?.tipo === "himno" ? item.parrafos?.length || 1 : 1;
+                      return parrafoActivo >= pars - 1;
+                    })()}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                   >
                     Siguiente <FaChevronRight className="text-[9px]" />
@@ -1224,6 +1397,117 @@ export default function Presentaciones() {
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Modal: Agregar Multimedia ── */}
+        {modal === "multimedia" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+            onClick={() => setModal(null)}>
+            <div className="bg-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]"
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-pink-500/15 border border-pink-500/25 flex items-center justify-center">
+                    <FaPhotoVideo className="text-pink-400 text-xs" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Agregar Multimedia</h3>
+                    <p className="text-[10px] text-slate-500">Selecciona imagen o video del proyector</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Filtro tipo */}
+                  <div className="flex items-center gap-0.5 bg-white/5 border border-white/8 rounded-lg p-0.5">
+                    {[
+                      {v:"todos",  l:"Todos"},
+                      {v:"imagen", l:"Imágenes"},
+                      {v:"video",  l:"Videos"},
+                    ].map(({v, l}) => (
+                      <button key={v} onClick={() => setFiltroMedia(v)}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                          filtroMedia === v ? "bg-pink-600 text-white" : "text-slate-400 hover:text-white"
+                        }`}
+                      >{l}</button>
+                    ))}
+                  </div>
+                  <button onClick={() => setModal(null)}
+                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                    <IoClose />
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid de fondos */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                {cargandoFondos ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-400" />
+                    <p className="text-slate-500 text-sm">Cargando fondos…</p>
+                  </div>
+                ) : (() => {
+                  const fondosFiltrados = fondosDisponibles.filter(f =>
+                    filtroMedia === "todos" ? true : f.tipo === filtroMedia
+                  );
+                  return fondosFiltrados.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                      <FaPhotoVideo className="text-4xl text-slate-700" />
+                      <p className="text-slate-400 text-sm font-medium">
+                        {fondosDisponibles.length === 0 ? "No hay fondos disponibles" : "Sin resultados para este filtro"}
+                      </p>
+                      <p className="text-slate-600 text-xs max-w-xs">
+                        {fondosDisponibles.length === 0
+                          ? "Sube imágenes o videos desde Gestión de Fondos para usarlos aquí."
+                          : "Cambia el filtro para ver otros archivos."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {fondosFiltrados.map(fondo => (
+                        <button key={fondo.id} onClick={() => agregarMultimedia(fondo)}
+                          className="group relative rounded-xl overflow-hidden border-2 border-white/8 hover:border-pink-400/60 transition-all hover:scale-[1.03] hover:shadow-lg"
+                        >
+                          <div className="aspect-video bg-slate-800 relative overflow-hidden">
+                            {fondo.tipo === "video" ? (
+                              <video src={fondo.url} className="w-full h-full object-cover" muted
+                                onMouseEnter={e => e.target.play()} onMouseLeave={e => e.target.pause()} />
+                            ) : (
+                              <img src={fondo.url} alt={fondo.nombre} className="w-full h-full object-cover" />
+                            )}
+                            {/* Overlay hover */}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <FaPlus className="text-white text-lg" />
+                            </div>
+                            {/* Badge tipo */}
+                            <div className="absolute top-1.5 left-1.5">
+                              {fondo.tipo === "video"
+                                ? <FaFilm className="text-pink-300 text-[10px] drop-shadow" />
+                                : <FaImage className="text-sky-300 text-[10px] drop-shadow" />}
+                            </div>
+                          </div>
+                          <div className="px-2 py-1.5 bg-slate-800/80">
+                            <p className="text-[10px] text-slate-300 truncate font-medium">{fondo.nombre}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="shrink-0 px-4 py-3 border-t border-slate-700/60 flex items-center justify-between gap-3">
+                <button onClick={subirYAgregarMultimedia}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-600/80 hover:bg-pink-600 border border-pink-500/30 text-white text-xs font-semibold transition-colors">
+                  <FaUpload className="text-[10px]" /> Subir nuevo archivo
+                </button>
+                <p className="text-[10px] text-slate-600">
+                  {fondosDisponibles.length > 0 && `${fondosDisponibles.length} fondo${fondosDisponibles.length !== 1 ? "s" : ""} disponible${fondosDisponibles.length !== 1 ? "s" : ""}`}
+                </p>
               </div>
             </div>
           </div>

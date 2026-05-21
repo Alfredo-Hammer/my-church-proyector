@@ -35,6 +35,26 @@ const formatSpeed = (bps) => {
   return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
 };
 
+const stripHtml = (html) => {
+  if (!html || typeof html !== "string") return null;
+  const text = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<\/?(ul|ol|h[1-6]|p|div|section|blockquote)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text || null;
+};
+
 const UpdateNotification = () => {
   const [updateState, setUpdateState] = useState("idle");
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -147,10 +167,9 @@ const UpdateNotification = () => {
 
   const releaseDate = formatDate(updateInfo?.releaseDate);
   const fileSize = formatBytes(updateInfo?.fileSize);
-  const releaseNotes =
-    typeof updateInfo?.releaseNotes === "string"
-      ? updateInfo.releaseNotes.trim()
-      : null;
+  const releaseNotes = stripHtml(
+    typeof updateInfo?.releaseNotes === "string" ? updateInfo.releaseNotes : null
+  );
 
   return (
     <AnimatePresence>

@@ -178,7 +178,12 @@ function obtenerRutaBase() {
 }
 
 function obtenerRutaRecursos() {
-  // Para recursos estáticos (build, assets) siempre usar __dirname
+  // En producción el build/ vive como extraResource fuera del .asar,
+  // por lo que process.resourcesPath apunta a la carpeta real en disco.
+  // __dirname dentro del .asar causa ENOTDIR con express.static().
+  if (app.isPackaged) {
+    return process.resourcesPath;
+  }
   return __dirname;
 }
 

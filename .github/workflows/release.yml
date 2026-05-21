@@ -3,44 +3,50 @@ name: Create Release
 on:
   push:
     tags:
-      - 'v*'  # Ejecutar cuando se cree un tag v1.0.0, v0.1.1, etc.
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versión del release (ej: v0.1.0)'
+        description: 'Versión del release (ej: v0.2.8)'
         required: true
-        default: 'v0.1.0'
+        default: 'v0.2.8'
+      release_notes:
+        description: 'Novedades de esta versión (texto plano, una mejora por línea)'
+        required: false
+        default: 'Correcciones y mejoras generales'
 
 jobs:
   release:
     runs-on: windows-latest
-    
+
     permissions:
-      contents: write  # Necesario para crear releases
-    
+      contents: write
+
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0
+
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-      
+
       - name: Instalar dependencias
         run: npm ci
-      
+
       - name: Compilar React (UI)
         run: npm run build
         env:
           CI: false
-      
+
       - name: Compilar instalador Windows (NSIS)
         run: npx electron-builder --win nsis --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Obtener versión
         id: get_version
         run: |
@@ -50,48 +56,58 @@ jobs:
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
         shell: bash
-      
+
+      - name: Obtener notas de versión
+        id: get_notes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            NOTES="${{ github.event.inputs.release_notes }}"
+          else
+            # Para releases por tag: extraer commits desde el tag anterior
+            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${GITHUB_REF#refs/tags/}$" | head -1)
+            if [ -n "$PREV_TAG" ]; then
+              NOTES=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges | head -20)
+            else
+              NOTES="- Primera versión publicada"
+            fi
+          fi
+          # Escapar para multiline output
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Crear Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           name: GloryView ${{ steps.get_version.outputs.VERSION }}
           body: |
-            ## 🎉 GloryView ${{ steps.get_version.outputs.VERSION }}
-            
-            ### 📦 Instalación
-            
-            1. Descarga el instalador `.exe`
-            2. **IMPORTANTE:** Ejecuta el instalador como **Administrador** (clic derecho → Ejecutar como administrador)
-            3. Sigue el asistente de instalación
-            4. Abre **GloryView** desde el escritorio o el menú inicio
-            
-            ### 📋 Requisitos
+            GloryView ${{ steps.get_version.outputs.VERSION }}
+
+            Novedades
+            ${{ steps.get_notes.outputs.NOTES }}
+
+            ---
+
+            Instalacion
+            1. Descarga el archivo GloryView-Installer.exe
+            2. Ejecuta el instalador como Administrador (clic derecho, Ejecutar como administrador)
+            3. Sigue el asistente de instalacion
+            4. Abre GloryView desde el escritorio o el menu inicio
+
+            Requisitos
             - Windows 10/11 (64-bit)
             - Visual C++ Redistributable 2015-2022
-            - Permisos de Administrador (primera ejecución)
-            
-            ### 🔒 Configuración del Firewall (IMPORTANTE)
-            
-            GloryView utiliza un servidor local (puerto 3001) para comunicación interna.
-            
-            **Primera ejecución:**
-            - Ejecuta la aplicación como **Administrador** al menos la primera vez
-            - Acepta el mensaje del Firewall de Windows cuando aparezca
-            
-            **Si el Firewall bloquea la aplicación:**
-            1. Ve a: `Configuración de Windows` → `Firewall` → `Permitir una app`
-            2. Busca "GloryView" en la lista
-            3. Marca las casillas de "Red privada" y "Red pública"
-            4. Haz clic en "Aceptar"
-            
-            ### 🔧 Solución de problemas
-            - Si no abre: Clic derecho → Ejecutar como administrador
-            - Revisa logs en: `%APPDATA%\GloryView\gloryview-error.log`
-            - Consulta `INSTRUCCIONES-WINDOWS.txt` para más detalles
-            
-            ---
-            Compilado automáticamente con GitHub Actions
+
+            Configuracion del Firewall
+            GloryView usa el puerto 3001 para comunicacion interna.
+            En la primera ejecucion acepta el mensaje del Firewall de Windows.
+            Si lo bloqueo: Configuracion de Windows, Firewall, Permitir una app, busca GloryView y activa Red privada y Red publica.
+
+            Solucion de problemas
+            - Si no abre: clic derecho, Ejecutar como administrador
+            - Revisa logs en: %APPDATA%\GloryView\gloryview-error.log
           draft: false
           prerelease: false
           files: |

@@ -22,7 +22,6 @@ publish:
   releaseType: release
 
 files:
-  - build/**/*
   - main.js
   - preload.js
   - db.js
@@ -33,17 +32,18 @@ files:
   - INSTRUCCIONES-WINDOWS.txt
   - "!node_modules/@types/**/*"
   - "!node_modules/.cache/**/*"
-  - "!build/uploads/**"
-  - "!build/multimedia/**"
-  - "!build/multimedia_thumbs/**"
 
 asarUnpack:
   - "**/node_modules/ffmpeg-static/**"
-  - "build/fondos/**"
-  - "build/images/**"
-  - "build/static/**"
 
 extraResources:
+  - from: build
+    to: build
+    filter:
+      - "**/*"
+      - "!uploads/**"
+      - "!multimedia/**"
+      - "!multimedia_thumbs/**"
   - from: data
     to: data
     filter:

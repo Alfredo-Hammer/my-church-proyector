@@ -3396,16 +3396,6 @@ function createMainWindow() {
                 }
               },
             },
-            {
-              label: "Nueva Presentación",
-              accelerator: "CmdOrCtrl+Shift+N",
-              click: () => {
-                if (mainWindow) {
-                  mainWindow.webContents.send('navegar-a-ruta', '/presentacion-manager');
-                  mainWindow.focus();
-                }
-              },
-            },
             { type: "separator" },
             {
               label: "Importar Multimedia",
@@ -3516,16 +3506,6 @@ function createMainWindow() {
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('navegar-a-ruta', '/biblia');
-              mainWindow.focus();
-            }
-          },
-        },
-        {
-          label: "Presentaciones",
-          accelerator: "CmdOrCtrl+P",
-          click: () => {
-            if (mainWindow) {
-              mainWindow.webContents.send('navegar-a-ruta', '/presentacion-manager');
               mainWindow.focus();
             }
           },
@@ -3784,7 +3764,6 @@ function createMainWindow() {
 • Ctrl/Cmd + 1: Himnario Moravo
 • Ctrl/Cmd + 2: Vida Cristiana
 • Ctrl/Cmd + B: Biblia
-• Ctrl/Cmd + P: Presentaciones
 • Ctrl/Cmd + M: Multimedia
 • Ctrl/Cmd + F: Favoritos
 
@@ -3795,7 +3774,6 @@ function createMainWindow() {
 
 ✨ CREACIÓN:
 • Ctrl/Cmd + N: Nuevo Himno
-• Ctrl/Cmd + Shift + N: Nueva Presentación
 • Ctrl/Cmd + K: Buscar en Biblia
 
 ⚙️ GENERAL:

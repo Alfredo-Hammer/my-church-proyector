@@ -1,0 +1,13 @@
+Version 0.2.8
+
+Correcciones
+- Corregido error fatal al iniciar el servidor Express en produccion (ENOTDIR)
+- Las notas de actualizacion ahora se muestran en texto plano sin codigo HTML
+- Eliminados enlaces del menu a paginas no utilizadas (Nueva Presentacion)
+- El boton de subir archivo en Anuncios y Orden de Servicio ya no falla silenciosamente
+
+Mejoras anteriores (0.2.7)
+- Pagina Biblia: cards de libros rediseñadas con abreviacion grande y nombre pequeño
+- Himnos: las flechas del teclado ya no cambian de parrafo al editar texto en el modal
+- Himnos: numeracion de diapositivas por parrafo y parte (1/1, 1/2, 1/3...)
+- Himnos editados del Himnario ya no aparecen en la pagina Agregar Himno

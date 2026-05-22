@@ -7,13 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versión del release (ej: v0.2.8)'
+        description: 'Versión del release (ej: v0.2.9)'
         required: true
-        default: 'v0.2.8'
-      release_notes:
-        description: 'Novedades de esta versión (texto plano, una mejora por línea)'
-        required: false
-        default: 'Correcciones y mejoras generales'
+        default: 'v0.2.9'
 
 jobs:
   release:
@@ -42,42 +38,43 @@ jobs:
         env:
           CI: false
 
-      - name: Compilar instalador Windows (NSIS)
-        run: npx electron-builder --win nsis --x64
+      - name: Leer notas de versión desde NOVEDADES.txt
+        id: novedades
+        run: |
+          if (Test-Path "NOVEDADES.txt") {
+            $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
+          } else {
+            $notes = "Correcciones y mejoras generales"
+          }
+          # Guardar como output multilinea
+          "NOTES<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $notes | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        shell: pwsh
+
+      - name: Compilar instalador Windows (con notas en latest.yml)
+        run: |
+          $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
+          # Pasar las notas a electron-builder para que las incluya en latest.yml
+          # El updater lee latest.yml directamente -> texto plano sin HTML
+          npx electron-builder --win nsis --x64 `
+            --config.releaseInfo.releaseNotes="$notes"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
 
       - name: Obtener versión
         id: get_version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ github.event.inputs.version }}" | ForEach-Object { "VERSION=$_" } | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            $tag = "${{ github.ref }}" -replace "refs/tags/", ""
+            "VERSION=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+        shell: pwsh
 
-      - name: Obtener notas de versión
-        id: get_notes
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            NOTES="${{ github.event.inputs.release_notes }}"
-          else
-            # Para releases por tag: extraer commits desde el tag anterior
-            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${GITHUB_REF#refs/tags/}$" | head -1)
-            if [ -n "$PREV_TAG" ]; then
-              NOTES=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges | head -20)
-            else
-              NOTES="- Primera versión publicada"
-            fi
-          fi
-          # Escapar para multiline output
-          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Crear Release
+      - name: Crear Release en GitHub
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
@@ -86,7 +83,7 @@ jobs:
             GloryView ${{ steps.get_version.outputs.VERSION }}
 
             Novedades
-            ${{ steps.get_notes.outputs.NOTES }}
+            ${{ steps.novedades.outputs.NOTES }}
 
             ---
 

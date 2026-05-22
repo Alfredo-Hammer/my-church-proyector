@@ -167,9 +167,21 @@ const UpdateNotification = () => {
 
   const releaseDate = formatDate(updateInfo?.releaseDate);
   const fileSize = formatBytes(updateInfo?.fileSize);
-  const releaseNotes = stripHtml(
-    typeof updateInfo?.releaseNotes === "string" ? updateInfo.releaseNotes : null
-  );
+
+  // releaseNotes puede llegar como string, array de {version,note} o null
+  const releaseNotes = (() => {
+    const raw = updateInfo?.releaseNotes;
+    if (!raw) return null;
+    if (typeof raw === "string") return stripHtml(raw);
+    if (Array.isArray(raw)) {
+      // electron-updater devuelve [{version, note}] cuando hay múltiples versiones
+      return raw
+        .map((r) => stripHtml(typeof r === "string" ? r : r?.note || ""))
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    return null;
+  })();
 
   return (
     <AnimatePresence>

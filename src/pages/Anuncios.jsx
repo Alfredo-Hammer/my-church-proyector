@@ -451,12 +451,20 @@ export default function Anuncios() {
 
   const subirFondo = async () => {
     try {
-      const res = await window.electron?.subirFondo?.();
-      if (res) {
-        const data = await window.electron?.obtenerFondos?.();
-        setFondosDisponibles(Array.isArray(data) ? data : []);
-        toast("Archivo subido. Selecciónalo para usarlo.");
-      }
+      const resultado = await window.electron?.seleccionarFondo?.();
+      if (!resultado?.filePath) return;
+      const nuevaRuta = await window.electron.copiarArchivoAFondos(resultado.filePath);
+      if (!nuevaRuta) throw new Error("Error al copiar el archivo");
+      const fondoGuardado = await window.electron.agregarFondo({
+        url: nuevaRuta,
+        tipo: resultado.tipo,
+        nombre: resultado.nombre || `Archivo ${Date.now()}`,
+        activo: false,
+      });
+      if (!fondoGuardado) throw new Error("Error al guardar en base de datos");
+      const data = await window.electron?.obtenerFondos?.();
+      setFondosDisponibles(Array.isArray(data) ? data : []);
+      toast("Archivo subido. Selecciónalo para usarlo.");
     } catch { toast("Error al subir el archivo", "error"); }
   };
 
@@ -962,10 +970,11 @@ export default function Anuncios() {
 
             {/* Footer modal */}
             <div className="shrink-0 px-4 py-3 border-t border-slate-700/60 flex items-center justify-between gap-3">
+              {/* TODO: subida desde dispositivo — pendiente rediseño flujo multimedia
               <button onClick={subirFondo}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-600/80 hover:bg-pink-600 border border-pink-500/30 text-white text-xs font-semibold transition-colors">
                 <FaUpload className="text-[10px]" /> Subir nuevo archivo
-              </button>
+              </button> */}
               <p className="text-[10px] text-slate-600">
                 {fondosDisponibles.length > 0 && `${fondosDisponibles.length} fondo${fondosDisponibles.length !== 1 ? "s" : ""}`}
               </p>

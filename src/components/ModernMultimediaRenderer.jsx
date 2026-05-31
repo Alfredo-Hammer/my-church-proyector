@@ -1,6 +1,6 @@
 import React from "react";
 import {useEffect, useState} from "react";
-import {motion, AnimatePresence} from "framer-motion";
+import {LazyMotion, domAnimation, m, AnimatePresence} from "framer-motion";
 
 // Función para obtener la URL base del servidor multimedia
 const getBaseURL = () => {
@@ -313,22 +313,22 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
   };
 
   const renderMediaInfo = () => (
-    <motion.div
+    <m.div
       initial={{opacity: 0, y: 20}}
       animate={{opacity: 1, y: 0}}
       transition={{delay: 0.5, duration: 0.6}}
       className="absolute bottom-8 left-8 right-8 z-30"
     >
       <div className="backdrop-blur-xl bg-black/40 rounded-2xl px-8 py-4 border border-white/20 shadow-2xl">
-        <div className="flex items-center space-x-4">
-          <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+        <div className="flex items-center gap-x-4">
+          <div className="size-3 bg-green-400 rounded-full animate-pulse" />
           <p className="text-2xl font-semibold text-white">{nombre}</p>
           <div className="ml-auto text-sm text-gray-300 capitalize">
             {tipoReal}
           </div>
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 
   const handleMediaError = (errorType, errorEvent) => {
@@ -353,7 +353,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     );
     console.log("❌ [ModernMultimediaRenderer] urlReal valor:", urlReal);
     return (
-      <motion.div
+      <m.div
         {...commonContainerProps}
         className="absolute inset-0 flex items-center justify-center z-20"
       >
@@ -370,8 +370,9 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               URL: {typeof urlReal !== "undefined" ? urlReal : url}
             </p>
           </div>
-          <div className="flex justify-center space-x-4">
+          <div className="flex justify-center gap-x-4">
             <button
+              type="button"
               onClick={() => {
                 setError(null);
                 setLoading(true);
@@ -382,6 +383,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               🔄 Reintentar
             </button>
             <button
+              type="button"
               onClick={() => {
                 // Limpiar estado completamente
                 setError(null);
@@ -394,7 +396,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             </button>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     );
   }
 
@@ -447,17 +449,17 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     console.log("⏳ [ModernMultimediaRenderer] error:", error);
     console.log("⏳ [ModernMultimediaRenderer] loading:", loading);
     return (
-      <motion.div
+      <m.div
         {...commonContainerProps}
         className="absolute inset-0 flex items-center justify-center z-20"
       >
         <div className="backdrop-blur-xl bg-blue-900/60 text-white p-12 rounded-2xl text-center border border-blue-500/30">
           <div className="text-8xl mb-6">🔍</div>
-          <p className="text-2xl font-semibold mb-2">Validando archivo...</p>
+          <p className="text-2xl font-semibold mb-2">Validando archivo…</p>
           <p className="text-lg text-blue-200">{nombre}</p>
-          <div className="animate-spin w-8 h-8 border-4 border-blue-300 border-t-transparent rounded-full mx-auto mt-4"></div>
+          <div className="animate-spin size-8 border-4 border-blue-300 border-t-transparent rounded-full mx-auto mt-4"></div>
         </div>
-      </motion.div>
+      </m.div>
     );
   }
 
@@ -472,14 +474,14 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
       console.log("🎯 [ModernMultimediaRenderer] ENTRANDO EN CASE YOUTUBE");
       console.log("🎯 [ModernMultimediaRenderer] URL de YouTube:", urlReal);
       return (
-        <motion.div
+        <m.div
           {...commonContainerProps}
           className="absolute inset-0 flex items-center justify-center z-20"
         >
           <div className="relative w-full h-full">
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                <div className="text-white text-2xl">Cargando YouTube...</div>
+                <div className="text-white text-2xl">Cargando YouTube…</div>
               </div>
             )}
             <iframe
@@ -489,6 +491,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               title={nombre}
               className="w-full h-full border-0"
               style={{filter: "drop-shadow(0 0 20px rgba(0,0,0,0.5))"}}
+              sandbox="allow-scripts allow-presentation allow-popups allow-forms"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               onLoad={(e) => {
@@ -515,19 +518,19 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             />
             {!loading && nombre && renderMediaInfo()}
           </div>
-        </motion.div>
+        </m.div>
       );
 
     case "video":
       return (
-        <motion.div
+        <m.div
           {...commonContainerProps}
           className="absolute inset-0 flex items-center justify-center z-20"
         >
           <div className="relative w-full h-full">
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                <div className="text-white text-2xl">Cargando video...</div>
+                <div className="text-white text-2xl">Cargando video…</div>
               </div>
             )}
             <video
@@ -537,8 +540,9 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               muted={false}
               playsInline
               preload="metadata"
-              className="multimedia-video w-full h-full object-contain"
+              className="multimedia-video size-full object-contain"
               style={{filter: "drop-shadow(0 0 20px rgba(0,0,0,0.5))"}}
+              aria-label="Reproductor de video"
               onError={(e) => {
                 console.error("❌ [Proyector] Error en video:", e);
                 console.error("❌ [Proyector] URL que falló:", urlReal);
@@ -578,18 +582,18 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             />
             {!loading && nombre && renderMediaInfo()}
           </div>
-        </motion.div>
+        </m.div>
       );
 
     case "audio":
       return (
-        <motion.div
+        <m.div
           {...commonContainerProps}
           className="absolute inset-0 flex flex-col items-center justify-center z-20 text-center"
         >
           <div className="backdrop-blur-xl bg-gradient-to-br from-purple-900/40 to-blue-900/40 rounded-3xl p-16 max-w-3xl border border-white/20 shadow-2xl">
             {/* Audio visualization */}
-            <motion.div
+            <m.div
               className="text-9xl mb-8"
               animate={{
                 scale: [1, 1.1, 1],
@@ -602,25 +606,26 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               }}
             >
               🎵
-            </motion.div>
+            </m.div>
 
-            <motion.h1
+            <m.h1
               className="text-5xl font-bold text-white mb-8"
               initial={{opacity: 0, y: 20}}
               animate={{opacity: 1, y: 0}}
               transition={{delay: 0.3}}
             >
               {nombre || "Reproduciendo Audio"}
-            </motion.h1>
+            </m.h1>
 
             {loading && (
-              <div className="mb-6 text-xl text-white">Cargando audio...</div>
+              <div className="mb-6 text-xl text-white">Cargando audio…</div>
             )}
 
             <audio
               src={urlReal}
               controls={false}
               className="multimedia-audio w-full max-w-lg bg-white/10 rounded-lg p-2"
+              aria-label="Reproductor de audio"
               onError={(e) => handleMediaError("audio", e)}
               onLoadStart={() =>
                 console.log("🎵 [Proyector] Iniciando carga de audio")
@@ -634,10 +639,10 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
 
             {/* Audio waves animation */}
             {!loading && (
-              <div className="flex justify-center mt-8 space-x-2">
+              <div className="flex justify-center mt-8 gap-x-2">
                 {[...Array(5)].map((_, i) => (
-                  <motion.div
-                    key={i}
+                  <m.div
+                    key={`item-${i}`}
                     className="w-2 bg-cyan-400 rounded-full"
                     animate={{
                       height: [10, 30, 10],
@@ -653,22 +658,22 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               </div>
             )}
           </div>
-        </motion.div>
+        </m.div>
       );
 
     case "imagen":
     case "image":
       return (
-        <motion.div
+        <m.div
           {...commonContainerProps}
           className="absolute inset-0 flex items-center justify-center z-20"
         >
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-              <div className="text-white text-2xl">Cargando imagen...</div>
+              <div className="text-white text-2xl">Cargando imagen…</div>
             </div>
           )}
-          <motion.img
+          <m.img
             src={urlReal}
             alt={nombre || "Imagen"}
             className="w-full h-full object-cover"
@@ -680,7 +685,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             onLoad={() => handleMediaLoad("Imagen")}
           />
           {!loading && nombre && renderMediaInfo()}
-        </motion.div>
+        </m.div>
       );
 
     default:
@@ -692,7 +697,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
       console.log("❌ [ModernMultimediaRenderer] URL:", urlReal);
       console.log("❌ [ModernMultimediaRenderer] Nombre:", nombre);
       return (
-        <motion.div
+        <m.div
           {...commonContainerProps}
           className="absolute inset-0 flex items-center justify-center z-20"
         >
@@ -704,7 +709,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             <p className="text-lg text-red-200">{tipoReal}</p>
             <p className="text-sm text-red-300 mt-4">Archivo: {nombre}</p>
           </div>
-        </motion.div>
+        </m.div>
       );
   }
 };

@@ -86,8 +86,8 @@ const GestionFondos = () => {
     }
 
     return () => {
-      if (window.electron?.removeAllListeners) {
-        window.electron.removeAllListeners("actualizar-fondo-activo");
+      if (window.electron?.removeListener) {
+        window.electron.removeListener("actualizar-fondo-activo", handleFondoActivo);
       }
     };
   }, []);
@@ -784,8 +784,9 @@ const GestionFondos = () => {
         <div className="flex items-center gap-3">
           {modoSeleccion && (
             <button
+              type="button"
               onClick={() => navigate(volverA || "/")}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
+              className="size-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
               title="Volver sin seleccionar"
             >
               <IoArrowBack />
@@ -806,13 +807,14 @@ const GestionFondos = () => {
         <div className="flex items-center gap-2 flex-shrink-0">
           {fondoActivo && (
             <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs text-emerald-300 font-medium max-w-[150px] truncate">
                 {fondoActivo.nombre || "Fondo activo"}
               </span>
             </div>
           )}
           <button
+            type="button"
             onClick={() => {
               if (tabActivo === "mis-imagenes") cargarFondos();
               else cargarFondoActivo();
@@ -857,6 +859,7 @@ const GestionFondos = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div className="bg-white/5 border border-white/10 rounded-2xl p-1 flex gap-1 overflow-x-auto flex-shrink-0">
           <button
+            type="button"
             onClick={() => setTabActivo("mis-imagenes")}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
               tabActivo === "mis-imagenes"
@@ -873,6 +876,7 @@ const GestionFondos = () => {
             </span>
           </button>
           <button
+            type="button"
             onClick={() => setTabActivo("imagenes")}
             title={!estaOnline ? "Requiere conexión a internet" : ""}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
@@ -888,6 +892,7 @@ const GestionFondos = () => {
           </button>
           {!modoSeleccion && (
             <button
+              type="button"
               onClick={() => setTabActivo("videos")}
               title={!estaOnline ? "Requiere conexión a internet" : ""}
               className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
@@ -906,6 +911,7 @@ const GestionFondos = () => {
 
         {tabActivo === "mis-imagenes" && (
           <button
+            type="button"
             onClick={agregarFondoDesdeDispositivo}
             disabled={cargando}
             className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20 flex-shrink-0"
@@ -933,6 +939,7 @@ const GestionFondos = () => {
               />
               {terminoBusqueda && (
                 <button
+                  type="button"
                   onClick={() => {
                     setTerminoBusqueda("");
                     setUltimaBusqueda("");
@@ -953,6 +960,7 @@ const GestionFondos = () => {
               )}
             </div>
             <button
+              type="button"
               onClick={manejarBusqueda}
               disabled={cargando || !terminoBusqueda.trim() || !estaOnline}
               className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0"
@@ -968,6 +976,7 @@ const GestionFondos = () => {
               : ["naturaleza", "cielo", "agua", "fuego", "nubes", "montañas", "mar", "bosque", "luz", "amanecer"]
             ).map((termino) => (
               <button
+                type="button"
                 key={termino}
                 onClick={() => {
                   setTerminoBusqueda(termino);
@@ -999,7 +1008,7 @@ const GestionFondos = () => {
       {cargando && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="rounded-2xl overflow-hidden border border-white/5 bg-white/3 animate-pulse">
+            <div key={`skeleton-${i}`} className="rounded-2xl overflow-hidden border border-white/5 bg-white/3 animate-pulse">
               <div className="h-44 bg-white/10" />
               <div className="p-3 space-y-2">
                 <div className="h-3 bg-white/10 rounded-full w-3/4" />
@@ -1058,7 +1067,7 @@ const GestionFondos = () => {
 
               {!modoSeleccion && esFondoActivo(fondo) && (
                 <div className="absolute top-2.5 left-2.5 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  <span className="size-1.5 rounded-full bg-white animate-pulse" />
                   Activo
                 </div>
               )}
@@ -1080,6 +1089,7 @@ const GestionFondos = () => {
                   <div className="flex gap-1.5">
                     {modoSeleccion ? (
                       <button
+                        type="button"
                         onClick={() => manejarClicEnImagen(fondo)}
                         className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                       >
@@ -1089,6 +1099,7 @@ const GestionFondos = () => {
                       <>
                         {!esFondoActivo(fondo) && (
                           <button
+                            type="button"
                             onClick={() => manejarClicEnImagen(fondo)}
                             disabled={cargando}
                             className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
@@ -1098,6 +1109,7 @@ const GestionFondos = () => {
                         )}
                         {!fondo.es_defecto && (
                           <button
+                            type="button"
                             onClick={() => confirmarEliminarFondo(fondo)}
                             disabled={cargando}
                             className="bg-red-500/80 hover:bg-red-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
@@ -1116,12 +1128,13 @@ const GestionFondos = () => {
           {/* ESTADO VACÍO — MIS FONDOS */}
           {tabActivo === "mis-imagenes" && fondos.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+              <div className="size-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <IoFolder className="text-4xl text-white/20" />
               </div>
               <h3 className="text-lg font-semibold text-white/60 mb-1.5">Sin fondos guardados</h3>
               <p className="text-white/30 text-sm mb-6">Agrega imágenes o videos desde tu dispositivo</p>
               <button
+                type="button"
                 onClick={agregarFondoDesdeDispositivo}
                 disabled={cargando}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20"
@@ -1134,12 +1147,13 @@ const GestionFondos = () => {
           {/* OFFLINE — IMÁGENES */}
           {tabActivo === "imagenes" && !estaOnline && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+              <div className="size-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
                 <IoWifi className="text-4xl text-amber-400/60" />
               </div>
               <h3 className="text-lg font-semibold text-amber-300/80 mb-1.5">Sin conexión a internet</h3>
               <p className="text-white/30 text-sm mb-6">Conéctate para explorar imágenes de Pixabay</p>
               <button
+                type="button"
                 onClick={() => {
                   if (navigator.onLine) { setEstaOnline(true); cargarPixabayImages(); }
                   else mostrarMensaje("Aún no hay conexión a internet", "error");
@@ -1172,6 +1186,7 @@ const GestionFondos = () => {
                     <div className="flex gap-1.5">
                       {modoSeleccion ? (
                         <button
+                          type="button"
                           onClick={() => manejarClicEnImagenPixabay(image, "imagen")}
                           disabled={cargando}
                           className="flex-1 bg-emerald-500 hover:bg-emerald-400 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
@@ -1182,6 +1197,7 @@ const GestionFondos = () => {
                       ) : (
                         <>
                           <button
+                            type="button"
                             onClick={() => manejarClicEnImagenPixabay(image, "imagen")}
                             disabled={cargando}
                             className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
@@ -1190,6 +1206,7 @@ const GestionFondos = () => {
                           </button>
                           {!yaDescargada ? (
                             <button
+                              type="button"
                               onClick={() => descargarYGuardarFondo(image, "imagen")}
                               disabled={cargando}
                               className="bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
@@ -1213,7 +1230,7 @@ const GestionFondos = () => {
           {/* ESTADO VACÍO — IMÁGENES */}
           {tabActivo === "imagenes" && estaOnline && pixabayImages.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+              <div className="size-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <IoImage className="text-4xl text-white/20" />
               </div>
               <h3 className="text-lg font-semibold text-white/60 mb-1.5">
@@ -1228,12 +1245,13 @@ const GestionFondos = () => {
           {/* OFFLINE — VIDEOS */}
           {tabActivo === "videos" && !estaOnline && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+              <div className="size-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
                 <IoWifi className="text-4xl text-amber-400/60" />
               </div>
               <h3 className="text-lg font-semibold text-amber-300/80 mb-1.5">Sin conexión a internet</h3>
               <p className="text-white/30 text-sm mb-6">Conéctate para explorar videos de Pixabay</p>
               <button
+                type="button"
                 onClick={() => {
                   if (navigator.onLine) { setEstaOnline(true); cargarPixabayVideos(); }
                   else mostrarMensaje("Aún no hay conexión a internet", "error");
@@ -1262,6 +1280,7 @@ const GestionFondos = () => {
                   <div className="flex gap-1.5">
                     {modoSeleccion ? (
                       <button
+                        type="button"
                         onClick={() => manejarClicEnImagenPixabay(video, "video")}
                         disabled={cargando}
                         className="flex-1 bg-emerald-500 hover:bg-emerald-400 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
@@ -1271,6 +1290,7 @@ const GestionFondos = () => {
                     ) : (
                       <>
                         <button
+                          type="button"
                           onClick={() => manejarClicEnImagenPixabay(video, "video")}
                           disabled={cargando}
                           className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
@@ -1278,6 +1298,7 @@ const GestionFondos = () => {
                           <IoCheckmark /> Usar
                         </button>
                         <button
+                          type="button"
                           onClick={() => descargarYGuardarFondo(video, "video")}
                           disabled={cargando}
                           className="bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors"
@@ -1295,7 +1316,7 @@ const GestionFondos = () => {
           {/* ESTADO VACÍO — VIDEOS */}
           {tabActivo === "videos" && estaOnline && pixabayVideos.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+              <div className="size-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <IoVideocam className="text-4xl text-white/20" />
               </div>
               <h3 className="text-lg font-semibold text-white/60 mb-1.5">
@@ -1313,6 +1334,7 @@ const GestionFondos = () => {
         {(tabActivo === "imagenes" || tabActivo === "videos") && estaOnline && (
           <div className="flex items-center justify-center gap-3 mt-8 pb-4">
             <button
+              type="button"
               onClick={irPaginaAnterior}
               disabled={(tabActivo === "imagenes" ? paginaImagenes : paginaVideos) <= 1}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
@@ -1328,6 +1350,7 @@ const GestionFondos = () => {
             </div>
 
             <button
+              type="button"
               onClick={irPaginaSiguiente}
               disabled={
                 (tabActivo === "imagenes" ? pixabayImages.length : pixabayVideos.length) <

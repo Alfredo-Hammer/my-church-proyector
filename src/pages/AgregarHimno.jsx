@@ -270,8 +270,10 @@ export default function AgregarHimno() {
     const letraProcesada = letraEncontrada
       .trim()
       .split(/\n\s*\n/)
-      .map((p) => p.trim())
-      .filter(Boolean);
+      .flatMap((p) => {
+        const v = p.trim();
+        return v ? [v] : [];
+      });
     setNumero("");
     setTitulo(himnoParaBuscar?.titulo || "");
     setLetra(letraProcesada.join("\n\n"));
@@ -293,10 +295,10 @@ export default function AgregarHimno() {
       titulo,
       autor: autor.trim(),
       categoria,
-      letra: letra
-        .split("\n\n")
-        .map((p) => p.trim())
-        .filter(Boolean),
+      letra: letra.split("\n\n").flatMap((p) => {
+        const v = p.trim();
+        return v ? [v] : [];
+      }),
       fecha_creacion: new Date().toISOString(),
       fecha_modificacion: new Date().toISOString(),
     };
@@ -454,7 +456,7 @@ export default function AgregarHimno() {
         {/* Título + stats */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+            <div className="size-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
               <FaMusic className="text-violet-400 text-sm" />
             </div>
             <div>
@@ -493,6 +495,7 @@ export default function AgregarHimno() {
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 cerrarModal();
                 setModalVisible(true);
@@ -519,6 +522,7 @@ export default function AgregarHimno() {
             />
             {busqueda && (
               <button
+                type="button"
                 onClick={() => setBusqueda("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
               >
@@ -532,6 +536,7 @@ export default function AgregarHimno() {
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
             className="shrink-0 bg-white/5 border border-white/8 hover:border-white/14 focus:border-violet-500/60 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none transition-colors"
+            aria-label="Filtrar por categoría"
           >
             <option value="" className="bg-slate-900">
               Todas las categorías
@@ -548,6 +553,7 @@ export default function AgregarHimno() {
             value={ordenamiento}
             onChange={(e) => setOrdenamiento(e.target.value)}
             className="shrink-0 hidden md:block bg-white/5 border border-white/8 hover:border-white/14 focus:border-violet-500/60 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none transition-colors"
+            aria-label="Ordenar himnos"
           >
             <option value="titulo" className="bg-slate-900">
               A–Z Título
@@ -586,10 +592,11 @@ export default function AgregarHimno() {
               },
             ].map((v) => (
               <button
+                type="button"
                 key={v.id}
                 onClick={() => setVistaActual(v.id)}
                 title={v.title}
-                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === v.id ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+                className={`size-7 rounded-md flex items-center justify-center transition-all ${vistaActual === v.id ? "bg-violet-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
               >
                 {v.icon}
               </button>
@@ -602,7 +609,7 @@ export default function AgregarHimno() {
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         {himnosFiltrados.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center mb-4">
+            <div className="size-16 rounded-2xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center mb-4">
               <FaBookOpen className="text-2xl text-white/20" />
             </div>
             <p className="text-white/50 font-medium mb-1">
@@ -614,6 +621,7 @@ export default function AgregarHimno() {
                 : "Crea tu primer himno personalizado"}
             </p>
             <button
+              type="button"
               onClick={() => {
                 cerrarModal();
                 setModalVisible(true);
@@ -661,6 +669,7 @@ export default function AgregarHimno() {
                         )}
                       </div>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleFavorito(himno.id);
@@ -677,6 +686,11 @@ export default function AgregarHimno() {
 
                     <div
                       onClick={() => handleNavigate(himno.id)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleNavigate(himno.id)
+                      }
+                      role="button"
+                      tabIndex={0}
                       className="mb-3"
                     >
                       <h3 className="text-sm font-semibold text-white mb-1 line-clamp-2 group-hover:text-violet-200 transition-colors">
@@ -691,32 +705,35 @@ export default function AgregarHimno() {
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/[0.05]">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           duplicarHimno(himno);
                         }}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                        className="size-7 flex items-center justify-center rounded-lg text-white/25 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                         title="Duplicar"
                       >
                         <FaCopy className="text-xs" />
                       </button>
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditar(himno);
                           }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                          className="size-7 flex items-center justify-center rounded-lg text-white/25 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
                           title="Editar"
                         >
                           <FaEdit className="text-xs" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEliminar(himno.id);
                           }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          className="size-7 flex items-center justify-center rounded-lg text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
                           title="Eliminar"
                         >
                           <FaTrash className="text-xs" />
@@ -740,6 +757,11 @@ export default function AgregarHimno() {
                     {/* Info */}
                     <div
                       onClick={() => handleNavigate(himno.id)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleNavigate(himno.id)
+                      }
+                      role="button"
+                      tabIndex={0}
                       className="cursor-pointer flex-1 min-w-0"
                     >
                       <p className="text-sm text-white/70 group-hover:text-white truncate transition-colors font-medium">
@@ -756,8 +778,9 @@ export default function AgregarHimno() {
                     {/* Acciones */}
                     <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
+                        type="button"
                         onClick={() => toggleFavorito(himno.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${favoritos.includes(himno.id) ? "text-rose-400" : "text-white/20 hover:text-rose-400"}`}
+                        className={`size-7 flex items-center justify-center rounded-lg transition-colors ${favoritos.includes(himno.id) ? "text-rose-400" : "text-white/20 hover:text-rose-400"}`}
                       >
                         {favoritos.includes(himno.id) ? (
                           <FaHeart className="text-xs" />
@@ -766,15 +789,17 @@ export default function AgregarHimno() {
                         )}
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleEditar(himno)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-white/20 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                        className="size-7 flex items-center justify-center rounded-lg text-white/20 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
                         title="Editar"
                       >
                         <FaEdit className="text-xs" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleEliminar(himno.id)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="size-7 flex items-center justify-center rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
                         title="Eliminar"
                       >
                         <FaTrash className="text-xs" />
@@ -832,7 +857,7 @@ export default function AgregarHimno() {
             <div className="relative flex items-center justify-between px-6 py-4 border-b border-white/[0.07] shrink-0">
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${editId ? "bg-amber-500/20 border border-amber-500/30" : "bg-violet-500/20 border border-violet-500/30"}`}
+                  className={`size-10 rounded-xl flex items-center justify-center shadow-lg ${editId ? "bg-amber-500/20 border border-amber-500/30" : "bg-violet-500/20 border border-violet-500/30"}`}
                 >
                   {editId ? (
                     <FaEdit className="text-amber-400" />
@@ -852,8 +877,9 @@ export default function AgregarHimno() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={cerrarModal}
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-white/30 hover:text-white/80 hover:bg-white/[0.07] transition-all"
+                className="size-8 flex items-center justify-center rounded-xl text-white/30 hover:text-white/80 hover:bg-white/[0.07] transition-all"
               >
                 <FaTimes className="text-sm" />
               </button>
@@ -867,28 +893,38 @@ export default function AgregarHimno() {
                   {/* Número + Categoría */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">
+                      <label
+                        htmlFor="himno-numero"
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2"
+                      >
                         <FaHashtag className="text-[9px]" /> Número
                         <span className="text-white/25 font-normal normal-case tracking-normal">
                           (opc.)
                         </span>
                       </label>
                       <input
+                        id="himno-numero"
                         type="text"
                         placeholder="001"
                         value={numero}
                         onChange={(e) => setNumero(e.target.value)}
                         className={INPUT_BASE}
+                        aria-label="Número del himno"
                       />
                     </div>
                     <div>
-                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">
+                      <label
+                        htmlFor="himno-categoria"
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2"
+                      >
                         <FaTag className="text-[9px]" /> Categoría
                       </label>
                       <select
+                        id="himno-categoria"
                         value={categoria}
                         onChange={(e) => setCategoria(e.target.value)}
                         className={INPUT_BASE}
+                        aria-label="Categoría del himno"
                       >
                         {categorias.map((cat) => (
                           <option
@@ -905,16 +941,21 @@ export default function AgregarHimno() {
 
                   {/* Título */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="himno-titulo"
+                      className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2"
+                    >
                       <FaMusic className="text-[9px]" /> Título
                       <span className="text-violet-400 ml-0.5">*</span>
                     </label>
                     <input
+                      id="himno-titulo"
                       type="text"
                       placeholder="Título del himno"
                       value={titulo}
                       onChange={(e) => setTitulo(e.target.value)}
                       className={INPUT_BASE}
+                      aria-label="Título del himno"
                     />
                     {titulo && (
                       <p className="text-[10px] text-white/25 mt-1 truncate">
@@ -925,15 +966,20 @@ export default function AgregarHimno() {
 
                   {/* Autor */}
                   <div>
-                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="himno-autor"
+                      className="flex items-center gap-1.5 text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2"
+                    >
                       <FaUserAlt className="text-[9px]" /> Autor
                     </label>
                     <input
+                      id="himno-autor"
                       type="text"
                       placeholder="Nombre del compositor"
                       value={autor}
                       onChange={(e) => setAutor(e.target.value)}
                       className={INPUT_BASE}
+                      aria-label="Autor del himno"
                     />
                   </div>
 
@@ -1029,12 +1075,14 @@ export default function AgregarHimno() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={cerrarModal}
                   className="px-4 py-2 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-white/60 hover:text-white/90 text-sm rounded-xl transition-all"
                 >
                   Cancelar
                 </button>
                 <button
+                  type="button"
                   onClick={handleGuardar}
                   disabled={!titulo.trim() || !letra.trim()}
                   className="flex items-center gap-2 px-5 py-2 bg-violet-600 hover:bg-violet-500 disabled:bg-white/[0.05] disabled:text-white/25 border border-violet-500/40 disabled:border-white/[0.06] text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-violet-900/30 disabled:shadow-none disabled:cursor-not-allowed"
@@ -1061,7 +1109,7 @@ export default function AgregarHimno() {
           <div className="bg-slate-900/95 backdrop-blur border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
             <div className="p-6 border-b border-slate-700/50">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-x-3">
                   <div className="bg-green-500/20 p-3 rounded-full">
                     <FaCloud className="text-green-400 text-xl" />
                   </div>
@@ -1075,6 +1123,7 @@ export default function AgregarHimno() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setModalBusquedaVisible(false)}
                   className="text-gray-400 hover:text-white p-2"
                 >
@@ -1097,14 +1146,15 @@ export default function AgregarHimno() {
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={buscarHimnosEnLinea}
                   disabled={cargandoBusqueda}
                   className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-700 disabled:to-gray-800 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-all"
                 >
                   {cargandoBusqueda ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      Buscando...
+                      <div className="animate-spin rounded-full size-4 border-b-2 border-white" />
+                      Buscando…
                     </>
                   ) : (
                     <>
@@ -1131,6 +1181,7 @@ export default function AgregarHimno() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <button
+                    type="button"
                     onClick={() => buscarLetraEnNavegador()}
                     disabled={!busquedaEnLinea.trim()}
                     className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 text-white px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all"
@@ -1138,6 +1189,7 @@ export default function AgregarHimno() {
                     <FaMusic /> Musica.com
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       if (!busquedaEnLinea.trim()) {
                         toast.warning("Ingresa un término");
@@ -1171,6 +1223,7 @@ export default function AgregarHimno() {
                     },
                   ].map((s) => (
                     <button
+                      type="button"
                       key={s.label}
                       onClick={() => abrirSitioExterno(s.url)}
                       disabled={!busquedaEnLinea.trim()}
@@ -1210,6 +1263,7 @@ export default function AgregarHimno() {
                         </div>
                         <div className="flex gap-2 shrink-0 ml-3">
                           <button
+                            type="button"
                             onClick={() => {
                               setHimnoParaBuscar(h);
                               setBrowserUrl(
@@ -1222,6 +1276,7 @@ export default function AgregarHimno() {
                             <FaGlobe className="text-[10px]" /> Buscar Letra
                           </button>
                           <button
+                            type="button"
                             onClick={() => importarHimnoLocal(h)}
                             className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
                           >
@@ -1230,8 +1285,11 @@ export default function AgregarHimno() {
                         </div>
                       </div>
                       <div className="text-xs text-gray-300 bg-gray-800/50 p-3 rounded-lg">
-                        {h.letra.slice(0, 3).map((linea, i) => (
-                          <p key={i} className="mb-0.5">
+                        {h.letra.slice(0, 3).map((linea, lineaNum) => (
+                          <p
+                            key={`linea-${lineaNum}-${String(linea).slice(0, 8)}`}
+                            className="mb-0.5"
+                          >
                             {linea}
                           </p>
                         ))}
@@ -1272,6 +1330,7 @@ export default function AgregarHimno() {
                   🔍 Buscar Letra: {himnoParaBuscar?.titulo}
                 </h2>
                 <button
+                  type="button"
                   onClick={() => setModalBrowserVisible(false)}
                   className="text-gray-400 hover:text-white text-xl"
                 >
@@ -1290,6 +1349,7 @@ export default function AgregarHimno() {
                   placeholder="https://..."
                 />
                 <button
+                  type="button"
                   onClick={() => setBrowserUrl(browserUrl)}
                   className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm"
                 >
@@ -1310,6 +1370,7 @@ export default function AgregarHimno() {
                   },
                 ].map((s) => (
                   <button
+                    type="button"
                     key={s.label}
                     onClick={() => setBrowserUrl(s.url)}
                     className={`${s.cls} px-3 py-1 rounded-lg text-xs text-white`}
@@ -1318,6 +1379,7 @@ export default function AgregarHimno() {
                   </button>
                 ))}
                 <button
+                  type="button"
                   onClick={() =>
                     abrirSitioExterno(
                       `https://www.google.com/search?q=${encodeURIComponent((himnoParaBuscar?.titulo || busquedaEnLinea) + " letra lyrics")}`,
@@ -1335,7 +1397,7 @@ export default function AgregarHimno() {
                   src={browserUrl}
                   className="w-full h-full border-0"
                   title="Navegador integrado"
-                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                  sandbox="allow-scripts allow-popups allow-forms"
                 />
               </div>
               <div className="w-80 bg-gray-700 p-4 border-l border-gray-600 flex flex-col">
@@ -1353,12 +1415,14 @@ export default function AgregarHimno() {
                 />
                 <div className="flex justify-between gap-2 mt-3">
                   <button
+                    type="button"
                     onClick={() => setLetraEncontrada("")}
                     className="bg-gray-600 hover:bg-gray-500 px-3 py-2 rounded-lg text-sm"
                   >
                     Limpiar
                   </button>
                   <button
+                    type="button"
                     onClick={procesarLetraEncontrada}
                     disabled={!letraEncontrada.trim()}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-gray-500 px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:cursor-not-allowed"

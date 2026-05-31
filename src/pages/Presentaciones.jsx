@@ -75,16 +75,20 @@ const todosLibros = [
 
 const ItemIcon = ({item}) => {
   if (item.tipo === "himno") {
-    if (item.tipoHimno === "vida") return <FaBookOpen className="text-amber-400 text-xs shrink-0" />;
-    if (item.tipoHimno === "personalizado") return <FaMusic className="text-violet-400 text-xs shrink-0" />;
+    if (item.tipoHimno === "vida")
+      return <FaBookOpen className="text-amber-400 text-xs shrink-0" />;
+    if (item.tipoHimno === "personalizado")
+      return <FaMusic className="text-violet-400 text-xs shrink-0" />;
     return <FaMusic className="text-emerald-400 text-xs shrink-0" />;
   }
   if (item.tipo === "versiculo")
     return <FaBible className="text-indigo-400 text-xs shrink-0" />;
   if (item.tipo === "multimedia")
-    return item.tipoMedia === "video"
-      ? <FaFilm className="text-pink-400 text-xs shrink-0" />
-      : <FaImage className="text-sky-400 text-xs shrink-0" />;
+    return item.tipoMedia === "video" ? (
+      <FaFilm className="text-pink-400 text-xs shrink-0" />
+    ) : (
+      <FaImage className="text-sky-400 text-xs shrink-0" />
+    );
   return <FaRegStickyNote className="text-yellow-400 text-xs shrink-0" />;
 };
 
@@ -103,7 +107,10 @@ const itemSub = (item) => {
     return "Himno Moravo";
   }
   if (item.tipo === "versiculo")
-    return (item.texto || "").substring(0, 70) + ((item.texto || "").length > 70 ? "…" : "");
+    return (
+      (item.texto || "").substring(0, 70) +
+      ((item.texto || "").length > 70 ? "…" : "")
+    );
   if (item.tipo === "multimedia")
     return item.tipoMedia === "video" ? "Video" : "Imagen";
   return "Nota / Separador";
@@ -185,17 +192,23 @@ export default function Presentaciones() {
               localData.length,
               "órdenes de localStorage → DB",
             );
-            for (const o of localData) {
-              try {
-                await window.electron.agregarOrdenServicio({
-                  titulo: o.titulo,
-                  fecha: o.fecha || "",
-                  items: o.items || [],
-                });
-              } catch (e) {
-                console.error("[Presentaciones] Error migrando:", e);
-              }
-            }
+
+            // Migrar todas en paralelo
+            await Promise.all(
+              localData.map((o) =>
+                window.electron
+                  .agregarOrdenServicio({
+                    titulo: o.titulo,
+                    fecha: o.fecha || "",
+                    items: o.items || [],
+                  })
+                  .catch((e) => {
+                    console.error("[Presentaciones] Error migrando:", e);
+                    return null;
+                  }),
+              ),
+            );
+
             try {
               dbData = await window.electron.obtenerOrdenesServicio();
             } catch {}
@@ -222,7 +235,8 @@ export default function Presentaciones() {
   useEffect(() => {
     if (modal !== "himno" || tipoHimno !== "personalizado") return;
     if (himnosPersonalizados.length > 0) return;
-    window.electron?.obtenerHimnos?.()
+    window.electron
+      ?.obtenerHimnos?.()
       .then((data) => setHimnosPersonalizados(Array.isArray(data) ? data : []))
       .catch(() => setHimnosPersonalizados([]));
   }, [modal, tipoHimno]);
@@ -468,9 +482,14 @@ export default function Presentaciones() {
 
   const agregarHimno = (himno) => {
     // Los himnos personalizados usan `letra` (array de estrofas); los del himnario usan `parrafos`
-    const parrafos = tipoHimno === "personalizado"
-      ? (Array.isArray(himno.letra) ? himno.letra : [])
-      : (Array.isArray(himno.parrafos) ? himno.parrafos : []);
+    const parrafos =
+      tipoHimno === "personalizado"
+        ? Array.isArray(himno.letra)
+          ? himno.letra
+          : []
+        : Array.isArray(himno.parrafos)
+          ? himno.parrafos
+          : [];
     setItemsEdit((p) => [
       ...p,
       {
@@ -520,8 +539,11 @@ export default function Presentaciones() {
     try {
       const data = await window.electron?.obtenerFondos?.();
       setFondosDisponibles(data || []);
-    } catch { setFondosDisponibles([]); }
-    finally { setCargandoFondos(false); }
+    } catch {
+      setFondosDisponibles([]);
+    } finally {
+      setCargandoFondos(false);
+    }
   };
 
   const agregarMultimedia = (fondo) => {
@@ -531,7 +553,7 @@ export default function Presentaciones() {
         id: genId(),
         tipo: "multimedia",
         url: fondo.url,
-        tipoMedia: fondo.tipo,   // "imagen" | "video"
+        tipoMedia: fondo.tipo, // "imagen" | "video"
         nombre: fondo.nombre,
         fondoId: fondo.id,
       },
@@ -544,7 +566,9 @@ export default function Presentaciones() {
     try {
       const resultado = await window.electron?.seleccionarFondo?.();
       if (!resultado?.filePath) return;
-      const nuevaRuta = await window.electron.copiarArchivoAFondos(resultado.filePath);
+      const nuevaRuta = await window.electron.copiarArchivoAFondos(
+        resultado.filePath,
+      );
       if (!nuevaRuta) throw new Error("Error al copiar el archivo");
       const fondoGuardado = await window.electron.agregarFondo({
         url: nuevaRuta,
@@ -556,7 +580,9 @@ export default function Presentaciones() {
       const data = await window.electron?.obtenerFondos?.();
       setFondosDisponibles(data || []);
       mostrarToast("Archivo subido. Selecciónalo para agregarlo.");
-    } catch { mostrarToast("Error al subir el archivo", "error"); }
+    } catch {
+      mostrarToast("Error al subir el archivo", "error");
+    }
   };
 
   // ── Libros filtrados para selector versículo
@@ -588,7 +614,7 @@ export default function Presentaciones() {
         <div className="shrink-0 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
           <span className="text-amber-400 text-xs">⚠</span>
           <p className="text-xs text-amber-300">
-            Guardando localmente — reinicia la app para sincronizar con la base
+            Guardando localmente; reinicia la app para sincronizar con la base
             de datos.
           </p>
         </div>
@@ -599,7 +625,7 @@ export default function Presentaciones() {
         <div
           className={`${panelAbierto ? "w-64 xl:w-72" : "w-0"} shrink-0 transition-all duration-300 overflow-hidden border-r border-slate-800 flex flex-col bg-slate-900/60`}
         >
-          <div className="shrink-0 px-3 py-3 border-b border-slate-800 flex items-center justify-between gap-2">
+          <div className="shrink-0 p-3 border-b border-slate-800 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <FaList className="text-emerald-400 text-sm shrink-0" />
               <span className="text-sm font-semibold text-white truncate">
@@ -607,8 +633,9 @@ export default function Presentaciones() {
               </span>
             </div>
             <button
+              type="button"
               onClick={crearOrden}
-              className="shrink-0 w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 flex items-center justify-center text-white transition-colors"
+              className="shrink-0 size-7 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 flex items-center justify-center text-white transition-colors"
               title="Nuevo orden"
             >
               <FaPlus className="text-[10px]" />
@@ -628,6 +655,7 @@ export default function Presentaciones() {
             )}
             {ordenes.map((o) => (
               <button
+                type="button"
                 key={o.id}
                 onClick={() => {
                   setOrdenId(o.id);
@@ -660,22 +688,25 @@ export default function Presentaciones() {
                   </div>
                   <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         editarOrden(o);
                       }}
-                      className="w-6 h-6 rounded-md bg-white/8 hover:bg-indigo-500/20 border border-white/8 flex items-center justify-center text-slate-400 hover:text-indigo-300 transition-colors"
+                      className="size-6 rounded-md bg-white/8 hover:bg-indigo-500/20 border border-white/8 flex items-center justify-center text-white/40 hover:text-indigo-300 transition-colors"
                       title="Editar"
                     >
                       <FaEdit className="text-[9px]" />
                     </button>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         eliminarOrden(o.id);
                       }}
-                      className="w-6 h-6 rounded-md bg-white/8 hover:bg-red-500/20 border border-white/8 flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors"
+                      className="size-6 rounded-md bg-white/8 hover:bg-red-500/20 border border-white/8 flex items-center justify-center text-white/40 hover:text-red-400 transition-colors"
                       title="Eliminar"
+                      aria-label="Eliminar orden de servicio"
                     >
                       <FaTrash className="text-[9px]" />
                     </button>
@@ -691,8 +722,9 @@ export default function Presentaciones() {
           {/* Header */}
           <div className="shrink-0 px-3 py-2.5 border-b border-slate-800 flex items-center gap-2 bg-slate-900/40">
             <button
+              type="button"
               onClick={() => setPanelAbierto((p) => !p)}
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors shrink-0"
+              className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors shrink-0"
               title={panelAbierto ? "Ocultar panel" : "Mostrar panel"}
             >
               <FaList className="text-xs" />
@@ -741,6 +773,7 @@ export default function Presentaciones() {
               {modoEdicion ? (
                 <>
                   <button
+                    type="button"
                     onClick={guardarOrden}
                     disabled={!tituloEdit.trim()}
                     className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
@@ -748,6 +781,7 @@ export default function Presentaciones() {
                     <FaSave className="text-[10px]" /> Guardar
                   </button>
                   <button
+                    type="button"
                     onClick={() => setModoEdicion(false)}
                     className="h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-slate-400 hover:text-white text-xs transition-colors"
                   >
@@ -758,6 +792,7 @@ export default function Presentaciones() {
                 <>
                   {proyectando && (
                     <button
+                      type="button"
                       onClick={limpiarProyeccion}
                       className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-semibold transition-colors"
                     >
@@ -765,6 +800,7 @@ export default function Presentaciones() {
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => editarOrden(orden)}
                     className="h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-slate-400 hover:text-white text-xs transition-colors flex items-center gap-1.5"
                   >
@@ -805,32 +841,48 @@ export default function Presentaciones() {
                     </div>
                     {/* Miniatura multimedia en modo edición */}
                     {item.tipo === "multimedia" && item.url && (
-                      <div className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950" style={{width:52,height:36}}>
-                        {item.tipoMedia === "video"
-                          ? <video src={item.url} className="w-full h-full object-cover" muted />
-                          : <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />}
+                      <div
+                        className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950"
+                        style={{width: 52, height: 36}}
+                      >
+                        {item.tipoMedia === "video" ? (
+                          <video
+                            src={item.url}
+                            className="w-full h-full object-cover"
+                            muted
+                          />
+                        ) : (
+                          <img
+                            src={item.url}
+                            alt={item.nombre}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
                     )}
                     <div className="flex gap-0.5 shrink-0">
                       <button
+                        type="button"
                         onClick={() => moverItem(idx, -1)}
                         disabled={idx === 0}
-                        className="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-30 transition-colors"
+                        className="size-6 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-30 transition-colors"
                       >
                         <FaArrowUp className="text-[9px]" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => moverItem(idx, 1)}
                         disabled={idx === itemsEdit.length - 1}
-                        className="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-30 transition-colors"
+                        className="size-6 rounded-md bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-30 transition-colors"
                       >
                         <FaArrowDown className="text-[9px]" />
                       </button>
                       <button
+                        type="button"
                         onClick={() =>
                           setItemsEdit((p) => p.filter((_, i) => i !== idx))
                         }
-                        className="w-6 h-6 rounded-md bg-white/5 hover:bg-red-500/20 border border-white/8 flex items-center justify-center text-slate-500 hover:text-red-400 transition-colors"
+                        className="size-6 rounded-md bg-white/5 hover:bg-red-500/20 border border-white/8 flex items-center justify-center text-white/35 hover:text-red-400 transition-colors"
                       >
                         <FaTrash className="text-[9px]" />
                       </button>
@@ -840,11 +892,12 @@ export default function Presentaciones() {
               </div>
 
               {/* Botones agregar */}
-              <div className="shrink-0 border-t border-slate-800 px-3 py-3 flex items-center gap-2 flex-wrap">
+              <div className="shrink-0 border-t border-slate-800 p-3 flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold shrink-0">
                   Agregar:
                 </span>
                 <button
+                  type="button"
                   onClick={() => {
                     setTipoHimno("moravo");
                     setBusquedaHimno("");
@@ -855,6 +908,7 @@ export default function Presentaciones() {
                   <FaMusic className="text-[9px]" /> Himno Moravo
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setTipoHimno("vida");
                     setBusquedaHimno("");
@@ -865,6 +919,7 @@ export default function Presentaciones() {
                   <FaBookOpen className="text-[9px]" /> Vida Cristiana
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setTipoHimno("personalizado");
                     setBusquedaHimno("");
@@ -876,6 +931,7 @@ export default function Presentaciones() {
                   <FaMusic className="text-[9px]" /> Personalizado
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setLibroVer(null);
                     setCapVer(null);
@@ -889,6 +945,7 @@ export default function Presentaciones() {
                   <FaBible className="text-[9px]" /> Versículo
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setNotaTexto("");
                     setModal("nota");
@@ -898,6 +955,7 @@ export default function Presentaciones() {
                   <FaRegStickyNote className="text-[9px]" /> Nota
                 </button>
                 <button
+                  type="button"
                   onClick={abrirModalMultimedia}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-600/15 hover:bg-pink-600/25 border border-pink-500/20 text-pink-300 text-xs font-medium transition-colors"
                 >
@@ -914,6 +972,7 @@ export default function Presentaciones() {
                     <FaList className="text-3xl mb-3 text-slate-700" />
                     <p className="text-sm">Este orden está vacío</p>
                     <button
+                      type="button"
                       onClick={() => editarOrden(orden)}
                       className="mt-3 px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-xs text-slate-400 hover:text-white transition-colors"
                     >
@@ -932,10 +991,11 @@ export default function Presentaciones() {
                     >
                       {/* Fila principal */}
                       <button
+                        type="button"
                         onClick={() => seleccionarYProyectar(idx)}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
                       >
-                        <div className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center bg-white/6 border border-white/8">
+                        <div className="shrink-0 size-6 rounded-lg flex items-center justify-center bg-white/6 border border-white/8">
                           <span className="text-[10px] font-bold text-white/50">
                             {idx + 1}
                           </span>
@@ -953,15 +1013,28 @@ export default function Presentaciones() {
                         </div>
                         {/* Miniatura para todos los items multimedia */}
                         {item.tipo === "multimedia" && item.url && (
-                          <div className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950" style={{width:52,height:36}}>
-                            {item.tipoMedia === "video"
-                              ? <video src={item.url} className="w-full h-full object-cover" muted />
-                              : <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />}
+                          <div
+                            className="shrink-0 rounded-md overflow-hidden border border-white/10 bg-slate-950"
+                            style={{width: 52, height: 36}}
+                          >
+                            {item.tipoMedia === "video" ? (
+                              <video
+                                src={item.url}
+                                className="w-full h-full object-cover"
+                                muted
+                              />
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt={item.nombre}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
                           </div>
                         )}
                         {isActive && proyectando && (
                           <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             EN VIVO
                           </span>
                         )}
@@ -973,17 +1046,32 @@ export default function Presentaciones() {
                       {/* Thumbnail multimedia activo */}
                       {isActive && item.tipo === "multimedia" && item.url && (
                         <div className="px-3 pb-2.5 space-y-2">
-                          <div className="relative rounded-lg overflow-hidden border border-white/8 bg-slate-950" style={{height:"80px"}}>
+                          <div
+                            className="relative rounded-lg overflow-hidden border border-white/8 bg-slate-950"
+                            style={{height: "80px"}}
+                          >
                             {item.tipoMedia === "video" ? (
-                              <video src={item.url} className="w-full h-full object-cover" muted />
+                              <video
+                                src={item.url}
+                                className="w-full h-full object-cover"
+                                muted
+                              />
                             ) : (
-                              <img src={item.url} alt={item.nombre} className="w-full h-full object-cover" />
+                              <img
+                                src={item.url}
+                                alt={item.nombre}
+                                className="w-full h-full object-cover"
+                              />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-3 gap-2">
-                              {item.tipoMedia === "video"
-                                ? <FaFilm className="text-pink-300 text-sm" />
-                                : <FaImage className="text-sky-300 text-sm" />}
-                              <span className="text-xs text-white/80 font-medium">{item.nombre}</span>
+                              {item.tipoMedia === "video" ? (
+                                <FaFilm className="text-pink-300 text-sm" />
+                              ) : (
+                                <FaImage className="text-sky-300 text-sm" />
+                              )}
+                              <span className="text-xs text-white/80 font-medium">
+                                {item.nombre}
+                              </span>
                             </div>
                           </div>
 
@@ -992,6 +1080,7 @@ export default function Presentaciones() {
                             <div className="flex items-center gap-2 px-1">
                               {/* Play / Pause */}
                               <button
+                                type="button"
                                 onClick={() => {
                                   if (videoPausado) {
                                     sendControlVideo("play");
@@ -1001,22 +1090,25 @@ export default function Presentaciones() {
                                     setVideoPausado(true);
                                   }
                                 }}
-                                className="w-8 h-8 rounded-lg bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/30 flex items-center justify-center text-pink-300 transition-colors"
+                                className="size-8 rounded-lg bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/30 flex items-center justify-center text-pink-300 transition-colors"
                                 title={videoPausado ? "Reproducir" : "Pausar"}
                               >
-                                {videoPausado
-                                  ? <FaPlay className="text-[10px]" />
-                                  : <FaPause className="text-[10px]" />}
+                                {videoPausado ? (
+                                  <FaPlay className="text-[10px]" />
+                                ) : (
+                                  <FaPause className="text-[10px]" />
+                                )}
                               </button>
 
                               {/* Stop (volver al inicio) */}
                               <button
+                                type="button"
                                 onClick={() => {
                                   sendControlVideo("seek", {time: 0});
                                   sendControlVideo("pause");
                                   setVideoPausado(true);
                                 }}
-                                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                                className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                                 title="Reiniciar"
                               >
                                 <FaStop className="text-[10px]" />
@@ -1025,22 +1117,33 @@ export default function Presentaciones() {
                               {/* Volumen */}
                               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     const muted = videoVolumen > 0;
                                     const newVol = muted ? 0 : 1;
-                                    sendControlVideo("volume", {volume: newVol});
+                                    sendControlVideo("volume", {
+                                      volume: newVol,
+                                    });
                                     setVideoVolumen(newVol);
                                   }}
                                   className="shrink-0 text-slate-400 hover:text-white transition-colors"
-                                  title={videoVolumen === 0 ? "Activar sonido" : "Silenciar"}
+                                  title={
+                                    videoVolumen === 0
+                                      ? "Activar sonido"
+                                      : "Silenciar"
+                                  }
                                 >
-                                  {videoVolumen === 0
-                                    ? <FaVolumeMute className="text-xs" />
-                                    : <FaVolumeUp className="text-xs" />}
+                                  {videoVolumen === 0 ? (
+                                    <FaVolumeMute className="text-xs" />
+                                  ) : (
+                                    <FaVolumeUp className="text-xs" />
+                                  )}
                                 </button>
                                 <input
                                   type="range"
-                                  min="0" max="1" step="0.05"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
                                   value={videoVolumen}
                                   onChange={(e) => {
                                     const v = parseFloat(e.target.value);
@@ -1062,7 +1165,8 @@ export default function Presentaciones() {
                           <div className="px-3 pb-2.5 flex flex-wrap gap-1.5">
                             {item.parrafos.map((parrafo, pi) => (
                               <button
-                                key={pi}
+                                type="button"
+                                key={`parrafo-${pi}-${String(parrafo).slice(0, 6)}`}
                                 onClick={() => {
                                   setParrafoActivo(pi);
                                   if (proyectando) enviarHimno(item, pi);
@@ -1088,6 +1192,7 @@ export default function Presentaciones() {
               {orden.items.length > 0 && (
                 <div className="shrink-0 border-t border-slate-800 px-3 py-2.5 flex items-center gap-2 bg-slate-900/50">
                   <button
+                    type="button"
                     onClick={() => {
                       if (parrafoActivo > 0) {
                         const p = parrafoActivo - 1;
@@ -1108,6 +1213,7 @@ export default function Presentaciones() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       const item = orden.items[itemActivo];
                       enviarItem(item, parrafoActivo);
@@ -1120,6 +1226,7 @@ export default function Presentaciones() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       const item = orden.items[itemActivo];
                       const pars =
@@ -1150,7 +1257,7 @@ export default function Presentaciones() {
           ) : (
             /* ── Estado vacío ── */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
-              <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center mb-5">
+              <div className="size-16 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center mb-5">
                 <FaList className="text-2xl text-slate-600" />
               </div>
               <h3 className="text-base font-semibold text-slate-300 mb-2">
@@ -1161,6 +1268,7 @@ export default function Presentaciones() {
                 notas. Proyéctalos en orden con las flechas del teclado.
               </p>
               <button
+                type="button"
                 onClick={crearOrden}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white font-semibold text-sm transition-colors"
               >
@@ -1184,18 +1292,21 @@ export default function Presentaciones() {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5">
                     <button
+                      type="button"
                       onClick={() => setTipoHimno("moravo")}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${tipoHimno === "moravo" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
                     >
                       Moravo
                     </button>
                     <button
+                      type="button"
                       onClick={() => setTipoHimno("vida")}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${tipoHimno === "vida" ? "bg-amber-600 text-white" : "text-slate-400 hover:text-white"}`}
                     >
                       Vida Cristiana
                     </button>
                     <button
+                      type="button"
                       onClick={() => setTipoHimno("personalizado")}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${tipoHimno === "personalizado" ? "bg-violet-600 text-white" : "text-slate-400 hover:text-white"}`}
                     >
@@ -1204,8 +1315,9 @@ export default function Presentaciones() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setModal(null)}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                 >
                   <IoClose />
                 </button>
@@ -1214,7 +1326,6 @@ export default function Presentaciones() {
                 <div className="relative">
                   <IoSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none" />
                   <input
-                    autoFocus
                     type="text"
                     value={busquedaHimno}
                     onChange={(e) => setBusquedaHimno(e.target.value)}
@@ -1224,36 +1335,49 @@ export default function Presentaciones() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto py-1">
-                {himnosFiltrados.length === 0 && tipoHimno === "personalizado" && (
-                  <p className="text-center text-slate-500 text-sm py-8">
-                    No hay himnos personalizados.<br />
-                    <span className="text-xs">Agrégalos desde "Agregar Himno".</span>
-                  </p>
-                )}
+                {himnosFiltrados.length === 0 &&
+                  tipoHimno === "personalizado" && (
+                    <p className="text-center text-slate-500 text-sm py-8">
+                      No hay himnos personalizados.
+                      <br />
+                      <span className="text-xs">
+                        Agrégalos desde "Agregar Himno".
+                      </span>
+                    </p>
+                  )}
                 {himnosFiltrados.map((h, i) => {
-                  const accentColor = tipoHimno === "personalizado"
-                    ? "text-violet-400/70"
-                    : tipoHimno === "vida"
-                      ? "text-amber-400/70"
-                      : "text-emerald-400/70";
-                  const hoverPlus = tipoHimno === "personalizado"
-                    ? "group-hover:text-violet-400"
-                    : tipoHimno === "vida"
-                      ? "group-hover:text-amber-400"
-                      : "group-hover:text-emerald-400";
+                  const accentColor =
+                    tipoHimno === "personalizado"
+                      ? "text-violet-400/70"
+                      : tipoHimno === "vida"
+                        ? "text-amber-400/70"
+                        : "text-emerald-400/70";
+                  const hoverPlus =
+                    tipoHimno === "personalizado"
+                      ? "group-hover:text-violet-400"
+                      : tipoHimno === "vida"
+                        ? "group-hover:text-amber-400"
+                        : "group-hover:text-emerald-400";
                   return (
                     <button
-                      key={tipoHimno === "personalizado" ? (h.id ?? i) : h.numero}
+                      type="button"
+                      key={
+                        tipoHimno === "personalizado" ? (h.id ?? i) : h.numero
+                      }
                       onClick={() => agregarHimno(h)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 text-left transition-colors group"
                     >
-                      <span className={`shrink-0 w-8 text-right text-xs font-bold tabular-nums ${accentColor}`}>
+                      <span
+                        className={`shrink-0 w-8 text-right text-xs font-bold tabular-nums ${accentColor}`}
+                      >
                         {h.numero || "—"}
                       </span>
                       <span className="flex-1 text-sm text-slate-300 group-hover:text-white truncate">
                         {h.titulo}
                       </span>
-                      <FaPlus className={`text-[10px] text-slate-600 ${hoverPlus} transition-colors shrink-0`} />
+                      <FaPlus
+                        className={`text-[10px] text-slate-600 ${hoverPlus} transition-colors shrink-0`}
+                      />
                     </button>
                   );
                 })}
@@ -1282,9 +1406,15 @@ export default function Presentaciones() {
                         : `${libroVer.nombre} ${capVer}`}
                   </h3>
                   {(() => {
-                    const addedCount = capVer && libroVer
-                      ? itemsEdit.filter(it => it.tipo === "versiculo" && it.libroId === libroVer.id && it.capitulo === capVer).length
-                      : 0;
+                    const addedCount =
+                      capVer && libroVer
+                        ? itemsEdit.filter(
+                            (it) =>
+                              it.tipo === "versiculo" &&
+                              it.libroId === libroVer.id &&
+                              it.capitulo === capVer,
+                          ).length
+                        : 0;
                     return addedCount > 0 ? (
                       <span className="shrink-0 text-[10px] font-bold text-indigo-400 bg-indigo-500/15 border border-indigo-500/25 rounded-full px-2 py-0.5">
                         {addedCount} añadido{addedCount > 1 ? "s" : ""}
@@ -1295,26 +1425,47 @@ export default function Presentaciones() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   {(libroVer || capVer) && (
                     <button
+                      type="button"
                       onClick={() => {
-                        if (capVer) { setCapVer(null); setVersVer([]); }
-                        else { setLibroVer(null); setCapsVer([]); }
+                        if (capVer) {
+                          setCapVer(null);
+                          setVersVer([]);
+                        } else {
+                          setLibroVer(null);
+                          setCapsVer([]);
+                        }
                       }}
                       className="h-7 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-xs text-slate-400 hover:text-white transition-colors"
+                      aria-label="Volver atrás"
                     >
                       Atrás
                     </button>
                   )}
                   {capVer && (
                     <button
-                      onClick={() => { setModal(null); setLibroVer(null); setCapVer(null); setVersVer([]); setCapsVer([]); }}
+                      type="button"
+                      onClick={() => {
+                        setModal(null);
+                        setLibroVer(null);
+                        setCapVer(null);
+                        setVersVer([]);
+                        setCapsVer([]);
+                      }}
                       className="h-7 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/50 text-xs font-semibold text-white transition-colors"
                     >
                       Listo
                     </button>
                   )}
                   <button
-                    onClick={() => { setModal(null); setLibroVer(null); setCapVer(null); setVersVer([]); setCapsVer([]); }}
-                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                    type="button"
+                    onClick={() => {
+                      setModal(null);
+                      setLibroVer(null);
+                      setCapVer(null);
+                      setVersVer([]);
+                      setCapsVer([]);
+                    }}
+                    className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                   >
                     <IoClose />
                   </button>
@@ -1327,7 +1478,6 @@ export default function Presentaciones() {
                     <div className="relative mb-2">
                       <IoSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none" />
                       <input
-                        autoFocus
                         type="text"
                         value={busquedaLibro}
                         onChange={(e) => setBusquedaLibro(e.target.value)}
@@ -1338,6 +1488,7 @@ export default function Presentaciones() {
                     <div className="grid grid-cols-2 gap-1">
                       {librosFiltrados.map((l) => (
                         <button
+                          type="button"
                           key={l.id}
                           onClick={() => setLibroVer(l)}
                           className="text-left px-2.5 py-1.5 rounded-lg border border-slate-700/50 bg-white/3 hover:bg-white/8 hover:border-slate-600 text-xs text-slate-300 hover:text-white transition-colors"
@@ -1359,12 +1510,13 @@ export default function Presentaciones() {
                   >
                     {capsVer.map((_, i) => (
                       <button
-                        key={i}
+                        type="button"
+                        key={`cap-${i + 1}`}
                         onClick={() => {
                           setCapVer(i + 1);
                           setVersVer(capsVer[i] || []);
                         }}
-                        className="aspect-square rounded-lg bg-slate-800 border border-slate-700/50 hover:bg-indigo-600 hover:border-indigo-500/60 text-sm font-bold text-slate-400 hover:text-white transition-all"
+                        className="aspect-square rounded-lg bg-slate-800 border border-slate-700/50 hover:bg-indigo-600 hover:border-indigo-500/60 text-sm font-bold text-white/60 hover:text-white transition-all"
                       >
                         {i + 1}
                       </button>
@@ -1376,12 +1528,16 @@ export default function Presentaciones() {
                   <div className="space-y-1">
                     {versVer.map((texto, i) => {
                       const yaAgregado = itemsEdit.some(
-                        it => it.tipo === "versiculo" && it.libroId === libroVer?.id &&
-                              it.capitulo === capVer && it.versiculo === i + 1
+                        (it) =>
+                          it.tipo === "versiculo" &&
+                          it.libroId === libroVer?.id &&
+                          it.capitulo === capVer &&
+                          it.versiculo === i + 1,
                       );
                       return (
                         <button
-                          key={i}
+                          type="button"
+                          key={`vers-${i + 1}-${String(texto).slice(0, 8)}`}
                           onClick={() => agregarVersiculo(i)}
                           className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg border text-left transition-colors group ${
                             yaAgregado
@@ -1392,13 +1548,18 @@ export default function Presentaciones() {
                           <span className="shrink-0 text-[10px] font-bold text-indigo-400/60 w-5 tabular-nums mt-0.5">
                             {i + 1}
                           </span>
-                          <span className={`flex-1 text-xs leading-relaxed ${yaAgregado ? "text-indigo-200" : "text-slate-300 group-hover:text-white"}`}>
+                          <span
+                            className={`flex-1 text-xs leading-relaxed ${yaAgregado ? "text-indigo-200" : "text-slate-300 group-hover:text-white"}`}
+                          >
                             {texto}
                           </span>
-                          {yaAgregado
-                            ? <span className="text-[10px] text-indigo-400 shrink-0 mt-0.5 font-bold">✓</span>
-                            : <FaPlus className="text-[9px] text-slate-600 group-hover:text-indigo-400 transition-colors shrink-0 mt-0.5" />
-                          }
+                          {yaAgregado ? (
+                            <span className="text-[10px] text-indigo-400 shrink-0 mt-0.5 font-bold">
+                              ✓
+                            </span>
+                          ) : (
+                            <FaPlus className="text-[9px] text-slate-600 group-hover:text-indigo-400 transition-colors shrink-0 mt-0.5" />
+                          )}
                         </button>
                       );
                     })}
@@ -1411,39 +1572,56 @@ export default function Presentaciones() {
 
         {/* ── Modal: Agregar Multimedia ── */}
         {modal === "multimedia" && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-            onClick={() => setModal(null)}>
-            <div className="bg-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]"
-              onClick={e => e.stopPropagation()}>
-
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+            onClick={() => setModal(null)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Header */}
               <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-pink-500/15 border border-pink-500/25 flex items-center justify-center">
+                  <div className="size-8 rounded-xl bg-pink-500/15 border border-pink-500/25 flex items-center justify-center">
                     <FaPhotoVideo className="text-pink-400 text-xs" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Agregar Multimedia</h3>
-                    <p className="text-[10px] text-slate-500">Selecciona imagen o video del proyector</p>
+                    <h3 className="text-sm font-bold text-white">
+                      Agregar Multimedia
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      Selecciona imagen o video del proyector
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Filtro tipo */}
                   <div className="flex items-center gap-0.5 bg-white/5 border border-white/8 rounded-lg p-0.5">
                     {[
-                      {v:"todos",  l:"Todos"},
-                      {v:"imagen", l:"Imágenes"},
-                      {v:"video",  l:"Videos"},
+                      {v: "todos", l: "Todos"},
+                      {v: "imagen", l: "Imágenes"},
+                      {v: "video", l: "Videos"},
                     ].map(({v, l}) => (
-                      <button key={v} onClick={() => setFiltroMedia(v)}
+                      <button
+                        type="button"
+                        key={v}
+                        onClick={() => setFiltroMedia(v)}
                         className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
-                          filtroMedia === v ? "bg-pink-600 text-white" : "text-slate-400 hover:text-white"
+                          filtroMedia === v
+                            ? "bg-pink-600 text-white"
+                            : "text-slate-400 hover:text-white"
                         }`}
-                      >{l}</button>
+                      >
+                        {l}
+                      </button>
                     ))}
                   </div>
-                  <button onClick={() => setModal(null)}
-                    className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => setModal(null)}
+                    className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  >
                     <IoClose />
                   </button>
                 </div>
@@ -1453,68 +1631,89 @@ export default function Presentaciones() {
               <div className="flex-1 min-h-0 overflow-y-auto p-3">
                 {cargandoFondos ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-400" />
+                    <div className="animate-spin rounded-full size-8 border-b-2 border-pink-400" />
                     <p className="text-slate-500 text-sm">Cargando fondos…</p>
                   </div>
-                ) : (() => {
-                  const fondosFiltrados = fondosDisponibles.filter(f =>
-                    filtroMedia === "todos" ? true : f.tipo === filtroMedia
-                  );
-                  return fondosFiltrados.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <FaPhotoVideo className="text-4xl text-slate-700" />
-                      <p className="text-slate-400 text-sm font-medium">
-                        {fondosDisponibles.length === 0 ? "No hay fondos disponibles" : "Sin resultados para este filtro"}
-                      </p>
-                      <p className="text-slate-600 text-xs max-w-xs">
-                        {fondosDisponibles.length === 0
-                          ? "Sube imágenes o videos desde Gestión de Fondos para usarlos aquí."
-                          : "Cambia el filtro para ver otros archivos."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {fondosFiltrados.map(fondo => (
-                        <button key={fondo.id} onClick={() => agregarMultimedia(fondo)}
-                          className="group relative rounded-xl overflow-hidden border-2 border-white/8 hover:border-pink-400/60 transition-all hover:scale-[1.03] hover:shadow-lg"
-                        >
-                          <div className="aspect-video bg-slate-800 relative overflow-hidden">
-                            {fondo.tipo === "video" ? (
-                              <video src={fondo.url} className="w-full h-full object-cover" muted
-                                onMouseEnter={e => e.target.play()} onMouseLeave={e => e.target.pause()} />
-                            ) : (
-                              <img src={fondo.url} alt={fondo.nombre} className="w-full h-full object-cover" />
-                            )}
-                            {/* Overlay hover */}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <FaPlus className="text-white text-lg" />
+                ) : (
+                  (() => {
+                    const fondosFiltrados = fondosDisponibles.filter((f) =>
+                      filtroMedia === "todos" ? true : f.tipo === filtroMedia,
+                    );
+                    return fondosFiltrados.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                        <FaPhotoVideo className="text-4xl text-slate-700" />
+                        <p className="text-slate-400 text-sm font-medium">
+                          {fondosDisponibles.length === 0
+                            ? "No hay fondos disponibles"
+                            : "Sin resultados para este filtro"}
+                        </p>
+                        <p className="text-slate-600 text-xs max-w-xs">
+                          {fondosDisponibles.length === 0
+                            ? "Sube imágenes o videos desde Gestión de Fondos para usarlos aquí."
+                            : "Cambia el filtro para ver otros archivos."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        {fondosFiltrados.map((fondo) => (
+                          <button
+                            type="button"
+                            key={fondo.id}
+                            onClick={() => agregarMultimedia(fondo)}
+                            className="group relative rounded-xl overflow-hidden border-2 border-white/8 hover:border-pink-400/60 transition-all hover:scale-[1.03] hover:shadow-lg"
+                          >
+                            <div className="aspect-video bg-slate-800 relative overflow-hidden">
+                              {fondo.tipo === "video" ? (
+                                <video
+                                  src={fondo.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  onMouseEnter={(e) => e.target.play()}
+                                  onMouseLeave={(e) => e.target.pause()}
+                                />
+                              ) : (
+                                <img
+                                  src={fondo.url}
+                                  alt={fondo.nombre}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                              {/* Overlay hover */}
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <FaPlus className="text-white text-lg" />
+                              </div>
+                              {/* Badge tipo */}
+                              <div className="absolute top-1.5 left-1.5">
+                                {fondo.tipo === "video" ? (
+                                  <FaFilm className="text-pink-300 text-[10px] drop-shadow" />
+                                ) : (
+                                  <FaImage className="text-sky-300 text-[10px] drop-shadow" />
+                                )}
+                              </div>
                             </div>
-                            {/* Badge tipo */}
-                            <div className="absolute top-1.5 left-1.5">
-                              {fondo.tipo === "video"
-                                ? <FaFilm className="text-pink-300 text-[10px] drop-shadow" />
-                                : <FaImage className="text-sky-300 text-[10px] drop-shadow" />}
+                            <div className="px-2 py-1.5 bg-slate-800/80">
+                              <p className="text-[10px] text-slate-300 truncate font-medium">
+                                {fondo.nombre}
+                              </p>
                             </div>
-                          </div>
-                          <div className="px-2 py-1.5 bg-slate-800/80">
-                            <p className="text-[10px] text-slate-300 truncate font-medium">{fondo.nombre}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()
+                )}
               </div>
 
               {/* Footer */}
               <div className="shrink-0 px-4 py-3 border-t border-slate-700/60 flex items-center justify-between gap-3">
                 {/* TODO: subida desde dispositivo — pendiente rediseño flujo multimedia
-                <button onClick={subirYAgregarMultimedia}
+                <button type="button" onClick={subirYAgregarMultimedia}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-600/80 hover:bg-pink-600 border border-pink-500/30 text-white text-xs font-semibold transition-colors">
                   <FaUpload className="text-[10px]" /> Subir nuevo archivo
                 </button> */}
                 <p className="text-[10px] text-slate-600">
-                  {fondosDisponibles.length > 0 && `${fondosDisponibles.length} fondo${fondosDisponibles.length !== 1 ? "s" : ""} disponible${fondosDisponibles.length !== 1 ? "s" : ""}`}
+                  {fondosDisponibles.length > 0 &&
+                    `${fondosDisponibles.length} fondo${fondosDisponibles.length !== 1 ? "s" : ""} disponible${fondosDisponibles.length !== 1 ? "s" : ""}`}
                 </p>
               </div>
             </div>
@@ -1536,15 +1735,15 @@ export default function Presentaciones() {
                   Nota / Separador
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setModal(null)}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  className="size-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                 >
                   <IoClose />
                 </button>
               </div>
               <div className="p-4">
                 <textarea
-                  autoFocus
                   value={notaTexto}
                   onChange={(e) => setNotaTexto(e.target.value)}
                   onKeyDown={(e) => {
@@ -1560,6 +1759,7 @@ export default function Presentaciones() {
                 </p>
                 <div className="flex gap-2 mt-3">
                   <button
+                    type="button"
                     onClick={agregarNota}
                     disabled={!notaTexto.trim()}
                     className="flex-1 py-2 rounded-lg bg-yellow-600/80 hover:bg-yellow-600 disabled:opacity-40 border border-yellow-500/30 text-white text-sm font-semibold transition-colors"
@@ -1567,6 +1767,7 @@ export default function Presentaciones() {
                     Agregar
                   </button>
                   <button
+                    type="button"
                     onClick={() => setModal(null)}
                     className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/8 text-slate-400 hover:text-white text-sm transition-colors"
                   >

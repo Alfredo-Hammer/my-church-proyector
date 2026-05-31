@@ -95,7 +95,7 @@ const Contactos = () => {
                       key={label}
                       className="flex items-center gap-3 px-3 py-2 bg-slate-800/60 border border-slate-700/40 rounded-lg"
                     >
-                      <div className="shrink-0 w-7 h-7 flex items-center justify-center bg-slate-700/60 rounded-md">
+                      <div className="shrink-0 size-7 flex items-center justify-center bg-slate-700/60 rounded-md">
                         {icon}
                       </div>
                       <div className="min-w-0">
@@ -132,14 +132,14 @@ const Contactos = () => {
                       label: "Instagram",
                     },
                   ].map(({icon, label}) => (
-                    <a
+                    <button
                       key={label}
-                      href="#"
+                      type="button"
                       className="flex items-center gap-2 px-3 py-2 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 hover:border-slate-600/60 rounded-lg transition-colors"
                     >
                       <span className="text-sm">{icon}</span>
                       <span className="text-xs text-slate-400">{label}</span>
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -172,9 +172,7 @@ const Contactos = () => {
                       <p className="text-xs text-slate-400 italic leading-relaxed">
                         "{texto}"
                       </p>
-                      <p className="text-[10px] text-slate-600 mt-1">
-                        — {autor}
-                      </p>
+                      <p className="text-[10px] text-slate-600 mt-1">{autor}</p>
                     </div>
                   ))}
                 </div>
@@ -197,10 +195,14 @@ const Contactos = () => {
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">
-                        Nombre
+                      <label
+                        htmlFor="contact-nombre"
+                        className="block text-xs text-slate-400 mb-1"
+                      >
+                        Nombre completo
                       </label>
                       <input
+                        id="contact-nombre"
                         type="text"
                         name="nombre"
                         value={formData.nombre}
@@ -211,10 +213,14 @@ const Contactos = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">
+                      <label
+                        htmlFor="contact-email"
+                        className="block text-xs text-slate-400 mb-1"
+                      >
                         Correo electrónico
                       </label>
                       <input
+                        id="contact-email"
                         type="email"
                         name="email"
                         value={formData.email}
@@ -255,7 +261,7 @@ const Contactos = () => {
                     {enviando ? (
                       <>
                         <svg
-                          className="animate-spin h-4 w-4"
+                          className="animate-spin size-4"
                           viewBox="0 0 24 24"
                           fill="none"
                         >

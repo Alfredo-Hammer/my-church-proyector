@@ -7,12 +7,10 @@
   "description": "GloryView - Aplicación de proyección para iglesias",
   "author": "Alfredo Hammer <coderhammer70@gmail.com>",
   "dependencies": {
-    "@mantine/rte": "^5.10.5",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
-    "@tinymce/tinymce-react": "^6.1.0",
     "better-sqlite3": "^11.10.0",
     "cors": "^2.8.5",
     "docx": "^9.5.1",
@@ -59,7 +57,8 @@
     "release-github": "npm run build && electron-builder --win --publish always",
     "release-draft": "npm run build && electron-builder --win --publish onTagOrDraft",
     "neon-logo": "node scripts/neon-logo.js assets/icon-256.png assets/icon-256-neon.png",
-    "neon-logo-circulo": "node scripts/neon-lines-logo.js assets/logo-circulo.png assets/logo-circulo-neon.png #00F5FF 130 30"
+    "neon-logo-circulo": "node scripts/neon-lines-logo.js assets/logo-circulo.png assets/logo-circulo-neon.png #00F5FF 130 30",
+    "doctor": "react-doctor"
   },
   "eslintConfig": {
     "extends": [
@@ -80,8 +79,6 @@
     ]
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.2",
-    "app-builder-bin": "^4.2.0",
     "cross-env": "^10.1.0",
     "electron": "^35.7.5",
     "electron-builder": "^26.0.12",
@@ -91,6 +88,7 @@
     "rcedit": "^4.0.1",
     "sharp": "^0.34.3",
     "tailwindcss": "^3.4.17",
-    "to-ico": "^1.1.5"
+    "to-ico": "^1.1.5",
+    "react-doctor": "^0.2.6"
   }
 }

@@ -123,10 +123,14 @@ export default function Temporizador() {
 
         {/* Mensaje personalizable */}
         <div className="mb-4">
-          <label className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">
+          <label
+            htmlFor="timer-mensaje"
+            className="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5"
+          >
             Mensaje en pantalla
           </label>
           <input
+            id="timer-mensaje"
             value={mensaje}
             onChange={(e) => setMensaje(e.target.value)}
             onBlur={() => window.electron?.timerSetMensaje?.({mensaje})}
@@ -143,6 +147,7 @@ export default function Temporizador() {
           <div className="flex gap-1.5 flex-wrap">
             {PRESETS.map((p) => (
               <button
+                type="button"
                 key={p.minutos}
                 onClick={() => cambiarMinutos(p.minutos)}
                 disabled={corriendo}
@@ -157,9 +162,10 @@ export default function Temporizador() {
             ))}
             <div className="flex items-center gap-1 ml-auto bg-slate-800 border border-slate-700/60 rounded-lg">
               <button
+                type="button"
                 onClick={() => cambiarMinutos(Math.max(1, minutos - 1))}
                 disabled={corriendo || minutos <= 1}
-                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                className="size-7 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <FaMinus className="text-[9px]" />
               </button>
@@ -167,9 +173,10 @@ export default function Temporizador() {
                 {minutos}m
               </span>
               <button
+                type="button"
                 onClick={() => cambiarMinutos(Math.min(99, minutos + 1))}
                 disabled={corriendo || minutos >= 99}
-                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                className="size-7 flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <FaPlus className="text-[9px]" />
               </button>
@@ -218,8 +225,8 @@ export default function Temporizador() {
             </div>
             {proyectando && !terminado && (
               <div className="flex items-center justify-center gap-1.5 mt-3 text-[10px] font-bold text-indigo-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                EN PANTALLA — continúa aunque navegues
+                <span className="size-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                EN PANTALLA, continúa aunque navegues
               </div>
             )}
           </div>
@@ -229,6 +236,7 @@ export default function Temporizador() {
         <div className="grid grid-cols-2 gap-2 mb-3">
           {!corriendo ? (
             <button
+              type="button"
               onClick={iniciar}
               disabled={seg <= 0 || terminado || ocupado}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-40 border border-slate-600/60 text-white font-semibold text-sm transition-colors"
@@ -237,6 +245,7 @@ export default function Temporizador() {
             </button>
           ) : (
             <button
+              type="button"
               onClick={pausar}
               disabled={ocupado}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-600/80 hover:bg-amber-600 border border-amber-500/30 text-white font-semibold text-sm transition-colors disabled:opacity-40"
@@ -245,6 +254,7 @@ export default function Temporizador() {
             </button>
           )}
           <button
+            type="button"
             onClick={reiniciar}
             disabled={ocupado}
             className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 font-semibold text-sm transition-colors disabled:opacity-40"
@@ -256,6 +266,7 @@ export default function Temporizador() {
         {/* Proyección */}
         {!proyectando ? (
           <button
+            type="button"
             onClick={iniciarConProyeccion}
             disabled={seg <= 0 || ocupado}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 border border-indigo-500/30 text-white font-bold text-sm transition-colors shadow-lg shadow-indigo-900/40"
@@ -264,6 +275,7 @@ export default function Temporizador() {
           </button>
         ) : (
           <button
+            type="button"
             onClick={detenerProyeccion}
             disabled={ocupado}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-sm transition-colors disabled:opacity-40"

@@ -50,33 +50,32 @@ function AppContent() {
           return;
         }
 
-        // Enviar al backend como IDs base:<tipo>:<numero>
-        for (const n of numeros) {
+        // Crear todas las peticiones
+        const requests = numeros.map(n => {
           const numero = String(n ?? "").trim();
-          if (!numero) continue;
+          if (!numero) return null;
 
           const id = `base:${tipo}:${numero}`;
-          try {
-            const res = await fetch(
-              `${API_BASE}/api/himnos/${encodeURIComponent(id)}/favorito`,
-              {
-                method: "POST",
-                headers: {
-                  Accept: "application/json",
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ favorito: true }),
+          return fetch(
+            `${API_BASE}/api/himnos/${encodeURIComponent(id)}/favorito`,
+            {
+              method: "POST",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
               },
-            );
-            const json = await res.json().catch(() => null);
-            if (!res.ok || !json?.ok) {
-              // No abortar toda la migración por un himno
-              console.warn("⚠️ [Migración favoritos] Falló", id, json);
-            }
-          } catch (err) {
-            console.warn("⚠️ [Migración favoritos] Error", id, err);
-          }
-        }
+              body: JSON.stringify({ favorito: true }),
+            },
+          )
+            .then(res => res.json().catch(() => null))
+            .catch(err => {
+              console.warn("⚠️ [Migración favoritos] Error", id, err);
+              return null;
+            });
+        });
+
+        // Ejecutar todas las peticiones en paralelo
+        await Promise.all(requests.filter(Boolean));
 
         localStorage.setItem(migradoKey, "1");
       } catch (err) {
@@ -111,8 +110,8 @@ function AppContent() {
     }
 
     return () => {
-      if (window.electron?.removeAllListeners) {
-        window.electron.removeAllListeners('navegar-a-ruta');
+      if (window.electron?.removeListener) {
+        window.electron.removeListener('navegar-a-ruta', handleNavigation);
       }
     };
   }, [navigate]);
@@ -166,8 +165,8 @@ function AppContent() {
     }
 
     return () => {
-      if (window.electron?.removeAllListeners) {
-        window.electron.removeAllListeners("control-biblia-proyectar");
+      if (window.electron?.removeListener) {
+        window.electron.removeListener("control-biblia-proyectar", handleControlBibliaProyectar);
       }
     };
   }, []);
@@ -243,8 +242,8 @@ function AppContent() {
     }
 
     return () => {
-      if (window.electron?.removeAllListeners) {
-        window.electron.removeAllListeners('control-biblia-preview');
+      if (window.electron?.removeListener) {
+        window.electron.removeListener('control-biblia-preview', handleControlBibliaPreview);
       }
     };
   }, []);
@@ -256,7 +255,7 @@ function AppContent() {
 function MainLayout() {
   const location = useLocation();
 
-  const isInicio    = location.pathname === '/';
+  const isInicio = location.pathname === '/';
   const isMultimedia = location.pathname === '/multimedia';
   const contentClasses = isInicio
     ? `flex-1 min-h-0 overflow-hidden bg-gray-800`

@@ -55,6 +55,7 @@ const AppMovil = () => {
 
           <div className="ml-auto">
             <button
+              type="button"
               onClick={cargarInfo}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/60 rounded-lg text-xs text-slate-300 transition-colors"
               title="Actualizar"
@@ -73,7 +74,7 @@ const AppMovil = () => {
         {estado.status === "loading" && (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-400"></div>
+              <div className="animate-spin rounded-full size-8 border-b-2 border-sky-400"></div>
               <p className="text-slate-500 text-sm">
                 Cargando datos de conexión…
               </p>
@@ -100,7 +101,7 @@ const AppMovil = () => {
                   <img
                     src={`${getBaseURL()}/api/qr.png`}
                     alt="QR de conexión"
-                    className="w-52 h-52 object-contain"
+                    className="size-52 object-contain"
                   />
                 </div>
                 <p className="text-xs text-slate-600 text-center">
@@ -143,7 +144,7 @@ const AppMovil = () => {
                       .
                     </li>
                     <li>
-                      Apunta al QR — la app completa la URL automáticamente.
+                      Apunta al QR: la app completa la URL automáticamente.
                     </li>
                     <li>
                       Si muestra{" "}

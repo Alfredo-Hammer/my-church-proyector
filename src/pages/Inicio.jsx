@@ -18,7 +18,7 @@ import {
   FaArrowRight,
   FaStar,
 } from "react-icons/fa";
-import {motion} from "framer-motion";
+import {LazyMotion, domAnimation, m} from "framer-motion";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
 import himnosData from "../data/himnos.json";
 import vidacristianaData from "../data/vidacristiana.json";
@@ -124,8 +124,21 @@ const CITAS_BIBLICAS = [
 const Inicio = () => {
   const navigate = useNavigate();
   const mediaContext = useMediaPlayer();
-  const [mensaje, setMensaje] = useState("");
-  const [citaDelDia, setCitaDelDia] = useState(null);
+  const [mensaje, setMensaje] = useState(() => {
+    const hora = new Date().getHours();
+    return hora < 12
+      ? "Buenos días"
+      : hora < 18
+        ? "Buenas tardes"
+        : "Buenas noches";
+  });
+  const [citaDelDia, setCitaDelDia] = useState(() => {
+    const hoy = new Date();
+    const diaDelAno = Math.floor(
+      (hoy - new Date(hoy.getFullYear(), 0, 1)) / 86400000,
+    );
+    return CITAS_BIBLICAS[diaDelAno % CITAS_BIBLICAS.length];
+  });
   const [estadisticas, setEstadisticas] = useState({
     totalHimnos: 0,
     totalFavoritos: 0,
@@ -192,22 +205,16 @@ const Inicio = () => {
   useEffect(() => {
     cargarConfiguracion();
     cargarEstadisticas();
-    if (window.electron?.on) {
-      window.electron.on("configuracion-actualizada", (_, nuevaConfig) => {
-        setConfiguracion((prev) => ({...prev, ...nuevaConfig}));
-      });
-    }
-    return () => {
-      window.electron?.removeAllListeners?.("configuracion-actualizada");
+    const handleConfigActualizada = (_, nuevaConfig) => {
+      setConfiguracion((prev) => ({...prev, ...nuevaConfig}));
     };
-  }, []);
-
-  useEffect(() => {
-    const hora = new Date().getHours();
-    setMensaje(
-      hora < 12 ? "Buenos días" : hora < 18 ? "Buenas tardes" : "Buenas noches",
-    );
-    setCitaDelDia(obtenerCitaDelDia());
+    window.electron?.on?.("configuracion-actualizada", handleConfigActualizada);
+    return () => {
+      window.electron?.removeListener?.(
+        "configuracion-actualizada",
+        handleConfigActualizada,
+      );
+    };
   }, []);
 
   // ── Loader ──
@@ -215,8 +222,8 @@ const Inicio = () => {
     return (
       <div className="relative h-screen w-full flex items-center justify-center bg-slate-900">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-transparent border-t-emerald-400 border-r-emerald-400 animate-spin mx-auto mb-4" />
-          <p className="text-white/60 text-sm animate-pulse">Cargando...</p>
+          <div className="size-12 rounded-full border-4 border-transparent border-t-emerald-400 border-r-emerald-400 animate-spin mx-auto mb-4" />
+          <p className="text-white/60 text-sm animate-pulse">Cargando…</p>
         </div>
       </div>
     );
@@ -358,353 +365,360 @@ const Inicio = () => {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#080c14] border-l border-white/5 flex flex-col">
-      {/* ── HEADER (media player) ── */}
-      <motion.header
-        initial={{opacity: 0, y: -20}}
-        animate={{opacity: 1, y: 0}}
-        className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/8 shadow-2xl overflow-hidden shrink-0"
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(6,13,26,0.92) 0%, rgba(11,24,52,0.88) 50%, rgba(6,13,26,0.92) 100%)",
-          }}
-        />
-        {mediaContext?.isPlaying && (
-          <>
-            <div
-              className="absolute inset-0 opacity-60"
-              style={{
-                background:
-                  "linear-gradient(45deg,rgba(239,68,68,.4),rgba(16,185,129,.4),rgba(59,130,246,.4),rgba(168,85,247,.4))",
-                backgroundSize: "400% 400%",
-                animation: "gradientShift 8s ease infinite",
-              }}
-            />
-            <style>{`@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}`}</style>
-          </>
-        )}
+    <LazyMotion features={domAnimation} strict>
+      <div className="relative w-full h-screen overflow-hidden bg-[#080c14] border-l border-white/5 flex flex-col">
+        {/* ── HEADER (media player) ── */}
+        <m.header
+          initial={{opacity: 0, y: -20}}
+          animate={{opacity: 1, y: 0}}
+          className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/8 shadow-2xl overflow-hidden shrink-0"
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(6,13,26,0.92) 0%, rgba(11,24,52,0.88) 50%, rgba(6,13,26,0.92) 100%)",
+            }}
+          />
+          {mediaContext?.isPlaying && (
+            <>
+              <div
+                className="absolute inset-0 opacity-60"
+                style={{
+                  background:
+                    "linear-gradient(45deg,rgba(239,68,68,.4),rgba(16,185,129,.4),rgba(59,130,246,.4),rgba(168,85,247,.4))",
+                  backgroundSize: "400% 400%",
+                  animation: "gradientShift 8s ease infinite",
+                }}
+              />
+              <style>{`@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}`}</style>
+            </>
+          )}
 
-        <div className="relative z-10 grid grid-cols-3 items-center gap-2 xl:gap-4 px-3 xl:px-6 py-2 xl:py-3">
-          <div />
+          <div className="relative z-10 grid grid-cols-3 items-center gap-2 xl:gap-4 px-3 xl:px-6 py-2 xl:py-3">
+            <div />
 
-          {/* Controles multimedia */}
-          {mediaContext?.currentMedia ? (
-            <div className="flex items-center gap-4 xl:gap-6 flex-1 min-w-0 justify-center">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-2 rounded-lg border border-red-500/40">
-                  <div className="flex items-center gap-2">
-                    {getMediaIcon()}
-                    {mediaContext.isPlaying && <AnimatedSoundBars />}
-                  </div>
-                  {mediaContext.isPlaying && (
-                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-white font-semibold truncate text-xs">
-                    {getMediaName()}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-400 text-xs capitalize">
-                      {mediaContext.currentMedia?.tipo ||
-                        mediaContext.currentMedia?.type}
-                    </p>
+            {/* Controles multimedia */}
+            {mediaContext?.currentMedia ? (
+              <div className="flex items-center gap-4 xl:gap-6 flex-1 min-w-0 justify-center">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-2 rounded-lg border border-red-500/40">
+                    <div className="flex items-center gap-2">
+                      {getMediaIcon()}
+                      {mediaContext.isPlaying && <AnimatedSoundBars />}
+                    </div>
                     {mediaContext.isPlaying && (
-                      <span className="flex items-center gap-1 text-green-400 text-xs">
-                        <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
-                        Reproduciendo
-                      </span>
+                      <div className="absolute -top-0.5 -right-0.5 size-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
                     )}
                   </div>
+                  <div className="min-w-0">
+                    <h3 className="text-white font-semibold truncate text-xs">
+                      {getMediaName()}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <p className="text-gray-400 text-xs capitalize">
+                        {mediaContext.currentMedia?.tipo ||
+                          mediaContext.currentMedia?.type}
+                      </p>
+                      {mediaContext.isPlaying && (
+                        <span className="flex items-center gap-1 text-green-400 text-xs">
+                          <span className="size-1 bg-green-400 rounded-full animate-pulse" />
+                          Reproduciendo
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={mediaContext.togglePlayPause}
-                  className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all hover:scale-105 shadow-md"
-                  title={mediaContext.isPlaying ? "Pausar" : "Reproducir"}
-                >
-                  {mediaContext.isPlaying ? (
-                    <FaPause size={11} />
-                  ) : (
-                    <FaPlay size={11} />
-                  )}
-                </button>
-                <button
-                  onClick={mediaContext.stop}
-                  className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm"
-                  title="Detener"
-                >
-                  <FaStop size={11} />
-                </button>
-              </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={mediaContext.togglePlayPause}
+                    className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all hover:scale-105 shadow-md"
+                    title={mediaContext.isPlaying ? "Pausar" : "Reproducir"}
+                  >
+                    {mediaContext.isPlaying ? (
+                      <FaPause size={11} />
+                    ) : (
+                      <FaPlay size={11} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={mediaContext.stop}
+                    className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm"
+                    title="Detener"
+                  >
+                    <FaStop size={11} />
+                  </button>
+                </div>
 
-              {(mediaContext.currentMedia?.tipo === "audio" ||
-                mediaContext.currentMedia?.type === "audio") && (
-                <div className="flex items-center gap-2 flex-1 max-w-xs">
-                  <span className="text-xs text-gray-400 font-mono">
-                    {formatTime(mediaContext.currentTime)}
-                  </span>
+                {(mediaContext.currentMedia?.tipo === "audio" ||
+                  mediaContext.currentMedia?.type === "audio") && (
+                  <div className="flex items-center gap-2 flex-1 max-w-xs">
+                    <span className="text-xs text-gray-400 font-mono">
+                      {formatTime(mediaContext.currentTime)}
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max={mediaContext.duration || 0}
+                      value={mediaContext.currentTime}
+                      onChange={(e) =>
+                        mediaContext.seek(parseFloat(e.target.value))
+                      }
+                      className="flex-1 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
+                      style={{
+                        background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 100%)`,
+                      }}
+                    />
+                    <span className="text-xs text-gray-400 font-mono">
+                      {formatTime(mediaContext.duration)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 bg-gray-700/30 rounded-lg px-3 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      mediaContext.setVolume(mediaContext.volume === 0 ? 50 : 0)
+                    }
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    {mediaContext.volume === 0 ? (
+                      <FaVolumeMute size={11} />
+                    ) : (
+                      <FaVolumeUp size={11} />
+                    )}
+                  </button>
                   <input
                     type="range"
                     min="0"
-                    max={mediaContext.duration || 0}
-                    value={mediaContext.currentTime}
+                    max="100"
+                    value={mediaContext.volume}
                     onChange={(e) =>
-                      mediaContext.seek(parseFloat(e.target.value))
+                      mediaContext.setVolume(parseInt(e.target.value))
                     }
-                    className="flex-1 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
+                    className="w-16 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
                     style={{
-                      background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 ${(mediaContext.currentTime / (mediaContext.duration || 1)) * 100}%,#374151 100%)`,
+                      background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${mediaContext.volume}%,#4b5563 ${mediaContext.volume}%,#4b5563 100%)`,
                     }}
                   />
-                  <span className="text-xs text-gray-400 font-mono">
-                    {formatTime(mediaContext.duration)}
+                  <span className="text-xs text-gray-400 font-mono w-6 text-center">
+                    {mediaContext.volume}%
                   </span>
                 </div>
-              )}
 
-              <div className="flex items-center gap-2 bg-gray-700/30 rounded-lg px-3 py-1.5">
                 <button
-                  onClick={() =>
-                    mediaContext.setVolume(mediaContext.volume === 0 ? 50 : 0)
-                  }
-                  className="text-gray-400 hover:text-white transition-colors"
+                  type="button"
+                  onClick={mediaContext.stop}
+                  className="text-white/40 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
+                  title="Cerrar"
                 >
-                  {mediaContext.volume === 0 ? (
-                    <FaVolumeMute size={11} />
-                  ) : (
-                    <FaVolumeUp size={11} />
-                  )}
+                  <FaTimes size={13} />
                 </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={mediaContext.volume}
-                  onChange={(e) =>
-                    mediaContext.setVolume(parseInt(e.target.value))
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {/* Logo + saludo */}
+            <div className="flex items-center gap-3 justify-end">
+              <div className="text-right hidden lg:block">
+                <p className="text-xs xl:text-sm font-semibold text-emerald-400">
+                  {mensaje}
+                </p>
+                {configuracion.nombreIglesia && (
+                  <p className="text-[10px] xl:text-xs text-white/60 truncate max-w-[150px] xl:max-w-none">
+                    {configuracion.nombreIglesia}
+                  </p>
+                )}
+              </div>
+              <div className="rounded-full p-0.5 bg-gradient-to-br from-emerald-500/25 to-amber-500/25 border border-emerald-500/30">
+                <img
+                  src={
+                    configuracion.logoUrl &&
+                    configuracion.logoUrl !== "undefined"
+                      ? configuracion.logoUrl
+                      : "/images/icon-256.png"
                   }
-                  className="w-16 h-1 rounded-full appearance-none cursor-pointer accent-red-500"
-                  style={{
-                    background: `linear-gradient(to right,#ef4444 0%,#ef4444 ${mediaContext.volume}%,#4b5563 ${mediaContext.volume}%,#4b5563 100%)`,
+                  alt="Logo"
+                  className="size-9 xl:w-11 xl:h-11 rounded-full object-cover"
+                  onError={(e) => {
+                    e.target.src = "/images/icon-256.png";
                   }}
                 />
-                <span className="text-xs text-gray-400 font-mono w-6 text-center">
-                  {mediaContext.volume}%
-                </span>
               </div>
-
-              <button
-                onClick={mediaContext.stop}
-                className="text-gray-400 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
-                title="Cerrar"
-              >
-                <FaTimes size={13} />
-              </button>
-            </div>
-          ) : (
-            <div />
-          )}
-
-          {/* Logo + saludo */}
-          <div className="flex items-center gap-3 justify-end">
-            <div className="text-right hidden lg:block">
-              <p className="text-xs xl:text-sm font-semibold text-emerald-400">
-                {mensaje}
-              </p>
-              {configuracion.nombreIglesia && (
-                <p className="text-[10px] xl:text-xs text-white/60 truncate max-w-[150px] xl:max-w-none">
-                  {configuracion.nombreIglesia}
-                </p>
-              )}
-            </div>
-            <div className="rounded-full p-0.5 bg-gradient-to-br from-emerald-500/25 to-amber-500/25 border border-emerald-500/30">
-              <img
-                src={
-                  configuracion.logoUrl && configuracion.logoUrl !== "undefined"
-                    ? configuracion.logoUrl
-                    : "/images/icon-256.png"
-                }
-                alt="Logo"
-                className="w-9 h-9 xl:w-11 xl:h-11 rounded-full object-cover"
-                onError={(e) => {
-                  e.target.src = "/images/icon-256.png";
-                }}
-              />
             </div>
           </div>
-        </div>
-      </motion.header>
+        </m.header>
 
-      {/* ── CONTENIDO PRINCIPAL ── */}
-      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto flex items-center justify-center">
-        <motion.main
-          className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 xl:px-8 py-5 xl:py-7 flex flex-col gap-5 xl:gap-7"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {/* ── Cita del día ── */}
-          {citaDelDia && (
-            <motion.section variants={itemVariants} className="text-center">
-              <div
-                className="relative inline-block max-w-3xl mx-auto px-6 xl:px-10 py-5 xl:py-6 rounded-2xl overflow-hidden"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                {/* Línea dorada decorativa arriba */}
+        {/* ── CONTENIDO PRINCIPAL ── */}
+        <div className="relative z-10 flex-1 min-h-0 overflow-y-auto flex items-center justify-center">
+          <m.main
+            className="w-full max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 xl:px-8 py-5 xl:py-7 flex flex-col gap-5 xl:gap-7"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {/* ── Cita del día ── */}
+            {citaDelDia && (
+              <m.section variants={itemVariants} className="text-center">
                 <div
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  className="relative inline-block max-w-3xl mx-auto px-6 xl:px-10 py-5 xl:py-6 rounded-2xl overflow-hidden"
                   style={{
                     background:
-                      "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                      "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    backdropFilter: "blur(12px)",
+                  }}
+                >
+                  {/* Línea dorada decorativa arriba */}
+                  <div
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                    }}
+                  />
+                  <p className="text-base sm:text-lg xl:text-xl text-white/85 italic font-light leading-relaxed">
+                    "{citaDelDia.texto}"
+                  </p>
+                  <p className="text-xs text-amber-400/60 mt-3 font-medium tracking-widest uppercase">
+                    {citaDelDia.referencia}
+                  </p>
+                  {/* Línea dorada decorativa abajo */}
+                  <div
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                    }}
+                  />
+                </div>
+              </m.section>
+            )}
+
+            {/* ── Accesos rápidos ── */}
+            <m.section variants={itemVariants}>
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="h-px flex-1"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(99,102,241,0.3))",
                   }}
                 />
-                <p className="text-base sm:text-lg xl:text-xl text-white/85 italic font-light leading-relaxed">
-                  "{citaDelDia.texto}"
-                </p>
-                <p className="text-xs text-amber-400/60 mt-3 font-medium tracking-widest uppercase">
-                  — {citaDelDia.referencia}
-                </p>
-                {/* Línea dorada decorativa abajo */}
+                <h3 className="text-xs font-semibold text-indigo-300/60 uppercase tracking-widest">
+                  Accesos Rápidos
+                </h3>
                 <div
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-px"
+                  className="h-px flex-1"
                   style={{
                     background:
-                      "linear-gradient(90deg, transparent, rgba(251,191,36,0.5), transparent)",
+                      "linear-gradient(90deg, rgba(99,102,241,0.3), transparent)",
                   }}
                 />
               </div>
-            </motion.section>
-          )}
-
-          {/* ── Accesos rápidos ── */}
-          <motion.section variants={itemVariants}>
-            <div className="flex items-center gap-3 mb-3">
-              <div
-                className="h-px flex-1"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(99,102,241,0.3))",
-                }}
-              />
-              <h3 className="text-xs font-semibold text-indigo-300/60 uppercase tracking-widest">
-                Accesos Rápidos
-              </h3>
-              <div
-                className="h-px flex-1"
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(99,102,241,0.3), transparent)",
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 xl:gap-3">
-              {accesos.map((item) => (
-                <motion.button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  whileHover={{scale: 1.03, y: -2}}
-                  whileTap={{scale: 0.97}}
-                  className={`group relative flex flex-col items-start gap-3 p-4 xl:p-5 rounded-2xl border bg-gradient-to-br ${item.from} ${item.to} ${item.border} backdrop-blur-sm transition-all duration-200 shadow-lg ${item.glow} hover:shadow-xl text-left overflow-hidden`}
-                >
-                  {/* Glow de fondo en hover */}
-                  <div
-                    className={`absolute inset-0 ${item.from} opacity-0 group-hover:opacity-50 transition-opacity duration-300 rounded-2xl blur-sm`}
-                  />
-
-                  <div
-                    className={`relative shrink-0 w-10 h-10 xl:w-11 xl:h-11 rounded-xl ${item.iconBg} flex items-center justify-center`}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 xl:gap-3">
+                {accesos.map((item) => (
+                  <m.button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    whileHover={{scale: 1.03, y: -2}}
+                    whileTap={{scale: 0.97}}
+                    className={`group relative flex flex-col items-start gap-3 p-4 xl:p-5 rounded-2xl border bg-gradient-to-br ${item.from} ${item.to} ${item.border} backdrop-blur-sm transition-all duration-200 shadow-lg ${item.glow} hover:shadow-xl text-left overflow-hidden`}
                   >
-                    <item.icon
-                      className={`${item.iconColor} text-lg xl:text-xl`}
+                    {/* Glow de fondo en hover */}
+                    <div
+                      className={`absolute inset-0 ${item.from} opacity-0 group-hover:opacity-50 transition-opacity duration-300 rounded-2xl blur-sm`}
                     />
-                  </div>
 
-                  <div className="relative min-w-0 flex-1">
-                    <p className="text-sm xl:text-base font-semibold text-white leading-tight">
-                      {item.label}
-                    </p>
-                    <p className="text-[10px] xl:text-xs text-white/45 mt-0.5 leading-tight">
-                      {item.sub}
-                    </p>
-                  </div>
+                    <div
+                      className={`relative shrink-0 size-10 xl:w-11 xl:h-11 rounded-xl ${item.iconBg} flex items-center justify-center`}
+                    >
+                      <item.icon
+                        className={`${item.iconColor} text-lg xl:text-xl`}
+                      />
+                    </div>
 
-                  <FaArrowRight
-                    className={`relative self-end ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`}
-                  />
-                </motion.button>
-              ))}
-            </div>
-          </motion.section>
+                    <div className="relative min-w-0 flex-1">
+                      <p className="text-sm xl:text-base font-semibold text-white leading-tight">
+                        {item.label}
+                      </p>
+                      <p className="text-[10px] xl:text-xs text-white/45 mt-0.5 leading-tight">
+                        {item.sub}
+                      </p>
+                    </div>
 
-          {/* ── Estadísticas ── */}
-          <motion.section variants={itemVariants}>
-            <div className="flex items-center gap-3 mb-3">
-              <div
-                className="h-px flex-1"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(16,185,129,0.3))",
-                }}
-              />
-              <h3 className="text-xs font-semibold text-emerald-300/60 uppercase tracking-widest">
-                Catálogo
-              </h3>
-              <div
-                className="h-px flex-1"
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(16,185,129,0.3), transparent)",
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 xl:gap-3">
-              {stats.map((s) => (
+                    <FaArrowRight
+                      className={`relative self-end ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`}
+                    />
+                  </m.button>
+                ))}
+              </div>
+            </m.section>
+
+            {/* ── Estadísticas ── */}
+            <m.section variants={itemVariants}>
+              <div className="flex items-center gap-3 mb-3">
                 <div
-                  key={s.label}
-                  className={`flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3.5 xl:py-4 rounded-2xl border ${s.bg} backdrop-blur-sm`}
-                >
+                  className="h-px flex-1"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(16,185,129,0.3))",
+                  }}
+                />
+                <h3 className="text-xs font-semibold text-emerald-300/60 uppercase tracking-widest">
+                  Catálogo
+                </h3>
+                <div
+                  className="h-px flex-1"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, rgba(16,185,129,0.3), transparent)",
+                  }}
+                />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 xl:gap-3">
+                {stats.map((s) => (
                   <div
-                    className={`shrink-0 w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center`}
+                    key={s.label}
+                    className={`flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3.5 xl:py-4 rounded-2xl border ${s.bg} backdrop-blur-sm`}
                   >
-                    <s.icon className={`${s.color} text-base`} />
+                    <div
+                      className={`shrink-0 size-9 rounded-xl bg-white/5 flex items-center justify-center`}
+                    >
+                      <s.icon className={`${s.color} text-base`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xl xl:text-2xl font-bold text-white leading-none">
+                        {s.value}
+                      </p>
+                      <p className="text-[10px] xl:text-xs text-white/50 mt-0.5 leading-tight truncate">
+                        {s.label}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xl xl:text-2xl font-bold text-white leading-none">
-                      {s.value}
-                    </p>
-                    <p className="text-[10px] xl:text-xs text-white/50 mt-0.5 leading-tight truncate">
-                      {s.label}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.section>
+                ))}
+              </div>
+            </m.section>
 
-          {/* ── Footer ── */}
-          <motion.footer variants={itemVariants} className="text-center pb-2">
-            <p className="text-white/25 text-xs">
-              Desarrollado con <span className="text-emerald-500/60">♥</span>{" "}
-              por{" "}
-              <span className="text-emerald-400/50 font-medium">
-                Alfredo Hammer
-              </span>
-            </p>
-          </motion.footer>
-        </motion.main>
+            {/* ── Footer ── */}
+            <m.footer variants={itemVariants} className="text-center pb-2">
+              <p className="text-white/25 text-xs">
+                Desarrollado con <span className="text-emerald-500/60">♥</span>{" "}
+                por{" "}
+                <span className="text-emerald-400/50 font-medium">
+                  Alfredo Hammer
+                </span>
+              </p>
+            </m.footer>
+          </m.main>
+        </div>
       </div>
-    </div>
+    </LazyMotion>
   );
 };
 

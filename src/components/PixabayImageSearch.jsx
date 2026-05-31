@@ -7,16 +7,6 @@ const getBaseURL = () => {
 };
 
 const PixabayImageSearch = ({onImageSelect, onClose}) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Tu API key de Pixabay (debe estar en .env)
-  const PIXABAY_API_KEY =
-    process.env.REACT_APP_PIXABAY_API_KEY ||
-    "29325243-29bd81b56bd1800c81b3482a7";
-
   // ✨ Términos de búsqueda por defecto para iglesias
   const defaultSearchTerms = [
     "church",
@@ -31,6 +21,14 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
     "light",
   ];
 
+  const [searchTerm, setSearchTerm] = useState(
+    () =>
+      defaultSearchTerms[Math.floor(Math.random() * defaultSearchTerms.length)],
+  );
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   const searchImages = async (term = searchTerm) => {
     const queryTerm = term || searchTerm;
     if (!queryTerm.trim()) return;
@@ -41,8 +39,8 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
     try {
       const response = await fetch(
         `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(
-          queryTerm
-        )}&image_type=photo&orientation=horizontal&category=backgrounds&min_width=1200&safesearch=true&per_page=20`
+          queryTerm,
+        )}&image_type=photo&orientation=horizontal&category=backgrounds&min_width=1200&safesearch=true&per_page=20`,
       );
 
       if (!response.ok) {
@@ -61,10 +59,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
 
   // ✨ Cargar imágenes por defecto al montar el componente
   useEffect(() => {
-    const randomTerm =
-      defaultSearchTerms[Math.floor(Math.random() * defaultSearchTerms.length)];
-    setSearchTerm(randomTerm);
-    searchImages(randomTerm);
+    searchImages(searchTerm);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKeyPress = (e) => {
@@ -99,7 +94,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
             imageId: image.id,
             tags: image.tags,
           }),
-        }
+        },
       );
 
       console.log("📥 Response status:", response.status);
@@ -109,7 +104,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
         const errorData = await response.json();
         console.error("❌ Error del servidor:", errorData);
         throw new Error(
-          `Error al descargar imagen: ${errorData.error || response.statusText}`
+          `Error al descargar imagen: ${errorData.error || response.statusText}`,
         );
       }
 
@@ -152,6 +147,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
             Buscar Imágenes en Pixabay
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
           >
@@ -169,9 +165,11 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
               onKeyPress={handleKeyPress}
               placeholder="Buscar imágenes (ej: naturaleza, iglesia, música)"
               className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none"
+              aria-label="Buscar imágenes en Pixabay"
             />
           </div>
           <button
+            type="button"
             onClick={handleSearch}
             disabled={loading || !searchTerm.trim()}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -201,7 +199,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <FaSpinner className="animate-spin text-blue-500 text-2xl" />
-              <span className="ml-2 text-white">Buscando imágenes...</span>
+              <span className="ml-2 text-white">Buscando imágenes…</span>
             </div>
           ) : images.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -209,7 +207,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
                 <div key={image.id} className="relative group">
                   <img
                     src={`${getBaseURL()}/pixabay-proxy?url=${encodeURIComponent(
-                      image.webformatURL
+                      image.webformatURL,
                     )}`}
                     alt={image.tags}
                     className="w-full h-32 object-cover rounded-lg cursor-pointer transition-transform group-hover:scale-105"
@@ -218,7 +216,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
                       // Fallback a la URL original si el proxy falla
                       console.warn(
                         `⚠️ [Pixabay] Error cargando imagen via proxy, usando URL original:`,
-                        image.webformatURL
+                        image.webformatURL,
                       );
                       e.target.src = image.webformatURL;
 
@@ -226,7 +224,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
                       e.target.onerror = () => {
                         console.error(
                           `❌ [Pixabay] Error cargando imagen original:`,
-                          image.webformatURL
+                          image.webformatURL,
                         );
                         e.target.src =
                           'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"%3E%3Crect width="200" height="150" fill="%23374151"/%3E%3Ctext x="100" y="75" text-anchor="middle" fill="%23ffffff" font-family="Arial" font-size="12"%3EImagen no disponible%3C/text%3E%3C/svg%3E';
@@ -235,6 +233,7 @@ const PixabayImageSearch = ({onImageSelect, onClose}) => {
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                     <button
+                      type="button"
                       onClick={() => handleImageSelect(image)}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2"
                     >

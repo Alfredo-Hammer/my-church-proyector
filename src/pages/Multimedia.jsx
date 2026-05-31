@@ -66,7 +66,7 @@ const NotificationItem = ({notification}) => {
         <div className="flex-1 min-w-0">
           <div
             className="text-sm text-white"
-            dangerouslySetInnerHTML={{__html: notification.message}}
+            dangerouslySetInnerHTML={{__html: String(notification.message ?? "")}}
           />
         </div>
       </div>
@@ -146,10 +146,9 @@ const Multimedia = () => {
   const [mediaFiles, setMediaFiles] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Estados para URLs y historial
+  // Estados para URLs e historial
   const [urlInput, setUrlInput] = useState("");
   const [urlTitle, setUrlTitle] = useState("");
-  const [customQuickLinks, setCustomQuickLinks] = useState([]);
   const [urlHistory, setUrlHistory] = useState([]);
   const [showUrlModal, setShowUrlModal] = useState(false);
 
@@ -193,16 +192,16 @@ const Multimedia = () => {
       );
     }
 
-    // Cargar datos iniciales
-    const savedHistory = localStorage.getItem("multimedia-url-history");
+    // Cargar historial de URLs desde localStorage (solo historial, accesos rápidos vienen de DB)
+    const savedHistory =
+      localStorage.getItem("multimedia-url-history:v1") ||
+      localStorage.getItem("multimedia-url-history");
     if (savedHistory) {
-      setUrlHistory(JSON.parse(savedHistory));
+      try { setUrlHistory(JSON.parse(savedHistory)); } catch { /* ignore */ }
     }
-
-    const savedQuickLinks = localStorage.getItem("multimedia-quick-links");
-    if (savedQuickLinks) {
-      setCustomQuickLinks(JSON.parse(savedQuickLinks));
-    }
+    // Limpiar claves legadas de quick links (ya no se usan, la DB es la fuente de verdad)
+    localStorage.removeItem("multimedia-quick-links");
+    localStorage.removeItem("multimedia-quick-links:v1");
 
     loadMediaFromDB();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -560,10 +559,13 @@ const Multimedia = () => {
         // Si una URL existe solo en localStorage, la app móvil NO la verá (móvil usa la BD).
         if (window.electron?.agregarMultimedia) {
           const existentes = new Set(
-            (Array.isArray(multimediaDespues) ? multimediaDespues : [])
-              .flatMap((m) => [m?.url, m?.ruta_archivo])
-              .map((v) => String(v || "").trim())
-              .filter(Boolean),
+            (Array.isArray(multimediaDespues) ? multimediaDespues : []).flatMap(
+              (m) =>
+                [m?.url, m?.ruta_archivo].flatMap((v) => {
+                  const s = String(v || "").trim();
+                  return s ? [s] : [];
+                }),
+            ),
           );
 
           const inferirTipoDesdeUrl = (rawUrl) => {
@@ -642,34 +644,38 @@ const Multimedia = () => {
           };
 
           // 1) Migrar multimedia-urls (legacy) a BD y eliminarlo (ya queda en BD)
-          const savedUrls = localStorage.getItem("multimedia-urls");
+          const savedUrls = localStorage.getItem("multimedia-urls:v1");
           if (savedUrls) {
             const urlsGuardadas = JSON.parse(savedUrls);
             const urlsArray = Array.isArray(urlsGuardadas) ? urlsGuardadas : [];
-            for (const item of urlsArray) {
-              await intentarInsertarSiNoExiste({
-                nombre: item?.nombre || item?.name || "URL",
-                rawUrl: item?.originalUrl || item?.url,
-                favorito: Boolean(item?.favorito),
-              });
-            }
-            localStorage.removeItem("multimedia-urls");
+            await Promise.all(
+              urlsArray.map((item) =>
+                intentarInsertarSiNoExiste({
+                  nombre: item?.nombre || item?.name || "URL",
+                  rawUrl: item?.originalUrl || item?.url,
+                  favorito: Boolean(item?.favorito),
+                }),
+              ),
+            );
+            localStorage.removeItem("multimedia-urls:v1");
           }
 
           // 2) Migrar accesos rápidos a BD (NO se eliminan: siguen siendo UI local)
           const savedQuickLinks = localStorage.getItem(
-            "multimedia-quick-links",
+            "multimedia-quick-links:v1",
           );
           if (savedQuickLinks) {
             const quickLinks = JSON.parse(savedQuickLinks);
             const quickLinksArray = Array.isArray(quickLinks) ? quickLinks : [];
-            for (const link of quickLinksArray) {
-              await intentarInsertarSiNoExiste({
-                nombre: link?.name || link?.title || "URL",
-                rawUrl: link?.url,
-                favorito: false,
-              });
-            }
+            await Promise.all(
+              quickLinksArray.map((link) =>
+                intentarInsertarSiNoExiste({
+                  nombre: link?.name || link?.title || "URL",
+                  rawUrl: link?.url,
+                  favorito: false,
+                }),
+              ),
+            );
           }
 
           // Recargar lista desde BD para reflejar migraciones/sincronización
@@ -961,12 +967,7 @@ const Multimedia = () => {
             "✅ [Multimedia] Multimedia activa establecida exitosamente",
           );
 
-          // Mostrar notificación de éxito
-          addNotification({
-            type: "success",
-            message: `Proyectando: ${multimediaData.nombre}`,
-            duration: 3000,
-          });
+          showSuccess(`📺 Proyectando: ${multimediaData.nombre}`, 3000);
 
           // Si en escritorio ya está reproduciendo, iniciar reproducción en el proyector.
           // Esto evita tener que dar "play" manualmente en la pantalla del proyector.
@@ -1000,11 +1001,7 @@ const Multimedia = () => {
       }
     } catch (error) {
       console.error("❌ [Multimedia] Error en proyección:", error);
-      addNotification({
-        type: "error",
-        message: `Error proyectando: ${error.message}`,
-        duration: 5000,
-      });
+      showError(`❌ Error proyectando: ${error.message}`);
     }
   };
 
@@ -1350,7 +1347,7 @@ const Multimedia = () => {
           const extension = file.name.split(".").pop().toLowerCase();
           let tipo;
 
-          const extensionesVideo = [
+          const extensionesVideo = new Set([
             "mp4",
             "avi",
             "mov",
@@ -1358,22 +1355,29 @@ const Multimedia = () => {
             "flv",
             "mkv",
             "webm",
-          ];
-          const extensionesAudio = ["mp3", "wav", "ogg", "aac", "flac", "m4a"];
-          const extensionesImagen = [
+          ]);
+          const extensionesAudio = new Set([
+            "mp3",
+            "wav",
+            "ogg",
+            "aac",
+            "flac",
+            "m4a",
+          ]);
+          const extensionesImagen = new Set([
             "jpg",
             "jpeg",
             "png",
             "gif",
             "bmp",
             "webp",
-          ];
+          ]);
 
-          if (extensionesVideo.includes(extension)) {
+          if (extensionesVideo.has(extension)) {
             tipo = "video";
-          } else if (extensionesAudio.includes(extension)) {
+          } else if (extensionesAudio.has(extension)) {
             tipo = "audio";
-          } else if (extensionesImagen.includes(extension)) {
+          } else if (extensionesImagen.has(extension)) {
             tipo = "imagen";
           } else {
             archivosErrores.push({
@@ -1819,7 +1823,7 @@ const Multimedia = () => {
 
           // Guardar en localStorage
           const urlsOnly = updated.filter((m) => m.isUrl);
-          localStorage.setItem("multimedia-urls", JSON.stringify(urlsOnly));
+          localStorage.setItem("multimedia-urls:v1", JSON.stringify(urlsOnly));
 
           return updated;
         });
@@ -1910,7 +1914,10 @@ const Multimedia = () => {
 
     const newHistory = [historyItem, ...urlHistory].slice(0, 50); // Mantener solo los últimos 50
     setUrlHistory(newHistory);
-    localStorage.setItem("multimedia-url-history", JSON.stringify(newHistory));
+    localStorage.setItem(
+      "multimedia-url-history:v1",
+      JSON.stringify(newHistory),
+    );
   };
 
   // Actualizar la función handleUrlSubmit
@@ -1977,58 +1984,17 @@ const Multimedia = () => {
         console.warn("⚠️ [Multimedia] No se pudo guardar URL en BD:", e);
       }
 
-      // Guardar en historial
+      // Guardar en historial de URLs (solo para referencia)
       await saveUrlToHistory(url, title);
 
-      // Agregar a enlaces rápidos personalizados si no existe
-      const quickLinkExists = customQuickLinks.some((link) => link.url === url);
-      if (!quickLinkExists) {
-        // Verificar si ya se alcanzó el límite de 20
-        if (customQuickLinks.length >= 20) {
-          showWarning(
-            "⚠️ Has alcanzado el límite de 20 enlaces rápidos. Elimina algunos para agregar nuevos.",
-          );
-          return;
-        }
-
-        const newQuickLink = {
-          id: Date.now(),
-          name: title,
-          url: url,
-          isYoutube: isYouTubeUrl(url),
-          dateAdded: new Date().toISOString(),
-        };
-
-        const updatedQuickLinks = [newQuickLink, ...customQuickLinks].slice(
-          0,
-          20,
-        );
-        setCustomQuickLinks(updatedQuickLinks);
-        localStorage.setItem(
-          "multimedia-quick-links",
-          JSON.stringify(updatedQuickLinks),
-        );
-
-        // Mostrar advertencia cuando se acerque al límite
-        if (updatedQuickLinks.length >= 18) {
-          showWarning(
-            `⚠️ Te quedan ${
-              20 - updatedQuickLinks.length
-            } espacios para enlaces rápidos`,
-          );
-        }
-      }
-
-      // Refrescar biblioteca desde BD (incluye la URL recién agregada)
+      // Refrescar biblioteca desde BD (la URL ya fue guardada arriba)
       await loadMediaFromDB();
-
-      // ✅ No reproducir automáticamente - el usuario debe hacer clic en reproducir
 
       if (guardadoEnBD) {
         showSuccess(`<strong>URL agregada:</strong><br/>📺 ${title}`);
       } else {
         showWarning(
-          `<strong>URL guardada en el escritorio</strong> (historial/accesos rápidos), pero <strong>NO</strong> se pudo guardar en la BD.<br/>📱 No aparecerá en la app móvil hasta que se sincronice correctamente.`,
+          `<strong>No se pudo guardar en la base de datos.</strong><br/>Verifica la conexión con Electron e intenta de nuevo.`,
           6500,
         );
       }
@@ -2044,45 +2010,9 @@ const Multimedia = () => {
   // togglePlayPause viene del contexto
   // stopMedia viene del contexto como stopGlobal
 
-  const removeCustomQuickLink = (linkId) => {
-    const updatedQuickLinks = customQuickLinks.filter(
-      (link) => link.id !== linkId,
-    );
-    setCustomQuickLinks(updatedQuickLinks);
-    localStorage.setItem(
-      "multimedia-quick-links",
-      JSON.stringify(updatedQuickLinks),
-    );
-    showInfo("🗑️ Enlace eliminado de accesos rápidos");
-  };
-
   const handleQuickLinkClick = (link) => {
-    console.log("🔗 [QuickLink] Iniciando reproducción de quick link:", link);
-    console.log("📊 [QuickLink] mediaFiles.length:", mediaFiles.length);
-
-    // En lugar de abrir el modal, reproducir directamente
-    let finalUrl = link.url;
-
-    // Si es YouTube, convertir a embed
-    if (isYouTubeUrl(link.url)) {
-      finalUrl = convertYouTubeToEmbedUrl(link.url);
-      console.log("📺 [QuickLink] URL convertida a embed:", finalUrl);
-    }
-
-    const mediaItem = {
-      id: Date.now(),
-      nombre: link.name,
-      url: finalUrl,
-      isUrl: true,
-      isYoutube: isYouTubeUrl(link.url),
-      tipo: isYouTubeUrl(link.url) ? "youtube" : "url",
-    };
-
-    console.log("📦 [QuickLink] mediaItem creado:", mediaItem);
-
-    // Reproducir directamente
-    playMedia(mediaItem);
-    showSuccess(`▶️ Reproduciendo: ${link.name}`);
+    // Los quick links ahora son ítems de la DB — playMedia los maneja directamente
+    playMedia(link);
   };
 
   const copyToClipboard = (text) => {
@@ -2139,7 +2069,21 @@ const Multimedia = () => {
   const getMediaSize = (media) =>
     media.size || formatFileSize(media.tamaño || 0);
 
-  // Filtros
+  // Accesos rápidos: ítems de la DB que son URLs externas (YouTube u otras)
+  const quickLinks = mediaFiles
+    .filter((m) => {
+      if (m.tipo === "youtube") return true;
+      const ruta = String(m.ruta_archivo || "");
+      return (
+        (ruta.startsWith("http://") || ruta.startsWith("https://")) &&
+        !ruta.startsWith("http://localhost") &&
+        !ruta.startsWith("https://localhost")
+      );
+    })
+    .sort((a, b) => (b.id || 0) - (a.id || 0))
+    .slice(0, 20);
+
+  // Filtros biblioteca
   const filteredMedia = mediaFiles.filter((media) => {
     const matchesSearch = getMediaName(media)
       .toLowerCase()
@@ -2159,7 +2103,7 @@ const Multimedia = () => {
       </div>
 
       {/* ✨ HEADER MODERNO ESTILO YOUTUBE */}
-      <div className="bg-black/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
+      <div className="bg-gray-950/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
         <div className="max-w-full mx-auto px-4 xl:px-6 py-3 xl:py-4">
           <div className="flex items-center justify-between mb-3 xl:mb-4">
             <div className="flex items-center gap-3 xl:gap-4">
@@ -2178,6 +2122,7 @@ const Multimedia = () => {
 
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => setShowUrlModal(true)}
                 className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl border border-white/10 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
               >
@@ -2187,6 +2132,7 @@ const Multimedia = () => {
 
               {/* Botón optimizado para archivos grandes */}
               <button
+                type="button"
                 onClick={handleFileUploadOptimizado}
                 disabled={loading}
                 className={`${
@@ -2217,6 +2163,7 @@ const Multimedia = () => {
                 type="file"
                 multiple
                 accept="video/*,audio/*,image/*"
+                aria-label="Subir archivos multimedia"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="fileInputHeader"
@@ -2250,7 +2197,7 @@ const Multimedia = () => {
             <div className="order-2 xl:order-1 xl:col-span-4 2xl:col-span-3 min-h-0">
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 xl:p-4 border border-white/10 shadow-xl h-full flex flex-col min-h-0">
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center space-x-3 min-w-0">
+                  <div className="flex items-center gap-x-3 min-w-0">
                     <div className="bg-red-500/20 p-2.5 rounded-full">
                       <FaFolder className="text-red-400 text-lg" />
                     </div>
@@ -2264,6 +2211,7 @@ const Multimedia = () => {
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={loadMediaFromDB}
                     className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/20 rounded-lg transition-colors"
                     title="Actualizar biblioteca"
@@ -2279,6 +2227,7 @@ const Multimedia = () => {
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
                       className="bg-white/10 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                      aria-label="Filtrar tipo de multimedia"
                     >
                       <option value="all" className="bg-gray-800">
                         Todos
@@ -2306,10 +2255,12 @@ const Multimedia = () => {
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-9 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                      aria-label="Buscar multimedia"
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => setViewMode("list")}
                       className={`p-2 rounded-lg transition-colors ${
                         viewMode === "list"
@@ -2321,6 +2272,7 @@ const Multimedia = () => {
                       <FaList />
                     </button>
                     <button
+                      type="button"
                       onClick={() => setViewMode("grid")}
                       className={`p-2 rounded-lg transition-colors ${
                         viewMode === "grid"
@@ -2337,9 +2289,9 @@ const Multimedia = () => {
                 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
                   {loading && mediaFiles.length === 0 ? (
                     <div className="text-center py-10">
-                      <div className="animate-spin rounded-full h-10 w-10 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-3"></div>
+                      <div className="animate-spin rounded-full size-10 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-3"></div>
                       <p className="text-white/60 text-sm">
-                        Cargando biblioteca...
+                        Cargando biblioteca…
                       </p>
                     </div>
                   ) : filteredMedia.length === 0 ? (
@@ -2385,6 +2337,12 @@ const Multimedia = () => {
                                   }`
                             }`}
                             onClick={() => playMedia(media)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && playMedia(media)
+                            }
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Reproducir ${media.nombre}`}
                           >
                             {viewMode === "grid" ? (
                               <>
@@ -2395,13 +2353,14 @@ const Multimedia = () => {
                                         src={media.url}
                                         className="w-full h-full object-cover"
                                         muted
+                                        aria-label={`Video: ${media.nombre}`}
                                       />
-                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                      <div className="absolute inset-0 bg-gray-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                         <FaPlay className="text-white text-3xl" />
                                       </div>
                                     </>
                                   ) : getMediaType(media) === "youtube" ? (
-                                    <div className="w-full h-full relative bg-black">
+                                    <div className="w-full h-full relative bg-gray-950">
                                       <img
                                         src={getYouTubeThumbnail(
                                           media.url || media.originalUrl,
@@ -2414,10 +2373,10 @@ const Multimedia = () => {
                                             "flex";
                                         }}
                                       />
-                                      <div className="hidden w-full h-full bg-gradient-to-br from-red-600/20 to-red-800/20 items-center justify-center">
+                                      <div className="hidden size-full bg-gradient-to-br from-red-600/20 to-red-800/20 items-center justify-center">
                                         <FaYoutube className="text-red-400 text-4xl" />
                                       </div>
-                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                      <div className="absolute inset-0 bg-gray-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                         <FaPlay className="text-white text-3xl" />
                                       </div>
                                     </div>
@@ -2464,7 +2423,7 @@ const Multimedia = () => {
                                       )}
                                   </div>
 
-                                  <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                                  <div className="absolute bottom-2 right-2 bg-gray-950/70 text-white px-2 py-1 rounded text-xs">
                                     {media.isUrl
                                       ? "URL"
                                       : `${getMediaSize(media)} MB`}
@@ -2490,7 +2449,7 @@ const Multimedia = () => {
                               </>
                             ) : (
                               <>
-                                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                <div className="flex items-center gap-x-3 flex-1 min-w-0">
                                   <div className="w-16 h-10 bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 relative">
                                     {getMediaType(media) === "imagen" ||
                                     getMediaType(media) === "image" ? (
@@ -2516,7 +2475,7 @@ const Multimedia = () => {
                                               "none";
                                           }}
                                         />
-                                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-gray-950/25 flex items-center justify-center">
                                           <FaYoutube className="text-red-500" />
                                         </div>
                                       </>
@@ -2529,7 +2488,7 @@ const Multimedia = () => {
                                           playsInline
                                           preload="metadata"
                                         />
-                                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-gray-950/25 flex items-center justify-center">
                                           <FaPlay className="text-white/90 text-sm" />
                                         </div>
                                       </>
@@ -2559,8 +2518,9 @@ const Multimedia = () => {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex space-x-1">
+                                <div className="flex gap-x-1">
                                   <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       toggleFavorite(media);
@@ -2583,6 +2543,7 @@ const Multimedia = () => {
                                     )}
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       projectToScreenNew(media);
@@ -2593,6 +2554,7 @@ const Multimedia = () => {
                                     <FaExpand />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       deleteMedia(media.id);
@@ -2654,6 +2616,7 @@ const Multimedia = () => {
                             </div>
                           </div>
                           <button
+                            type="button"
                             onClick={() => toggleFavorite(mediaForPlayer)}
                             className={`p-2 rounded transition-colors ${
                               mediaForPlayer.favorito
@@ -2677,7 +2640,7 @@ const Multimedia = () => {
                           isMediaForPlayerYouTube ||
                           getMediaType(mediaForPlayer) === "video"
                             ? "bg-transparent"
-                            : "bg-black"
+                            : "bg-gray-950"
                         }`}
                       >
                         {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
@@ -2730,10 +2693,11 @@ const Multimedia = () => {
                       </div>
 
                       {/* Controles principales */}
-                      <div className="flex items-center justify-center space-x-3">
+                      <div className="flex items-center justify-center gap-x-3">
                         {!isMediaForPlayerYouTube && (
                           <>
                             <button
+                              type="button"
                               onClick={handleTogglePlayPause}
                               className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
                             >
@@ -2744,6 +2708,7 @@ const Multimedia = () => {
                               )}
                             </button>
                             <button
+                              type="button"
                               onClick={stopGlobal}
                               className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
                             >
@@ -2752,6 +2717,7 @@ const Multimedia = () => {
                           </>
                         )}
                         <button
+                          type="button"
                           onClick={() => projectToScreenNew(mediaForPlayer)}
                           className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
                           title="Proyectar en pantalla completa"
@@ -2759,6 +2725,7 @@ const Multimedia = () => {
                           <FaExpand />
                         </button>
                         <button
+                          type="button"
                           onClick={clearProjector}
                           className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
                           title="Limpiar proyector"
@@ -2767,6 +2734,7 @@ const Multimedia = () => {
                         </button>
                         {mediaForPlayer.originalUrl && (
                           <button
+                            type="button"
                             onClick={() =>
                               copyToClipboard(mediaForPlayer.originalUrl)
                             }
@@ -2789,8 +2757,9 @@ const Multimedia = () => {
                               Proyectando: {getMediaName(proyectingMedia)}
                             </p>
                           </div>
-                          <div className="flex items-center justify-center space-x-3">
+                          <div className="flex items-center justify-center gap-x-3">
                             <button
+                              type="button"
                               onClick={playProyector}
                               className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
                               title="Reproducir en proyector"
@@ -2798,6 +2767,7 @@ const Multimedia = () => {
                               <FaPlay className="text-lg" />
                             </button>
                             <button
+                              type="button"
                               onClick={pauseProyector}
                               className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
                               title="Pausar en proyector"
@@ -2805,6 +2775,7 @@ const Multimedia = () => {
                               <FaPause className="text-lg" />
                             </button>
                             <button
+                              type="button"
                               onClick={stopProyector}
                               className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
                               title="Detener en proyector"
@@ -2812,6 +2783,7 @@ const Multimedia = () => {
                               <FaStop className="text-lg" />
                             </button>
                             <button
+                              type="button"
                               onClick={limpiarProyectorRemoto}
                               className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
                               title="Limpiar proyector (ESC)"
@@ -2825,7 +2797,7 @@ const Multimedia = () => {
                       {/* Control de volumen (solo para no-YouTube) */}
                       {!isMediaForPlayerYouTube && (
                         <div className="bg-gray-700/50 p-4 rounded-xl">
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-x-3">
                             <FaVolumeUp className="text-gray-300 flex-shrink-0" />
                             <input
                               type="range"
@@ -2844,7 +2816,7 @@ const Multimedia = () => {
                     </div>
                   ) : (
                     <div className="text-center py-12">
-                      <div className="bg-gray-700/50 p-8 rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                      <div className="bg-gray-700/50 p-8 rounded-full size-24 mx-auto mb-4 flex items-center justify-center">
                         <FaVideoSlash className="text-4xl text-gray-500" />
                       </div>
                       <h3 className="text-lg font-medium text-gray-400 mb-2">
@@ -2868,28 +2840,33 @@ const Multimedia = () => {
                   Accesos Rápidos
                 </h3>
 
-                {/* Enlaces personalizados */}
-                {customQuickLinks.length > 0 && (
+                {/* Estado vacío */}
+                {quickLinks.length === 0 && (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center px-3 py-8">
+                    <FaLink className="text-3xl text-white/20 mb-3" />
+                    <p className="text-white/50 text-sm">Sin accesos rápidos</p>
+                    <p className="text-white/30 text-xs mt-1">
+                      Agrega una URL con el botón &ldquo;Agregar URL&rdquo;
+                    </p>
+                  </div>
+                )}
+
+                {/* Lista de accesos rápidos — vienen directamente de la DB */}
+                {quickLinks.length > 0 && (
                   <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
                     <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <FaStar className="text-yellow-400" />
-                        Tus Enlaces Personalizados
+                        URLs guardadas
                       </span>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          customQuickLinks.length >= 18
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        }`}
-                      >
-                        {customQuickLinks.length}/20
+                      <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                        {quickLinks.length}
                       </span>
                     </h4>
-                    {/* Mostrar primeros 10 sin scroll */}
                     <div className="space-y-2">
-                      {customQuickLinks.slice(0, 10).map((link) => {
-                        const isLinkPlaying = currentMedia?.url === link.url;
+                      {quickLinks.map((link) => {
+                        const isYT = getMediaType(link) === "youtube";
+                        const isLinkPlaying = currentMedia?.id === link.id;
 
                         return (
                           <div
@@ -2912,18 +2889,17 @@ const Multimedia = () => {
                               }}
                               className="p-1.5"
                             >
-                              {/* Thumbnail full-width */}
-                              {link.isYoutube ? (
+                              {isYT ? (
                                 <div className="relative w-full h-20 rounded-lg overflow-hidden bg-gray-800 mb-2">
                                   <img
-                                    src={getYouTubeThumbnail(link.url)}
-                                    alt={link.name}
+                                    src={getYouTubeThumbnail(link.ruta_archivo || link.url)}
+                                    alt={getMediaName(link)}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                       e.currentTarget.style.display = "none";
                                     }}
                                   />
-                                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                  <div className="absolute inset-0 bg-gray-950/30 flex items-center justify-center">
                                     <FaYoutube className="text-red-500 text-xl" />
                                   </div>
                                 </div>
@@ -2936,10 +2912,10 @@ const Multimedia = () => {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
                                   <h5 className="font-medium text-white text-xs leading-4 break-words mb-1">
-                                    {link.name}
+                                    {getMediaName(link)}
                                   </h5>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                                    {link.isYoutube ? (
+                                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    {isYT ? (
                                       <>
                                         <FaYoutube className="text-red-500 flex-shrink-0" />
                                         <span>YouTube</span>
@@ -2953,9 +2929,10 @@ const Multimedia = () => {
                                   </div>
                                 </div>
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    removeCustomQuickLink(link.id);
+                                    deleteMedia(link.id);
                                   }}
                                   className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300"
                                   title="Eliminar enlace"
@@ -2968,100 +2945,6 @@ const Multimedia = () => {
                         );
                       })}
                     </div>
-
-                    {/* Mostrar enlaces adicionales (11-20) con scroll */}
-                    {customQuickLinks.length > 10 && (
-                      <div className="mt-4">
-                        <div className="text-xs text-gray-400 mb-2 flex items-center gap-2">
-                          <span>
-                            📜 Más enlaces ({customQuickLinks.length - 10})
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {customQuickLinks.slice(10).map((link) => {
-                            const isLinkPlaying =
-                              currentMedia?.url === link.url;
-
-                            return (
-                              <div
-                                key={link.id}
-                                className={`group rounded-lg overflow-hidden transition-colors ${
-                                  isLinkPlaying
-                                    ? "bg-green-700/40 ring-2 ring-green-500"
-                                    : "bg-gray-700/30 hover:bg-gray-600/50"
-                                }`}
-                              >
-                                <div
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => handleQuickLinkClick(link)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                      e.preventDefault();
-                                      handleQuickLinkClick(link);
-                                    }
-                                  }}
-                                  className="p-1.5"
-                                >
-                                  {/* Thumbnail full-width */}
-                                  {link.isYoutube ? (
-                                    <div className="relative w-full h-20 rounded-lg overflow-hidden bg-gray-800 mb-2">
-                                      <img
-                                        src={getYouTubeThumbnail(link.url)}
-                                        alt={link.name}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                          e.currentTarget.style.display =
-                                            "none";
-                                        }}
-                                      />
-                                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                        <FaYoutube className="text-red-500 text-xl" />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="w-full h-12 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center mb-2">
-                                      <FaLink className="text-blue-400 text-xl" />
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <h5 className="font-medium text-white text-xs leading-4 break-words mb-1">
-                                        {link.name}
-                                      </h5>
-                                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                                        {link.isYoutube ? (
-                                          <>
-                                            <FaYoutube className="text-red-500 flex-shrink-0" />
-                                            <span>YouTube</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <FaLink className="text-blue-400 flex-shrink-0" />
-                                            <span>URL externa</span>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeCustomQuickLink(link.id);
-                                      }}
-                                      className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300"
-                                      title="Eliminar enlace"
-                                    >
-                                      <FaTimes className="text-sm" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -3072,11 +2955,11 @@ const Multimedia = () => {
 
       {/* ✨ MODAL PARA AGREGAR URL */}
       {showUrlModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900/95 backdrop-blur border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-slate-700/50">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-x-3">
                   <div className="bg-blue-500/20 p-3 rounded-full">
                     <FaLink className="text-blue-400 text-xl" />
                   </div>
@@ -3090,6 +2973,7 @@ const Multimedia = () => {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowUrlModal(false);
                     setUrlInput("");
@@ -3161,12 +3045,14 @@ const Multimedia = () => {
                 {/* Botones de acción */}
                 <div className="flex justify-end gap-3">
                   <button
+                    type="button"
                     onClick={() => setShowUrlModal(false)}
                     className="flex-1 px-4 py-2 bg-gray-700 rounded-lg text-gray-300 hover:bg-gray-600 transition-all duration-300"
                   >
                     Cancelar
                   </button>
                   <button
+                    type="button"
                     onClick={handleUrlSubmit}
                     className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 flex items-center justify-center gap-2"
                   >

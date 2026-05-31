@@ -286,7 +286,7 @@ function encontrarLibreOfficeBin() {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const salida = String(res.stdout || "").trim();
-    const candidato = salida.split("\n").map((s) => s.trim()).filter(Boolean)[0];
+    const candidato = salida.split("\n").flatMap(s => { const v = s.trim(); return v ? [v] : []; })[0];
     if (res.status === 0 && candidato && fs.existsSync(candidato)) {
       return candidato;
     }
@@ -351,7 +351,7 @@ function ordenarPngPorSlide(files) {
     return m ? Number(m[1]) : -1;
   };
 
-  return [...files].sort((a, b) => {
+  return files.toSorted((a, b) => {
     const na = parse(a);
     const nb = parse(b);
     if (na !== nb) return na - nb;
@@ -894,39 +894,38 @@ function iniciarServidorMultimedia() {
           }
 
           const base = leerJsonHimnosSeguro(filename);
-          baseNormalizados = base
-            .map((h) => ({
+          baseNormalizados = base.flatMap((h) => {
+            if (!String(h?.titulo || '').trim()) return [];
+            return [{
               id: `base:${tipo}:${h?.numero ?? ''}`,
               numero: h?.numero ?? '',
               titulo: h?.titulo ?? '',
               parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
               fuente: tipo,
               favorito: favoritosBaseIds.includes(`base:${tipo}:${h?.numero ?? ''}`),
-            }))
-            .filter((h) => String(h.titulo || '').trim());
+            }];
+          });
         }
 
         if (tipo === 'personal') {
           const himnosDb = await dbNew.obtenerHimnos();
-          dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : [])
-            .map((h) => {
-              let letra = [];
-              try {
-                letra = JSON.parse(h?.letra || '[]');
-              } catch {
-                letra = [];
-              }
-
-              return {
-                id: `db:${h?.id ?? ''}`,
-                numero: h?.numero ?? '',
-                titulo: h?.titulo ?? '',
-                parrafos: Array.isArray(letra) ? letra : [],
-                fuente: 'personal',
-                favorito: Boolean(h?.favorito),
-              };
-            })
-            .filter((h) => String(h.titulo || '').trim());
+          dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : []).flatMap((h) => {
+            if (!String(h?.titulo || '').trim()) return [];
+            let letra = [];
+            try {
+              letra = JSON.parse(h?.letra || '[]');
+            } catch {
+              letra = [];
+            }
+            return [{
+              id: `db:${h?.id ?? ''}`,
+              numero: h?.numero ?? '',
+              titulo: h?.titulo ?? '',
+              parrafos: Array.isArray(letra) ? letra : [],
+              fuente: 'personal',
+              favorito: Boolean(h?.favorito),
+            }];
+          });
         }
 
         return res.json({
@@ -964,43 +963,30 @@ function iniciarServidorMultimedia() {
           }
 
           if (favoritosBaseIds.length) {
+            const favoritosBaseSet = new Set(favoritosBaseIds);
             const base = leerJsonHimnosSeguro(filename);
-            base
-              .map((h) => ({
-                id: `base:${t}:${h?.numero ?? ''}`,
-                numero: h?.numero ?? '',
-                titulo: h?.titulo ?? '',
-                parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
-                fuente: t,
-                favorito: favoritosBaseIds.includes(`base:${t}:${h?.numero ?? ''}`),
-              }))
-              .filter((h) => h.favorito && String(h.titulo || '').trim())
-              .forEach((h) => favoritos.push(h));
+            for (const h of base) {
+              const titulo = String(h?.titulo || '').trim();
+              const id = `base:${t}:${h?.numero ?? ''}`;
+              if (!titulo || !favoritosBaseSet.has(id)) continue;
+              favoritos.push({ id, numero: h?.numero ?? '', titulo, parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [], fuente: t, favorito: true });
+            }
           }
         }
 
         const himnosDb = await dbNew.obtenerHimnos();
-        (Array.isArray(himnosDb) ? himnosDb : [])
-          .filter((h) => Boolean(h?.favorito))
-          .map((h) => {
-            let letra = [];
-            try {
-              letra = JSON.parse(h?.letra || '[]');
-            } catch {
-              letra = [];
-            }
-
-            return {
-              id: `db:${h?.id ?? ''}`,
-              numero: h?.numero ?? '',
-              titulo: h?.titulo ?? '',
-              parrafos: Array.isArray(letra) ? letra : [],
-              fuente: 'personal',
-              favorito: true,
-            };
-          })
-          .filter((h) => String(h.titulo || '').trim())
-          .forEach((h) => favoritos.push(h));
+        for (const h of (Array.isArray(himnosDb) ? himnosDb : [])) {
+          if (!h?.favorito) continue;
+          const titulo = String(h?.titulo || '').trim();
+          if (!titulo) continue;
+          let letra = [];
+          try {
+            letra = JSON.parse(h?.letra || '[]');
+          } catch {
+            letra = [];
+          }
+          favoritos.push({ id: `db:${h?.id ?? ''}`, numero: h?.numero ?? '', titulo, parrafos: Array.isArray(letra) ? letra : [], fuente: 'personal', favorito: true });
+        }
 
         favoritos.sort((a, b) => {
           const na = Number(a?.numero);
@@ -1082,7 +1068,7 @@ function iniciarServidorMultimedia() {
         if (!letra || !String(letra).trim()) {
           return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
         }
-        const parrafos = String(letra).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        const parrafos = String(letra).split(/\n\n+/).flatMap(p => { const v = p.trim(); return v ? [v] : []; });
         const id = await dbNew.crearHimno({
           numero: String(numero || '').trim(),
           titulo: String(titulo).trim(),
@@ -1108,7 +1094,7 @@ function iniciarServidorMultimedia() {
         if (!letra || !String(letra).trim()) {
           return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
         }
-        const parrafos = String(letra).split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        const parrafos = String(letra).split(/\n\n+/).flatMap(p => { const v = p.trim(); return v ? [v] : []; });
         const ok = await dbNew.actualizarHimno(id, {
           numero: String(numero || '').trim(),
           titulo: String(titulo).trim(),
@@ -1186,7 +1172,7 @@ function iniciarServidorMultimedia() {
         const raw = await dbNew.obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
         const parsed = raw ? JSON.parse(String(raw)) : [];
         const arr = Array.isArray(parsed) ? parsed : [];
-        const normalizados = arr.map(normalizarFavoritoBiblia).filter(Boolean);
+        const normalizados = arr.flatMap(f => { const v = normalizarFavoritoBiblia(f); return v ? [v] : []; });
 
         // De-dup por id (último gana)
         const map = new Map();
@@ -1279,14 +1265,7 @@ function iniciarServidorMultimedia() {
           data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
         } catch (vmError) {
           writeLog(`❌ [API] Error evaluando contenido con vm: ${vmError.message}`);
-          // Intento alternativo: eval directo (menos seguro pero más compatible)
-          try {
-            data = eval(`(${arrayStr})`);
-            writeLog(`✅ [API] Eval directo funcionó para ${libroId}`);
-          } catch (evalError) {
-            writeLog(`❌ [API] Eval directo también falló: ${evalError.message}`);
-            throw vmError;
-          }
+          throw vmError;
         }
 
         if (!Array.isArray(data) || data.length === 0) {
@@ -2337,7 +2316,7 @@ function iniciarServidorMultimedia() {
         try {
           data = vm.runInNewContext(`(${arrayStr})`, Object.create(null));
         } catch (vmError) {
-          try { data = eval(`(${arrayStr})`); } catch (evalError) { throw vmError; }
+          throw vmError;
         }
 
         if (!Array.isArray(data) || data.length === 0) {
@@ -2589,8 +2568,8 @@ function iniciarServidorMultimedia() {
     expressApp.get('/api/plantillas', async (req, res) => {
       try {
         const claves = ['plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
-        const cfg = {};
-        for (const c of claves) cfg[c] = await dbNew.obtenerConfiguracion(c);
+        const cfgValues = await Promise.all(claves.map(c => dbNew.obtenerConfiguracion(c)));
+        const cfg = Object.fromEntries(claves.map((c, i) => [c, cfgValues[i]]));
         const activa = (cfg.plantillaGsapActiva && cfg.plantillaGsapActiva !== 'ninguna') ? cfg.plantillaGsapActiva : null;
         const plantillas = Object.entries(PLANTILLAS_GSAP_META).map(([id, meta]) => ({
           id, ...meta, activa: id === activa,
@@ -2628,7 +2607,7 @@ function iniciarServidorMultimedia() {
         });
         // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
         const jsSet = `localStorage.setItem("gsap-plantilla-global", ${JSON.stringify(lsData)})`;
-        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsSet).catch(() => {});
+        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsSet).catch(() => { });
         return res.json({ ok: true, activa: id });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message });
@@ -2640,7 +2619,7 @@ function iniciarServidorMultimedia() {
         await dbNew.actualizarConfiguracion('plantillaGsapActiva', 'ninguna');
         // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
         const jsRemove = `localStorage.removeItem("gsap-plantilla-global")`;
-        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsRemove).catch(() => {});
+        if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsRemove).catch(() => { });
         return res.json({ ok: true, activa: null });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message });
@@ -2658,23 +2637,22 @@ function iniciarServidorMultimedia() {
         if (fs.existsSync(dir)) {
           const archivos = fs.readdirSync(dir);
 
-          // Buscar coincidencia exacta
-          let archivo = archivos.find(f => f === filename);
-
-          // Si no hay coincidencia exacta, buscar sin extensión
-          if (!archivo) {
-            archivo = archivos.find(f => f.startsWith(filename));
+          let archivo;
+          for (const f of archivos) {
+            if (f === filename) { archivo = f; break; }
+            if (!archivo && f.startsWith(filename)) archivo = f;
           }
 
           if (archivo) {
             const rutaCompleta = path.join(dir, archivo);
 
             // Configurar headers
-            if (archivo.includes('mp3') || archivo.includes('wav')) {
+            const _ext = path.extname(archivo).toLowerCase();
+            if (_ext === '.mp3' || _ext === '.wav') {
               res.setHeader('Content-Type', 'audio/mpeg');
-            } else if (archivo.includes('mp4') || archivo.includes('webm')) {
+            } else if (_ext === '.mp4' || _ext === '.webm') {
               res.setHeader('Content-Type', 'video/mp4');
-            } else if (archivo.includes('jpg') || archivo.includes('png')) {
+            } else if (_ext === '.jpg' || _ext === '.png') {
               res.setHeader('Content-Type', 'image/jpeg');
             }
             res.setHeader('Accept-Ranges', 'bytes');
@@ -2726,7 +2704,11 @@ function iniciarServidorMultimedia() {
 
             // Si no hay coincidencia exacta, intentar por prefijo (casos sin extensión bien formada)
             const archivos = fs.readdirSync(dir);
-            const found = archivos.find((f) => f === filename) || archivos.find((f) => f.startsWith(filename));
+            let found;
+            for (const f of archivos) {
+              if (f === filename) { found = f; break; }
+              if (!found && f.startsWith(filename)) found = f;
+            }
             if (found) {
               sourcePath = path.join(dir, found);
               break;
@@ -3181,11 +3163,11 @@ const timerEstadoServidor = {
 let timerIntervalServidor = null;
 
 const timerGetData = () => ({
-  segundos:    timerEstadoServidor.segundosRestantes,
-  total:       timerEstadoServidor.total,
-  mensaje:     timerEstadoServidor.mensaje,
-  terminado:   timerEstadoServidor.terminado,
-  corriendo:   timerEstadoServidor.corriendo,
+  segundos: timerEstadoServidor.segundosRestantes,
+  total: timerEstadoServidor.total,
+  mensaje: timerEstadoServidor.mensaje,
+  terminado: timerEstadoServidor.terminado,
+  corriendo: timerEstadoServidor.corriendo,
   proyectando: timerEstadoServidor.proyectando,
 });
 
@@ -3260,16 +3242,16 @@ const timerRestaurarEnProyector = () => {
 
 // ── Plantillas GSAP metadata ───────────────────────────────────────────────
 const PLANTILLAS_GSAP_META = {
-  revelar:    { nombre: 'Revelar',    icono: '◈', desc: 'Marco que se dibuja desde las esquinas' },
-  neon:       { nombre: 'Neón',       icono: '⬡', desc: 'Borde luminoso con efecto flicker' },
-  iglesia:    { nombre: 'Iglesia',    icono: '✝', desc: 'Clásico con ornamentos y cruz' },
+  revelar: { nombre: 'Revelar', icono: '◈', desc: 'Marco que se dibuja desde las esquinas' },
+  neon: { nombre: 'Neón', icono: '⬡', desc: 'Borde luminoso con efecto flicker' },
+  iglesia: { nombre: 'Iglesia', icono: '✝', desc: 'Clásico con ornamentos y cruz' },
   cinematica: { nombre: 'Cinemática', icono: '▶', desc: 'Barras de cine + texto con barrido' },
   particulas: { nombre: 'Partículas', icono: '✦', desc: 'Partículas flotantes con halo' },
-  gloria:     { nombre: 'Gloria',     icono: '☀', desc: 'Rayos de luz desde el centro con halos' },
-  aurora:     { nombre: 'Aurora',     icono: '◉', desc: 'Bandas de aurora boreal flotando' },
-  minimal:    { nombre: 'Minimal',    icono: '—', desc: 'Ultra limpio con barrido de línea' },
-  majestad:   { nombre: 'Majestad',   icono: '◆', desc: 'Ornamentos reales púrpura y dorado' },
-  olas:       { nombre: 'Olas',       icono: '〜', desc: 'Líneas de onda en los bordes' },
+  gloria: { nombre: 'Gloria', icono: '☀', desc: 'Rayos de luz desde el centro con halos' },
+  aurora: { nombre: 'Aurora', icono: '◉', desc: 'Bandas de aurora boreal flotando' },
+  minimal: { nombre: 'Minimal', icono: '—', desc: 'Ultra limpio con barrido de línea' },
+  majestad: { nombre: 'Majestad', icono: '◆', desc: 'Ornamentos reales púrpura y dorado' },
+  olas: { nombre: 'Olas', icono: '〜', desc: 'Líneas de onda en los bordes' },
 };
 
 // ✨ CREAR VENTANA PRINCIPAL CON CSP CONFIGURADA
@@ -4174,22 +4156,22 @@ app.whenReady().then(async () => {
     // (registrados aquí para garantizar que siempre se cargan)
     // ====================================
     const safeHandle = (channel, fn) => {
-      try { ipcMain.removeHandler(channel); } catch {}
+      try { ipcMain.removeHandler(channel); } catch { }
       ipcMain.handle(channel, fn);
     };
-    safeHandle("obtener-ordenes-servicio", () => { try { return obtenerOrdenesServicio(); } catch(e) { console.error(e); return []; } });
-    safeHandle("obtener-orden-servicio",   (_, id)   => { try { return obtenerOrdenServicioPorId(id); } catch(e) { return null; } });
-    safeHandle("agregar-orden-servicio",   (_, data) => { try { return agregarOrdenServicio(data); } catch(e) { return {success:false,error:e.message}; } });
-    safeHandle("actualizar-orden-servicio",(_, data) => { try { return actualizarOrdenServicio(data); } catch(e) { return {success:false,error:e.message}; } });
-    safeHandle("eliminar-orden-servicio",  (_, id)   => { try { return eliminarOrdenServicio(id); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("obtener-ordenes-servicio", () => { try { return obtenerOrdenesServicio(); } catch (e) { console.error(e); return []; } });
+    safeHandle("obtener-orden-servicio", (_, id) => { try { return obtenerOrdenServicioPorId(id); } catch (e) { return null; } });
+    safeHandle("agregar-orden-servicio", (_, data) => { try { return agregarOrdenServicio(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("actualizar-orden-servicio", (_, data) => { try { return actualizarOrdenServicio(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("eliminar-orden-servicio", (_, id) => { try { return eliminarOrdenServicio(id); } catch (e) { return { success: false, error: e.message }; } });
     // ====================================
     // HANDLERS: ANUNCIOS
     // ====================================
-    safeHandle("obtener-anuncios",   ()        => { try { return obtenerAnuncios(); } catch(e) { return []; } });
-    safeHandle("agregar-anuncio",    (_, data) => { try { return agregarAnuncio(data); } catch(e) { return {success:false,error:e.message}; } });
-    safeHandle("actualizar-anuncio", (_, data) => { try { return actualizarAnuncio(data); } catch(e) { return {success:false,error:e.message}; } });
-    safeHandle("eliminar-anuncio",   (_, id)   => { try { return eliminarAnuncio(id); } catch(e) { return {success:false,error:e.message}; } });
-    safeHandle("reordenar-anuncios", (_, ids)  => { try { return reordenarAnuncios(ids); } catch(e) { return {success:false,error:e.message}; } });
+    safeHandle("obtener-anuncios", () => { try { return obtenerAnuncios(); } catch (e) { return []; } });
+    safeHandle("agregar-anuncio", (_, data) => { try { return agregarAnuncio(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("actualizar-anuncio", (_, data) => { try { return actualizarAnuncio(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("eliminar-anuncio", (_, id) => { try { return eliminarAnuncio(id); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("reordenar-anuncios", (_, ids) => { try { return reordenarAnuncios(ids); } catch (e) { return { success: false, error: e.message }; } });
     console.log("✅ [Main] Handlers de órdenes y anuncios registrados");
 
     // ✨ INICIAR SERVIDOR DE MULTIMEDIA PRIMERO (ANTES DE CREAR VENTANAS EN PRODUCCIÓN)
@@ -4394,35 +4376,31 @@ function registrarHandlers() {
         return fs.existsSync(publicPath) || fs.existsSync(buildPath);
       };
 
-      const fondosTransformados = fondos
-        .filter(fondo => {
-          const existe = archivoExiste(fondo.url);
-          if (!existe) {
-            console.warn(`⚠️ [Main] Fondo sin archivo en disco, omitiendo: ${fondo.url} (id=${fondo.id})`);
+      const fondosTransformados = fondos.flatMap(fondo => {
+        const existe = archivoExiste(fondo.url);
+        if (!existe) {
+          return [];
+        }
+        let rutaURL = fondo.url;
+        if (typeof rutaURL === 'string') {
+          if (rutaURL.startsWith('http')) {
+            // noop
+          } else if (rutaURL.startsWith('/')) {
+            rutaURL = `http://localhost:3001${rutaURL}`;
+          } else {
+            const fileName = path.basename(rutaURL);
+            rutaURL = `http://localhost:3001/fondos/${fileName}`;
           }
-          return existe;
-        })
-        .map(fondo => {
-          let rutaURL = fondo.url;
-          if (typeof rutaURL === 'string') {
-            if (rutaURL.startsWith('http')) {
-              // noop
-            } else if (rutaURL.startsWith('/')) {
-              rutaURL = `http://localhost:3001${rutaURL}`;
-            } else {
-              const fileName = path.basename(rutaURL);
-              rutaURL = `http://localhost:3001/fondos/${fileName}`;
-            }
-          }
-          return {
-            id: fondo.id,
-            url: rutaURL,
-            tipo: fondo.tipo || 'imagen',
-            nombre: fondo.nombre || `Fondo ${fondo.id}`,
-            activo: Boolean(fondo.activo),
-            created_at: fondo.created_at || new Date().toISOString()
-          };
-        });
+        }
+        return [{
+          id: fondo.id,
+          url: rutaURL,
+          tipo: fondo.tipo || 'imagen',
+          nombre: fondo.nombre || `Fondo ${fondo.id}`,
+          activo: Boolean(fondo.activo),
+          created_at: fondo.created_at || new Date().toISOString()
+        }];
+      });
 
       console.log(`✅ [Main] Fondos con archivo: ${fondosTransformados.length} / ${fondos.length} total`);
       return fondosTransformados;
@@ -4702,9 +4680,9 @@ function registrarHandlers() {
       console.log("📁 [Main] Carpeta seleccionada:", carpetaSeleccionada);
 
       // Extensiones soportadas
-      const extensionesImagen = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-      const extensionesVideo = ['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv'];
-      const extensionesSoportadas = [...extensionesImagen, ...extensionesVideo];
+      const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
+      const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv']);
+      const extensionesSoportadas = new Set([...extensionesImagen, ...extensionesVideo]);
 
       // Leer archivos de la carpeta
       const archivos = fs.readdirSync(carpetaSeleccionada);
@@ -4731,7 +4709,7 @@ function registrarHandlers() {
           const extension = path.extname(archivo).toLowerCase();
 
           // Determinar tipo
-          const tipo = extensionesImagen.includes(extension) ? 'imagen' : 'video';
+          const tipo = extensionesImagen.has(extension) ? 'imagen' : 'video';
 
           // Generar nombre único para el archivo
           const nombreUnico = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${archivo}`;
@@ -4794,9 +4772,9 @@ function registrarHandlers() {
       }
 
       const archivos = fs.readdirSync(fondosPublicDir);
-      const extensionesImagen = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-      const extensionesVideo = ['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv'];
-      const extensionesSoportadas = [...extensionesImagen, ...extensionesVideo];
+      const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
+      const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv']);
+      const extensionesSoportadas = new Set([...extensionesImagen, ...extensionesVideo]);
 
       const archivosValidos = archivos.filter(archivo => {
         const extension = path.extname(archivo).toLowerCase();
@@ -4807,7 +4785,7 @@ function registrarHandlers() {
 
       // Obtener fondos ya existentes en BD
       const fondosExistentes = obtenerFondos();
-      const urlsExistentes = fondosExistentes.map(f => f.url);
+      const urlsExistentes = new Set(fondosExistentes.map(f => f.url));
 
       let agregados = 0;
       let yaExistentes = 0;
@@ -4817,14 +4795,14 @@ function registrarHandlers() {
           const rutaRelativa = `/fondos/${archivo}`;
 
           // Verificar si ya existe en BD
-          if (urlsExistentes.includes(rutaRelativa)) {
+          if (urlsExistentes.has(rutaRelativa)) {
             yaExistentes++;
             console.log(`ℹ️ [Main] Ya existe en BD: ${archivo}`);
             continue;
           }
 
           const extension = path.extname(archivo).toLowerCase();
-          const tipo = extensionesImagen.includes(extension) ? 'imagen' : 'video';
+          const tipo = extensionesImagen.has(extension) ? 'imagen' : 'video';
           const nombreSinExtension = path.basename(archivo, extension);
 
           const resultado = agregarFondo(rutaRelativa, tipo, nombreSinExtension, false);
@@ -5115,7 +5093,6 @@ function registrarHandlers() {
 
   // ✨ Handler genérico para controles adicionales (volumen/seek, etc.)
   ipcMain.on("proyector-control-multimedia", (event, payload) => {
-    console.warn("🎮 [Main] Control multimedia genérico recibido:", payload);
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", payload);
     } else {
@@ -5135,10 +5112,7 @@ function registrarHandlers() {
   });
 
   ipcMain.on("proyector-control-ack", (event, data) => {
-    console.warn("📩 [Main] Proyector ACK control:", {
-      senderId: event?.sender?.id,
-      ...data,
-    });
+    // ACK recibido del proyector
   });
 
   // ✨ Estado de reproducción (para barra de progreso móvil)
@@ -6453,15 +6427,15 @@ function registrarHandlers() {
 
           // Determinar tipo
           let tipo;
-          const extensionesVideo = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'];
-          const extensionesAudio = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a'];
-          const extensionesImagen = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+          const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm']);
+          const extensionesAudio = new Set(['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a']);
+          const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
 
-          if (extensionesVideo.includes(extension)) {
+          if (extensionesVideo.has(extension)) {
             tipo = 'video';
-          } else if (extensionesAudio.includes(extension)) {
+          } else if (extensionesAudio.has(extension)) {
             tipo = 'audio';
-          } else if (extensionesImagen.includes(extension)) {
+          } else if (extensionesImagen.has(extension)) {
             tipo = 'imagen';
           } else {
             throw new Error(`Tipo de archivo no soportado: ${extension}`);

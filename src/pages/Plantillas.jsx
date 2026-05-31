@@ -1,6 +1,7 @@
 import {useState, useEffect, useRef} from "react";
 import {gsap} from "gsap";
-import PlantillaGSAP, {META_PLANTILLAS} from "../components/PlantillaGSAP";
+import PlantillaGSAP from "../components/PlantillaGSAP";
+import {META_PLANTILLAS} from "../components/PlantillasConfig";
 import {
   FaCheck,
   FaSave,
@@ -37,7 +38,7 @@ function ColorInput({label, value, onChange}) {
             type="color"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-9 h-9 rounded-lg border border-slate-600/60 cursor-pointer bg-transparent p-0.5"
+            className="size-9 rounded-lg border border-slate-600/60 cursor-pointer bg-transparent p-0.5"
           />
         </div>
         <input
@@ -92,7 +93,7 @@ export default function Plantillas() {
     const activa = cfg.plantillaGsapActiva !== "ninguna";
     if (activa) {
       localStorage.setItem(
-        "gsap-plantilla-global",
+        "gsap-plantilla-global:v1",
         JSON.stringify({
           plantillaId: cfg.plantillaGsapActiva,
           config: {
@@ -104,7 +105,7 @@ export default function Plantillas() {
         }),
       );
     } else {
-      localStorage.removeItem("gsap-plantilla-global");
+      localStorage.removeItem("gsap-plantilla-global:v1");
     }
   };
 
@@ -112,9 +113,11 @@ export default function Plantillas() {
     const cfg = cfgOverride || config;
     setGuardando(true);
     try {
-      for (const [clave, valor] of Object.entries(cfg)) {
-        await window.electron?.actualizarConfiguracionPorClave?.(clave, valor);
-      }
+      await Promise.all(
+        Object.entries(cfg).map(([clave, valor]) =>
+          window.electron?.actualizarConfiguracionPorClave?.(clave, valor),
+        ),
+      );
       // Sincronizar localStorage para actualización inmediata en el proyector
       sincronizarLocalStorage(cfg);
       setGuardado(true);
@@ -183,7 +186,7 @@ export default function Plantillas() {
         gsapConfig,
       },
     };
-    localStorage.setItem("proyector-slide-data", JSON.stringify(slideData));
+    localStorage.setItem("proyector-slide-data:v1", JSON.stringify(slideData));
     try {
       window.electron?.ipcRenderer?.send?.("proyectar-slide-data", slideData);
     } catch {}
@@ -191,7 +194,7 @@ export default function Plantillas() {
   };
 
   const detenerTest = () => {
-    localStorage.removeItem("proyector-slide-data");
+    localStorage.removeItem("proyector-slide-data:v1");
     window.electron?.enviarVersiculo?.({
       parrafo: "",
       titulo: " ",
@@ -228,6 +231,7 @@ export default function Plantillas() {
           {plantillaActiva &&
             (proyectando ? (
               <button
+                type="button"
                 onClick={detenerTest}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-semibold transition-colors"
               >
@@ -235,6 +239,7 @@ export default function Plantillas() {
               </button>
             ) : (
               <button
+                type="button"
                 onClick={proyectarTest}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white text-xs font-semibold transition-colors"
               >
@@ -242,6 +247,7 @@ export default function Plantillas() {
               </button>
             ))}
           <button
+            type="button"
             onClick={guardar}
             disabled={guardando}
             className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
@@ -269,6 +275,7 @@ export default function Plantillas() {
                 Estado
               </h3>
               <button
+                type="button"
                 onClick={toggleActiva}
                 className="flex items-center gap-2 text-sm transition-colors"
               >
@@ -301,6 +308,7 @@ export default function Plantillas() {
             <div className="space-y-2">
               {Object.entries(META_PLANTILLAS).map(([id, meta]) => (
                 <button
+                  type="button"
                   key={id}
                   onClick={() => cambiarPlantilla(id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${
@@ -362,6 +370,7 @@ export default function Plantillas() {
             <div className="flex gap-2">
               {["lenta", "media", "rapida"].map((v) => (
                 <button
+                  type="button"
                   key={v}
                   onClick={() => cambiarVelocidad(v)}
                   className={`flex-1 py-2 rounded-lg border text-xs font-semibold capitalize transition-all ${
@@ -393,6 +402,7 @@ export default function Plantillas() {
               Vista previa
             </span>
             <button
+              type="button"
               onClick={recargarPreview}
               className="text-[10px] text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 px-2.5 py-1 rounded-lg transition-colors"
             >
@@ -435,7 +445,7 @@ export default function Plantillas() {
               {plantillaActiva && (
                 <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
                   <span className="text-[10px] bg-black/60 text-white/60 px-2 py-1 rounded-md backdrop-blur-sm">
-                    {META_PLANTILLAS[config.plantillaGsapActiva]?.nombre} —
+                    {META_PLANTILLAS[config.plantillaGsapActiva]?.nombre},
                     Velocidad: {config.plantillaGsapVelocidad}
                   </span>
                   <span className="text-[10px] bg-black/60 text-white/40 px-2 py-1 rounded-md backdrop-blur-sm">

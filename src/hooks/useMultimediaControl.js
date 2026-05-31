@@ -409,14 +409,15 @@ export function useMultimediaControl({multimediaActiva, limpiarRef}) {
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
     let bc;
+    const handleBroadcast = (ev) => {
+      const p = ev?.data;
+      if (p?.action) handleControl(null, p, {source:"broadcast"});
+    };
     try {
       bc = new BroadcastChannel("gloryview-proyector-control");
-      bc.addEventListener("message", (ev) => {
-        const p = ev?.data;
-        if (p?.action) handleControl(null, p, {source:"broadcast"});
-      });
+      bc.addEventListener("message", handleBroadcast);
     } catch { /* noop */ }
-    return () => { try { bc?.close(); } catch { /* noop */ } };
+    return () => { try { bc?.removeEventListener("message", handleBroadcast); bc?.close(); } catch { /* noop */ } };
   }, [handleControl]);
 
   return {modoRef, multimediaActivaRef};

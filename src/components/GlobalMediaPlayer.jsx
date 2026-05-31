@@ -299,145 +299,126 @@ const GlobalMediaPlayer = () => {
 
     // YouTube rechaza origin=localhost y origin=file:// (entornos Electron, dev y prod).
     // Omitir el parámetro origin en esos casos para evitar ERR_CONNECTION_CLOSED.
-    const pageOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-    const skipOrigin = !pageOrigin ||
-      pageOrigin.startsWith('http://localhost') ||
-      pageOrigin.startsWith('https://localhost') ||
-      pageOrigin.startsWith('file://');
+    const pageOrigin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const skipOrigin =
+      !pageOrigin ||
+      pageOrigin.startsWith("http://localhost") ||
+      pageOrigin.startsWith("https://localhost") ||
+      pageOrigin.startsWith("file://");
 
-    const baseParams = 'autoplay=0&rel=0&controls=1&enablejsapi=1&modestbranding=1';
+    const baseParams =
+      "autoplay=0&rel=0&controls=1&enablejsapi=1&modestbranding=1";
     if (skipOrigin) {
       return `https://www.youtube.com/embed/${videoId}?${baseParams}`;
     }
     return `https://www.youtube.com/embed/${videoId}?${baseParams}&origin=${encodeURIComponent(pageOrigin)}`;
   };
 
-  // Renderizar el iframe de YouTube/Invidious con fallback automático
-  const renderYouTubeIframe = () => {
-    if (!mediaToShow.isYoutube) return null;
-
-    // Renderizar siempre, posicionado según iframePosition
-    return (
-      <div style={iframePosition}>
-        {/* ✨ Banner informativo si está usando Invidious */}
-        {useInvidious && (
-          <div className="absolute top-2 left-2 z-10 bg-blue-500/90 text-white text-xs px-2 py-1 rounded">
-            🔄 Usando mirror alternativo
-          </div>
-        )}
-
-        {/* ✨ Botón para cambiar entre YouTube e Invidious */}
-        {iframeError && (
-          <div className="absolute top-2 left-2 z-10">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setUseInvidious(!useInvidious);
-                setIframeError(false);
-              }}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-3 py-1 rounded shadow-lg"
-            >
-              Intentar alternativa
-            </button>
-          </div>
-        )}
-
-        <iframe
-          key={`video-iframe-${useInvidious ? "invidious" : "youtube"}`}
-          id={useInvidious ? undefined : "global-youtube-player"}
-          src={getVideoUrl(useInvidious)}
-          className="w-full h-full rounded-xl"
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          title="YouTube Video"
-          onLoad={() => {
-            // Asegurar que no quede reproduciendo por estados previos
-            if (!useInvidious) {
-              const iframe = document.getElementById("global-youtube-player");
-              if (iframe && iframe.contentWindow) {
-                // ✨ PASO 1: Le decimos a YouTube que queremos escuchar eventos
-                iframe.contentWindow.postMessage(
-                  JSON.stringify({
-                    event: "listening",
-                    id: "global-youtube-player",
-                    channel: "widget",
-                  }),
-                  "*",
-                );
-
-                // ✨ PASO 2: Nos suscribimos específicamente a cambios de estado
-                setTimeout(() => {
-                  iframe.contentWindow.postMessage(
-                    JSON.stringify({
-                      event: "command",
-                      func: "addEventListener",
-                      args: ["onStateChange"],
-                    }),
-                    "*",
-                  );
-
-                  console.log("📺 [YouTube Init] Listener de eventos activado");
-                }, 100);
-              }
-
-              // Aplicar estado inicial
-              if (isPlaying) {
-                sendYouTubeCommand("playVideo");
-              } else {
-                sendYouTubeCommand("pauseVideo");
-              }
-
-              const vol = Math.max(0, Math.min(100, Number(volume)));
-              if (Number.isFinite(vol)) {
-                sendYouTubeCommand("setVolume", [vol]);
-                if (vol === 0) {
-                  sendYouTubeCommand("mute");
-                } else {
-                  sendYouTubeCommand("unMute");
-                }
-              }
-            }
-          }}
-          onError={() => {
-            console.warn("❌ Error cargando video, intentando fallback...");
-            if (!useInvidious) {
-              setIframeError(true);
-              setTimeout(() => setUseInvidious(true), 2000); // Cambiar automáticamente después de 2s
-            }
-          }}
-        />
-      </div>
-    );
-  };
-
-  // Renderizar video local - similar al iframe de YouTube
-  const renderLocalVideo = () => {
-    if (mediaToShow.isYoutube || tipoActual !== "video") return null;
-
-    // Renderizar siempre, posicionado según iframePosition
-    return (
-      <div style={iframePosition}>
-        <video
-          key="video-persistent"
-          src={mediaToShow.url}
-          controls={false}
-          ref={videoRef}
-          autoPlay={false}
-          className="w-full h-full rounded-xl bg-black"
-        />
-      </div>
-    );
-  };
-
   // Renderizar solo los iframes/videos (los controles están en el Header)
   return (
     <>
       {/* Iframe global de YouTube */}
-      {renderYouTubeIframe()}
+      {mediaToShow.isYoutube && (
+        <div style={iframePosition}>
+          {useInvidious && (
+            <div className="absolute top-2 left-2 z-10 bg-blue-500/90 text-white text-xs px-2 py-1 rounded">
+              🔄 Usando mirror alternativo
+            </div>
+          )}
+
+          {iframeError && (
+            <div className="absolute top-2 left-2 z-10">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUseInvidious(!useInvidious);
+                  setIframeError(false);
+                }}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-3 py-1 rounded shadow-lg"
+              >
+                Intentar alternativa
+              </button>
+            </div>
+          )}
+
+          <iframe
+            key={`video-iframe-${useInvidious ? "invidious" : "youtube"}`}
+            id={useInvidious ? undefined : "global-youtube-player"}
+            src={getVideoUrl(useInvidious)}
+            className="w-full h-full rounded-xl"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            title="YouTube Video"
+            onLoad={() => {
+              if (!useInvidious) {
+                const iframe = document.getElementById("global-youtube-player");
+                if (iframe && iframe.contentWindow) {
+                  iframe.contentWindow.postMessage(
+                    JSON.stringify({
+                      event: "listening",
+                      id: "global-youtube-player",
+                      channel: "widget",
+                    }),
+                    "*",
+                  );
+
+                  setTimeout(() => {
+                    iframe.contentWindow.postMessage(
+                      JSON.stringify({
+                        event: "command",
+                        func: "addEventListener",
+                        args: ["onStateChange"],
+                      }),
+                      "*",
+                    );
+                  }, 100);
+                }
+
+                if (isPlaying) {
+                  sendYouTubeCommand("playVideo");
+                } else {
+                  sendYouTubeCommand("pauseVideo");
+                }
+
+                const vol = Math.max(0, Math.min(100, Number(volume)));
+                if (Number.isFinite(vol)) {
+                  sendYouTubeCommand("setVolume", [vol]);
+                  if (vol === 0) {
+                    sendYouTubeCommand("mute");
+                  } else {
+                    sendYouTubeCommand("unMute");
+                  }
+                }
+              }
+            }}
+            onError={() => {
+              console.warn("❌ Error cargando video, intentando fallback…");
+              if (!useInvidious) {
+                setIframeError(true);
+                setTimeout(() => setUseInvidious(true), 2000);
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Video local */}
-      {renderLocalVideo()}
+      {!mediaToShow.isYoutube && tipoActual === "video" && (
+        <div style={iframePosition}>
+          <video
+            key="video-persistent"
+            src={mediaToShow.url}
+            controls={false}
+            aria-label="Video del reproductor global"
+            ref={videoRef}
+            autoPlay={false}
+            className="w-full h-full rounded-xl bg-gray-950"
+          />
+        </div>
+      )}
     </>
   );
 };

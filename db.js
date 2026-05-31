@@ -273,10 +273,10 @@ function obtenerConfiguracion() {
       mostrarNombreIglesia: config.mostrarNombreIglesia !== undefined ? config.mostrarNombreIglesia : true,
       mostrarEslogan: config.mostrarEslogan !== undefined ? config.mostrarEslogan : true,
       // Plantillas GSAP
-      plantillaGsapActiva:    config.plantillaGsapActiva    || "ninguna",
-      plantillaGsapColor1:    config.plantillaGsapColor1    || "#e2e8f0",
-      plantillaGsapColor2:    config.plantillaGsapColor2    || "#0f172a",
-      plantillaGsapColorAcc:  config.plantillaGsapColorAcc  || "#34d399",
+      plantillaGsapActiva: config.plantillaGsapActiva || "ninguna",
+      plantillaGsapColor1: config.plantillaGsapColor1 || "#e2e8f0",
+      plantillaGsapColor2: config.plantillaGsapColor2 || "#0f172a",
+      plantillaGsapColorAcc: config.plantillaGsapColorAcc || "#34d399",
       plantillaGsapVelocidad: config.plantillaGsapVelocidad || "media",
     };
   } catch (error) {
@@ -538,7 +538,7 @@ function migrarTablaFondos() {
 
     // Verificar columnas existentes
     const columnas = db.prepare("PRAGMA table_info(fondos)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
     console.log("📋 [DB] Columnas existentes:", nombresColumnas);
 
     // Agregar columnas faltantes
@@ -549,7 +549,7 @@ function migrarTablaFondos() {
     ];
 
     for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.includes(columna.nombre)) {
+      if (!nombresColumnas.has(columna.nombre)) {
         console.log(`➕ [DB] Agregando columna: ${columna.nombre}`);
         try {
           const alterTable = db.prepare(`
@@ -580,16 +580,16 @@ function obtenerFondos() {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(fondos)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, url";
 
-    if (nombresColumnas.includes('tipo')) selectFields += ", tipo";
-    if (nombresColumnas.includes('nombre')) selectFields += ", nombre";
-    if (nombresColumnas.includes('activo')) selectFields += ", activo";
-    if (nombresColumnas.includes('es_defecto')) selectFields += ", es_defecto";
-    if (nombresColumnas.includes('created_at')) selectFields += ", created_at";
+    if (nombresColumnas.has('tipo')) selectFields += ", tipo";
+    if (nombresColumnas.has('nombre')) selectFields += ", nombre";
+    if (nombresColumnas.has('activo')) selectFields += ", activo";
+    if (nombresColumnas.has('es_defecto')) selectFields += ", es_defecto";
+    if (nombresColumnas.has('created_at')) selectFields += ", created_at";
 
     const query = `SELECT ${selectFields} FROM fondos ORDER BY id DESC`;
     console.log("📋 [DB] Query fondos:", query);
@@ -642,13 +642,13 @@ function agregarFondo(url, tipo = 'imagen', nombre = null, activo = false) {
 
     // Verificar que las columnas existen
     const columnas = db.prepare("PRAGMA table_info(fondos)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
     console.log("📋 [DB] Columnas disponibles:", nombresColumnas);
 
     // Insertar el nuevo fondo con las columnas disponibles
     let query, params;
 
-    if (nombresColumnas.includes('nombre')) {
+    if (nombresColumnas.has('nombre')) {
       // Estructura completa
       query = `INSERT INTO fondos (url, tipo, nombre, activo) VALUES (?, ?, ?, ?)`;
       params = [url, tipo, nombre, activo ? 1 : 0];
@@ -668,7 +668,7 @@ function agregarFondo(url, tipo = 'imagen', nombre = null, activo = false) {
       id: info.lastInsertRowid,
       url,
       tipo,
-      nombre: nombresColumnas.includes('nombre') ? nombre : 'Sin nombre',
+      nombre: nombresColumnas.has('nombre') ? nombre : 'Sin nombre',
       activo
     });
 
@@ -677,7 +677,7 @@ function agregarFondo(url, tipo = 'imagen', nombre = null, activo = false) {
       id: info.lastInsertRowid,
       url,
       tipo,
-      nombre: nombresColumnas.includes('nombre') ? nombre : 'Sin nombre',
+      nombre: nombresColumnas.has('nombre') ? nombre : 'Sin nombre',
       activo: activo ? 1 : 0
     };
 
@@ -745,15 +745,15 @@ function obtenerFondoActivo() {
   try {
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(fondos)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, url";
 
-    if (nombresColumnas.includes('tipo')) selectFields += ", tipo";
-    if (nombresColumnas.includes('nombre')) selectFields += ", nombre";
-    if (nombresColumnas.includes('activo')) selectFields += ", activo";
-    if (nombresColumnas.includes('created_at')) selectFields += ", created_at";
+    if (nombresColumnas.has('tipo')) selectFields += ", tipo";
+    if (nombresColumnas.has('nombre')) selectFields += ", nombre";
+    if (nombresColumnas.has('activo')) selectFields += ", activo";
+    if (nombresColumnas.has('created_at')) selectFields += ", created_at";
 
     const query = `SELECT ${selectFields} FROM fondos WHERE activo = 1 LIMIT 1`;
 
@@ -878,7 +878,7 @@ function inicializarFondosPorDefecto() {
       if (!relativeUrl || relativeUrl.startsWith('http')) return true;
       const fileName = relativeUrl.replace(/^\/fondos\//, '');
       return fs.existsSync(path.join(fondosPublicDir, fileName)) ||
-             fs.existsSync(path.join(fondosBuildDir, fileName));
+        fs.existsSync(path.join(fondosBuildDir, fileName));
     };
 
     // Primero, limpiar duplicados existentes
@@ -1106,7 +1106,7 @@ function migrarTablaPresentaciones() {
 
     // Verificar columnas existentes
     const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
     console.log("📋 [DB] Columnas existentes en presentaciones:", nombresColumnas);
 
     // Agregar columnas faltantes
@@ -1128,7 +1128,7 @@ function migrarTablaPresentaciones() {
     ];
 
     for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.includes(columna.nombre)) {
+      if (!nombresColumnas.has(columna.nombre)) {
         console.log(`➕ [DB] Agregando columna: ${columna.nombre}`);
         try {
           const alterTable = db.prepare(`
@@ -1159,10 +1159,10 @@ function agregarPresentacion(presentacionData) {
 
     // Verificar columnas disponibles para compatibilidad
     const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Si las nuevas columnas no existen, usar la versión antigua
-    if (!nombresColumnas.includes('categoria')) {
+    if (!nombresColumnas.has('categoria')) {
       console.log("📋 [DB] Usando estructura antigua de presentaciones");
       const stmt = db.prepare(`
         INSERT INTO presentaciones (titulo, descripcion, fecha, hora, lugar, responsable, estado)
@@ -1228,7 +1228,7 @@ function obtenerPresentaciones() {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, titulo, descripcion, fecha, hora, lugar, responsable, estado";
@@ -1240,7 +1240,7 @@ function obtenerPresentaciones() {
     ];
 
     for (const columna of columnasOpcionales) {
-      if (nombresColumnas.includes(columna)) {
+      if (nombresColumnas.has(columna)) {
         selectFields += `, ${columna}`;
       }
     }
@@ -1291,10 +1291,10 @@ function editarPresentacion(presentacionData) {
 
     // Verificar columnas disponibles para compatibilidad
     const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Si las nuevas columnas no existen, usar la versión antigua
-    if (!nombresColumnas.includes('categoria')) {
+    if (!nombresColumnas.has('categoria')) {
       console.log("📋 [DB] Usando estructura antigua para edición");
       const stmt = db.prepare(`
         UPDATE presentaciones SET 
@@ -1383,7 +1383,7 @@ function obtenerPresentacionPorId(id) {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, titulo, descripcion, fecha, hora, lugar, responsable, estado";
@@ -1395,7 +1395,7 @@ function obtenerPresentacionPorId(id) {
     ];
 
     for (const columna of columnasOpcionales) {
-      if (nombresColumnas.includes(columna)) {
+      if (nombresColumnas.has(columna)) {
         selectFields += `, ${columna}`;
       }
     }
@@ -1512,9 +1512,9 @@ function asegurarIntegridadTablaMultimedia() {
     if (!tablaExiste) return;
 
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map((col) => col.name);
-    const tieneRuta = nombresColumnas.includes("ruta_archivo");
-    const tieneUrl = nombresColumnas.includes("url");
+    const nombresColumnas = new Set(columnas.map((col) => col.name));
+    const tieneRuta = nombresColumnas.has("ruta_archivo");
+    const tieneUrl = nombresColumnas.has("url");
     if (!tieneRuta) return;
 
     // 1) Si ruta_archivo está vacía pero hay url, rellenar ruta_archivo = url
@@ -1605,7 +1605,7 @@ function migrarTablaMultimedia() {
 
     // Verificar columnas existentes
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
     console.log("📋 [DB] Columnas existentes en multimedia:", nombresColumnas);
 
     // Agregar columnas faltantes
@@ -1624,7 +1624,7 @@ function migrarTablaMultimedia() {
     ];
 
     for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.includes(columna.nombre)) {
+      if (!nombresColumnas.has(columna.nombre)) {
         console.log(`➕ [DB] Agregando columna: ${columna.nombre}`);
         try {
           const alterTable = db.prepare(`
@@ -1769,7 +1769,7 @@ function obtenerMultimedia() {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, nombre, tipo, tamaño, ruta_archivo, url";
@@ -1780,7 +1780,7 @@ function obtenerMultimedia() {
     ];
 
     for (const columna of columnasOpcionales) {
-      if (nombresColumnas.includes(columna)) {
+      if (nombresColumnas.has(columna)) {
         selectFields += `, ${columna} `;
       }
     }
@@ -1837,7 +1837,7 @@ function obtenerMultimediaPorId(id) {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Construir query según columnas disponibles
     let selectFields = "id, nombre, tipo, tamaño, ruta_archivo, url";
@@ -1848,7 +1848,7 @@ function obtenerMultimediaPorId(id) {
     ];
 
     for (const columna of columnasOpcionales) {
-      if (nombresColumnas.includes(columna)) {
+      if (nombresColumnas.has(columna)) {
         selectFields += `, ${columna} `;
       }
     }
@@ -1899,10 +1899,10 @@ function actualizarMultimedia(multimediaData) {
 
     // Verificar columnas disponibles
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
     // Si las nuevas columnas no existen, usar estructura básica
-    if (!nombresColumnas.includes('extension')) {
+    if (!nombresColumnas.has('extension')) {
       console.log("📋 [DB] Usando estructura básica para actualización");
       const stmt = db.prepare(`
         UPDATE multimedia SET
@@ -2077,9 +2077,9 @@ function incrementarReproducido(id) {
 
     // Verificar si la columna reproducido existe
     const columnas = db.prepare("PRAGMA table_info(multimedia)").all();
-    const nombresColumnas = columnas.map(col => col.name);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
 
-    if (!nombresColumnas.includes('reproducido')) {
+    if (!nombresColumnas.has('reproducido')) {
       console.log("ℹ️ [DB] Columna reproducido no existe, saltando incremento");
       return { success: true, changes: 0 };
     }
@@ -2178,8 +2178,8 @@ function migrarTablaPresentacionesSlides() {
 
     // Verificar columnas existentes
     const columnas = db.prepare("PRAGMA table_info(presentaciones_slides)").all();
-    const nombresColumnas = columnas.map(col => col.name);
-    console.log("📋 [DB] Columnas existentes en presentaciones_slides:", nombresColumnas);
+    const nombresColumnas = new Set(columnas.map(col => col.name));
+    console.log("📋 [DB] Columnas existentes en presentaciones_slides:", Array.from(nombresColumnas));
 
     // Agregar columnas faltantes si es necesario
     const columnasRequeridas = [
@@ -2197,7 +2197,7 @@ function migrarTablaPresentacionesSlides() {
     ];
 
     for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.includes(columna.nombre)) {
+      if (!nombresColumnas.has(columna.nombre)) {
         console.log(`➕[DB] Agregando columna: ${columna.nombre} `);
         try {
           const alterTable = db.prepare(`
@@ -2658,7 +2658,7 @@ db.prepare(`
 function obtenerOrdenesServicio() {
   try {
     const rows = db.prepare("SELECT * FROM ordenes_servicio ORDER BY updated_at DESC").all();
-    return rows.map((r) => ({...r, items: JSON.parse(r.items || "[]")}));
+    return rows.map((r) => ({ ...r, items: JSON.parse(r.items || "[]") }));
   } catch (e) {
     console.error("[DB] Error obtenerOrdenesServicio:", e);
     return [];
@@ -2669,40 +2669,40 @@ function obtenerOrdenServicioPorId(id) {
   try {
     const row = db.prepare("SELECT * FROM ordenes_servicio WHERE id = ?").get(id);
     if (!row) return null;
-    return {...row, items: JSON.parse(row.items || "[]")};
+    return { ...row, items: JSON.parse(row.items || "[]") };
   } catch (e) {
     return null;
   }
 }
 
-function agregarOrdenServicio({titulo, fecha, items}) {
+function agregarOrdenServicio({ titulo, fecha, items }) {
   try {
     const info = db.prepare(
       "INSERT INTO ordenes_servicio (titulo, fecha, items) VALUES (?, ?, ?)"
     ).run(titulo, fecha || "", JSON.stringify(items || []));
-    return {success: true, id: info.lastInsertRowid};
+    return { success: true, id: info.lastInsertRowid };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
-function actualizarOrdenServicio({id, titulo, fecha, items}) {
+function actualizarOrdenServicio({ id, titulo, fecha, items }) {
   try {
     db.prepare(
       "UPDATE ordenes_servicio SET titulo = ?, fecha = ?, items = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
     ).run(titulo, fecha || "", JSON.stringify(items || []), id);
-    return {success: true};
+    return { success: true };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
 function eliminarOrdenServicio(id) {
   try {
     db.prepare("DELETE FROM ordenes_servicio WHERE id = ?").run(id);
-    return {success: true};
+    return { success: true };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
@@ -2724,48 +2724,48 @@ db.prepare(`
 
 // Migración: agregar columnas nuevas si no existen
 ["ALTER TABLE anuncios ADD COLUMN titulo TEXT DEFAULT ''",
- "ALTER TABLE anuncios ADD COLUMN plantilla TEXT DEFAULT 'moderno'",
-].forEach(sql => { try { db.prepare(sql).run(); } catch {} });
+  "ALTER TABLE anuncios ADD COLUMN plantilla TEXT DEFAULT 'moderno'",
+].forEach(sql => { try { db.prepare(sql).run(); } catch { } });
 
 function obtenerAnuncios() {
   try {
     return db.prepare("SELECT * FROM anuncios ORDER BY orden ASC, id ASC").all().map(
-      (r) => ({...r, activo: Boolean(r.activo), titulo: r.titulo || "", plantilla: r.plantilla || "moderno"})
+      (r) => ({ ...r, activo: Boolean(r.activo), titulo: r.titulo || "", plantilla: r.plantilla || "moderno" })
     );
   } catch (e) {
     return [];
   }
 }
 
-function agregarAnuncio({texto, titulo = "", plantilla = "moderno", activo = true, orden = 0}) {
+function agregarAnuncio({ texto, titulo = "", plantilla = "moderno", activo = true, orden = 0 }) {
   try {
     const maxOrden = db.prepare("SELECT MAX(orden) AS m FROM anuncios").get()?.m ?? 0;
     const info = db.prepare(
       "INSERT INTO anuncios (texto, titulo, plantilla, activo, orden) VALUES (?, ?, ?, ?, ?)"
     ).run(texto, titulo, plantilla, activo ? 1 : 0, maxOrden + 1);
-    return {success: true, id: info.lastInsertRowid};
+    return { success: true, id: info.lastInsertRowid };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
-function actualizarAnuncio({id, texto, titulo = "", plantilla = "moderno", activo, orden}) {
+function actualizarAnuncio({ id, texto, titulo = "", plantilla = "moderno", activo, orden }) {
   try {
     db.prepare(
       "UPDATE anuncios SET texto = ?, titulo = ?, plantilla = ?, activo = ?, orden = ? WHERE id = ?"
     ).run(texto, titulo, plantilla, activo ? 1 : 0, orden ?? 0, id);
-    return {success: true};
+    return { success: true };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
 function eliminarAnuncio(id) {
   try {
     db.prepare("DELETE FROM anuncios WHERE id = ?").run(id);
-    return {success: true};
+    return { success: true };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 
@@ -2773,9 +2773,9 @@ function reordenarAnuncios(ids) {
   try {
     const stmt = db.prepare("UPDATE anuncios SET orden = ? WHERE id = ?");
     ids.forEach((id, idx) => stmt.run(idx, id));
-    return {success: true};
+    return { success: true };
   } catch (e) {
-    return {success: false, error: e.message};
+    return { success: false, error: e.message };
   }
 }
 

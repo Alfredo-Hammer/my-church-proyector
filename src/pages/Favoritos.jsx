@@ -290,15 +290,17 @@ export default function Favoritos() {
             </span>
             <div className="flex items-center gap-0.5 bg-slate-800 border border-slate-600/60 rounded-lg p-0.5">
               <button
+                type="button"
                 onClick={() => setVistaActual("lista")}
-                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "lista" ? "bg-rose-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+                className={`size-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "lista" ? "bg-rose-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
                 title="Lista"
               >
                 <FaList className="text-xs" />
               </button>
               <button
+                type="button"
                 onClick={() => setVistaActual("tarjetas")}
-                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "tarjetas" ? "bg-rose-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
+                className={`size-7 rounded-md flex items-center justify-center transition-all ${vistaActual === "tarjetas" ? "bg-rose-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
                 title="Tarjetas"
               >
                 <FaTh className="text-xs" />
@@ -321,18 +323,21 @@ export default function Favoritos() {
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               <button
+                type="button"
                 onClick={() => navigate("/agregar-himno")}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors"
               >
                 <FaUser className="text-[10px]" /> Mis Himnos
               </button>
               <button
+                type="button"
                 onClick={() => navigate("/himnos")}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors"
               >
                 <FaBook className="text-[10px]" /> Moravos
               </button>
               <button
+                type="button"
                 onClick={() => navigate("/himnos-vida-cristiana")}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors"
               >
@@ -399,6 +404,7 @@ export default function Favoritos() {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => setModalEliminar({visible: false, himno: null})}
                 className="text-slate-400 hover:text-white transition-colors p-1 rounded"
               >
@@ -415,6 +421,7 @@ export default function Favoritos() {
               </p>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() =>
                     setModalEliminar({visible: false, himno: null})
                   }
@@ -423,6 +430,7 @@ export default function Favoritos() {
                   Cancelar
                 </button>
                 <button
+                  type="button"
                   onClick={handleEliminarFavorito}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-red-600/80 hover:bg-red-600 border border-red-500/30 text-white text-sm rounded-lg transition-colors"
                 >
@@ -475,6 +483,7 @@ const SeccionFavoritosPersonalizados = ({
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
               className="pl-6 pr-3 py-1 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-emerald-500/70 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none transition-colors w-40"
+              aria-label="Buscar favoritos"
             />
           </div>
         )}
@@ -482,7 +491,7 @@ const SeccionFavoritosPersonalizados = ({
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-400"></div>
+          <div className="animate-spin rounded-full size-6 border-b-2 border-emerald-400"></div>
         </div>
       ) : filtrados.length === 0 ? (
         <p className="text-center text-slate-600 text-xs py-6">
@@ -551,8 +560,9 @@ const SeccionFavoritosBiblia = ({
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => onQuitar(f)}
-                  className="p-1.5 rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  className="p-1.5 rounded-md text-white/35 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                   title="Quitar"
                 >
                   <FaTrash className="text-[10px]" />
@@ -562,6 +572,7 @@ const SeccionFavoritosBiblia = ({
                 {f.texto}
               </p>
               <button
+                type="button"
                 onClick={() => onProyectar(f)}
                 className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 rounded-lg text-xs text-yellow-300 transition-colors"
               >
@@ -588,15 +599,17 @@ const SeccionFavoritosBiblia = ({
               </div>
               <div className="shrink-0 flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => onProyectar(f)}
-                  className="w-6 h-6 flex items-center justify-center rounded-md text-slate-500 hover:text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                  className="size-6 flex items-center justify-center rounded-md text-white/35 hover:text-yellow-400 hover:bg-yellow-500/10 transition-colors"
                   title="Proyectar"
                 >
                   <FaPlay className="text-[10px]" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => onQuitar(f)}
-                  className="w-6 h-6 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  className="size-6 flex items-center justify-center rounded-md text-white/35 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                   title="Quitar"
                 >
                   <FaTrash className="text-[10px]" />
@@ -674,6 +687,12 @@ const FavoritoCard = ({favorito, colorScheme, onNavigate, onEliminar}) => {
     <div
       className={`group bg-slate-800/60 border border-slate-700/50 ${accentColor.split(" ").slice(1).join(" ")} rounded-lg p-3 transition-colors cursor-pointer`}
       onClick={() => onNavigate(identificador, favorito.tipo)}
+      onKeyDown={(e) =>
+        e.key === "Enter" && onNavigate(identificador, favorito.tipo)
+      }
+      role="button"
+      tabIndex={0}
+      aria-label={`Himno ${identificador}: ${favorito.titulo}`}
     >
       <div className="flex items-start justify-between mb-2">
         <span
@@ -682,11 +701,12 @@ const FavoritoCard = ({favorito, colorScheme, onNavigate, onEliminar}) => {
           #{identificador}
         </span>
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onEliminar(identificador, favorito.titulo, favorito.tipo);
           }}
-          className="p-1.5 rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          className="p-1.5 rounded-md text-white/35 hover:text-red-400 hover:bg-red-500/10 transition-colors"
           title="Quitar de favoritos"
         >
           <FaTrash className="text-[10px]" />
@@ -739,10 +759,11 @@ const FavoritoListItem = ({favorito, colorScheme, onNavigate, onEliminar}) => {
       <div className="shrink-0 flex items-center gap-1">
         <FaHeart className="text-rose-400/50 text-[10px]" />
         <button
+          type="button"
           onClick={() =>
             onEliminar(identificador, favorito.titulo, favorito.tipo)
           }
-          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          className="size-6 flex items-center justify-center rounded-md text-white/35 hover:text-red-400 hover:bg-red-500/10 transition-colors"
           title="Quitar de favoritos"
         >
           <FaTrash className="text-[10px]" />

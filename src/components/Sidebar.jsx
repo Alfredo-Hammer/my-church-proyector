@@ -98,7 +98,10 @@ export default function Sidebar() {
   const [appVersion, setAppVersion] = useState("");
 
   useEffect(() => {
-    window.electron?.getAppVersion?.().then((v) => setAppVersion(v || "")).catch(() => {});
+    window.electron
+      ?.getAppVersion?.()
+      .then((v) => setAppVersion(v || ""))
+      .catch(() => {});
   }, []);
 
   const [collapsed, setCollapsed] = useState(
@@ -179,11 +182,11 @@ export default function Sidebar() {
     >
       {/* ── HEADER ── */}
       <div className="flex items-center h-11 px-2 shrink-0 border-b border-white/[0.06] gap-1.5">
-        <div className="shrink-0 w-8 h-8 flex items-center justify-center">
+        <div className="shrink-0 size-8 flex items-center justify-center">
           <img
             src="/images/icon-256.png"
             alt="GloryView"
-            className="w-7 h-7 rounded-lg object-contain"
+            className="size-7 rounded-lg object-contain"
             draggable={false}
           />
         </div>
@@ -197,9 +200,10 @@ export default function Sidebar() {
         )}
 
         <button
+          type="button"
           onClick={toggle}
           title={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-          className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center
+          className={`shrink-0 size-6 rounded-md flex items-center justify-center
             text-white/25 hover:text-white/70 hover:bg-white/8 transition-all
             ${collapsed ? "mx-auto" : ""}`}
         >
@@ -213,7 +217,7 @@ export default function Sidebar() {
 
       {/* ── NAVEGACIÓN ── */}
       <nav
-        className="flex-1 overflow-y-auto overflow-x-hidden py-1.5 px-1.5 space-y-px
+        className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-px
         scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
       >
         {MENU.map((item) => {
@@ -257,7 +261,7 @@ export default function Sidebar() {
 
               {/* Icono */}
               <span
-                className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[13px] transition-colors
+                className={`shrink-0 size-7 rounded-md flex items-center justify-center text-[13px] transition-colors
                 ${
                   isActive
                     ? "bg-indigo-500/20 text-indigo-300"
@@ -302,7 +306,7 @@ export default function Sidebar() {
         className={`shrink-0 border-t border-white/[0.06] ${collapsed ? "py-2 flex justify-center" : "px-3 py-2"}`}
       >
         {collapsed ? (
-          <span className="w-5 h-5 rounded-md bg-white/5 flex items-center justify-center text-white/20">
+          <span className="size-5 rounded-md bg-white/5 flex items-center justify-center text-white/20">
             <FaCog className="text-[9px]" />
           </span>
         ) : (
@@ -319,6 +323,8 @@ export default function Sidebar() {
           onDoubleClick={resetWidth}
           title="Arrastrar para redimensionar · Doble clic para restablecer"
           className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-50 group/rh flex items-center justify-center"
+          role="separator"
+          aria-label="Redimensionar barra lateral"
         >
           {/* línea visual */}
           <div

@@ -24,7 +24,7 @@ export default class ErrorBoundary extends Component {
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "#000",
+          backgroundColor: "#030712",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -38,6 +38,7 @@ export default class ErrorBoundary extends Component {
           Error en el proyector
         </p>
         <button
+          type="button"
           onClick={() => this.setState({error: null})}
           style={{
             padding: "0.5rem 1.5rem",

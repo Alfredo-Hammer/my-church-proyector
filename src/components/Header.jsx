@@ -61,7 +61,12 @@ const Header = () => {
     nombreIglesia: "",
     logoUrl: "",
   });
-  const [mensaje, setMensaje] = useState("Bienvenido");
+  const [mensaje, setMensaje] = useState(() => {
+    const hora = new Date().getHours();
+    if (hora < 12) return "Buenos días";
+    if (hora < 18) return "Buenas tardes";
+    return "Buenas noches";
+  });
   const [modoUnicoMonitor, setModoUnicoMonitor] = useState(false);
 
   const {
@@ -77,7 +82,12 @@ const Header = () => {
     stop,
     setVolume,
     seek,
+    playMedia,
   } = useMediaPlayer();
+
+  // Igual que GlobalMediaPlayer: mostrar el último medio aunque esté detenido
+  const mediaToShow = currentMedia || lastPlayedMedia;
+  const isStopped = !currentMedia && !!lastPlayedMedia;
 
   // Cargar configuración
   useEffect(() => {
@@ -93,18 +103,6 @@ const Header = () => {
       }
     };
     loadConfig();
-  }, []);
-
-  // Determinar saludo según hora del día
-  useEffect(() => {
-    const hora = new Date().getHours();
-    if (hora < 12) {
-      setMensaje("Buenos días");
-    } else if (hora < 18) {
-      setMensaje("Buenas tardes");
-    } else {
-      setMensaje("Buenas noches");
-    }
   }, []);
 
   // Detectar cuando el proyector abre en modo un solo monitor
@@ -128,9 +126,8 @@ const Header = () => {
   };
 
   const getMediaIcon = () => {
-    const media = currentMedia;
-    if (!media) return null;
-    const tipo = media.tipo || media.type;
+    if (!mediaToShow) return null;
+    const tipo = mediaToShow.tipo || mediaToShow.type;
     switch (tipo) {
       case "audio":
         return <FaMusic className="text-green-400" size={16} />;
@@ -144,11 +141,10 @@ const Header = () => {
   };
 
   const getMediaName = () => {
-    const media = currentMedia;
-    return media?.nombre || media?.name || "Sin título";
+    return mediaToShow?.nombre || mediaToShow?.name || "Sin título";
   };
 
-  const tipoActual = currentMedia?.tipo || currentMedia?.type;
+  const tipoActual = mediaToShow?.tipo || mediaToShow?.type;
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md border-b border-emerald-500/20 shadow-lg overflow-hidden">
@@ -156,10 +152,13 @@ const Header = () => {
       {modoUnicoMonitor && (
         <div className="relative z-10 bg-amber-500/90 text-amber-950 text-xs font-semibold px-4 py-1.5 flex items-center gap-2 justify-center">
           <FaDesktop size={11} />
-          Proyector abierto en esta pantalla — conecta un segundo monitor para modo presentación
+          Proyector abierto en esta pantalla, conecta un segundo monitor para
+          modo presentación
           <button
+            type="button"
             onClick={() => setModoUnicoMonitor(false)}
             className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Cerrar aviso"
           >
             <FaTimes size={10} />
           </button>
@@ -196,23 +195,26 @@ const Header = () => {
         <div />
 
         {/* Controles de multimedia (centro) */}
-        {currentMedia ? (
+        {mediaToShow ? (
           <div className="flex items-center gap-3 flex-1 min-w-0 justify-center">
             {/* Info del media (compacta) */}
             <div className="flex items-center gap-2 min-w-0 max-w-[140px] lg:max-w-[180px] 2xl:max-w-[240px]">
-              <div className="relative bg-gradient-to-br from-red-500/20 to-red-600/20 p-1.5 rounded-lg border border-red-500/40">
+              <div className={`relative p-1.5 rounded-lg border ${isStopped ? "bg-gray-700/40 border-gray-600/40" : "bg-gradient-to-br from-red-500/20 to-red-600/20 border-red-500/40"}`}>
                 {getMediaIcon()}
                 {isPlaying && (
-                  <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
+                  <div className="absolute -top-0.5 -right-0.5 size-1.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
+                )}
+                {isStopped && (
+                  <div className="absolute -top-0.5 -right-0.5 size-1.5 bg-gray-500 rounded-full" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-white font-medium truncate text-[10px] xl:text-xs">
+                <h3 className={`font-medium truncate text-[10px] xl:text-xs ${isStopped ? "text-gray-400" : "text-white"}`}>
                   {getMediaName()}
                 </h3>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-gray-400 text-[9px] xl:text-[10px] capitalize truncate">
-                    {tipoActual}
+                  <p className="text-gray-500 text-[9px] xl:text-[10px] capitalize truncate">
+                    {isStopped ? "detenido" : tipoActual}
                   </p>
                   {isPlaying && <AnimatedSoundBars />}
                 </div>
@@ -222,23 +224,28 @@ const Header = () => {
             {/* Controles de reproducción (compactos) */}
             <div className="flex items-center gap-1.5">
               <button
-                onClick={togglePlayPause}
+                type="button"
+                onClick={isStopped ? () => playMedia(lastPlayedMedia) : togglePlayPause}
                 className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white p-2 rounded-lg transition-all shadow-md"
                 title={isPlaying ? "Pausar" : "Reproducir"}
+                aria-label={isPlaying ? "Pausar reproducción" : "Reproducir"}
               >
                 {isPlaying ? <FaPause size={10} /> : <FaPlay size={10} />}
               </button>
               <button
+                type="button"
                 onClick={stop}
-                className="bg-gray-700/80 hover:bg-gray-600 text-white p-2 rounded-lg transition-all shadow-sm"
+                disabled={isStopped}
+                className="bg-gray-700/80 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-all shadow-sm"
                 title="Detener"
+                aria-label="Detener reproducción"
               >
                 <FaStop size={10} />
               </button>
             </div>
 
             {/* Barra de progreso (solo para audio, compacta) */}
-            {tipoActual === "audio" && (
+            {tipoActual === "audio" && !isStopped && (
               <div className="flex items-center gap-1.5 flex-1 max-w-[160px] lg:max-w-[220px] 2xl:max-w-[300px]">
                 <span className="text-[9px] xl:text-[10px] text-gray-400 font-mono min-w-[28px] xl:min-w-[32px]">
                   {formatTime(currentTime)}
@@ -251,6 +258,7 @@ const Header = () => {
                     value={currentTime}
                     onChange={(e) => seek(parseFloat(e.target.value))}
                     className="w-full h-1 bg-gray-700 rounded-full appearance-none cursor-pointer accent-red-500"
+                    aria-label="Control de tiempo de reproducción"
                     style={{
                       background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${
                         (currentTime / (duration || 1)) * 100
@@ -269,9 +277,11 @@ const Header = () => {
             {/* Control de volumen (compacto) */}
             <div className="flex items-center gap-2 bg-gray-700/30 rounded-lg px-2 py-1.5">
               <button
+                type="button"
                 onClick={() => setVolume(volume === 0 ? 50 : 0)}
                 className="text-gray-400 hover:text-white transition-colors"
                 title={volume === 0 ? "Activar sonido" : "Silenciar"}
+                aria-label={volume === 0 ? "Activar sonido" : "Silenciar"}
               >
                 {volume === 0 ? (
                   <FaVolumeMute size={11} />
@@ -286,6 +296,7 @@ const Header = () => {
                 value={volume}
                 onChange={(e) => setVolume(parseInt(e.target.value))}
                 className="w-10 xl:w-14 2xl:w-16 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer accent-red-500"
+                aria-label="Control de volumen"
                 style={{
                   background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${volume}%, #4b5563 ${volume}%, #4b5563 100%)`,
                 }}
@@ -295,6 +306,7 @@ const Header = () => {
             {/* Botones adicionales (compactos) */}
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={toggleLoop}
                 className={`transition-all p-1.5 rounded-lg ${
                   isLooping
@@ -311,8 +323,9 @@ const Header = () => {
                 />
               </button>
               <button
+                type="button"
                 onClick={stop}
-                className="text-gray-400 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
+                className="text-white/40 hover:text-red-500 hover:bg-red-500/20 transition-all p-1.5 rounded-lg"
                 title="Detener y cerrar reproductor"
               >
                 <FaTimes size={11} />
@@ -326,7 +339,9 @@ const Header = () => {
         {/* Logo + Saludo (derecha) */}
         <div className="flex items-center gap-2 xl:gap-4 justify-end">
           <div className="text-right hidden lg:block">
-            <p className="text-xs xl:text-sm font-semibold text-emerald-400">{mensaje}</p>
+            <p className="text-xs xl:text-sm font-semibold text-emerald-400">
+              {mensaje}
+            </p>
             {configuracion.nombreIglesia && (
               <p className="text-[10px] xl:text-xs text-white/70 truncate max-w-[140px] xl:max-w-none">
                 {configuracion.nombreIglesia}
@@ -341,7 +356,7 @@ const Header = () => {
                   : "/images/icon-256.png"
               }
               alt={`Logo ${configuracion.nombreIglesia || "Iglesia"}`}
-              className="w-9 h-9 xl:w-11 xl:h-11 2xl:w-12 2xl:h-12 rounded-full object-cover"
+              className="size-9 xl:w-11 xl:h-11 2xl:w-12 2xl:h-12 rounded-full object-cover"
               onError={(e) => {
                 e.target.src = "/images/icon-256.png";
               }}

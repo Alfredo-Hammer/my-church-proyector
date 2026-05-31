@@ -20,7 +20,7 @@ const ModernLoader = ({type = "default", message = "Cargando..."}) => {
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center z-50">
       <div className="text-center">
         {/* Círculos animados de fondo */}
-        <div className="relative w-48 h-48 mx-auto mb-8">
+        <div className="relative size-48 mx-auto mb-8">
           {/* Círculo exterior */}
           <div className="absolute inset-0 border-4 border-indigo-500/30 rounded-full animate-ping"></div>
 
@@ -43,26 +43,26 @@ const ModernLoader = ({type = "default", message = "Cargando..."}) => {
           </div>
 
           {/* Puntos animados */}
-          <div className="flex justify-center space-x-2">
-            <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce"></div>
+          <div className="flex justify-center gap-x-2">
+            <div className="size-3 bg-indigo-400 rounded-full animate-bounce"></div>
             <div
-              className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"
+              className="size-3 bg-purple-400 rounded-full animate-bounce"
               style={{animationDelay: "0.1s"}}
             ></div>
             <div
-              className="w-3 h-3 bg-pink-400 rounded-full animate-bounce"
+              className="size-3 bg-pink-400 rounded-full animate-bounce"
               style={{animationDelay: "0.2s"}}
             ></div>
           </div>
 
           <p className="text-gray-400 text-sm">
-            Por favor espera un momento...
+            Por favor espera un momento…
           </p>
         </div>
       </div>
 
       {/* Estilos de animación personalizados */}
-      <style jsx>{`
+      <style>{`
         @keyframes loader-bar {
           0% {
             transform: translateX(-100%);

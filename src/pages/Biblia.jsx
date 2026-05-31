@@ -73,9 +73,10 @@ const Biblia = () => {
         const json = await res.json().catch(() => null);
         if (res.ok && json?.ok && Array.isArray(json?.favoritos)) {
           const ids = new Set(
-            json.favoritos
-              .map((f) => String(f?.id || "").trim())
-              .filter(Boolean),
+            json.favoritos.flatMap((f) => {
+              const v = String(f?.id || "").trim();
+              return v ? [v] : [];
+            }),
           );
           setFavoritosBibliaIds(ids);
         }
@@ -497,15 +498,25 @@ const Biblia = () => {
     const resultados = [];
     const terminoLower = termino.toLowerCase();
 
-    for (let li = 0; li < libros.length; li++) {
-      const libro = libros[li];
+    const datosLibros = await Promise.all(
+      libros.map(async (libro) => {
+        try {
+          return {libro, data: await cargarLibro(libro.id)};
+        } catch (error) {
+          console.error(`Error cargando ${libro.nombre}:`, error);
+          return {libro, data: null};
+        }
+      }),
+    );
+
+    datosLibros.forEach(({libro, data}, li) => {
+      setLibrosBuscados(li + 1);
       try {
-        const data = await cargarLibro(libro.id);
-        setLibrosBuscados(li + 1);
         if (Array.isArray(data)) {
           data.forEach((capitulo, capIdx) => {
-            if (!Array.isArray(capitulo)) return;
+            if (!Array.isArray(capitulo) || resultados.length >= 60) return;
             capitulo.forEach((texto, verIdx) => {
+              if (resultados.length >= 60) return;
               if (
                 typeof texto === "string" &&
                 texto.toLowerCase().includes(terminoLower)
@@ -522,8 +533,7 @@ const Biblia = () => {
           });
         }
       } catch {}
-      if (resultados.length >= 60) break;
-    }
+    });
 
     setResultadosTexto(resultados.slice(0, 60));
     setBuscandoTexto(false);
@@ -635,6 +645,7 @@ const Biblia = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => setMostrarBuscador(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500/30 rounded-lg text-xs font-medium transition-colors"
             >
@@ -646,6 +657,7 @@ const Biblia = () => {
             </button>
 
             <button
+              type="button"
               onClick={() =>
                 window.electron.enviarVersiculo({
                   parrafo: "",
@@ -679,14 +691,16 @@ const Biblia = () => {
               <h2 className="text-lg font-bold text-amber-400">
                 Antiguo Testamento
               </h2>
-              <span className="text-xs text-slate-400 bg-amber-500/20 px-2 py-1 rounded-full">
+              <span className="text-xs text-amber-300 bg-amber-500/20 px-2 py-1 rounded-full">
                 {librosDeLaBiblia.antiguoTestamento.length}
               </span>
             </div>
 
             <div
               className="grid gap-1.5"
-              style={{gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))"}}
+              style={{
+                gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))",
+              }}
             >
               {librosDeLaBiblia.antiguoTestamento.map((libro) => (
                 <button
@@ -732,14 +746,16 @@ const Biblia = () => {
               <h2 className="text-lg font-bold text-emerald-400">
                 Nuevo Testamento
               </h2>
-              <span className="text-xs text-slate-400 bg-emerald-500/20 px-2 py-1 rounded-full">
+              <span className="text-xs text-emerald-300 bg-emerald-500/20 px-2 py-1 rounded-full">
                 {librosDeLaBiblia.nuevoTestamento.length}
               </span>
             </div>
 
             <div
               className="grid gap-1.5"
-              style={{gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))"}}
+              style={{
+                gridTemplateColumns: "repeat(auto-fill, minmax(5rem, 1fr))",
+              }}
             >
               {librosDeLaBiblia.nuevoTestamento.map((libro) => (
                 <button
@@ -824,7 +840,7 @@ const Biblia = () => {
                   <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
                     <div className="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                        <div className="size-5 rounded-md bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
                           <IoGrid className="text-indigo-400 text-[9px]" />
                         </div>
                         <span className="text-xs font-semibold text-white">
@@ -853,7 +869,8 @@ const Biblia = () => {
                         >
                           {capitulos.map((_, index) => (
                             <button
-                              key={index}
+                              type="button"
+                              key={`cap-${index + 1}`}
                               onClick={() => manejarSeleccionarCapitulo(index)}
                               className={`aspect-square rounded-lg text-xs font-bold transition-all ${
                                 capituloSeleccionado === index + 1
@@ -868,10 +885,8 @@ const Biblia = () => {
                       ) : (
                         <div className="flex items-center justify-center py-8">
                           <div className="text-center">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500 mx-auto mb-2" />
-                            <p className="text-slate-600 text-xs">
-                              Cargando...
-                            </p>
+                            <div className="animate-spin rounded-full size-5 border-b-2 border-indigo-500 mx-auto mb-2" />
+                            <p className="text-slate-600 text-xs">Cargando…</p>
                           </div>
                         </div>
                       )}
@@ -882,7 +897,7 @@ const Biblia = () => {
                   <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
                     <div className="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                        <div className="size-5 rounded-md bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
                           <FaBible className="text-violet-400 text-[9px]" />
                         </div>
                         <span className="text-xs font-semibold text-white">
@@ -911,7 +926,8 @@ const Biblia = () => {
                         >
                           {versiculos.map((_, index) => (
                             <button
-                              key={index}
+                              type="button"
+                              key={`vers-${index + 1}`}
                               onClick={() => manejarSeleccionarVersiculo(index)}
                               className={`aspect-square rounded-lg text-xs font-bold transition-all ${
                                 versiculoSeleccionado === index + 1
@@ -944,7 +960,7 @@ const Biblia = () => {
         ) : (
           /* Estado vacío */
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center mx-auto mb-4">
+            <div className="size-12 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center mx-auto mb-4">
               <FaBible className="text-xl text-slate-600" />
             </div>
             <h3 className="text-base font-semibold text-slate-400 mb-1">
@@ -955,6 +971,7 @@ const Biblia = () => {
               capítulos y versículos
             </p>
             <button
+              type="button"
               onClick={() => setMostrarBuscador(true)}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500/30 rounded-lg text-sm font-medium transition-colors"
             >
@@ -979,6 +996,9 @@ const Biblia = () => {
             <div
               className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6"
               onClick={() => setMostrarDetalle(false)}
+              onKeyDown={(e) => e.key === "Escape" && setMostrarDetalle(false)}
+              role="dialog"
+              aria-label="Detalle del versículo"
             >
               <div
                 className="bg-slate-900 border border-slate-700/70 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
@@ -987,7 +1007,7 @@ const Biblia = () => {
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 shrink-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                    <div className="size-7 shrink-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
                       <FaBible className="text-indigo-400 text-[10px]" />
                     </div>
                     <div className="min-w-0">
@@ -1002,8 +1022,9 @@ const Biblia = () => {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      type="button"
                       onClick={toggleFavoritoActual}
-                      className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${esFavoritoActual ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-slate-800 border-slate-700/60 text-slate-500 hover:text-amber-400"}`}
+                      className={`size-8 rounded-lg border flex items-center justify-center transition-colors ${esFavoritoActual ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-slate-800 border-slate-700/60 text-slate-500 hover:text-amber-400"}`}
                       title={
                         esFavoritoActual
                           ? "Quitar favorito"
@@ -1017,14 +1038,16 @@ const Biblia = () => {
                       )}
                     </button>
                     <button
+                      type="button"
                       onClick={proyectarVersiculo}
                       className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
                     >
                       <FaPlay className="text-[9px]" /> Proyectar
                     </button>
                     <button
+                      type="button"
                       onClick={() => setMostrarDetalle(false)}
-                      className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-500 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors"
+                      className="size-8 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-500 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors"
                     >
                       <IoClose className="text-sm" />
                     </button>
@@ -1066,8 +1089,8 @@ const Biblia = () => {
                     "{versiculos[versiculoSeleccionado - 1] || "No disponible"}"
                   </p>
                   <p className="text-[11px] text-indigo-400/50 text-center mt-2.5">
-                    — {nombreLibroModal} {capituloSeleccionado}:
-                    {versiculoSeleccionado} —
+                    {nombreLibroModal} {capituloSeleccionado}:
+                    {versiculoSeleccionado}
                   </p>
                 </div>
 
@@ -1095,6 +1118,7 @@ const Biblia = () => {
                 {/* Footer */}
                 <div className="px-4 py-2.5 flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={irAnterior}
                     disabled={versiculoSeleccionado <= 1}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
@@ -1102,6 +1126,7 @@ const Biblia = () => {
                     <FaArrowLeft className="text-[9px]" /> Anterior
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       window.electron.enviarVersiculo({
                         parrafo: "",
@@ -1119,6 +1144,7 @@ const Biblia = () => {
                     {versiculoSeleccionado} / {versiculos.length}
                   </span>
                   <button
+                    type="button"
                     onClick={irSiguiente}
                     disabled={versiculoSeleccionado >= versiculos.length}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
@@ -1139,7 +1165,7 @@ const Biblia = () => {
             <div className="px-4 pt-4 pb-3 border-b border-white/8 shrink-0">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                  <div className="size-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
                     <IoSearch className="text-indigo-400 text-sm" />
                   </div>
                   <div>
@@ -1152,12 +1178,13 @@ const Biblia = () => {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setMostrarBuscador(false);
                     resetearBuscador();
                     setModoBuscador("referencia");
                   }}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/25 flex items-center justify-center text-slate-400 hover:text-red-400 transition-all"
+                  className="size-8 rounded-lg bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/25 flex items-center justify-center text-white/40 hover:text-red-400 transition-all"
                 >
                   <IoClose />
                 </button>
@@ -1166,12 +1193,14 @@ const Biblia = () => {
               {/* Selector de modo */}
               <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5 mb-3">
                 <button
+                  type="button"
                   onClick={() => setModoBuscador("referencia")}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${modoBuscador === "referencia" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}
                 >
                   Referencia
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setModoBuscador("texto");
                     setBusquedaTexto("");
@@ -1210,7 +1239,7 @@ const Biblia = () => {
                         }`}
                       >
                         <span
-                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${pasoActual >= step.n ? "bg-current/20" : ""}`}
+                          className={`size-4 rounded-full flex items-center justify-center text-[10px] font-bold ${pasoActual >= step.n ? "bg-current/20" : ""}`}
                         >
                           {step.n}
                         </span>
@@ -1238,6 +1267,7 @@ const Biblia = () => {
                       )}
                       {pasoActual > 1 && (
                         <button
+                          type="button"
                           onClick={retrocederPaso}
                           className="ml-1 flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 px-1.5 py-0.5 rounded-md transition-all"
                         >
@@ -1269,9 +1299,11 @@ const Biblia = () => {
                           ? `Número de capítulo en ${libroSeleccionadoBuscador?.nombre}...`
                           : `Número de versículo...`
                     }
+                    aria-label="Buscar en la Biblia"
                   />
                   {busqueda && (
                     <button
+                      type="button"
                       onClick={() => setBusqueda("")}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                     >
@@ -1298,9 +1330,11 @@ const Biblia = () => {
                       }}
                       placeholder="Ej: la paz os dejo, todo lo puedo..."
                       className="w-full pl-9 pr-3 py-3 bg-slate-800 border-2 border-slate-600 hover:border-slate-500 focus:border-violet-500 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-colors text-sm"
+                      aria-label="Buscar texto en la Biblia"
                     />
                   </div>
                   <button
+                    type="button"
                     onClick={buscarEnTodaLaBiblia}
                     disabled={buscandoTexto || !busquedaTexto.trim()}
                     className="px-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed border border-violet-500/30 rounded-xl text-white text-sm font-semibold transition-colors shrink-0"
@@ -1352,15 +1386,15 @@ const Biblia = () => {
                         {resultadosTexto.length !== 1 ? "s" : ""}
                         {resultadosTexto.length === 60 ? " (máx.)" : ""}
                       </p>
-                      {resultadosTexto.map((r, i) => (
+                      {resultadosTexto.map((r) => (
                         <button
-                          key={i}
+                          key={`texto-${r.libroId}-${r.capitulo}-${r.versiculo}`}
                           type="button"
                           onClick={() => proyectarResultadoTexto(r)}
                           className="w-full text-left px-3 py-2.5 rounded-xl border border-white/6 bg-white/4 hover:bg-violet-500/12 hover:border-violet-400/30 transition-all"
                         >
                           <div className="flex items-start gap-2.5">
-                            <div className="w-2 h-2 rounded-full bg-violet-400 shrink-0 mt-1.5" />
+                            <div className="size-2 rounded-full bg-violet-400 shrink-0 mt-1.5" />
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-bold text-violet-300 mb-0.5">
                                 {r.libroNombre} {r.capitulo}:{r.versiculo}
@@ -1396,7 +1430,10 @@ const Biblia = () => {
                         </p>
                         <div
                           className="grid gap-1"
-                          style={{gridTemplateColumns: "repeat(auto-fill, minmax(4.2rem, 1fr))"}}
+                          style={{
+                            gridTemplateColumns:
+                              "repeat(auto-fill, minmax(4.2rem, 1fr))",
+                          }}
                         >
                           {librosDeLaBiblia.antiguoTestamento.map((libro) => (
                             <button
@@ -1432,7 +1469,10 @@ const Biblia = () => {
                         </p>
                         <div
                           className="grid gap-1"
-                          style={{gridTemplateColumns: "repeat(auto-fill, minmax(4.2rem, 1fr))"}}
+                          style={{
+                            gridTemplateColumns:
+                              "repeat(auto-fill, minmax(4.2rem, 1fr))",
+                          }}
                         >
                           {librosDeLaBiblia.nuevoTestamento.map((libro) => (
                             <button
@@ -1499,7 +1539,7 @@ const Biblia = () => {
                     <div className="space-y-1">
                       {resultadosBusqueda.map((resultado, index) => (
                         <button
-                          key={index}
+                          key={`busqueda-${resultado.tipo}-${resultado.titulo}`}
                           type="button"
                           className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
                             index === indiceSeleccionado
@@ -1510,7 +1550,7 @@ const Biblia = () => {
                         >
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-2 h-2 rounded-full shrink-0 ${
+                              className={`size-2 rounded-full shrink-0 ${
                                 resultado.tipo === "libro"
                                   ? "bg-blue-400"
                                   : resultado.tipo === "capitulo"
@@ -1546,6 +1586,7 @@ const Biblia = () => {
             <div className="px-4 py-3 border-t border-white/6 flex items-center gap-2 shrink-0">
               {modoBuscador === "referencia" ? (
                 <button
+                  type="button"
                   onClick={resetearBuscador}
                   className="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg transition-all"
                 >
@@ -1553,6 +1594,7 @@ const Biblia = () => {
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={() => {
                     setBusquedaTexto("");
                     setResultadosTexto([]);
@@ -1564,12 +1606,13 @@ const Biblia = () => {
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => {
                   setMostrarBuscador(false);
                   resetearBuscador();
                   setModoBuscador("referencia");
                 }}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/20 rounded-lg transition-all"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs text-white/40 hover:text-white bg-white/5 hover:bg-red-500/15 border border-white/8 hover:border-red-500/20 rounded-lg transition-all"
               >
                 <IoClose className="text-xs" /> Cerrar
               </button>

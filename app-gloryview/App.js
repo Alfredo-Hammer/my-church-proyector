@@ -191,7 +191,7 @@ const AnimatedSoundBars = () => {
     <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 14, gap: 2 }}>
       {bars.map((bar, i) => (
         <Animated.View
-          key={i}
+          key={`soundbar-${i}`}
           style={{
             width: 3,
             borderRadius: 2,
@@ -230,6 +230,318 @@ const getThumbCandidatesForItem = (item) => {
   return [];
 };
 
+
+const ModalVideoPreview = ({ uri }) => {
+  const [hasError, setHasError] = useState(false);
+  const isHttp = /^http:\/\//i.test(String(uri || '').trim());
+  const videoSource = uri && !(IS_EXPO_GO && isHttp) ? uri : null;
+  const player = useVideoPlayer(videoSource, (p) => {
+    p.loop = true;
+    p.muted = true;
+    try {
+      p.play();
+    } catch {
+      // noop
+    }
+  });
+
+  const { status, error } = useEvent(player, 'statusChange', { status: player?.status, error: null });
+  const isLoading = status === 'loading' || status === 'idle' || !status;
+
+  useEffect(() => {
+    setHasError(false);
+    if (!videoSource) return;
+
+    const timeoutId = setTimeout(() => {
+      // Si se queda cargando demasiado, caer a placeholder.
+      setHasError(true);
+    }, 7000);
+
+    return () => clearTimeout(timeoutId);
+  }, [videoSource]);
+
+  useEffect(() => {
+    if (status === 'error' || Boolean(error)) {
+      setHasError(true);
+    }
+  }, [status, error]);
+
+  if (!uri || !videoSource || hasError || status === 'error' || Boolean(error)) {
+    return (
+      <View style={styles.thumbFallback}>
+        <Ionicons name="videocam" size={18} color="#e2e8f0" />
+        <Text style={[styles.thumbFallbackText, { marginTop: 6 }]}>VIDEO</Text>
+        {IS_EXPO_GO && isHttp && (
+          <Text style={[styles.smallText, { marginTop: 8, textAlign: 'center', maxWidth: 260 }]}
+          >
+            Vista previa no disponible en Expo Go (HTTP).
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: '100%', height: '100%' }}>
+      <VideoView
+        key={uri}
+        player={player}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      {isLoading && (
+        <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+          <ActivityIndicator color="#ffffff" />
+        </View>
+      )}
+    </View>
+  );
+};
+
+const VideoThumbPreview = ({ uri, label = 'VIDEO' }) => {
+  const [hasError, setHasError] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const finalUri = String(uri || '').trim();
+
+  useEffect(() => {
+    setHasError(false);
+    setLoading(Boolean(finalUri));
+    if (!finalUri) return;
+
+    const timeoutId = setTimeout(() => {
+      // Evitar loaders eternos en imágenes
+      setHasError(true);
+      setLoading(false);
+    }, 9000);
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finalUri]);
+
+  if (!finalUri || hasError) {
+    return (
+      <View style={styles.thumbFallback}>
+        <Ionicons name="videocam" size={18} color="#e2e8f0" />
+        <Text style={[styles.thumbFallbackText, { marginTop: 6 }]}>{label}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: '100%', height: '100%' }}>
+      <Image
+        source={{ uri: finalUri }}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoadEnd={() => setLoading(false)}
+        onError={() => {
+          setHasError(true);
+          setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+          <ActivityIndicator color="#ffffff" />
+        </View>
+      )}
+    </View>
+  );
+};
+
+const FondoThumb = ({ item, resolverUrl }) => {
+  const [hasError, setHasError] = useState(false);
+  const [firstFrameRendered, setFirstFrameRendered] = useState(false);
+
+  const tipo = String(item?.tipo || '').toLowerCase();
+  const isVideo = tipo.includes('video');
+  const uri = resolverUrl(item?.url || item?.url_localhost);
+
+  const videoSource = isVideo && uri ? uri : null;
+  const player = useVideoPlayer(videoSource, (p) => {
+    p.loop = false;
+    p.muted = true;
+    p.pause();
+    p.currentTime = 0;
+  });
+
+  const { status, error } = useEvent(player, 'statusChange', { status: player.status, error: null });
+  const isLoading = isVideo && !firstFrameRendered && status === 'loading';
+  const isPlayerError = isVideo && (status === 'error' || Boolean(error));
+
+  if (isVideo) {
+    return (
+      <View style={styles.thumbWrap}>
+        {!hasError && !isPlayerError && Boolean(uri) ? (
+          <>
+            <VideoView
+              player={player}
+              style={styles.thumbImage}
+              contentFit="cover"
+              nativeControls={false}
+              onFirstFrameRender={() => setFirstFrameRendered(true)}
+            />
+            {isLoading && (
+              <View style={styles.thumbFallback}>
+                <ActivityIndicator color="#ffffff" />
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.thumbFallback}>
+            <Ionicons name="videocam" size={18} color="#e2e8f0" />
+            <Text style={[styles.thumbFallbackText, { marginTop: 2, fontSize: 12 }]}>VID</Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.thumbWrap}>
+      {!hasError && Boolean(uri) ? (
+        <Image
+          source={{ uri }}
+          style={styles.thumbImage}
+          resizeMode="cover"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <View style={styles.thumbFallback}>
+          <Ionicons name="image" size={18} color="#e2e8f0" />
+          <Text style={[styles.thumbFallbackText, { marginTop: 2, fontSize: 12 }]}>IMG</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+
+const InicioFooter = () => (
+  <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+    <Text style={{ color: '#475569', fontSize: 12, fontWeight: '600', letterSpacing: 0.4 }}>
+      GloryView · Alfredo Hammer
+    </Text>
+  </View>
+);
+
+const InicioCard = ({ item, isLast, fixedH, gap, iconBoxSz, iconSz, iconRadius, lblSz, setSeccion }) => (
+  <Pressable
+    onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
+    style={({ pressed }) => [{
+      flex: 1,
+      ...(fixedH ? { height: fixedH } : {}),
+      marginRight: isLast ? 0 : gap,
+      borderRadius: 16,
+      backgroundColor: 'rgba(15,23,42,0.55)',
+      borderWidth: 1,
+      borderColor: item.color + '40',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+    },
+    pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+    ]}
+  >
+    <View style={{
+      width: iconBoxSz, height: iconBoxSz,
+      borderRadius: iconRadius,
+      backgroundColor: item.color + '22',
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: 8,
+    }}>
+      <Ionicons name={item.icon} size={iconSz} color={item.color} />
+    </View>
+    <Text style={{
+      color: '#cbd5e1', fontSize: lblSz, fontWeight: '600',
+      textAlign: 'center', letterSpacing: 0.1,
+    }} numberOfLines={2}>
+      {item.label}
+    </Text>
+  </Pressable>
+);
+
+const InicioStatusPill = ({ hayMedia, nombreMedia, proyectando, conectado, setSeccion }) =>
+  hayMedia && !!nombreMedia ? (
+    <Pressable
+      onPress={() => { Keyboard.dismiss(); setSeccion('multimedia'); }}
+      style={({ pressed }) => [{
+        borderRadius: 14, marginBottom: 14,
+        borderWidth: 1, borderColor: proyectando ? 'rgba(245,158,11,0.30)' : 'rgba(255,255,255,0.08)',
+        backgroundColor: proyectando ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.04)',
+      }, pressed && { opacity: 0.75 }]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 12 }}>
+        <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: proyectando ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name={proyectando ? 'volume-high' : 'pause'} size={17} color={proyectando ? '#f59e0b' : '#64748b'} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: proyectando ? '#fbbf24' : '#64748b', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 1 }}>
+            {proyectando ? 'Reproduciendo' : 'En pausa'}
+          </Text>
+          <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{nombreMedia}</Text>
+        </View>
+        {proyectando && <AnimatedSoundBars />}
+        <Ionicons name="chevron-forward" size={14} color="#334155" />
+      </View>
+    </Pressable>
+  ) : (
+    <Pressable
+      onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
+      style={({ pressed }) => [{
+        borderRadius: 14, marginBottom: 14,
+        borderWidth: 1,
+        borderColor: conectado ? 'rgba(16,185,129,0.20)' : 'rgba(96,165,250,0.18)',
+        backgroundColor: conectado ? 'rgba(16,185,129,0.07)' : 'rgba(59,130,246,0.07)',
+      }, pressed && { opacity: 0.75 }]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 10 }}>
+        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? '#10b981' : '#60a5fa'} />
+        </View>
+        <Text style={{ flex: 1, color: conectado ? '#6ee7b7' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
+          {conectado ? '' : 'Sin conexión — toca para conectar'}
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color="#334155" />
+      </View>
+    </Pressable>
+  );
+
+const InicioGrid = ({ rows, cols, gap, cardH, setSeccion, iconBoxSz, iconSz, iconRadius, lblSz, tablet }) => (
+  <View style={tablet ? { flex: 1 } : { gap: gap }}>
+    {rows.map((row, ri) => (
+      <View
+        key={`row-${ri}`}
+        style={[
+          { flexDirection: 'row' },
+          tablet
+            ? { flex: 1, marginBottom: ri < rows.length - 1 ? gap : 0 }
+            : {},
+        ]}
+      >
+        {row.map((item, ci) => (
+          <InicioCard
+            key={item.id}
+            item={item}
+            isLast={ci === row.length - 1}
+            fixedH={tablet ? undefined : cardH}
+            gap={gap}
+            iconBoxSz={iconBoxSz}
+            iconSz={iconSz}
+            iconRadius={iconRadius}
+            lblSz={lblSz}
+            setSeccion={setSeccion}
+          />
+        ))}
+        {Array(cols - row.length).fill(null).map((_, i) => (
+          <View key={`fill-${i}`} style={{ flex: 1, marginRight: i < cols - row.length - 1 ? gap : 0 }} />
+        ))}
+      </View>
+    ))}
+  </View>
+);
+
 export default function App() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos' | 'anuncios' | 'temporizador' | 'plantillas' | 'presentaciones'
@@ -267,7 +579,7 @@ export default function App() {
 
   const [permisosCamara, pedirPermisosCamara] = useCameraPermissions();
   const [modalQrVisible, setModalQrVisible] = useState(false);
-  const [qrBloqueado, setQrBloqueado] = useState(false);
+  const qrBloqueadoRef = useRef(false);
 
   const [bibliaBusqueda, setBibliaBusqueda] = useState('');
   const [bibliaTabActivo, setBibliaTabActivo] = useState('antiguo'); // 'antiguo' | 'nuevo'
@@ -544,125 +856,6 @@ export default function App() {
     return `${base}/${raw.replace(/^\/+/, '')}`;
   };
 
-  const ModalVideoPreview = ({ uri }) => {
-    const [hasError, setHasError] = useState(false);
-    const isHttp = /^http:\/\//i.test(String(uri || '').trim());
-    const videoSource = uri && !(IS_EXPO_GO && isHttp) ? uri : null;
-    const player = useVideoPlayer(videoSource, (p) => {
-      p.loop = true;
-      p.muted = true;
-      try {
-        p.play();
-      } catch {
-        // noop
-      }
-    });
-
-    const { status, error } = useEvent(player, 'statusChange', { status: player?.status, error: null });
-    const isLoading = status === 'loading' || status === 'idle' || !status;
-
-    useEffect(() => {
-      setHasError(false);
-      if (!videoSource) return;
-
-      const timeoutId = setTimeout(() => {
-        // Si se queda cargando demasiado, caer a placeholder.
-        setHasError(true);
-      }, 7000);
-
-      return () => clearTimeout(timeoutId);
-    }, [videoSource]);
-
-    useEffect(() => {
-      if (status === 'error' || Boolean(error)) {
-        setHasError(true);
-      }
-    }, [status, error]);
-
-    if (!uri || !videoSource || hasError || status === 'error' || Boolean(error)) {
-      return (
-        <View style={styles.thumbFallback}>
-          <Ionicons name="videocam" size={18} color="#e2e8f0" />
-          <Text style={[styles.thumbFallbackText, { marginTop: 6 }]}>VIDEO</Text>
-          {IS_EXPO_GO && isHttp && (
-            <Text style={[styles.smallText, { marginTop: 8, textAlign: 'center', maxWidth: 260 }]}
-            >
-              Vista previa no disponible en Expo Go (HTTP).
-            </Text>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <View style={{ width: '100%', height: '100%' }}>
-        <VideoView
-          key={uri}
-          player={player}
-          style={{ width: '100%', height: '100%' }}
-          contentFit="cover"
-          nativeControls={false}
-        />
-        {isLoading && (
-          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
-            <ActivityIndicator color="#ffffff" />
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const VideoThumbPreview = ({ uri, label = 'VIDEO' }) => {
-    const [hasError, setHasError] = useState(false);
-    const [loading, setLoading] = useState(false);
-
-    const finalUri = String(uri || '').trim();
-
-    useEffect(() => {
-      setHasError(false);
-      setLoading(Boolean(finalUri));
-      if (!finalUri) return;
-
-      const timeoutId = setTimeout(() => {
-        // Evitar loaders eternos en imágenes
-        setHasError(true);
-        setLoading(false);
-      }, 9000);
-
-      return () => clearTimeout(timeoutId);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [finalUri]);
-
-    if (!finalUri || hasError) {
-      return (
-        <View style={styles.thumbFallback}>
-          <Ionicons name="videocam" size={18} color="#e2e8f0" />
-          <Text style={[styles.thumbFallbackText, { marginTop: 6 }]}>{label}</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={{ width: '100%', height: '100%' }}>
-        <Image
-          source={{ uri: finalUri }}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-          onLoadEnd={() => setLoading(false)}
-          onError={() => {
-            setHasError(true);
-            setLoading(false);
-          }}
-        />
-        {loading && (
-          <View style={[styles.thumbFallback, { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.06)' }]}>
-            <ActivityIndicator color="#ffffff" />
-          </View>
-        )}
-      </View>
-    );
-  };
-
   const cargarMultimediaPlaybackStatus = async ({ ignoreModalCheck = false } = {}) => {
     if (!multimediaStatusApiUrl) return;
     if (!conectado) return;
@@ -732,72 +925,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalControlMultimediaVisible, conectado, multimediaSeleccionada, multimediaStatusApiUrl]);
 
-  const FondoThumb = ({ item }) => {
-    const [hasError, setHasError] = useState(false);
-    const [firstFrameRendered, setFirstFrameRendered] = useState(false);
-
-    const tipo = String(item?.tipo || '').toLowerCase();
-    const isVideo = tipo.includes('video');
-    const uri = resolverUrlMedia(item?.url || item?.url_localhost);
-
-    const videoSource = isVideo && uri ? uri : null;
-    const player = useVideoPlayer(videoSource, (p) => {
-      p.loop = false;
-      p.muted = true;
-      p.pause();
-      p.currentTime = 0;
-    });
-
-    const { status, error } = useEvent(player, 'statusChange', { status: player.status, error: null });
-    const isLoading = isVideo && !firstFrameRendered && status === 'loading';
-    const isPlayerError = isVideo && (status === 'error' || Boolean(error));
-
-    if (isVideo) {
-      return (
-        <View style={styles.thumbWrap}>
-          {!hasError && !isPlayerError && Boolean(uri) ? (
-            <>
-              <VideoView
-                player={player}
-                style={styles.thumbImage}
-                contentFit="cover"
-                nativeControls={false}
-                onFirstFrameRender={() => setFirstFrameRendered(true)}
-              />
-              {isLoading && (
-                <View style={styles.thumbFallback}>
-                  <ActivityIndicator color="#ffffff" />
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.thumbFallback}>
-              <Ionicons name="videocam" size={18} color="#e2e8f0" />
-              <Text style={[styles.thumbFallbackText, { marginTop: 2, fontSize: 12 }]}>VID</Text>
-            </View>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.thumbWrap}>
-        {!hasError && Boolean(uri) ? (
-          <Image
-            source={{ uri }}
-            style={styles.thumbImage}
-            resizeMode="cover"
-            onError={() => setHasError(true)}
-          />
-        ) : (
-          <View style={styles.thumbFallback}>
-            <Ionicons name="image" size={18} color="#e2e8f0" />
-            <Text style={[styles.thumbFallbackText, { marginTop: 2, fontSize: 12 }]}>IMG</Text>
-          </View>
-        )}
-      </View>
-    );
-  };
 
   const dataFallback = useMemo(() => {
     if (tipo === 'personal') return [];
@@ -901,13 +1028,14 @@ export default function App() {
   // ✅ Auto-reconexión: recordar última URL válida
   useEffect(() => {
     let cancelado = false;
+    let reconnectTimeoutId;
     (async () => {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY_LAST_URL);
         if (cancelado) return;
         if (saved && String(saved).trim()) {
           setServerBaseUrl(String(saved));
-          setTimeout(() => {
+          reconnectTimeoutId = setTimeout(() => {
             if (!cancelado) probarConexion(String(saved));
           }, 80);
         }
@@ -928,7 +1056,10 @@ export default function App() {
         // Ignorar errores de storage
       }
     })();
-    return () => { cancelado = true; };
+    return () => {
+      cancelado = true;
+      if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1232,7 +1363,7 @@ export default function App() {
   };
 
   const abrirEscanerQr = async () => {
-    setQrBloqueado(false);
+    qrBloqueadoRef.current = false;
 
     if (!permisosCamara?.granted) {
       const res = await pedirPermisosCamara();
@@ -1252,13 +1383,13 @@ export default function App() {
   const onQrScanned = async (result) => {
     console.log('QR escaneado:', result);
     console.log('QR data:', result?.data);
-    console.log('QR bloqueado?:', qrBloqueado);
+    console.log('QR bloqueado?:', qrBloqueadoRef.current);
 
-    if (qrBloqueado) {
+    if (qrBloqueadoRef.current) {
       console.log('QR bloqueado, ignorando');
       return;
     }
-    setQrBloqueado(true);
+    qrBloqueadoRef.current = true;
 
     const url = extraerUrlDeQr(result?.data);
     console.log('URL extraída:', url);
@@ -1270,7 +1401,7 @@ export default function App() {
         status: 'error',
         message: 'QR inválido. Debe contener una URL http://...:3001',
       }));
-      setTimeout(() => setQrBloqueado(false), 1000);
+      setTimeout(() => qrBloqueadoRef.current = false, 1000);
       return;
     }
 
@@ -1280,7 +1411,7 @@ export default function App() {
     setSeccion('conexion');
 
     setTimeout(() => {
-      setQrBloqueado(false);
+      qrBloqueadoRef.current = false;
       probarConexion(url);
     }, 80);
   };
@@ -3363,138 +3494,26 @@ export default function App() {
               };
               const rows = toRows(ITEMS);
 
-              // fixedH: height fija (móvil). undefined: la fila padre define la altura (tablet)
-              const Card = ({ item, isLast, fixedH }) => (
-                <Pressable
-                  onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
-                  style={({ pressed }) => [{
-                    flex: 1,
-                    ...(fixedH ? { height: fixedH } : {}),
-                    marginRight: isLast ? 0 : gap,
-                    borderRadius: 16,
-                    backgroundColor: 'rgba(15,23,42,0.55)',
-                    borderWidth: 1,
-                    borderColor: item.color + '40',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 10,
-                  },
-                  pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
-                  ]}
-                >
-                  <View style={{
-                    width: iconBoxSz, height: iconBoxSz,
-                    borderRadius: iconRadius,
-                    backgroundColor: item.color + '22',
-                    alignItems: 'center', justifyContent: 'center',
-                    marginBottom: 8,
-                  }}>
-                    <Ionicons name={item.icon} size={iconSz} color={item.color} />
-                  </View>
-                  <Text style={{
-                    color: '#cbd5e1', fontSize: lblSz, fontWeight: '600',
-                    textAlign: 'center', letterSpacing: 0.1,
-                  }} numberOfLines={2}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
+              // InicioCard is defined at module scope
 
               const proyectando = estadoReproduccion === 'playing';
               const enPausa     = estadoReproduccion === 'paused';
               const hayMedia    = proyectando || enPausa;
               const nombreMedia = String(multimediaActiva?.nombre || multimediaUltimaProyectada?.nombre || '');
 
-              // Barra de estado — igual para móvil y tablet
-              const StatusPill = () => hayMedia && !!nombreMedia ? (
-                <Pressable
-                  onPress={() => { Keyboard.dismiss(); setSeccion('multimedia'); }}
-                  style={({ pressed }) => [{
-                    borderRadius: 14, marginBottom: 14,
-                    borderWidth: 1, borderColor: proyectando ? 'rgba(245,158,11,0.30)' : 'rgba(255,255,255,0.08)',
-                    backgroundColor: proyectando ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.04)',
-                  }, pressed && { opacity: 0.75 }]}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 12 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: proyectando ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={proyectando ? 'volume-high' : 'pause'} size={17} color={proyectando ? '#f59e0b' : '#64748b'} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: proyectando ? '#fbbf24' : '#64748b', fontSize: 10, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 1 }}>
-                        {proyectando ? 'Reproduciendo' : 'En pausa'}
-                      </Text>
-                      <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{nombreMedia}</Text>
-                    </View>
-                    {proyectando && <AnimatedSoundBars />}
-                    <Ionicons name="chevron-forward" size={14} color="#334155" />
-                  </View>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
-                  style={({ pressed }) => [{
-                    borderRadius: 14, marginBottom: 14,
-                    borderWidth: 1,
-                    borderColor: conectado ? 'rgba(16,185,129,0.20)' : 'rgba(96,165,250,0.18)',
-                    backgroundColor: conectado ? 'rgba(16,185,129,0.07)' : 'rgba(59,130,246,0.07)',
-                  }, pressed && { opacity: 0.75 }]}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 10 }}>
-                    <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? '#10b981' : '#60a5fa'} />
-                    </View>
-                    <Text style={{ flex: 1, color: conectado ? '#6ee7b7' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
-                      {conectado ? '' : 'Sin conexión — toca para conectar'}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={14} color="#334155" />
-                  </View>
-                </Pressable>
+              // InicioStatusPill is defined at module scope
+
               );
 
-              // tablet=true → filas con flex:1 para llenar toda la altura disponible
-              const Grid = ({ tablet = false }) => (
-                <View style={tablet ? { flex: 1 } : { gap: gap }}>
-                  {rows.map((row, ri) => (
-                    <View
-                      key={ri}
-                      style={[
-                        { flexDirection: 'row' },
-                        tablet
-                          ? { flex: 1, marginBottom: ri < rows.length - 1 ? gap : 0 }
-                          : {},
-                      ]}
-                    >
-                      {row.map((item, ci) => (
-                        <Card
-                          key={item.id}
-                          item={item}
-                          isLast={ci === row.length - 1}
-                          fixedH={tablet ? undefined : cardH}
-                        />
-                      ))}
-                      {Array(cols - row.length).fill(null).map((_, i) => (
-                        <View key={`fill${i}`} style={{ flex: 1, marginRight: i < cols - row.length - 1 ? gap : 0 }} />
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              );
-
-              const Footer = () => (
-                <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-                  <Text style={{ color: '#475569', fontSize: 11, fontWeight: '600', letterSpacing: 0.4 }}>
-                    GloryView · Alfredo Hammer
-                  </Text>
-                </View>
-              );
+              // InicioGrid and InicioFooter are defined at module scope
 
               // Tablet: filas con flex:1 llenan toda la pantalla
               if (isTablet) {
                 return (
                   <View style={{ flex: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 14 }}>
-                    <StatusPill />
-                    <Grid tablet />
-                    <Footer />
+                    <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
+                    <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} tablet />
+                    <InicioFooter />
                   </View>
                 );
               }
@@ -3506,9 +3525,9 @@ export default function App() {
                   contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 14, paddingBottom: 20 }}
                   showsVerticalScrollIndicator={false}
                 >
-                  <StatusPill />
-                  <Grid />
-                  <Footer />
+                  <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
+                  <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} />
+                  <InicioFooter />
                 </ScrollView>
               );
             })()}
@@ -4603,7 +4622,7 @@ export default function App() {
                       const isActive = String(fondoActivoId || '') === String(item?.id || '');
                       return (
                         <View style={[styles.itemRow, isActive && styles.itemRowActive]}>
-                          <FondoThumb item={item} />
+                          <FondoThumb item={item} resolverUrl={resolverUrlMedia} />
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={styles.itemTitle} numberOfLines={1}>
                               {String(item?.nombre || 'Fondo')}
@@ -6051,7 +6070,7 @@ export default function App() {
                           {estadoDestino === 'playing' && (
                             <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(16,185,129,0.85)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                               <AnimatedSoundBars />
-                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>EN VIVO</Text>
+                              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>EN VIVO</Text>
                             </View>
                           )}
                         </View>
@@ -6781,7 +6800,7 @@ const styles = StyleSheet.create({
   },
   drawerDeveloperText: {
     color: '#64748b',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   drawerDeveloperName: {

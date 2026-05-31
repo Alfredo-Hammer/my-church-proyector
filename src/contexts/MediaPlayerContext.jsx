@@ -21,7 +21,23 @@ export const useMediaPlayer = () => {
 
 export const MediaPlayerProvider = ({children}) => {
   const [currentMedia, setCurrentMedia] = useState(null);
-  const [lastPlayedMedia, setLastPlayedMedia] = useState(null);
+  const [lastPlayedMedia, setLastPlayedMedia] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LAST_PLAYED_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        localStorage.removeItem(LAST_PLAYED_STORAGE_KEY);
+        return null;
+      }
+      return parsed;
+    } catch {
+      try {
+        localStorage.removeItem(LAST_PLAYED_STORAGE_KEY);
+      } catch {}
+      return null;
+    }
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
@@ -85,58 +101,42 @@ export const MediaPlayerProvider = ({children}) => {
       }
     };
 
-    // Event listeners
-    audio.addEventListener("timeupdate", () => {
+    const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       emitPcStatus();
-    });
-
-    audio.addEventListener("loadedmetadata", () => {
+    };
+    const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       emitPcStatus();
-    });
-
-    audio.addEventListener("ended", () => {
+    };
+    const handleEnded = () => {
       setIsPlaying(false);
       emitPcStatus();
-    });
-
-    audio.addEventListener("play", () => {
+    };
+    const handlePlay = () => {
       setIsPlaying(true);
       emitPcStatus();
-    });
-
-    audio.addEventListener("pause", () => {
+    };
+    const handlePause = () => {
       setIsPlaying(false);
       emitPcStatus();
-    });
+    };
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
 
     return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
       audio.pause();
       audio.src = "";
     };
-  }, []);
-
-  // Restaurar "última reproducción" (solo para UI; no auto-reproduce)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LAST_PLAYED_STORAGE_KEY);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") {
-        localStorage.removeItem(LAST_PLAYED_STORAGE_KEY);
-        return;
-      }
-
-      setLastPlayedMedia(parsed);
-    } catch {
-      try {
-        localStorage.removeItem(LAST_PLAYED_STORAGE_KEY);
-      } catch {
-        // noop
-      }
-    }
   }, []);
 
   // Actualizar volumen
@@ -217,7 +217,8 @@ export const MediaPlayerProvider = ({children}) => {
 
     // En modo solo-audio usamos el elemento <audio> para cualquier tipo (audio o video),
     // excepto YouTube e imágenes que no tienen archivo local.
-    const usarAudioRef = mediaType === "audio" || (soloAudio && !isYoutubeMedia && !isImageMedia);
+    const usarAudioRef =
+      mediaType === "audio" || (soloAudio && !isYoutubeMedia && !isImageMedia);
     if (usarAudioRef) {
       const url = media.validatedUrl || media.url;
       audioRef.current.src = url;
@@ -232,7 +233,9 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const pause = () => {
-    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const mediaType = String(
+      currentMedia?.tipo || currentMedia?.type || "",
+    ).toLowerCase();
     const soloAudio = Boolean(currentMedia?.soloAudio);
     const usarAudioRef = mediaType === "audio" || soloAudio;
     if (audioRef.current && usarAudioRef) {
@@ -245,7 +248,9 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const resume = () => {
-    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const mediaType = String(
+      currentMedia?.tipo || currentMedia?.type || "",
+    ).toLowerCase();
     const soloAudio = Boolean(currentMedia?.soloAudio);
     const usarAudioRef = mediaType === "audio" || soloAudio;
     if (audioRef.current && usarAudioRef) {
@@ -309,7 +314,9 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const seek = (time) => {
-    const mediaType = String(currentMedia?.tipo || currentMedia?.type || "").toLowerCase();
+    const mediaType = String(
+      currentMedia?.tipo || currentMedia?.type || "",
+    ).toLowerCase();
     const soloAudio = Boolean(currentMedia?.soloAudio);
     const usarAudioRef = mediaType === "audio" || soloAudio;
     if (audioRef.current && usarAudioRef) {

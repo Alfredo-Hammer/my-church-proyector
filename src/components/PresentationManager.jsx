@@ -89,7 +89,7 @@ const PresentationManager = () => {
   const saveToLocalStorage = (presentation) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]",
+        localStorage.getItem("presentations:v1") || "[]",
       );
       const existingIndex = localData.findIndex(
         (p) => p.id === presentation.id,
@@ -101,7 +101,7 @@ const PresentationManager = () => {
         localData.push(presentation);
       }
 
-      localStorage.setItem("presentations", JSON.stringify(localData));
+      localStorage.setItem("presentations:v1", JSON.stringify(localData));
       return presentation;
     } catch (error) {
       console.error("❌ Error guardando en localStorage:", error);
@@ -112,12 +112,12 @@ const PresentationManager = () => {
   const updateInLocalStorage = (presentation) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]",
+        localStorage.getItem("presentations:v1") || "[]",
       );
       const updatedData = localData.map((p) =>
         p.id === presentation.id ? presentation : p,
       );
-      localStorage.setItem("presentations", JSON.stringify(updatedData));
+      localStorage.setItem("presentations:v1", JSON.stringify(updatedData));
     } catch (error) {
       console.error("❌ Error actualizando localStorage:", error);
     }
@@ -126,10 +126,10 @@ const PresentationManager = () => {
   const deleteFromLocalStorage = (presentationId) => {
     try {
       const localData = JSON.parse(
-        localStorage.getItem("presentations") || "[]",
+        localStorage.getItem("presentations:v1") || "[]",
       );
       const filteredData = localData.filter((p) => p.id !== presentationId);
-      localStorage.setItem("presentations", JSON.stringify(filteredData));
+      localStorage.setItem("presentations:v1", JSON.stringify(filteredData));
     } catch (error) {
       console.error("❌ Error eliminando de localStorage:", error);
     }
@@ -364,7 +364,7 @@ const PresentationManager = () => {
 
         // Si no hay presentaciones, crear una de ejemplo
         const currentPresentations = JSON.parse(
-          localStorage.getItem("presentations") || "[]",
+          localStorage.getItem("presentations:v1") || "[]",
         );
         if (currentPresentations.length === 0) {
           await createDefaultPresentation();
@@ -387,7 +387,7 @@ const PresentationManager = () => {
 
   const loadFromLocalStorage = () => {
     try {
-      const localData = localStorage.getItem("presentations");
+      const localData = localStorage.getItem("presentations:v1");
       if (localData) {
         const localPresentations = JSON.parse(localData);
         setPresentations(localPresentations);
@@ -1037,7 +1037,7 @@ const PresentationManager = () => {
             try {
               // Usar localStorage como fallback
               localStorage.setItem(
-                "proyector-slide-data",
+                "proyector-slide-data:v1",
                 JSON.stringify(slideData),
               );
 
@@ -1059,7 +1059,7 @@ const PresentationManager = () => {
                 // En Electron, forzar trigger del evento
                 window.dispatchEvent(
                   new StorageEvent("storage", {
-                    key: "proyector-slide-data",
+                    key: "proyector-slide-data:v1",
                     newValue: JSON.stringify(slideData),
                   }),
                 );
@@ -1128,7 +1128,7 @@ const PresentationManager = () => {
 
     setCurrentPresentation(updatedPresentation);
     updatePresentationInList(updatedPresentation);
-    setCurrentSlideIndex(currentSlideIndex + 1);
+    setCurrentSlideIndex((prev) => prev + 1);
     showInfo("📄 Diapositiva duplicada");
   };
 
@@ -1734,7 +1734,7 @@ const PresentationManager = () => {
           );
 
           localStorage.setItem(
-            "currentProjectionSlide",
+            "currentProjectionSlide:v1",
             JSON.stringify(slideData),
           );
 
@@ -1839,7 +1839,7 @@ const PresentationManager = () => {
             {isSaving && (
               <div className="flex items-center gap-2 text-yellow-400">
                 <FaSpinner className="animate-spin" />
-                <span className="text-sm">Guardando...</span>
+                <span className="text-sm">Guardando…</span>
               </div>
             )}
 
@@ -1851,6 +1851,7 @@ const PresentationManager = () => {
 
             {/* ✨ Action buttons */}
             <button
+              type="button"
               onClick={() => createPresentation()}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
             >
@@ -1871,6 +1872,7 @@ const PresentationManager = () => {
                 onChange={handlePowerPointUpload}
                 className="hidden"
                 disabled={isProcessingFile}
+                aria-label="Importar archivos de presentación"
               />
             </label>
           </div>
@@ -1888,6 +1890,7 @@ const PresentationManager = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+              aria-label="Buscar presentaciones"
             />
           </div>
 
@@ -1895,6 +1898,7 @@ const PresentationManager = () => {
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-400"
+            aria-label="Filtrar tipo de presentación"
           >
             <option value="all">Todas</option>
             <option value="favorites">Favoritas</option>
@@ -1905,6 +1909,7 @@ const PresentationManager = () => {
 
           <div className="flex rounded-lg bg-white/10 overflow-hidden">
             <button
+              type="button"
               onClick={() => setViewMode("grid")}
               className={`px-3 py-2 ${
                 viewMode === "grid" ? "bg-blue-600" : "hover:bg-white/10"
@@ -1913,6 +1918,7 @@ const PresentationManager = () => {
               <FaFile />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode("list")}
               className={`px-3 py-2 ${
                 viewMode === "list" ? "bg-blue-600" : "hover:bg-white/10"
@@ -1930,7 +1936,7 @@ const PresentationManager = () => {
           {isLoading ? (
             <div className="flex items-center justify-center h-40">
               <FaSpinner className="animate-spin text-2xl text-blue-400" />
-              <span className="ml-2 text-white">Cargando...</span>
+              <span className="ml-2 text-white">Cargando…</span>
             </div>
           ) : (
             <div className="p-4 space-y-3">
@@ -2001,11 +2007,12 @@ const PresentationManager = () => {
                         {/* Iconos de acción siempre visibles */}
                         <div className="flex items-center gap-1 ml-2">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleFavorite(presentation);
                             }}
-                            className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                            className="p-2 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
                             title={
                               presentation.favorito
                                 ? "Quitar de favoritos"
@@ -2020,11 +2027,12 @@ const PresentationManager = () => {
                           </button>
 
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               deletePresentation(presentation.id);
                             }}
-                            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                            className="p-2 rounded-lg text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all"
                             title="Eliminar presentación"
                           >
                             <FaTrash />
@@ -2041,6 +2049,7 @@ const PresentationManager = () => {
                   <FaFile className="mx-auto text-4xl mb-4" />
                   <p className="mb-4">No hay presentaciones que coincidan</p>
                   <button
+                    type="button"
                     onClick={() => setShowCreateModal(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto"
                   >
@@ -2073,6 +2082,7 @@ const PresentationManager = () => {
 
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => {
                         if (isRenderedPptxSlide(currentSlide)) {
                           showInfo(
@@ -2100,6 +2110,7 @@ const PresentationManager = () => {
                     </button>
 
                     <button
+                      type="button"
                       onClick={forceSave}
                       disabled={isSaving || !currentPresentation.id}
                       className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -2113,6 +2124,7 @@ const PresentationManager = () => {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => {
                         console.log(
                           "🔵 [NAVEGACIÓN] Navegando a GestionFondos",
@@ -2137,6 +2149,7 @@ const PresentationManager = () => {
                     </button>
 
                     <button
+                      type="button"
                       onClick={projectCurrentSlide}
                       disabled={isProjecting}
                       className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -2147,6 +2160,7 @@ const PresentationManager = () => {
                     {/* ✨ Botón para detener proyección */}
                     {isProjecting && (
                       <button
+                        type="button"
                         onClick={stopProjection}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
                       >
@@ -2195,7 +2209,7 @@ const PresentationManager = () => {
                           )}
 
                         <div
-                          className="relative z-10 w-full h-full flex flex-col px-4 py-4 overflow-hidden"
+                          className="relative z-10 size-full flex flex-col p-4 overflow-hidden"
                           style={{
                             fontFamily: currentSlide.fontFamily || "inherit",
                             justifyContent:
@@ -2227,6 +2241,9 @@ const PresentationManager = () => {
                                 style={{
                                   fontSize: currentSlide.titleFontSize,
                                   color: currentSlide.textColor || "#ffffff",
+                                }}
+                                placeholder="Título de la diapositiva"
+                                aria-label="Título de la diapositiva"
                                   fontWeight:
                                     currentSlide.titleBold !== false
                                       ? "bold"
@@ -2248,6 +2265,7 @@ const PresentationManager = () => {
                               {/* Barra de párrafo */}
                               <div className="flex gap-1">
                                 <button
+                                  type="button"
                                   onMouseDown={(e) => {
                                     e.preventDefault();
                                     const ta = e.target
@@ -2275,6 +2293,7 @@ const PresentationManager = () => {
                                   • Lista
                                 </button>
                                 <button
+                                  type="button"
                                   onMouseDown={(e) => {
                                     e.preventDefault();
                                     const txt = currentSlide.content || "";
@@ -2393,6 +2412,7 @@ const PresentationManager = () => {
                   {/* ✨ Slide navigation */}
                   <div className="flex items-center justify-center gap-4 py-3 border-t border-white/10 shrink-0">
                     <button
+                      type="button"
                       onClick={prevSlide}
                       disabled={currentSlideIndex === 0}
                       className="bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-lg transition-colors"
@@ -2406,6 +2426,7 @@ const PresentationManager = () => {
                     </span>
 
                     <button
+                      type="button"
                       onClick={nextSlide}
                       disabled={
                         currentSlideIndex >=
@@ -2429,6 +2450,7 @@ const PresentationManager = () => {
                         {id: "slide", label: "Slide"},
                       ].map((tab) => (
                         <button
+                          type="button"
                           key={tab.id}
                           onClick={() => setEditorTab(tab.id)}
                           className={`flex-1 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
@@ -2527,6 +2549,7 @@ const PresentationManager = () => {
                                 },
                               ].map(({label, prop, def, cls}) => (
                                 <button
+                                  type="button"
                                   key={prop}
                                   onClick={() =>
                                     updateCurrentSlide({
@@ -2600,6 +2623,7 @@ const PresentationManager = () => {
                                 },
                               ].map(({label, prop, def, cls}) => (
                                 <button
+                                  type="button"
                                   key={prop}
                                   onClick={() =>
                                     updateCurrentSlide({
@@ -2667,6 +2691,7 @@ const PresentationManager = () => {
                                 {value: "right", label: "Der"},
                               ].map(({value, label}) => (
                                 <button
+                                  type="button"
                                   key={value}
                                   onClick={() =>
                                     updateCurrentSlide({textAlign: value})
@@ -2696,6 +2721,7 @@ const PresentationManager = () => {
                                 {value: "bottom", label: "Abajo"},
                               ].map(({value, label}) => (
                                 <button
+                                  type="button"
                                   key={value}
                                   onClick={() =>
                                     updateCurrentSlide({verticalAlign: value})
@@ -2719,6 +2745,7 @@ const PresentationManager = () => {
                               Sombra de texto
                             </label>
                             <button
+                              type="button"
                               onClick={() =>
                                 updateCurrentSlide({
                                   textShadow: !(
@@ -2733,7 +2760,7 @@ const PresentationManager = () => {
                               }`}
                             >
                               <span
-                                className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                                className={`absolute top-0.5 size-4 bg-white rounded-full shadow transition-transform ${
                                   (currentSlide?.textShadow ?? true)
                                     ? "translate-x-5"
                                     : "translate-x-0.5"
@@ -2810,6 +2837,7 @@ const PresentationManager = () => {
                             </label>
                             {currentSlide?.backgroundImage && (
                               <button
+                                type="button"
                                 onClick={() =>
                                   updateCurrentSlide({backgroundImage: null})
                                 }
@@ -2861,21 +2889,24 @@ const PresentationManager = () => {
                           {/* Acciones */}
                           <div className="space-y-2">
                             <button
+                              type="button"
                               onClick={addSlide}
                               className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
                             >
                               <FaPlus /> Nueva diapositiva
                             </button>
                             <button
+                              type="button"
                               onClick={duplicateSlide}
                               className="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
                             >
                               <FaCopy /> Duplicar esta
                             </button>
                             <button
+                              type="button"
                               onClick={deleteSlide}
                               disabled={currentPresentation.slides?.length <= 1}
-                              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-white/5 disabled:text-gray-600 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
+                              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-white/5 disabled:text-white/30 text-white px-3 py-2.5 rounded-lg text-sm flex items-center gap-2 justify-center transition-colors"
                             >
                               <FaTrash /> Eliminar diapositiva
                             </button>
@@ -2967,6 +2998,7 @@ const PresentationManager = () => {
                                 },
                               ].map(({label, icon, apply}) => (
                                 <button
+                                  type="button"
                                   key={label}
                                   onClick={() => updateCurrentSlide(apply)}
                                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 hover:border-white/15 transition-all text-left"
@@ -2998,12 +3030,14 @@ const PresentationManager = () => {
                 </p>
                 <div className="flex gap-4 justify-center">
                   <button
+                    type="button"
                     onClick={() => setShowCreateModal(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
                   >
                     <FaPlus /> Nueva Presentación
                   </button>
                   <button
+                    type="button"
                     onClick={() => createPresentation()}
                     className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
                   >
@@ -3133,7 +3167,7 @@ const PresentationManager = () => {
                       <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="bg-purple-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
                           <svg
-                            className="w-3 h-3"
+                            className="size-3"
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
@@ -3164,7 +3198,7 @@ const PresentationManager = () => {
                     {/* Indicador de diapositiva actual */}
                     {currentSlideIndex === index && (
                       <div className="absolute right-2 top-2">
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        <div className="size-2 bg-blue-400 rounded-full animate-pulse"></div>
                       </div>
                     )}
                   </div>

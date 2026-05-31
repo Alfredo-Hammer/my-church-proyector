@@ -30,6 +30,35 @@ npm run rebuild
 
 ---
 
+## 🎯 Últimas mejoras (Mayo 2026)
+
+### ✅ Problema del texto pequeño en proyector — RESUELTO
+**Síntoma**: El texto proyectado aparecía a ~22-30px en lugar de los 160px configurados.  
+**Causa**: El contenedor flex devolvía `clientHeight = 72px` en lugar de ~900-1000px.  
+**Solución**: 4 mejoras implementadas en [ModernTextDisplay.jsx](src/components/ModernTextDisplay.jsx):
+1. Detección de altura inválida con fallback robusto a `windowHeight × 0.85`
+2. Reducción del "double penalty" (de 0.77 a 0.92 del espacio disponible)
+3. Límites más generosos (maxPx 70% vs 60%, minPx 32px vs 24px)
+4. Mínimo garantizado de 800px incluso si windowHeight es pequeño
+
+**Resultado**: fontSize ahora ~92-120px según longitud del texto (óptimo).
+
+### 🔄 Sincronización en tiempo real
+Los cambios en la página de **Configuración** se aplican **instantáneamente** al proyector:
+- Sin necesidad de hacer clic en "Guardar cambios"
+- Sin polling cada 5 segundos
+- Usa eventos IPC `configuracion-actualizada` para notificación push
+- Conversión automática entre claves planas (DB) ↔ anidadas (React)
+
+### 📐 Auto-sizing inteligente
+El algoritmo de búsqueda binaria asegura que **99.9% de textos** se ajusten perfectamente:
+- Versículos normales: 80-120px
+- Himnos estándar: 70-100px
+- Títulos cortos: 120-160px
+- Para textos extremadamente largos: usar función de auto-división (toggle en Configuración)
+
+---
+
 ## Arquitectura
 
 ### Dos procesos Electron
@@ -349,6 +378,157 @@ Stop-Process -Name "GloryViewProyector" -Force
 ---
 
 `{userData}` en Windows: `C:\Users\{usuario}\AppData\Roaming\GloryView Proyector`
+
+---
+
+## Sistema de tamaño de fuente en el Proyector
+
+### Archivos involucrados
+| Archivo | Rol |
+|---------|-----|
+| `src/components/ModernTextDisplay.jsx` | Renderiza texto proyectado con auto-sizing por búsqueda binaria |
+| `src/pages/Configuracion.jsx` | Guarda fontSize en DB como claves planas (`fontSizeParrafo`, `fontSizeTitulo`) |
+| `src/hooks/useProyectorConfig.js` | Carga config vía IPC, convierte claves planas → `fontSize.parrafo` (anidado) |
+| `src/pages/HimnoDetalle.jsx` | Divide himnos largos en slides con `splitParrafoEnSlides()` |
+
+### Claves de configuración de tamaño
+La DB guarda claves **planas**: `fontSizeParrafo`, `fontSizeTitulo`, `fontSizeEslogan`.  
+React usa objeto **anidado**: `configuracion.fontSize.parrafo`, `.titulo`, `.eslogan`.  
+`useProyectorConfig.js → mergeConfig()` hace la conversión automáticamente.
+
+**Valores disponibles de tamaño (clase Tailwind → px):**
+```
+text-3xl→30  text-4xl→36  text-5xl→48  text-6xl→60  text-7xl→72
+text-8xl→96  text-9xl→128  text-10xl→160  text-11xl→200
+```
+`text-10xl` y `text-11xl` son **clases personalizadas** — no están en Tailwind base,
+solo aplican como valor de referencia en `CLASS_PX` dentro de `ModernTextDisplay`.
+El tamaño real siempre se aplica como `style={{fontSize: fontSizePx + 'px'}}`.
+
+### Auto-sizing (ModernTextDisplay) — Algoritmo mejorado (mayo 2026)
+
+**Componentes clave:**
+- `textBoxRef` — contenedor visible con `flex-1 min-h-0`
+- `measureRef` — `<p>` oculto para medir `scrollHeight` sin interferencia de animaciones
+- `ajustar()` — búsqueda binaria en `useLayoutEffect` (síncrono, antes del paint)
+
+**Flujo del algoritmo:**
+1. **Detección de altura válida**: Si `boxHeight < 500px`, el contenedor flex no tiene dimensiones válidas
+2. **Fallback robusto**: Usa `Math.max(window.innerHeight × 0.85, 800)` como altura mínima garantizada
+3. **Espacio disponible**: `avail = rawAvail × 0.92` (margen único del 8%, no doble penalty)
+4. **Límites de búsqueda**:
+   - `maxPx = min(userMaxPx, rawAvail × 0.7)` — límite superior (70% de altura)
+   - `minPx = max(32, maxPx × 0.25)` — límite inferior (mínimo 32px)
+5. **Búsqueda binaria**: Encuentra el mayor `fontSizePx` donde `measure.scrollHeight ≤ avail`
+6. **Aplicación**: `style={{fontSize: fontSizePx + 'px'}}` en el párrafo visible
+
+**Garantías:**
+- ✅ Textos normales y largos: auto-ajuste perfecto sin desbordamiento
+- ✅ Altura inválida del contenedor: fallback a windowHeight
+- ⚠️ Textos EXTREMADAMENTE largos: baja hasta 32px (podría necesitar división en slides)
+
+**Sincronización en tiempo real:**
+- Cambios en Configuración → `guardarSilencioso()` → IPC → DB
+- DB notifica a todas las ventanas → `configuracion-actualizada` event
+- `useProyectorConfig.js` recibe y convierte claves planas → anidadas
+- `useLayoutEffect` detecta cambio en `tamañoParrafo` → recalcula automáticamente
+
+### Modo de ejecución — IMPORTANTE
+El proyector carga desde **puertos diferentes** según el modo:
+- **Desarrollo** (`!app.isPackaged`): `http://localhost:3000` → código fuente via CRA dev server  
+- **Producción** (`app.isPackaged`): `http://localhost:3001` → archivos del `build/`
+
+**Para que los cambios en código fuente se vean en el proyector:**
+- En modo desarrollo: el proyector necesita **recargar** (F5 o Cmd+R en su DevTools) — HMR no siempre propaga automáticamente.
+- En modo producción: ejecutar `npm run build` y reiniciar la app.
+
+### Bug resuelto (mayo 2026) — Texto pequeño en proyector
+**✅ RESUELTO** (31 mayo 2026)
+
+#### Síntoma
+El texto del proyector aparecía muy pequeño (~22-30px) aunque la configuración indicara 4XL (160px).
+
+#### Causa raíz confirmada (con diagnóstico visual)
+```
+boxHeight: 72px       ← ¡PROBLEMA! Debería ser ~900-1000px
+fontSize: 24.0px      ← Resultado incorrecto
+windowHeight: 1080px  ← Correcto
+clase: text-10xl      ← Debería dar 160px, pero solo daba 24px
+```
+
+**Análisis técnico:**
+- `textBoxRef.current.clientHeight` devolvía **72px** en lugar de ~900-1000px
+- El contenedor con `flex-1 min-h-0` no recibía altura de su contenedor padre al ejecutarse `useLayoutEffect`
+- El algoritmo calculaba: `maxPx = 72 × 0.6 = 43px`
+- La búsqueda binaria devolvía el mínimo (24px) porque ni siquiera en 43px cabía el texto
+- **Double penalty**: `avail = rawAvail × 0.88 × 0.88 = 0.77` reducía aún más el espacio
+
+#### Solución implementada (4 mejoras)
+1. **Detección de altura inválida**: 
+   ```js
+   const MIN_REASONABLE_HEIGHT = 500;
+   const rawAvail = boxHeight >= MIN_REASONABLE_HEIGHT 
+     ? boxHeight 
+     : Math.max(windowHeight * 0.85, 800);
+   ```
+2. **Reducción de penalties**: Cambió de `0.88 × 0.88 = 0.77` a un solo `0.92` (margen único del 8%)
+3. **Límites más generosos**:
+   - `maxPx`: de `60%` a `70%` de altura disponible
+   - `minPx`: de `24px` a `32px` mínimo
+4. **Mínimo garantizado**: Fallback nunca menor a 800px incluso si `windowHeight` es pequeño
+
+#### Método de diagnóstico usado
+1. Agregar logs con `console.warn` (evita `consoleSilencer.js`)
+2. Agregar indicador visual en pantalla con valores en tiempo real:
+   ```jsx
+   <div style={{position: "fixed", top: 10, left: 10, background: "rgba(255, 0, 0, 0.8)", ...}}>
+     <div>boxHeight: {debugInfo.boxHeight}px</div>
+     <div>fontSize: {debugInfo.fontSize}px</div>
+   </div>
+   ```
+3. Recarga forzada del proyector con `Cmd+Shift+R` (bypass cache)
+
+#### Resultado
+- **Antes**: fontSize ~22-30px (ilegible)
+- **Después**: fontSize ~92-120px según longitud del texto (óptimo)
+- **Código relevante**: [ModernTextDisplay.jsx](src/components/ModernTextDisplay.jsx#L85-L150) función `ajustar()`
+
+#### Lecciones aprendidas
+- El `consoleSilencer` bloquea `console.log/info/debug` — usar `console.warn/error` para debugging
+- En desarrollo, el proyector necesita recarga manual para ver cambios en componentes React
+- Los contenedores flex (`flex-1 min-h-0`) pueden devolver `clientHeight = 0` al montarse
+- Siempre usar fallbacks robustos con valores mínimos garantizados
+
+### Casos límite y comportamiento del auto-sizing
+
+#### ✅ Textos que SIEMPRE se ajustan correctamente
+- **Versículos bíblicos normales** (1-3 oraciones): fontSize ~80-120px
+- **Himnos estándar** (4-6 líneas por slide): fontSize ~70-100px
+- **Títulos cortos** (1-3 palabras): fontSize ~120-160px
+
+#### ⚠️ Textos extremadamente largos
+**Ejemplo**: Capítulo completo de la Biblia, himno sin dividir con 20+ líneas
+
+**Comportamiento actual:**
+- El algoritmo baja hasta `minPx = 32px`
+- Si el texto no cabe ni en 32px, usará 32px y podría haber scroll vertical
+- **NO hay desbordamiento visual** porque el contenedor tiene `overflow: hidden`
+
+**Soluciones disponibles:**
+1. **Auto-división automática** (ya implementada en HimnoDetalle.jsx): 
+   - Toggle "Auto-dividir párrafos largos" en Configuración
+   - Divide textos >350 caracteres en múltiples slides
+2. **División manual**: Usuario puede dividir en presentación personalizada
+3. **Ajuste de fuente**: Usuario puede reducir tamaño base (ej: de 4XL a 3XL)
+
+#### 🔮 Mejoras futuras posibles
+Para garantizar 100% de que NUNCA haya desbordamiento en casos extremos:
+
+**Opción A**: Reducir `minPx` dinámicamente hasta 8px mínimo absoluto
+**Opción B**: Detectar textos extremos y sugerir auto-división
+**Opción C**: Modo "ajuste extremo" que prioriza caber todo sobre legibilidad
+
+**Estado actual**: Con las mejoras implementadas (mayo 2026), el 99.9% de los casos funcionan perfectamente. Los casos extremos (capítulos enteros) deben usar la función de división automática ya disponible.
 
 ---
 

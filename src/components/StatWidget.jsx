@@ -1,5 +1,5 @@
 import React from "react";
-import {motion} from "framer-motion";
+import {LazyMotion, domAnimation, m} from "framer-motion";
 
 const StatWidget = ({icon: Icon, value, label, accentColor = "emerald"}) => {
   const colorClasses = {
@@ -12,24 +12,26 @@ const StatWidget = ({icon: Icon, value, label, accentColor = "emerald"}) => {
   const colors = colorClasses[accentColor] || colorClasses.emerald;
 
   return (
-    <motion.div
-      initial={{opacity: 0, y: 20}}
-      animate={{opacity: 1, y: 0}}
-      transition={{duration: 0.4}}
-      className={`rounded-xl p-3 sm:p-4 border backdrop-blur-sm ${colors} transition-all hover:shadow-lg`}
-    >
-      <div className="flex flex-col items-center text-center gap-2">
-        {Icon && <Icon className="text-lg sm:text-xl" />}
-        <div>
-          <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
-            {value}
-          </div>
-          <div className="text-[11px] sm:text-xs md:text-sm text-white/60 whitespace-nowrap">
-            {label}
+    <LazyMotion features={domAnimation} strict>
+      <m.div
+        initial={{opacity: 0, y: 20}}
+        animate={{opacity: 1, y: 0}}
+        transition={{duration: 0.4}}
+        className={`rounded-xl p-3 sm:p-4 border backdrop-blur-sm ${colors} transition-all hover:shadow-lg`}
+      >
+        <div className="flex flex-col items-center text-center gap-2">
+          {Icon && <Icon className="text-lg sm:text-xl" />}
+          <div>
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
+              {value}
+            </div>
+            <div className="text-[11px] sm:text-xs md:text-sm text-white/60 whitespace-nowrap">
+              {label}
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
+      </m.div>
+    </LazyMotion>
   );
 };
 

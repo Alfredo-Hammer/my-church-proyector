@@ -1,13 +1,24 @@
-Version 0.2.8
+Version 0.3.0
 
-Correcciones
+Nuevas funciones
+- Plantillas GSAP: 10 plantillas animadas para proyectar himnos y versiculos
+  (Revelar, Neon, Iglesia, Cinematica, Particulas, Gloria, Aurora, Minimal, Majestad, Olas)
+- Cada plantilla tiene colores personalizables y velocidad de animacion
+
+Mejoras al proyector
+- Tamano de fuente exacto: el proyector respeta el tamano elegido por el usuario
+  Si el texto cabe se muestra al tamano exacto, solo reduce si el texto desborda
+- Tamano de fuente por defecto aumentado a 3XL (128px) para mejor visibilidad
+- Plantillas: eliminado el flash visual al cargar una plantilla nueva
+
+Mejoras generales
+- Multiples mejoras de diseno en Himnos, Biblia, Multimedia, Presentaciones y Anuncios
+- Mejoras de rendimiento y estabilidad en varias paginas
+
+Version 0.2.9
+- Notas de actualizacion en texto plano desde NOVEDADES.txt
+- El actualizador muestra las novedades correctamente sin codigo HTML
+
+Version 0.2.8
 - Corregido error fatal al iniciar el servidor Express en produccion (ENOTDIR)
 - Las notas de actualizacion ahora se muestran en texto plano sin codigo HTML
-- Eliminados enlaces del menu a paginas no utilizadas (Nueva Presentacion)
-- El boton de subir archivo en Anuncios y Orden de Servicio ya no falla silenciosamente
-
-Mejoras anteriores (0.2.7)
-- Pagina Biblia: cards de libros rediseñadas con abreviacion grande y nombre pequeño
-- Himnos: las flechas del teclado ya no cambian de parrafo al editar texto en el modal
-- Himnos: numeracion de diapositivas por parrafo y parte (1/1, 1/2, 1/3...)
-- Himnos editados del Himnario ya no aparecen en la pagina Agregar Himno

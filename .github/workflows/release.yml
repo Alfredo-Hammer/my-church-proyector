@@ -38,6 +38,17 @@ jobs:
         env:
           CI: false
 
+      - name: Obtener versión
+        id: get_version
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ github.event.inputs.version }}" | ForEach-Object { "VERSION=$_" } | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            $tag = "${{ github.ref }}" -replace "refs/tags/", ""
+            "VERSION=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+        shell: pwsh
+
       - name: Leer notas de versión desde NOVEDADES.txt
         id: novedades
         run: |
@@ -52,29 +63,8 @@ jobs:
           "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
         shell: pwsh
 
-      - name: Compilar instalador Windows (con notas en latest.yml)
-        run: |
-          $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
-          # Pasar las notas a electron-builder para que las incluya en latest.yml
-          # El updater lee latest.yml directamente -> texto plano sin HTML
-          npx electron-builder --win nsis --x64 `
-            --config.releaseInfo.releaseNotes="$notes"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
-
-      - name: Obtener versión
-        id: get_version
-        run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            "${{ github.event.inputs.version }}" | ForEach-Object { "VERSION=$_" } | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          } else {
-            $tag = "${{ github.ref }}" -replace "refs/tags/", ""
-            "VERSION=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          }
-        shell: pwsh
-
-      - name: Crear Release en GitHub
+      - name: Crear Release Draft en GitHub
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
@@ -105,8 +95,27 @@ jobs:
             Solucion de problemas
             - Si no abre: clic derecho, Ejecutar como administrador
             - Revisa logs en: %APPDATA%\GloryView\gloryview-error.log
-          draft: false
+          draft: true
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compilar instalador Windows (con notas en latest.yml)
+        run: |
+          $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
+          # Pasar las notas a electron-builder para que las incluya en latest.yml
+          # El updater lee latest.yml directamente -> texto plano sin HTML
+          npx electron-builder --win nsis --x64 `
+            --config.releaseInfo.releaseNotes="$notes"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+
+      - name: Publicar assets al Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          draft: false
           files: |
             dist-installer/*.exe
             dist-installer/*.blockmap

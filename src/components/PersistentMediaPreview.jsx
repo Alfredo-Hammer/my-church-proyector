@@ -30,6 +30,35 @@ const getMediaType = (media) => {
   return media.tipo || media.type || "unknown";
 };
 
+const fetchProjectorPlaybackStatus = async () => {
+  try {
+    const resp = await fetch(
+      `${getBaseURL()}/api/control/multimedia/status?destino=proyector`,
+    );
+    const data = await resp.json();
+    return data?.status || null;
+  } catch {
+    return null;
+  }
+};
+
+const getDesktopYouTubeEmbedUrl = (rawUrl, muted) => {
+  const videoId = extractVideoId(rawUrl);
+  if (!videoId) return rawUrl;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const skipOrigin =
+    !origin ||
+    origin.startsWith("http://localhost") ||
+    origin.startsWith("https://localhost") ||
+    origin.startsWith("file://");
+  const baseParams = `autoplay=0&rel=0&controls=0&enablejsapi=1&modestbranding=1&playsinline=1&mute=${
+    muted ? 1 : 0
+  }`;
+  return skipOrigin
+    ? `https://www.youtube.com/embed/${videoId}?${baseParams}`
+    : `https://www.youtube.com/embed/${videoId}?${baseParams}&origin=${encodeURIComponent(origin)}`;
+};
+
 // Vista previa de video/YouTube que vive en la raíz de la app (nunca se
 // desmonta al navegar). En vez de "moverse" entre contenedores (lo que
 // obligaría a React a desmontar/remontar el <video>/iframe y perder la
@@ -70,35 +99,6 @@ const PersistentMediaPreview = () => {
     } catch {
       // noop
     }
-  };
-
-  const fetchProjectorPlaybackStatus = async () => {
-    try {
-      const resp = await fetch(
-        `${getBaseURL()}/api/control/multimedia/status?destino=proyector`,
-      );
-      const data = await resp.json();
-      return data?.status || null;
-    } catch {
-      return null;
-    }
-  };
-
-  const getDesktopYouTubeEmbedUrl = (rawUrl, muted) => {
-    const videoId = extractVideoId(rawUrl);
-    if (!videoId) return rawUrl;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const skipOrigin =
-      !origin ||
-      origin.startsWith("http://localhost") ||
-      origin.startsWith("https://localhost") ||
-      origin.startsWith("file://");
-    const baseParams = `autoplay=0&rel=0&controls=0&enablejsapi=1&modestbranding=1&playsinline=1&mute=${
-      muted ? 1 : 0
-    }`;
-    return skipOrigin
-      ? `https://www.youtube.com/embed/${videoId}?${baseParams}`
-      : `https://www.youtube.com/embed/${videoId}?${baseParams}&origin=${encodeURIComponent(origin)}`;
   };
 
   // Seguir la posición/tamaño del recuadro de la página Multimedia (si está
@@ -264,6 +264,7 @@ const PersistentMediaPreview = () => {
           src={getDesktopYouTubeEmbedUrl(currentMedia.url, estaProyectandoActual)}
           title={mediaName}
           className="w-full h-full border-0 pointer-events-none"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
           onLoad={() => {
             try {

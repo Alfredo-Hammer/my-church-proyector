@@ -491,7 +491,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
               title={nombre}
               className="w-full h-full border-0"
               style={{filter: "drop-shadow(0 0 20px rgba(0,0,0,0.5))"}}
-              sandbox="allow-scripts allow-presentation allow-popups allow-forms"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               onLoad={(e) => {
@@ -624,6 +624,7 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             <audio
               src={urlReal}
               controls={false}
+              muted
               className="multimedia-audio w-full max-w-lg bg-white/10 rounded-lg p-2"
               aria-label="Reproductor de audio"
               onError={(e) => handleMediaError("audio", e)}

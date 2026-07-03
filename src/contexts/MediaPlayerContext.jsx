@@ -44,6 +44,9 @@ export const MediaPlayerProvider = ({children}) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
+  // Contenido que efectivamente está proyectado ahora mismo (distinto de
+  // currentMedia, que puede ser solo una vista previa local sin proyectar).
+  const [proyectingMedia, setProyectingMedia] = useState(null);
 
   const audioRef = useRef(null);
   const videoRef = useRef(null);
@@ -448,6 +451,8 @@ export const MediaPlayerProvider = ({children}) => {
     duration,
     isMinimized,
     setIsMinimized,
+    proyectingMedia,
+    setProyectingMedia,
     playMedia,
     pause,
     resume,

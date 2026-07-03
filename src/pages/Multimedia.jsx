@@ -140,6 +140,8 @@ const Multimedia = () => {
     playMedia: playMediaGlobal,
     togglePlayPause,
     stop: stopGlobal,
+    proyectingMedia,
+    setProyectingMedia,
   } = useMediaPlayer();
 
   // Estados principales
@@ -157,9 +159,6 @@ const Multimedia = () => {
   const [filterType, setFilterType] = useState("all");
   const [viewMode, setViewMode] = useState("list");
   const [notifications, setNotifications] = useState([]);
-
-  // Estado para control remoto del proyector
-  const [proyectingMedia, setProyectingMedia] = useState(null);
 
   // Estado de conectividad a internet
   const [hayInternet, setHayInternet] = useState(navigator.onLine);
@@ -969,30 +968,38 @@ const Multimedia = () => {
 
           showSuccess(`📺 Proyectando: ${multimediaData.nombre}`, 3000);
 
-          // Si en escritorio ya está reproduciendo, iniciar reproducción en el proyector.
-          // Esto evita tener que dar "play" manualmente en la pantalla del proyector.
-          if (isPlaying && window.electron?.send) {
-            setTimeout(() => {
-              try {
-                window.electron.send("proyector-control-multimedia", {
-                  action: "play",
-                });
+          // Marcar este contenido como "realmente en el proyector" para que la
+          // vista previa del escritorio se silencie (evita el eco de audio
+          // duplicado). Antes de esto, reproducir solo mutea si está proyectando.
+          setProyectingMedia(multimediaData);
 
-                // Sincronizar volumen actual (0..1). Para YouTube esto también hace unMute si corresponde.
-                if (typeof volume === "number" && !Number.isNaN(volume)) {
-                  window.electron.send("proyector-control-multimedia", {
-                    action: "volume",
-                    volume: Math.max(0, Math.min(1, volume / 100)),
-                  });
-                }
-              } catch (error) {
-                console.warn(
-                  "⚠️ [Multimedia] No se pudo enviar PLAY al proyector:",
-                  error,
-                );
+          // Iniciar reproducción automáticamente vía el reproductor global:
+          // si es audio, suena localmente en el escritorio (el proyector la
+          // muestra muteada, sin duplicar); para video/YouTube solo manda el
+          // comando remoto de play. Así no hay que darle play a mano en el
+          // proyector, sin importar si el escritorio ya estaba reproduciendo.
+          setTimeout(() => {
+            try {
+              playMediaGlobal(multimediaData);
+
+              // Sincronizar volumen actual (0..1). Para YouTube esto también hace unMute si corresponde.
+              if (
+                typeof volume === "number" &&
+                !Number.isNaN(volume) &&
+                window.electron?.send
+              ) {
+                window.electron.send("proyector-control-multimedia", {
+                  action: "volume",
+                  volume: Math.max(0, Math.min(1, volume / 100)),
+                });
               }
-            }, 400);
-          }
+            } catch (error) {
+              console.warn(
+                "⚠️ [Multimedia] No se pudo iniciar reproducción:",
+                error,
+              );
+            }
+          }, 400);
         } else {
           throw new Error("Error estableciendo multimedia activa en BD");
         }
@@ -1902,6 +1909,13 @@ const Multimedia = () => {
     return null;
   };
 
+  // La reproducción visual (video/YouTube) y su sincronización con el
+  // proyector viven en <PersistentMediaPreview>, montado una sola vez en
+  // App.js — así el video sigue reproduciéndose aunque se navegue a otra
+  // página. Ese componente se posiciona (position:fixed) encima del recuadro
+  // de abajo (id="multimedia-preview-portal-target") cuando estamos en esta
+  // página; el div de acá es solo el marcador de posición/tamaño.
+
   // Agregar esta función antes de handleUrlSubmit
   const saveUrlToHistory = async (url, title) => {
     const historyItem = {
@@ -2643,11 +2657,15 @@ const Multimedia = () => {
                             : "bg-gray-950"
                         }`}
                       >
-                        {/* Los iframes/videos se renderizan desde GlobalMediaPlayer */}
+                        {/* Marcador vacío: <PersistentMediaPreview> (montado en
+                            App.js) se posiciona encima de este recuadro con
+                            position:fixed, sin desmontarse al navegar. */}
                         {isMediaForPlayerYouTube ||
                         getMediaType(mediaForPlayer) === "video" ? (
-                          // Área vacía donde se posicionará el GlobalMediaPlayer
-                          <div className="w-full h-full" />
+                          <div
+                            id="multimedia-preview-portal-target"
+                            className="w-full h-full"
+                          />
                         ) : getMediaType(mediaForPlayer) === "audio" ? (
                           <div className="w-full h-full bg-gradient-to-br from-green-600/20 to-green-800/20 flex flex-col items-center justify-center p-8">
                             <FaMusic className="text-green-400 text-6xl mb-6" />
@@ -2687,35 +2705,29 @@ const Multimedia = () => {
                               );
                             }}
                           />
-                        ) : getMediaType(mediaForPlayer) === "video" ? (
-                          <div className="w-full h-full" />
                         ) : null}
                       </div>
 
                       {/* Controles principales */}
                       <div className="flex items-center justify-center gap-x-3">
-                        {!isMediaForPlayerYouTube && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={handleTogglePlayPause}
-                              className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
-                            >
-                              {isPlaying ? (
-                                <FaPause className="text-xl" />
-                              ) : (
-                                <FaPlay className="text-xl" />
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={stopGlobal}
-                              className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-                            >
-                              <FaStop />
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={handleTogglePlayPause}
+                          className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                        >
+                          {isPlaying ? (
+                            <FaPause className="text-xl" />
+                          ) : (
+                            <FaPlay className="text-xl" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopGlobal}
+                          className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                        >
+                          <FaStop />
+                        </button>
                         <button
                           type="button"
                           onClick={() => projectToScreenNew(mediaForPlayer)}
@@ -2794,25 +2806,23 @@ const Multimedia = () => {
                         </div>
                       )}
 
-                      {/* Control de volumen (solo para no-YouTube) */}
-                      {!isMediaForPlayerYouTube && (
-                        <div className="bg-gray-700/50 p-4 rounded-xl">
-                          <div className="flex items-center gap-x-3">
-                            <FaVolumeUp className="text-gray-300 flex-shrink-0" />
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={volume}
-                              onChange={(e) => setVolume(e.target.value)}
-                              className="flex-1 accent-red-400"
-                            />
-                            <span className="text-sm text-gray-300 w-12 text-center">
-                              {volume}%
-                            </span>
-                          </div>
+                      {/* Control de volumen (controla el audio del proyector) */}
+                      <div className="bg-gray-700/50 p-4 rounded-xl">
+                        <div className="flex items-center gap-x-3">
+                          <FaVolumeUp className="text-gray-300 flex-shrink-0" />
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={volume}
+                            onChange={(e) => setVolume(e.target.value)}
+                            className="flex-1 accent-red-400"
+                          />
+                          <span className="text-sm text-gray-300 w-12 text-center">
+                            {volume}%
+                          </span>
                         </div>
-                      )}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-12">

@@ -1,3 +1,19 @@
+Version 0.3.2
+
+Nuevas funciones
+- Control de Play, Pausa, Detener y volumen desde Multimedia tambien para
+  contenido de YouTube (antes esos botones no existian para YouTube)
+- Vista previa de video/YouTube en el escritorio, sincronizada con el
+  proyector: se silencia solo cuando el contenido esta realmente proyectado,
+  para no escuchar el audio duplicado en las dos pantallas
+- La reproduccion de video/YouTube en el escritorio ya no se corta ni se
+  reinicia al navegar a otra pagina y volver a Multimedia
+
+Correcciones
+- Corregido: el video proyectado (YouTube) se veia en negro en la ventana
+  principal por un conflicto de cabeceras CSP que rompia las conexiones
+  internas de YouTube
+
 Version 0.3.1
 
 Nuevas funciones

@@ -411,8 +411,14 @@ function obtenerCSP() {
 
 
 // ✨ FUNCIÓN HELPER PARA APLICAR CSP
+// Solo se aplica a nuestro propio origen (localhost:3000/3001) — sin filtro
+// esto sobreescribía también el CSP de respuestas de terceros (ej. el iframe
+// de YouTube), y al quedar dos headers CSP con distinto casing el navegador
+// aplica la intersección más restrictiva, rompiendo las conexiones internas
+// de YouTube (pantalla negra al proyectar video).
 function aplicarCSP(ventana) {
-  ventana.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+  const filtro = { urls: ['http://localhost:3000/*', 'http://localhost:3001/*'] };
+  ventana.webContents.session.webRequest.onHeadersReceived(filtro, (details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
@@ -6354,12 +6360,14 @@ function registrarHandlers() {
     if (buffer.length > limiteBytes) {
       throw new Error(`Archivo demasiado grande (${Math.round(buffer.length / 1024 / 1024)} MB). Límite: ${limiteMB} MB`);
     }
+    // Normalizar a ".ext" — el frontend puede mandar la extensión con o sin punto
+    const ext = extension.toLowerCase().startsWith('.') ? extension.toLowerCase() : `.${extension.toLowerCase()}`;
     const extsPermitidas = EXTENSIONES_PERMITIDAS[categoria];
-    if (extsPermitidas && !extsPermitidas.includes(extension.toLowerCase())) {
-      throw new Error(`Extensión "${extension}" no permitida para ${categoria}`);
+    if (extsPermitidas && !extsPermitidas.includes(ext)) {
+      throw new Error(`Extensión "${ext}" no permitida para ${categoria}`);
     }
-    if (!verificarMagicNumber(buffer, extension)) {
-      throw new Error(`El contenido del archivo no corresponde a la extensión "${extension}"`);
+    if (!verificarMagicNumber(buffer, ext)) {
+      throw new Error(`El contenido del archivo no corresponde a la extensión "${ext}"`);
     }
   }
   // ============================================================

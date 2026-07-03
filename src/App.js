@@ -22,7 +22,7 @@ import Temporizador from "./pages/Temporizador";
 import Plantillas from "./pages/Plantillas";
 import Servidor from "./pages/Servidor";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
-import GlobalMediaPlayer from "./components/GlobalMediaPlayer";
+import PersistentMediaPreview from "./components/PersistentMediaPreview";
 import UpdateNotification from "./components/UpdateNotification";
 import librosDeLaBiblia from "./utils/libros";
 import { cargarLibro } from "./utils/cargarLibro";
@@ -311,8 +311,8 @@ function App() {
           <Route path="/*" element={<MainLayout />} />
         </Routes>
 
-        {/* Reproductor global que persiste entre navegaciones */}
-        <GlobalMediaPlayer />
+        {/* Vista previa de video/YouTube que persiste entre navegaciones */}
+        <PersistentMediaPreview />
 
         {/* Notificación de actualizaciones */}
         <UpdateNotification />

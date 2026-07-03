@@ -14,6 +14,10 @@ module.exports = {
         // grid-cols-14 para grillas de capítulos/versículos en pantallas grandes
         '14': 'repeat(14, minmax(0, 1fr))',
       },
+      fontSize: {
+        '10xl': ['10rem',   { lineHeight: '1' }],
+        '11xl': ['12.5rem', { lineHeight: '1' }],
+      },
     },
   },
   plugins: [],

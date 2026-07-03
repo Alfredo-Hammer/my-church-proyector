@@ -115,6 +115,7 @@ contextBridge.exposeInMainWorld("electron", {
   timerProyectar: (data)   => ipcRenderer.invoke('timer-proyectar',  data),
   timerDetener:   ()       => ipcRenderer.invoke('timer-detener'),
   timerSetMensaje:(data)   => ipcRenderer.invoke('timer-set-mensaje', data),
+  timerSetFondo:  (data)   => ipcRenderer.invoke('timer-set-fondo',   data),
 
   //Eliminar y actualizar himnos
   actualizarHimno: (himno) => ipcRenderer.invoke("actualizar-himno", himno),

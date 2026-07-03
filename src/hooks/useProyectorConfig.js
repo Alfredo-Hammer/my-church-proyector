@@ -34,17 +34,43 @@ function mergeConfig(prev, incoming) {
   };
 }
 
+const CACHE_KEY = "proyector-config-cache:v2";
+
+function loadCachedConfig() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveConfigCache(config) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(config));
+  } catch {}
+}
+
 /**
  * Carga la configuración del proyector desde Electron y la mantiene
- * sincronizada via IPC. Reemplaza el polling de 5 segundos.
+ * sincronizada via IPC. El caché en localStorage elimina el flash de
+ * tamaño incorrecto en el primer párrafo cuando el IPC aún no respondió.
+ *
+ * Solo reload() guarda en caché porque recibe la config COMPLETA.
+ * handleUpdate solo actualiza el estado en memoria (la config del IPC es parcial).
  */
 export function useProyectorConfig() {
-  const [configuracion, setConfiguracion] = useState(CONFIG_DEFAULTS);
+  const [configuracion, setConfiguracion] = useState(() => {
+    const cached = loadCachedConfig();
+    return cached ? mergeConfig(CONFIG_DEFAULTS, cached) : CONFIG_DEFAULTS;
+  });
 
   const reload = useCallback(async () => {
     try {
       const config = await window.electron?.obtenerConfiguracion?.();
-      if (config) setConfiguracion(prev => mergeConfig(prev, config));
+      if (config) {
+        saveConfigCache(config);
+        setConfiguracion(prev => mergeConfig(prev, config));
+      }
     } catch {
       // noop
     }
@@ -53,7 +79,9 @@ export function useProyectorConfig() {
   // Carga inicial
   useEffect(() => { reload(); }, [reload]);
 
-  // Sincronización en tiempo real via IPC — sin polling
+  // Sincronización en tiempo real via IPC — sin polling.
+  // nuevaConfig es PARCIAL (solo los campos que cambiaron), por eso
+  // NO se guarda en caché aquí; solo se actualiza el estado en memoria.
   const handleUpdate = useCallback((_, nuevaConfig) => {
     setConfiguracion(prev => mergeConfig(prev, nuevaConfig));
   }, []);

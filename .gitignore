@@ -38,6 +38,12 @@ final-build.log
 .env.test.local
 .env.production.local
 
+# Config local de herramientas de IA
+/.agents
+/.claude
+/.cursor
+/.windsurf
+
 # macOS
 .DS_Store
 .AppleDouble

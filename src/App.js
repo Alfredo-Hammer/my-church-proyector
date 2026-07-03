@@ -20,6 +20,7 @@ import Presentaciones from "./pages/Presentaciones";
 import Anuncios from "./pages/Anuncios";
 import Temporizador from "./pages/Temporizador";
 import Plantillas from "./pages/Plantillas";
+import Servidor from "./pages/Servidor";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
 import GlobalMediaPlayer from "./components/GlobalMediaPlayer";
 import UpdateNotification from "./components/UpdateNotification";
@@ -288,6 +289,7 @@ function MainLayout() {
             <Route path="/anuncios" element={<Anuncios />} />
             <Route path="/temporizador" element={<Temporizador />} />
             <Route path="/plantillas" element={<Plantillas />} />
+            <Route path="/servidor" element={<Servidor />} />
           </Routes>
         </main>
       </div>

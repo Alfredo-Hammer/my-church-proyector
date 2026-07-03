@@ -3501,11 +3501,7 @@ export default function App() {
               const hayMedia    = proyectando || enPausa;
               const nombreMedia = String(multimediaActiva?.nombre || multimediaUltimaProyectada?.nombre || '');
 
-              // InicioStatusPill is defined at module scope
-
-              );
-
-              // InicioGrid and InicioFooter are defined at module scope
+              // InicioStatusPill, InicioGrid and InicioFooter are defined at module scope
 
               // Tablet: filas con flex:1 llenan toda la pantalla
               if (isTablet) {

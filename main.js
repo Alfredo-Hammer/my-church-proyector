@@ -443,6 +443,258 @@ function bloquearAnuncios(ventana) {
   });
 }
 
+// ── Genera el HTML del overlay OBS ────────────────────────────────────────
+function generarObsHtml() {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GloryView · OBS Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:transparent}
+body{font-family:'EB Garamond','Georgia',serif}
+#fondo-media{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  opacity:0;transition:opacity .7s ease;
+}
+#fondo-media.show{opacity:1}
+#fondo-media img,#fondo-media video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+#fondo-overlay{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 100%);
+  opacity:0;transition:opacity .7s ease;
+}
+#fondo-overlay.show{opacity:1}
+body.fondo-oscuro{background:#02050d}
+#wrap{
+  position:relative;z-index:2;
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:5vw 9vw;text-align:center;
+  opacity:0;transition:opacity 0.55s ease;
+}
+#wrap.show{opacity:1}
+.ref{
+  font-family:'Cinzel','Georgia',serif;
+  font-size:clamp(12px,1.9vw,36px);
+  font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+  color:rgba(220,230,255,.72);
+  text-shadow:0 1px 18px rgba(0,0,0,.95),0 0 30px rgba(120,130,255,.4);
+  display:flex;align-items:center;justify-content:center;gap:.6em;flex-wrap:wrap;
+  margin-bottom:2.2vh;
+}
+.ref-sep{opacity:0.3;font-weight:400;letter-spacing:0}
+.parrafo{
+  font-family:'EB Garamond','Georgia',serif;
+  font-size:clamp(26px,5.4vw,95px);font-weight:500;line-height:1.38;
+  font-style:italic;
+  color:#ffffff;word-spacing:.12em;
+  text-shadow:0 2px 28px rgba(0,0,0,.92),0 0 50px rgba(80,100,200,.2);
+  white-space:pre-line;
+}
+.timer-msg{
+  font-family:'Cinzel',serif;
+  font-size:clamp(14px,2.6vw,48px);font-weight:400;letter-spacing:.28em;
+  text-transform:uppercase;color:rgba(220,230,255,.65);
+  margin:0 auto 2.5vh;width:fit-content;max-width:100%;
+  text-shadow:0 2px 20px rgba(0,0,0,.9);
+}
+/* ── Fondo animado de estrellas (default del temporizador sin fondo propio) ── */
+#starfield{
+  position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+  opacity:0;transition:opacity .7s ease;background:#02050d;
+}
+#starfield.show{opacity:1}
+#starfield .nebula{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 120% 120% at 50% 50%,#0d1f42 0%,#010306 75%);
+  animation:_nebula 9s ease-in-out infinite;
+}
+#starfield .core{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:30vmin;height:30vmin;border-radius:50%;
+  background:radial-gradient(circle,rgba(100,130,255,.12) 0%,transparent 70%);
+}
+.streak{position:absolute;left:50%;top:50%;border-radius:50%;transform-origin:left center}
+@keyframes _hyper{
+  0%{transform:translate(0,0) scaleX(.04);opacity:0}
+  8%{opacity:var(--hop)}
+  85%{opacity:var(--hop)}
+  100%{transform:translate(var(--hdx),var(--hdy)) scaleX(1);opacity:0}
+}
+@keyframes _nebula{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:.85;transform:scale(1.04)}}
+/* ── Anillo de progreso del temporizador ── */
+.timer-ring-wrap{position:relative;width:50vmin;height:50vmin;margin:0 auto}
+.timer-ring-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.timer-ring-content{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.timer-ring-num{
+  font-family:'Cinzel',serif;font-weight:900;font-size:10vmin;letter-spacing:.04em;
+  line-height:1;font-variant-numeric:tabular-nums;color:#e0e7ff;
+  transition:color .5s ease;
+}
+.timer-ring-num .sep{opacity:.85}
+.timer-ring-label{
+  font-size:1.4vmin;font-weight:600;text-transform:uppercase;letter-spacing:.3em;
+  margin-top:2vmin;opacity:.35;color:#e0e7ff;
+}
+.timer-ring-ya{font-family:'Cinzel',serif;font-weight:900;font-size:9vmin;line-height:1}
+</style>
+</head>
+<body>
+<div id="starfield"><div class="nebula"></div><div class="core"></div></div>
+<div id="fondo-media"></div>
+<div id="fondo-overlay"></div>
+<div id="wrap"><div id="content"></div></div>
+<script>
+const params=new URLSearchParams(location.search);
+if(params.get('fondo')==='oscuro')document.body.classList.add('fondo-oscuro');
+const SOLO_TEXTO=params.get('solo-texto')==='1';
+const BASE=location.origin;
+let lastTs=0,lastFondoUrl='',lastTipo='';
+const wrap=document.getElementById('wrap');
+const content=document.getElementById('content');
+const fondoMedia=document.getElementById('fondo-media');
+const fondoOverlay=document.getElementById('fondo-overlay');
+const starfield=document.getElementById('starfield');
+function pad(n){return String(n).padStart(2,'0')}
+function fmt(s){const v=Math.max(0,Math.floor(s));return pad(Math.floor(v/60))+':'+pad(v%60)}
+function timerColor(s,fin){
+  if(fin)return'#10b981';
+  if(s<=30)return'#ef4444';
+  if(s<=60)return'#f59e0b';
+  return'#6366f1';
+}
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+let starfieldBuilt=false;
+function buildStarfield(){
+  if(starfieldBuilt)return;
+  starfieldBuilt=true;
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<90;i++){
+    const angle=(i/90)*360+(Math.random()-0.5)*4;
+    const rad=angle*Math.PI/180;
+    const dist=65+Math.random()*55;
+    const dx=(Math.cos(rad)*dist).toFixed(2);
+    const dy=(Math.sin(rad)*dist).toFixed(2);
+    const length=2+Math.random()*14;
+    const width=.6+Math.random()*1.1;
+    const dur=(0.8+Math.random()*1.6).toFixed(2);
+    const delay=(-(Math.random()*3)).toFixed(2);
+    const opacity=(0.35+Math.random()*0.55).toFixed(2);
+    const warm=Math.random()<0.12;
+    const color=warm?'255,210,170':'200,215,255';
+    const el=document.createElement('div');
+    el.className='streak';
+    el.style.cssText='width:'+length+'px;height:'+width+'px;'+
+      'margin-left:-'+(length/2)+'px;margin-top:-'+(width/2)+'px;'+
+      'background:rgba('+color+','+opacity+');'+
+      'box-shadow:0 0 '+(width*3)+'px rgba('+color+',.4);'+
+      'transform:rotate('+angle+'deg);'+
+      '--hdx:'+dx+'vw;--hdy:'+dy+'vh;--hop:'+opacity+';'+
+      'animation:_hyper '+dur+'s '+delay+'s linear infinite';
+    frag.appendChild(el);
+  }
+  starfield.appendChild(frag);
+}
+function toggleStarfield(show){
+  if(show){buildStarfield();starfield.classList.add('show');}
+  else{starfield.classList.remove('show');}
+}
+function actualizarFondo(fondo){
+  if(SOLO_TEXTO)return; // modo solo texto: fondo siempre transparente
+  const url=fondo?.url?BASE+fondo.url:'';
+  if(url===lastFondoUrl)return;
+  lastFondoUrl=url;
+  if(!url){
+    fondoMedia.innerHTML='';
+    fondoMedia.classList.remove('show');
+    fondoOverlay.classList.remove('show');
+    return;
+  }
+  if(fondo.tipo==='video'){
+    fondoMedia.innerHTML='<video src="'+url+'" autoplay loop muted playsinline></video>';
+  } else {
+    fondoMedia.innerHTML='<img src="'+url+'" alt="">';
+  }
+  fondoMedia.classList.add('show');
+  fondoOverlay.classList.add('show');
+}
+function render(d){
+  actualizarFondo(d.fondo||null);
+  toggleStarfield(d.tipo==='temporizador'&&!d.fondo&&!SOLO_TEXTO);
+  if(d.tipo==='vacio'||(!d.parrafo&&d.tipo!=='temporizador')){
+    wrap.classList.remove('show');return;
+  }
+  let html='';
+  if(d.tipo==='temporizador'){
+    const c=timerColor(d.segundos,d.terminado);
+    const total=Number(d.total)||0;
+    const progress=total>0?Math.max(0,Math.min(1,d.segundos/total)):0;
+    const R=100,CIRC=2*Math.PI*R;
+    const dashOffset=(CIRC*(1-progress)).toFixed(2);
+    const centro=d.terminado
+      ?'<span class="timer-ring-ya" style="color:'+c+'">¡Ya!</span>'
+      :'<span class="timer-ring-num">'+pad(Math.floor(d.segundos/60))+
+        '<span class="sep" style="color:'+c+'">:</span>'+pad(d.segundos%60)+'</span>'+
+       '<span class="timer-ring-label">'+(Math.floor(d.segundos/60)>0?'min : seg':'segundos')+'</span>';
+    html=(d.mensaje?'<div class="timer-msg">'+esc(d.mensaje)+'</div>':'')+
+      '<div class="timer-ring-wrap">'+
+        '<svg class="timer-ring-svg" viewBox="0 0 220 220" style="filter:drop-shadow(0 0 60px '+c+'80)">'+
+          '<circle cx="110" cy="110" r="'+R+'" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6"/>'+
+          '<circle cx="110" cy="110" r="'+R+'" fill="none" stroke="'+c+'" stroke-width="6" stroke-linecap="round" '+
+            'stroke-dasharray="'+CIRC.toFixed(2)+'" stroke-dashoffset="'+dashOffset+'" '+
+            'transform="rotate(-90 110 110)" style="transition:stroke-dashoffset 1s linear,stroke .5s ease"/>'+
+        '</svg>'+
+        '<div class="timer-ring-content">'+centro+'</div>'+
+      '</div>';
+  } else {
+    // Referencia ARRIBA, texto del versículo/himno debajo
+    const libro=d.titulo?'<span>'+esc(d.titulo)+'</span>':'';
+    const num=d.numero?'<span>'+esc(d.numero)+'</span>':'';
+    const sep=(libro&&num)?'<span class="ref-sep">·</span>':'';
+    const refHtml=(libro||num)?'<div class="ref">'+libro+sep+num+'</div>':'';
+    html=refHtml+'<div class="parrafo">'+esc(d.parrafo).replace(/\\n/g,'<br>')+'</div>';
+  }
+  content.innerHTML=html;
+  wrap.classList.add('show');
+}
+async function poll(){
+  try{
+    const r=await fetch(BASE+'/api/proyector/estado');
+    if(!r.ok)return;
+    const d=await r.json();
+    // Actualizar fondo siempre (puede cambiar sin cambiar el contenido)
+    actualizarFondo(d.fondo||null);
+    if(d.updatedAt!==lastTs){
+      lastTs=d.updatedAt;
+      // Los ticks del temporizador (mismo tipo, solo cambia el segundo) se
+      // actualizan en el lugar sin fade — si no, parpadea cada segundo.
+      const esTickTemporizador=d.tipo==='temporizador'&&lastTipo==='temporizador';
+      lastTipo=d.tipo;
+      if(esTickTemporizador){
+        render(d);
+      } else {
+        wrap.classList.remove('show');
+        setTimeout(()=>render(d),480);
+      }
+    }
+  }catch(e){}
+}
+setInterval(poll,800);poll();
+</script>
+</body>
+</html>`;
+}
+
 // ✨ CREAR SERVIDOR PARA ARCHIVOS MULTIMEDIA
 function iniciarServidorMultimedia() {
   return new Promise((resolve, reject) => {
@@ -1440,7 +1692,7 @@ function iniciarServidorMultimedia() {
           console.log('📤 [MAIN] (API) Enviando himno a proyector existente:', payload.titulo);
           proyectorWindow.webContents.send('mostrar-himno', payload);
         }
-
+        actualizarObs('himno', payload);
         return res.json({ ok: true });
       } catch (error) {
         console.error('❌ [MAIN] (API) Error proyectando himno:', error);
@@ -1458,6 +1710,7 @@ function iniciarServidorMultimedia() {
         }
         if (proyectorWindow && !proyectorWindow.isDestroyed()) {
           proyectorWindow.webContents.send('limpiar-proyector');
+          actualizarObs('vacio');
           return res.json({ ok: true });
         }
         return res.status(500).json({ ok: false, error: 'Ventana del proyector no disponible' });
@@ -2167,6 +2420,9 @@ function iniciarServidorMultimedia() {
         const fondos = await dbNew.obtenerFondos();
         const fondoActivo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo) || null;
 
+        // Sincronizar fondo para overlay OBS
+        sincronizarFondoObs(fondoActivo);
+
         // Notificar a todas las ventanas (incluye proyector)
         const todasLasVentanas = BrowserWindow.getAllWindows();
         todasLasVentanas.forEach((ventana) => {
@@ -2438,6 +2694,7 @@ function iniciarServidorMultimedia() {
           origen: 'anuncio',
           anuncio: { ...anuncio, plantilla: anuncio.plantilla || 'moderno' },
         });
+        actualizarObs('anuncio', {parrafo: anuncio.texto, titulo: anuncio.titulo || ''});
         return res.json({ ok: true });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message });
@@ -3018,6 +3275,23 @@ function iniciarServidorMultimedia() {
     });
 
     // 🏠 Ruta raíz para servir index.html
+    // ✅ Estado del proyector para overlay OBS
+    expressApp.get('/api/proyector/estado', (_req, res) => {
+      // El temporizador sin fondo propio usa el starfield del overlay, no el
+      // fondo general del proyector (que puede ser cualquier otra cosa).
+      const fondoParaObs = obsEstado.tipo === 'temporizador'
+        ? obsEstado.fondo
+        : (obsEstado.fondo || fondoActivoObs);
+      res.json({ ok: true, ...obsEstado, fondo: fondoParaObs });
+    });
+
+    // ✅ Página overlay para OBS Browser Source
+    // Uso: agregar como Browser Source en OBS apuntando a http://[IP]:3001/obs
+    expressApp.get('/obs', (_req, res) => {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(generarObsHtml());
+    });
+
     expressApp.get('/', (req, res) => {
       const buildDir = path.join(obtenerRutaRecursos(), "build");
       const indexPath = path.join(buildDir, 'index.html');
@@ -3038,6 +3312,7 @@ function iniciarServidorMultimedia() {
     const servidor = expressApp.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ [Servidor] Escuchando en 0.0.0.0:${PORT} (LAN + localhost)`);
       writeLog(`✅ [Servidor] Express escuchando en puerto ${PORT}`);
+      inicializarFondoObs();
       resolve(); // ✨ Resolver la promesa cuando el servidor esté listo
     });
 
@@ -3159,8 +3434,54 @@ const timerEstadoServidor = {
   mensaje: 'El culto comienza en',
   proyectando: false,
   terminado: false,
+  fondo: null, // {url, tipo} | null
 };
 let timerIntervalServidor = null;
+
+// ── Estado compartido para el overlay OBS ─────────────────────────────────
+// Se actualiza cada vez que el proyector muestra contenido nuevo.
+// GET /api/proyector/estado lo expone para que la página /obs pueda leerlo.
+const obsEstado = {
+  tipo: 'vacio', // 'vacio' | 'himno' | 'biblia' | 'anuncio' | 'temporizador'
+  parrafo: '', titulo: '', numero: '', origen: '',
+  segundos: 0, total: 0, mensaje: '', terminado: false,
+  fondo: null, // {url, tipo} | null — fondo específico del contenido actual (ej. temporizador)
+  updatedAt: Date.now(),
+};
+const actualizarObs = (tipo, datos = {}) => {
+  Object.assign(obsEstado, {
+    tipo,
+    parrafo: '', titulo: '', numero: '', origen: '',
+    segundos: 0, total: 0, mensaje: '', terminado: false,
+    fondo: null,
+    ...datos,
+    updatedAt: Date.now(),
+  });
+};
+
+// Fondo activo del proyector — se sincroniza con la BD y con cambios en tiempo real
+let fondoActivoObs = null; // { url: '/fondos/...', tipo: 'imagen'|'video' } o null
+const toFondoRelUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('/fondos/')) return url;
+  try { const u = new URL(url); if (u.pathname.startsWith('/fondos/')) return u.pathname; } catch {}
+  return null;
+};
+const inicializarFondoObs = async () => {
+  try {
+    const fondos = await dbNew.obtenerFondos();
+    const activo = (Array.isArray(fondos) ? fondos : []).find(f => f.activo);
+    if (activo?.url) {
+      const rel = toFondoRelUrl(activo.url) || (activo.url.startsWith('/') ? activo.url : null);
+      if (rel) fondoActivoObs = { url: rel, tipo: activo.tipo || 'imagen' };
+    }
+  } catch {}
+};
+const sincronizarFondoObs = (fondoRaw) => {
+  if (!fondoRaw?.url) { fondoActivoObs = null; return; }
+  const rel = toFondoRelUrl(fondoRaw.url) || (fondoRaw.url.startsWith('/') ? fondoRaw.url : null);
+  fondoActivoObs = rel ? { url: rel, tipo: fondoRaw.tipo || 'imagen' } : null;
+};
 
 const timerGetData = () => ({
   segundos: timerEstadoServidor.segundosRestantes,
@@ -3169,13 +3490,20 @@ const timerGetData = () => ({
   terminado: timerEstadoServidor.terminado,
   corriendo: timerEstadoServidor.corriendo,
   proyectando: timerEstadoServidor.proyectando,
+  fondo: timerEstadoServidor.fondo,
 });
 
 const timerEnviarAlProyector = () => {
   if (!timerEstadoServidor.proyectando) return;
+  const td = timerGetData();
   if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-    proyectorWindow.webContents.send('mostrar-temporizador', timerGetData());
+    proyectorWindow.webContents.send('mostrar-temporizador', td);
   }
+  actualizarObs('temporizador', {
+    segundos: td.segundos, total: td.total,
+    mensaje: td.mensaje, terminado: td.terminado,
+    fondo: td.fondo || null,
+  });
 };
 
 // Notifica al mainWindow (desktop UI) para que el componente Temporizador
@@ -3207,12 +3535,15 @@ const timerIniciarIntervalServidor = () => {
       timerEstadoServidor.corriendo = false;
       timerEstadoServidor.terminado = true;
       timerDetenerIntervalServidor();
+      timerEnviarAlProyector(); // muestra "¡Ya!" en el proyector
       timerNotificarDesktop();
       if (timerEstadoServidor.proyectando) {
         setTimeout(() => {
           timerEstadoServidor.proyectando = false;
+          actualizarObs('vacio');
           timerNotificarDesktop();
           if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+            // limpiarProyector() → modo BIENVENIDA (muestra ModernWelcomeScreen)
             proyectorWindow.webContents.send('mostrar-versiculo', {
               parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
             });
@@ -3231,12 +3562,7 @@ const timerEstaProyectando = () =>
 const timerRestaurarEnProyector = () => {
   if (!timerEstaProyectando()) return;
   if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-    proyectorWindow.webContents.send('mostrar-temporizador', {
-      segundos: timerEstadoServidor.segundosRestantes,
-      total: timerEstadoServidor.total,
-      mensaje: timerEstadoServidor.mensaje,
-      terminado: false,
-    });
+    proyectorWindow.webContents.send('mostrar-temporizador', timerGetData());
   }
 };
 
@@ -4524,6 +4850,9 @@ function registrarHandlers() {
             : fondoRaw.url
         } : null;
 
+        // Sincronizar fondo para overlay OBS
+        sincronizarFondoObs(fondoRaw);
+
         // Notificar a todas las ventanas sobre el cambio
         const todasLasVentanas = BrowserWindow.getAllWindows();
         todasLasVentanas.forEach(ventana => {
@@ -4858,6 +5187,7 @@ function registrarHandlers() {
       console.log("📤 [MAIN] Enviando himno a proyector existente:", himno.titulo);
       proyectorWindow.webContents.send("mostrar-himno", himno);
     }
+    actualizarObs('himno', {parrafo: himno.parrafo, titulo: himno.titulo, numero: himno.numero || '', origen: himno.origen || 'himno'});
   });
 
   // Cerrar el proyector
@@ -4907,6 +5237,14 @@ function registrarHandlers() {
   // Handler para notificar cambio de fondo activo
   ipcMain.on("fondo-activo-cambiado", (event, fondo) => {
     console.log("📡 [Main] Notificando cambio de fondo activo:", fondo);
+
+    // Sincronizar fondo para el overlay OBS
+    if (fondo?.url) {
+      const rel = toFondoRelUrl(fondo.url);
+      fondoActivoObs = rel ? { url: rel, tipo: fondo.tipo || 'imagen' } : null;
+    } else {
+      fondoActivoObs = null;
+    }
 
     // Enviar a proyector si existe
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
@@ -5303,6 +5641,12 @@ function registrarHandlers() {
       console.log("📤 [MAIN] Enviando versículo a proyector existente:", versiculo.titulo);
       proyectorWindow.webContents.send("mostrar-versiculo", versiculo);
     }
+    if (versiculo.origen !== 'clear') {
+      const tipo = versiculo.origen === 'anuncio' ? 'anuncio' : 'biblia';
+      actualizarObs(tipo, {parrafo: versiculo.parrafo, titulo: versiculo.titulo, numero: versiculo.numero || '', origen: versiculo.origen || ''});
+    } else {
+      actualizarObs('vacio');
+    }
   });
 
   // Temporizador dedicado — canal separado para evitar animaciones de himno
@@ -5676,6 +6020,7 @@ function registrarHandlers() {
     try {
       if (proyectorWindow && !proyectorWindow.isDestroyed()) {
         proyectorWindow.webContents.send("limpiar-proyector");
+        actualizarObs('vacio');
         console.log("✅ [MAIN] Proyector limpiado");
         return { success: true };
       }
@@ -5692,13 +6037,14 @@ function registrarHandlers() {
   // ====================================
   ipcMain.handle('timer-estado', () => ({ ...timerEstadoServidor }));
 
-  ipcMain.handle('timer-iniciar', (_, { minutos, mensaje } = {}) => {
+  ipcMain.handle('timer-iniciar', (_, { minutos, mensaje, fondo } = {}) => {
     if (minutos !== undefined) {
       const total = Math.max(1, Number(minutos)) * 60;
       timerEstadoServidor.total = total;
       timerEstadoServidor.segundosRestantes = total;
     }
     if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    if (fondo !== undefined) timerEstadoServidor.fondo = fondo || null;
     timerEstadoServidor.corriendo = true;
     timerEstadoServidor.terminado = false;
     timerIniciarIntervalServidor();
@@ -5726,13 +6072,14 @@ function registrarHandlers() {
     return timerGetData();
   });
 
-  ipcMain.handle('timer-proyectar', async (_, { minutos, mensaje } = {}) => {
+  ipcMain.handle('timer-proyectar', async (_, { minutos, mensaje, fondo } = {}) => {
     if (minutos !== undefined) {
       const total = Math.max(1, Number(minutos)) * 60;
       timerEstadoServidor.total = total;
       timerEstadoServidor.segundosRestantes = total;
     }
     if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    if (fondo !== undefined) timerEstadoServidor.fondo = fondo || null;
     timerEstadoServidor.proyectando = true;
     timerEstadoServidor.corriendo = true;
     timerEstadoServidor.terminado = false;
@@ -5751,6 +6098,7 @@ function registrarHandlers() {
     timerDetenerIntervalServidor();
     timerEstadoServidor.corriendo = false;
     timerEstadoServidor.proyectando = false;
+    actualizarObs('vacio');
     timerNotificarDesktop();
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send('mostrar-versiculo', {
@@ -5762,6 +6110,12 @@ function registrarHandlers() {
 
   ipcMain.handle('timer-set-mensaje', (_, { mensaje } = {}) => {
     if (mensaje !== undefined) timerEstadoServidor.mensaje = String(mensaje);
+    return timerGetData();
+  });
+
+  ipcMain.handle('timer-set-fondo', (_, { fondo } = {}) => {
+    timerEstadoServidor.fondo = fondo || null;
+    timerEnviarAlProyector();
     return timerGetData();
   });
 

@@ -857,6 +857,7 @@ const Proyector = () => {
                 total={timerData.total}
                 mensaje={timerData.mensaje}
                 terminado={timerData.terminado}
+                fondo={timerData.fondo ?? null}
               />
             </div>
           )}

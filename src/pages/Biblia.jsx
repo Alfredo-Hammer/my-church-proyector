@@ -8,10 +8,12 @@ import {
 } from "react-icons/io5";
 import {
   FaPlay,
+  FaStop,
   FaTimes,
   FaArrowLeft,
   FaArrowRight,
   FaBible,
+  FaBroadcastTower,
   FaBookOpen,
   FaStar,
   FaRegStar,
@@ -28,6 +30,7 @@ const Biblia = () => {
   const [capituloSeleccionado, setCapituloSeleccionado] = useState(null);
   const [versiculoSeleccionado, setVersiculoSeleccionado] = useState(null);
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
+  const [isProyectando, setIsProyectando] = useState(false);
 
   const [favoritosBibliaIds, setFavoritosBibliaIds] = useState(() => new Set());
 
@@ -164,35 +167,33 @@ const Biblia = () => {
 
   useEffect(() => {
     const manejarTeclas = (e) => {
-      if (mostrarDetalle) {
-        if (
-          e.key === "ArrowRight" &&
-          versiculoSeleccionado < versiculos.length
-        ) {
-          const nuevoVersiculo = versiculoSeleccionado + 1;
-          setVersiculoSeleccionado(nuevoVersiculo);
+      // Navegar versículos con flechas siempre que haya uno proyectado y el buscador esté cerrado
+      if (!versiculoSeleccionado || !versiculos.length || mostrarBuscador) return;
 
-          window.electron.enviarVersiculo({
-            parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
-            titulo: librosDeLaBiblia.antiguoTestamento
-              .concat(librosDeLaBiblia.nuevoTestamento)
-              .find((libro) => libro.id === libroSeleccionado)?.nombre,
-            numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
-            origen: "biblia",
-          });
-        } else if (e.key === "ArrowLeft" && versiculoSeleccionado > 1) {
-          const nuevoVersiculo = versiculoSeleccionado - 1;
-          setVersiculoSeleccionado(nuevoVersiculo);
-
-          window.electron.enviarVersiculo({
-            parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
-            titulo: librosDeLaBiblia.antiguoTestamento
-              .concat(librosDeLaBiblia.nuevoTestamento)
-              .find((libro) => libro.id === libroSeleccionado)?.nombre,
-            numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
-            origen: "biblia",
-          });
-        }
+      if (e.key === "ArrowRight" && versiculoSeleccionado < versiculos.length) {
+        const nuevoVersiculo = versiculoSeleccionado + 1;
+        setVersiculoSeleccionado(nuevoVersiculo);
+        setIsProyectando(true);
+        window.electron.enviarVersiculo({
+          parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
+          titulo: librosDeLaBiblia.antiguoTestamento
+            .concat(librosDeLaBiblia.nuevoTestamento)
+            .find((libro) => libro.id === libroSeleccionado)?.nombre,
+          numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
+          origen: "biblia",
+        });
+      } else if (e.key === "ArrowLeft" && versiculoSeleccionado > 1) {
+        const nuevoVersiculo = versiculoSeleccionado - 1;
+        setVersiculoSeleccionado(nuevoVersiculo);
+        setIsProyectando(true);
+        window.electron.enviarVersiculo({
+          parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
+          titulo: librosDeLaBiblia.antiguoTestamento
+            .concat(librosDeLaBiblia.nuevoTestamento)
+            .find((libro) => libro.id === libroSeleccionado)?.nombre,
+          numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
+          origen: "biblia",
+        });
       }
     };
 
@@ -201,7 +202,7 @@ const Biblia = () => {
       window.removeEventListener("keydown", manejarTeclas);
     };
   }, [
-    mostrarDetalle,
+    mostrarBuscador,
     versiculoSeleccionado,
     versiculos,
     libroSeleccionado,
@@ -248,6 +249,7 @@ const Biblia = () => {
   const manejarSeleccionarVersiculo = (versiculoIndex) => {
     const nuevoVersiculo = versiculoIndex + 1;
     setVersiculoSeleccionado(nuevoVersiculo);
+    setIsProyectando(true);
 
     window.electron.enviarVersiculo({
       parrafo: versiculos[nuevoVersiculo - 1] || "No disponible",
@@ -272,7 +274,18 @@ const Biblia = () => {
         numero: `${capituloSeleccionado}:${versiculoSeleccionado}`,
         origen: "biblia",
       });
+      setIsProyectando(true);
     }
+  };
+
+  const limpiarProyeccion = () => {
+    window.electron.enviarVersiculo({
+      parrafo: "",
+      titulo: "",
+      numero: "",
+      origen: "clear",
+    });
+    setIsProyectando(false);
   };
 
   // Función mejorada para búsqueda rápida
@@ -595,26 +608,24 @@ const Biblia = () => {
         e.preventDefault();
         setMostrarBuscador(true);
       }
-      // Escape para cerrar el buscador O limpiar proyección
+      // Escape: cerrar buscador primero; si no, detener proyección y cerrar detalle
       if (e.key === "Escape") {
         if (mostrarBuscador) {
           setMostrarBuscador(false);
           resetearBuscador();
-        } else if (mostrarDetalle) {
-          // Si está abierto el modal de detalle, solo cerrarlo
-          setMostrarDetalle(false);
         } else {
-          // Si no hay modales abiertos, limpiar la proyección
           window.electron.enviarVersiculo({
             parrafo: "",
             titulo: "",
             numero: "",
             origen: "clear",
           });
+          setIsProyectando(false);
+          setMostrarDetalle(false);
         }
       }
     },
-    [mostrarBuscador, mostrarDetalle],
+    [mostrarBuscador],
   );
 
   useEffect(() => {
@@ -656,24 +667,26 @@ const Biblia = () => {
               </kbd>
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                window.electron.enviarVersiculo({
-                  parrafo: "",
-                  titulo: "",
-                  numero: "",
-                  origen: "clear",
-                })
-              }
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-xs font-medium text-red-300 transition-colors"
-            >
-              <FaTimes className="text-xs" />
-              <span className="hidden sm:inline">Limpiar</span>
-              <kbd className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded hidden sm:inline">
-                Esc
-              </kbd>
-            </button>
+            {isProyectando ? (
+              <button
+                type="button"
+                onClick={limpiarProyeccion}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 rounded-lg text-xs font-medium text-red-300 hover:text-red-200 transition-colors"
+              >
+                <FaStop className="text-[10px]" />
+                <span className="hidden sm:inline">Detener</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={proyectarVersiculo}
+                disabled={!versiculoSeleccionado}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-600 border border-emerald-500/30 rounded-lg text-xs font-medium text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <FaBroadcastTower className="text-[10px]" />
+                <span className="hidden sm:inline">Proyectar</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -996,7 +1009,13 @@ const Biblia = () => {
             <div
               className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6"
               onClick={() => setMostrarDetalle(false)}
-              onKeyDown={(e) => e.key === "Escape" && setMostrarDetalle(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  window.electron.enviarVersiculo({parrafo: "", titulo: "", numero: "", origen: "clear"});
+                  setIsProyectando(false);
+                  setMostrarDetalle(false);
+                }
+              }}
               role="dialog"
               aria-label="Detalle del versículo"
             >
@@ -1020,16 +1039,12 @@ const Biblia = () => {
                       </h3>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={toggleFavoritoActual}
                       className={`size-8 rounded-lg border flex items-center justify-center transition-colors ${esFavoritoActual ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-slate-800 border-slate-700/60 text-slate-500 hover:text-amber-400"}`}
-                      title={
-                        esFavoritoActual
-                          ? "Quitar favorito"
-                          : "Agregar a favoritos"
-                      }
+                      title={esFavoritoActual ? "Quitar favorito" : "Agregar a favoritos"}
                     >
                       {esFavoritoActual ? (
                         <FaStar className="text-xs" />
@@ -1037,13 +1052,28 @@ const Biblia = () => {
                         <FaRegStar className="text-xs" />
                       )}
                     </button>
-                    <button
-                      type="button"
-                      onClick={proyectarVersiculo}
-                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
-                    >
-                      <FaPlay className="text-[9px]" /> Proyectar
-                    </button>
+
+                    {/* Proyectar / Detener */}
+                    {isProyectando ? (
+                      <button
+                        type="button"
+                        onClick={() => { limpiarProyeccion(); setMostrarDetalle(false); }}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-semibold transition-colors"
+                        title="Detener proyección (Esc)"
+                      >
+                        <FaStop className="text-[9px]" /> Detener
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={proyectarVersiculo}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
+                        title="Proyectar"
+                      >
+                        <FaBroadcastTower className="text-[9px]" /> Proyectar
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setMostrarDetalle(false)}
@@ -1124,21 +1154,6 @@ const Biblia = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                   >
                     <FaArrowLeft className="text-[9px]" /> Anterior
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.electron.enviarVersiculo({
-                        parrafo: "",
-                        titulo: "",
-                        numero: "",
-                        origen: "clear",
-                      });
-                      setMostrarDetalle(false);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs transition-colors"
-                  >
-                    <FaTimes className="text-[9px]" /> Limpiar
                   </button>
                   <span className="flex-1 text-center text-[11px] text-slate-600 tabular-nums">
                     {versiculoSeleccionado} / {versiculos.length}

@@ -12,8 +12,11 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
     if (!wrap || !el || !texto) return;
 
     const raf = requestAnimationFrame(() => {
-      const available = wrap.clientHeight;
-      if (available <= 0) return;
+      const rawAvail = wrap.clientHeight;
+      if (rawAvail <= 0) return;
+
+      // Margen de seguridad del 10% para evitar desbordamiento en el proyector
+      const available = rawAvail * 0.90;
 
       const maxPx = 120;
       const minPx = 16;

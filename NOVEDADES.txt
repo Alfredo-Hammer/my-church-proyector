@@ -1,3 +1,21 @@
+Version 0.3.1
+
+Nuevas funciones
+- Integracion con OBS: nueva pagina Servidor con overlay para OBS Studio
+  (Browser Source con fondo o solo texto, para superponer sobre camara)
+- El temporizador ahora se ve completo en OBS: anillo de progreso animado
+  y fondo de estrellas por defecto, igual que en el proyector
+
+Correcciones
+- Limpiar el proyector (desde la app movil o el boton de escritorio) ahora
+  tambien limpia correctamente el overlay de OBS
+- Corregido parpadeo del temporizador en OBS en cada segundo
+- Corregido error de sintaxis en la app movil que impedia compilarla
+- Corregido fondo incorrecto y centrado del temporizador en el overlay de OBS
+
+Mejoras generales
+- Ajustes de diseno en Sidebar, Biblia, Detalle de Himno, App Movil y Configuracion
+
 Version 0.3.0
 
 Nuevas funciones

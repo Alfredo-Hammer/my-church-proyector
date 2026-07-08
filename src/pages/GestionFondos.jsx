@@ -722,6 +722,13 @@ const GestionFondos = () => {
 
   // ✨ ELIMINAR FONDO CON CONFIRMACIÓN
   const confirmarEliminarFondo = (fondo) => {
+    if (esFondoActivo(fondo)) {
+      mostrarMensaje(
+        "Este fondo está activo. Quítalo de activo antes de poder eliminarlo.",
+        "error"
+      );
+      return;
+    }
     setFondoAEliminar(fondo);
     setModalOpen(true);
   };
@@ -1077,11 +1084,6 @@ const GestionFondos = () => {
                   <IoVideocam className="text-xs" /> Video
                 </div>
               )}
-              {fondo.es_defecto ? (
-                <div className="absolute top-2.5 right-2.5 bg-blue-600/70 backdrop-blur-sm text-white/90 px-2 py-0.5 rounded-full text-xs font-medium">
-                  Predeterminado
-                </div>
-              ) : null}
 
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200">
                 <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-1 group-hover:translate-y-0 transition-transform duration-200">

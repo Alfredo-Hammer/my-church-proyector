@@ -2052,8 +2052,9 @@ const Multimedia = () => {
   };
 
   const formatFileSize = (size) => {
-    if (typeof size === "string") return size;
-    return (size / 1024 / 1024).toFixed(2);
+    const bytes = Number(size);
+    if (!Number.isFinite(bytes)) return "0.00";
+    return (bytes / 1024 / 1024).toFixed(2);
   };
 
   const getMediaName = (media) =>
@@ -2081,7 +2082,7 @@ const Multimedia = () => {
   }
 
   const getMediaSize = (media) =>
-    media.size || formatFileSize(media.tamaño || 0);
+    formatFileSize(media.tamaño ?? media.size ?? 0);
 
   // Accesos rápidos: ítems de la DB que son URLs externas (YouTube u otras)
   const quickLinks = mediaFiles

@@ -25,7 +25,7 @@ files:
   - main.js
   - preload.js
   - db.js
-  - db-new.js
+  - ipc/**/*
   - assets/**/*
   - data/**/*
   - package.json

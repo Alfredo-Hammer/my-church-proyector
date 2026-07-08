@@ -30,6 +30,17 @@ final-build.log
 /data/*.db-shm
 /data/*.db-wal
 
+# Contenido subido por el usuario en runtime (no son assets del repo)
+/public/uploads/*
+/public/multimedia/*
+/public/fondos/*
+!/public/fondos/imagen1.jpg
+!/public/fondos/imagen2.png
+!/public/fondos/imagen3.jpg
+!/public/fondos/video1.mp4
+!/public/fondos/video2.mp4
+!/public/fondos/video4.mp4
+
 # Environment variables
 .env
 .env.local

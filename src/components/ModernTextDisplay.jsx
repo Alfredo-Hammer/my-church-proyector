@@ -1,5 +1,6 @@
 import {Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {AnimatePresence, LazyMotion, domAnimation, m} from "framer-motion";
+import {calcularEscalaFuente, CLASS_PX} from "../utils/pantallaScale";
 
 function parseLines(text) {
   if (!text) return [[""]];
@@ -25,18 +26,6 @@ const wordVariants = (stagger) => ({
   }),
 });
 
-const CLASS_PX = {
-  "text-3xl": 30,
-  "text-4xl": 36,
-  "text-5xl": 48,
-  "text-6xl": 60,
-  "text-7xl": 72,
-  "text-8xl": 96,
-  "text-9xl": 128,
-  "text-10xl": 160,
-  "text-11xl": 200,
-};
-
 const ModernTextDisplay = ({
   titulo,
   parrafo,
@@ -46,6 +35,7 @@ const ModernTextDisplay = ({
 }) => {
   const measureRef = useRef(null);
   const [fontSizePx, setFontSizePx] = useState(null);
+  const [tituloFontSizePx, setTituloFontSizePx] = useState(null);
 
   // ── Texto visible + clave de animación ──────────────────────────────────
   const [display, setDisplay] = useState({parrafo, titulo});
@@ -66,6 +56,10 @@ const ModernTextDisplay = ({
     () => configuracion?.fontSize?.parrafo || "text-9xl",
     [configuracion]
   );
+  const tamañoTitulo = useMemo(
+    () => configuracion?.fontSize?.titulo || "text-5xl",
+    [configuracion]
+  );
 
   // ── Auto-sizing basado en window.innerHeight (siempre preciso) ──────────
   //
@@ -74,6 +68,15 @@ const ModernTextDisplay = ({
   // leer clientHeight de un contenedor flex que puede estar en mitad de la
   // animación de fullscreen de macOS.
   const ajustar = () => {
+    const escala = calcularEscalaFuente();
+
+    // Título: sin auto-fit propio (el contenedor ya lo limita con
+    // max-h-[35%] + overflow-hidden), pero sí necesita la misma escala que
+    // el párrafo para no verse chico en pantallas de mayor resolución que
+    // la de referencia (1920×1080).
+    const tituloClass = configuracion?.fontSize?.titulo || "text-5xl";
+    setTituloFontSizePx((CLASS_PX[tituloClass] ?? 48) * escala);
+
     const measure = measureRef.current;
     if (!measure || !display.parrafo?.trim()) {
       setFontSizePx(null);
@@ -81,7 +84,7 @@ const ModernTextDisplay = ({
     }
 
     const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
-    const userMaxPx = CLASS_PX[configClass] ?? 128;
+    const userMaxPx = (CLASS_PX[configClass] ?? 128) * escala;
 
     // Altura disponible: viewport menos padding (py-[4vh] = 8vh total) con
     // 5% de margen extra. Si hay título visible, reservamos ~40% para él.
@@ -94,7 +97,7 @@ const ModernTextDisplay = ({
       return;
     }
 
-    const minPx = Math.max(24, Math.round(userMaxPx * 0.2));
+    const minPx = Math.max(24 * escala, Math.round(userMaxPx * 0.2));
     let lo = minPx, hi = userMaxPx, best = minPx;
     for (let i = 0; i < 32 && hi - lo > 0.3; i++) {
       const mid = (lo + hi) / 2;
@@ -109,7 +112,7 @@ const ModernTextDisplay = ({
   const ajustarRef = useRef(null);
   ajustarRef.current = ajustar;
 
-  useLayoutEffect(ajustar, [display.parrafo, display.titulo, mostrarTitulo, tamañoParrafo]);
+  useLayoutEffect(ajustar, [display.parrafo, display.titulo, mostrarTitulo, tamañoParrafo, tamañoTitulo]);
 
   // Recalcula cuando cambia el tamaño de ventana (incluyendo animación
   // de fullscreen en macOS que crece el viewport progresivamente)
@@ -166,8 +169,11 @@ const ModernTextDisplay = ({
               initial={{opacity: 0, y: -16, filter: "blur(5px)"}}
               animate={{opacity: 1, y: 0, filter: "blur(0px)", transition: {duration: 0.45, ease: "easeOut"}}}
               exit={{opacity: 0, y: -12, filter: "blur(5px)", transition: EXIT_TRANSITION}}
-              className={`${configuracion?.fontSize?.titulo || "text-5xl"} font-bold mb-[2vh] tracking-wide shrink-0 overflow-hidden break-words max-h-[35%]`}
-              style={{color: configuracion?.colorSecundario || "#ffffff"}}
+              className="font-bold mb-[2vh] tracking-wide shrink-0 overflow-hidden break-words max-h-[35%]"
+              style={{
+                color: configuracion?.colorSecundario || "#ffffff",
+                fontSize: tituloFontSizePx ? `${tituloFontSizePx}px` : undefined,
+              }}
             >
               {display.titulo}
             </m.h1>

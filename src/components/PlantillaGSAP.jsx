@@ -1,6 +1,7 @@
 import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {gsap} from "gsap";
 import {META_PLANTILLAS} from "./PlantillasConfig";
+import {calcularEscalaFuente} from "../utils/pantallaScale";
 
 // ── Auto-sizing: mide el área real del texto (flex-1), no el contenedor externo ─
 function useAutoFontSize(wrapRef, textRef, texto, titulo) {
@@ -18,8 +19,11 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
       // Margen de seguridad del 10% para evitar desbordamiento en el proyector
       const available = rawAvail * 0.90;
 
-      const maxPx = 120;
-      const minPx = 16;
+      // Escala vs. la resolución de referencia (1920×1080) — sin esto el
+      // texto se ve chico en pantallas de mayor resolución (ej. TV 4K).
+      const escala = calcularEscalaFuente();
+      const maxPx = 120 * escala;
+      const minPx = 16 * escala;
 
       // Probar tamaño máximo primero
       el.style.fontSize = `${maxPx}px`;

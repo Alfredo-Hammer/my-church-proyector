@@ -4,6 +4,7 @@ import {
   IoWarning, IoInformationCircle, IoEye, IoTrash,
 } from "react-icons/io5";
 import {FaVideo, FaUpload, FaTimes, FaChurch, FaPalette, FaFont} from "react-icons/fa";
+import {CLASS_PX} from "../utils/pantallaScale";
 
 const BASE_URL = "http://localhost:3001";
 
@@ -754,11 +755,7 @@ const Configuracion = () => {
                         style={{paddingBottom: "56.25%"}}>
                         <div className="absolute inset-0 flex items-center justify-center px-[4%] py-[4%]">
                           {(() => {
-                            const CLASS_PX_MAP = {
-                              "text-5xl": 48, "text-6xl": 60, "text-7xl": 72, "text-8xl": 96,
-                              "text-9xl": 128, "text-10xl": 160, "text-11xl": 200,
-                            };
-                            const maxPx = CLASS_PX_MAP[configuracion.fontSize.parrafo] || 128;
+                            const maxPx = CLASS_PX[configuracion.fontSize.parrafo] || 128;
                             const maxPxPreview = maxPx / 5;
                             const sampleLines = 4;
                             const avail = (window.innerHeight * 0.87) / 5;

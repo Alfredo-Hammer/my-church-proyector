@@ -1,8 +1,15 @@
 import {LazyMotion, domAnimation, m} from "framer-motion";
+import {calcularEscalaFuente, CLASS_PX} from "../utils/pantallaScale";
 
 // ✨ COMPONENTE DE PANTALLA DE BIENVENIDA MODERNA
 const ModernWelcomeScreen = ({configuracion}) => {
   const colorPrimario = configuracion?.colorPrimario || "#fb923c";
+  // Escala vs. la resolución de referencia (1920×1080) — sin esto el nombre
+  // de la iglesia y el eslogan se ven chicos en pantallas de mayor
+  // resolución (ej. TV 4K), igual que pasaba en ModernTextDisplay.
+  const escala = calcularEscalaFuente();
+  const tituloPx = (CLASS_PX[configuracion.fontSize.titulo] ?? 60) * escala;
+  const esloganPx = (CLASS_PX[configuracion.fontSize.eslogan] ?? 48) * escala;
 
   return (
     <LazyMotion features={domAnimation} strict>
@@ -41,8 +48,9 @@ const ModernWelcomeScreen = ({configuracion}) => {
         {/* Church name with modern typography - Solo si mostrarNombreIglesia está activo */}
         {configuracion.mostrarNombreIglesia !== false && (
           <h1
-            className={`${configuracion.fontSize.titulo} font-black mb-6 text-center max-w-6xl relative`}
+            className="font-black mb-6 text-center max-w-6xl relative"
             style={{
+              fontSize: `${tituloPx}px`,
               background: "none",
               backgroundColor: "transparent",
               filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))",
@@ -77,8 +85,9 @@ const ModernWelcomeScreen = ({configuracion}) => {
             className="backdrop-blur-md bg-white/10 rounded-2xl px-8 py-4 border border-white/20 shadow-2xl"
           >
             <p
-              className={`${configuracion.fontSize.eslogan} font-medium text-center`}
+              className="font-medium text-center"
               style={{
+                fontSize: `${esloganPx}px`,
                 color: configuracion.colorSecundario,
                 textShadow: "0 2px 10px rgba(0,0,0,0.5)",
               }}

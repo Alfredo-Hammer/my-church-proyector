@@ -102,9 +102,10 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
 ### Base de datos
 
 - Motor: **better-sqlite3** (síncrono, sin pool de conexiones).
-- Esquema principal en `db.js`; tablas nuevas en `db-new.js`.
+- Todo el esquema y las queries viven en `db.js` (archivo único; `db-new.js` se eliminó en la consolidación de julio 2026).
 - **Todas las queries deben usar parámetros (`?`)** — nunca concatenar strings con datos del usuario.
-- Tablas principales: `himnos`, `multimedia`, `presentaciones`, `presentaciones_slides`, `fondos`, `configuracion`.
+- Tablas principales: `himnos`, `multimedia`, `fondos`, `configuracion`, `ordenes_servicio`, `anuncios`.
+- `presentaciones`/`presentaciones_slides` fueron eliminadas del código en julio 2026 (feature completa removida, ver `PresentationManager.jsx` en el historial de git). Las tablas pueden seguir existiendo en instalaciones productivas viejas, pero ya no se crean ni se usan.
 
 ### Servidor Express
 
@@ -132,10 +133,16 @@ iniciarServidorMultimedia(); // demasiado tarde
 
 ```
 my-church-proyector/
-├── main.js                  # Proceso principal Electron (~5400 líneas)
+├── main.js                  # Proceso principal Electron (~5000 líneas, en proceso de modularización)
 ├── preload.js               # Bridge IPC seguro (~380 líneas)
-├── db.js                    # Schema SQLite principal
-├── db-new.js                # Schema extendido (multimedia, slides, fondos)
+├── db.js                    # Schema SQLite + toda la capa de datos (archivo único)
+├── ipc/                     # Handlers IPC extraídos de main.js, por dominio (en progreso)
+│   ├── himnos.js             # CRUD de himnos (agregar/obtener/actualizar/eliminar/favoritos)
+│   ├── fondos.js             # CRUD de fondos + selección/importación de archivos
+│   ├── multimedia.js         # Multimedia activa, CRUD, subida/procesamiento de archivos
+│   ├── biblia.js             # Consulta/preview de versículos bíblicos
+│   └── shared/
+│       └── uploadValidation.js  # Validación de uploads (tamaño/extensión/magic number), usada por multimedia y por handlers aún en main.js (logo, presentaciones)
 ├── electron-builder.yml     # Configuración de build y empaquetado
 ├── assets/
 │   └── entitlements.mac.plist  # Permisos macOS (hardenedRuntime)
@@ -151,14 +158,12 @@ my-church-proyector/
 │   │   ├── Configuracion.jsx
 │   │   └── Favoritos.jsx
 │   ├── components/
-│   │   ├── PresentationManager.jsx  # Gestor de presentaciones (~104KB)
 │   │   ├── GlobalMediaPlayer.jsx    # Reproductor global de audio/video
 │   │   ├── ModernMultimediaRenderer.jsx
 │   │   └── Sidebar.jsx / Header.jsx
 │   ├── contexts/
 │   │   └── MediaPlayerContext.jsx   # Estado global del reproductor
 │   ├── utils/
-│   │   ├── powerPointProcessor.js   # Conversión PPTX → imágenes
 │   │   ├── bibliaParser.jsx / bibliaReader.jsx
 │   │   └── consoleSilencer.js
 │   └── data/
@@ -181,7 +186,8 @@ my-church-proyector/
 - Al agregar un nuevo canal IPC:
   1. Crear el método nombrado en `preload.js` (e.g. `miNuevaFuncion: () => ipcRenderer.invoke('mi-canal')`).
   2. Si necesita estar en el `send` o `invoke` genérico, agregarlo a su whitelist correspondiente.
-  3. Registrar el handler en `main.js` con `ipcMain.handle()`.
+  3. Registrar el handler en el módulo de dominio correspondiente bajo `ipc/` (e.g. `ipc/himnos.js`), no directamente en `main.js`. Si el dominio no tiene módulo todavía, crear uno nuevo siguiendo el patrón de `ipc/himnos.js` (exporta una función `registrar()` autosuficiente) y agregar `require("./ipc/<dominio>").registrar();` dentro de `registrarHandlers()` en `main.js`.
+  4. Si el archivo nuevo vive en una carpeta nueva dentro de `ipc/`, confirmar que `electron-builder.yml` la incluye en `files:` (ya cubierto por el patrón `ipc/**/*`).
 
 ### executeJavaScript
 - **Nunca** interpolar variables de usuario directamente en template literals de `executeJavaScript()`.
@@ -229,7 +235,7 @@ my-church-proyector/
 // 1. En preload.js — método nombrado
 miNuevaFuncion: (datos) => ipcRenderer.invoke('mi-nueva-funcion', datos),
 
-// 2. En main.js — handler
+// 2. En ipc/<dominio>.js — handler (no directamente en main.js)
 ipcMain.handle('mi-nueva-funcion', async (event, datos) => {
   try {
     // validar datos antes de usarlos

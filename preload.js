@@ -122,42 +122,8 @@ contextBridge.exposeInMainWorld("electron", {
   eliminarHimno: (id) => ipcRenderer.invoke("eliminar-himno", id),
 
   // ====================================
-  // APIs DE PRESENTACIONES
-  // ====================================
-  agregarPresentacion: (presentacion) => ipcRenderer.invoke("agregar-presentacion", presentacion),
-  obtenerPresentaciones: () => ipcRenderer.invoke("obtener-presentaciones"),
-  editarPresentacion: (presentacion) => ipcRenderer.invoke("editar-presentacion", presentacion),
-  eliminarPresentacion: (id) => ipcRenderer.invoke("eliminar-presentacion", id),
-
-  // ====================================
-  // APIs DE PRESENTACIONES SLIDES - NUEVAS
-  // ====================================
-  obtenerPresentacionesSlides: () => ipcRenderer.invoke("obtener-presentaciones-slides"),
-  obtenerPresentacionSlidesPorId: (id) => ipcRenderer.invoke("obtener-presentacion-slides-por-id", id),
-  agregarPresentacionSlides: (presentacionData) => ipcRenderer.invoke("agregar-presentacion-slides", presentacionData),
-  actualizarPresentacionSlides: (presentacionData) => ipcRenderer.invoke("actualizar-presentacion-slides", presentacionData),
-  eliminarPresentacionSlides: (id) => ipcRenderer.invoke("eliminar-presentacion-slides", id),
-  duplicarPresentacionSlides: (id) => ipcRenderer.invoke("duplicar-presentacion-slides", id),
-  actualizarFavoritoPresentacionSlides: (id, favorito) => ipcRenderer.invoke("actualizar-favorito-presentacion-slides", id, favorito),
-  actualizarSlideActualPresentacion: (id, slideIndex) => ipcRenderer.invoke("actualizar-slide-actual-presentacion", id, slideIndex),
-  exportarPresentacionSlides: (id) => ipcRenderer.invoke("exportar-presentacion-slides", id),
-  importarPresentacionSlides: (datosImportar, nombreArchivo) => ipcRenderer.invoke("importar-presentacion-slides", datosImportar, nombreArchivo),
-  obtenerEstadisticasPresentacionesSlides: () => ipcRenderer.invoke("obtener-estadisticas-presentaciones-slides"),
-
-  // ====================================
-  // PowerPoint -> Imágenes (preserva diseño)
-  // ====================================
-  convertirPptxAImagenes: (sourcePath) =>
-    ipcRenderer.invoke("convertir-pptx-a-imagenes", sourcePath),
-
-  convertirPptxBufferAImagenes: (fileName, data) =>
-    ipcRenderer.invoke("convertir-pptx-buffer-a-imagenes", { fileName, data }),
-
-  // ====================================
   // APIs DEL PROYECTOR - NUEVAS
   // ====================================
-  proyectarSlide: (slideData) => ipcRenderer.invoke("proyectar-slide", slideData),
-  limpiarProyectorSlides: () => ipcRenderer.invoke("limpiar-proyector"),
   abrirProyector: () => ipcRenderer.invoke("abrir-proyector"),
 
   // Canales permitidos para invoke genérico (fallback usado por renderer)
@@ -327,18 +293,8 @@ contextBridge.exposeInMainWorld("electron", {
   onFondoActivoCambiado: (callback) => ipcRenderer.on("actualizar-fondo-activo", (event, fondo) => callback(fondo)),
   removeFondoActivoListener: () => ipcRenderer.removeAllListeners("actualizar-fondo-activo"),
 
-  // Funciones de archivos para presentaciones
-  subirArchivoPresentacion: (formData) => ipcRenderer.invoke("subir-archivo-presentacion", formData),
-  obtenerArchivosPresentacion: (presentacionId) => ipcRenderer.invoke("obtener-archivos-presentacion", presentacionId),
-  eliminarArchivoPresentacion: (archivoId) => ipcRenderer.invoke("eliminar-archivo-presentacion", archivoId),
-
   // Abrir enlace externo
   abrirEnlaceExterno: (url) => ipcRenderer.invoke('abrir-enlace-externo', url),
-
-  // ✨ FUNCIONES PARA PROYECCIÓN DE PRESENTACIONES
-  enviarPresentacionAlProyector: (presentacionData) => ipcRenderer.invoke('enviar-presentacion-al-proyector', presentacionData),
-  cambiarSlideProyector: (datos) => ipcRenderer.invoke('cambiar-slide-proyector', datos),
-  detenerPresentacionProyector: () => ipcRenderer.invoke('detener-presentacion-proyector'),
 
   // ✨ IPC RENDERER PARA ESCUCHAR EVENTOS DEL PROYECTOR
   ipcRenderer: {

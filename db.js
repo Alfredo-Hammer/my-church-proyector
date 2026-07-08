@@ -31,19 +31,15 @@ db.prepare(`
   )
 `).run();
 
-// Crear tabla 'presentaciones' si no existe
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS presentaciones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    titulo TEXT NOT NULL,
-    descripcion TEXT,
-    fecha TEXT NOT NULL,
-    hora TEXT NOT NULL,
-    lugar TEXT,
-    responsable TEXT,
-    estado TEXT NOT NULL
-  )
-`).run();
+// Migración: agregar columnas de himnos que no forman parte del esquema original
+// (antes vivía en db-new.js, portado aquí en la consolidación de julio 2026)
+for (const sql of [
+  "ALTER TABLE himnos ADD COLUMN autor TEXT",
+  "ALTER TABLE himnos ADD COLUMN categoria TEXT",
+  "ALTER TABLE himnos ADD COLUMN fuente TEXT DEFAULT 'personal'",
+]) {
+  try { db.prepare(sql).run(); } catch (error) { /* columna ya existe */ }
+}
 
 // Crear tabla 'configuracion' si no existe
 db.prepare(`
@@ -94,12 +90,12 @@ if (!tablaFondosExiste) {
 // Valores por defecto de configuración
 const configuracionPorDefecto = {
   nombreIglesia: {
-    valor: "Casa de Dios",
+    valor: "GloryView",
     tipo: "string",
     descripcion: "Nombre de la iglesia u organización"
   },
   eslogan: {
-    valor: "Bienvenidos a la Casa de Dios",
+    valor: "Bienvenidos",
     tipo: "string",
     descripcion: "Eslogan o mensaje de bienvenida"
   },
@@ -128,10 +124,25 @@ const configuracionPorDefecto = {
     tipo: "string",
     descripcion: "Sitio web de la iglesia"
   },
+  sitioWeb: {
+    valor: "",
+    tipo: "string",
+    descripcion: "Sitio web de la iglesia"
+  },
+  horarioCultos: {
+    valor: "",
+    tipo: "string",
+    descripcion: "Horarios de cultos"
+  },
   logo: {
     valor: "/logo.jpg",
     tipo: "string",
     descripcion: "Ruta del logo de la iglesia"
+  },
+  logoUrl: {
+    valor: "/images/icon-256.png",
+    tipo: "string",
+    descripcion: "URL del logo de la iglesia"
   },
   colorPrimario: {
     valor: "#ffffff",
@@ -224,145 +235,11 @@ function insertarConfiguracionPorDefecto() {
   }
 }
 
-// Obtener toda la configuración
-function obtenerConfiguracion() {
+// Obtener valor específico de configuración (portado de db-new.js — única versión usada en producción)
+function obtenerConfiguracion(clave) {
   try {
-    const stmt = db.prepare('SELECT clave, valor, tipo FROM configuracion');
-    const rows = stmt.all();
-
-    const config = {};
-    rows.forEach(row => {
-      switch (row.tipo) {
-        case 'json':
-          config[row.clave] = JSON.parse(row.valor);
-          break;
-        case 'number':
-          config[row.clave] = parseInt(row.valor);
-          break;
-        case 'boolean':
-          config[row.clave] = row.valor === 'true';
-          break;
-        default:
-          config[row.clave] = row.valor;
-      }
-    });
-
-    // Convertir fontSize de formato plano a objeto
-    const fontSize = {
-      titulo: config.fontSizeTitulo || "text-5xl",
-      parrafo: config.fontSizeParrafo || "text-6xl",
-      eslogan: config.fontSizeEslogan || "text-2xl"
-    };
-
-    return {
-      nombreIglesia: config.nombreIglesia,
-      eslogan: config.eslogan,
-      pastor: config.pastor,
-      direccion: config.direccion,
-      telefono: config.telefono,
-      email: config.email,
-      website: config.website,
-      logo: config.logo,
-      colorPrimario: config.colorPrimario,
-      colorSecundario: config.colorSecundario,
-      fontSize,
-      videosFondo: config.videosFondo,
-      intervaloCambioVideo: config.intervaloCambioVideo,
-      // ✨ NUEVOS CAMPOS DE VISIBILIDAD
-      mostrarLogo: config.mostrarLogo !== undefined ? config.mostrarLogo : true,
-      mostrarNombreIglesia: config.mostrarNombreIglesia !== undefined ? config.mostrarNombreIglesia : true,
-      mostrarEslogan: config.mostrarEslogan !== undefined ? config.mostrarEslogan : true,
-      // Plantillas GSAP
-      plantillaGsapActiva: config.plantillaGsapActiva || "ninguna",
-      plantillaGsapColor1: config.plantillaGsapColor1 || "#e2e8f0",
-      plantillaGsapColor2: config.plantillaGsapColor2 || "#0f172a",
-      plantillaGsapColorAcc: config.plantillaGsapColorAcc || "#34d399",
-      plantillaGsapVelocidad: config.plantillaGsapVelocidad || "media",
-    };
-  } catch (error) {
-    console.error('Error obteniendo configuración:', error);
-    return null;
-  }
-}
-
-// Guardar configuración
-function guardarConfiguracion(configuracion) {
-  try {
-    console.log('💾 [DB] Guardando configuración:', JSON.stringify(configuracion, null, 2));
-
-    // Validar que configuracion tiene los datos necesarios
-    if (!configuracion) {
-      throw new Error('Configuración es null o undefined');
-    }
-
-    if (!configuracion.fontSize) {
-      console.warn('⚠️ [DB] fontSize no está definido, usando valores por defecto');
-      configuracion.fontSize = {
-        titulo: 'text-5xl',
-        parrafo: 'text-6xl',
-        eslogan: 'text-2xl'
-      };
-    }
-
-    // ✨ Usar INSERT con ON CONFLICT para actualizar si existe o insertar si no existe
-    const stmt = db.prepare(`
-      INSERT INTO configuracion (clave, valor, tipo, descripcion, fecha_actualizacion)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(clave) DO UPDATE SET 
-        valor = excluded.valor,
-        fecha_actualizacion = CURRENT_TIMESTAMP
-    `);
-
-    // Mapear objeto de configuración a claves individuales con sus tipos
-    const updates = [
-      ['nombreIglesia', configuracion.nombreIglesia || '', 'string', 'Nombre de la iglesia'],
-      ['eslogan', configuracion.eslogan || '', 'string', 'Eslogan o mensaje de bienvenida'],
-      ['pastor', configuracion.pastor || '', 'string', 'Nombre del pastor'],
-      ['direccion', configuracion.direccion || '', 'string', 'Dirección'],
-      ['telefono', configuracion.telefono || '', 'string', 'Teléfono'],
-      ['email', configuracion.email || '', 'string', 'Email'],
-      ['website', configuracion.website || '', 'string', 'Website'],
-      ['logo', configuracion.logo || '', 'string', 'Logo'],
-      ['colorPrimario', configuracion.colorPrimario || '#ffffff', 'string', 'Color primario'],
-      ['colorSecundario', configuracion.colorSecundario || '#d1d5db', 'string', 'Color secundario'],
-      ['fontSizeTitulo', configuracion.fontSize.titulo || 'text-5xl', 'string', 'Tamaño de fuente título'],
-      ['fontSizeParrafo', configuracion.fontSize.parrafo || 'text-6xl', 'string', 'Tamaño de fuente párrafo'],
-      ['fontSizeEslogan', configuracion.fontSize.eslogan || 'text-2xl', 'string', 'Tamaño de fuente eslogan'],
-      ['videosFondo', JSON.stringify(configuracion.videosFondo || []), 'json', 'Videos de fondo'],
-      ['intervaloCambioVideo', (configuracion.intervaloCambioVideo || 120).toString(), 'number', 'Intervalo cambio video'],
-      // ✨ NUEVOS CAMPOS DE VISIBILIDAD
-      ['mostrarLogo', configuracion.mostrarLogo !== undefined ? configuracion.mostrarLogo.toString() : 'true', 'boolean', 'Mostrar logo en proyector'],
-      ['mostrarNombreIglesia', configuracion.mostrarNombreIglesia !== undefined ? configuracion.mostrarNombreIglesia.toString() : 'true', 'boolean', 'Mostrar nombre de iglesia'],
-      ['mostrarEslogan', configuracion.mostrarEslogan !== undefined ? configuracion.mostrarEslogan.toString() : 'true', 'boolean', 'Mostrar eslogan']
-    ];
-
-    let successCount = 0;
-    for (const [clave, valor, tipo, descripcion] of updates) {
-      try {
-        stmt.run(clave, valor, tipo, descripcion);
-        successCount++;
-      } catch (updateError) {
-        console.error(`❌ [DB] Error actualizando clave "${clave}":`, updateError.message);
-        throw updateError;
-      }
-    }
-
-    console.log(`✅ [DB] Configuración guardada exitosamente (${successCount}/${updates.length} campos)`);
-    return true;
-  } catch (error) {
-    console.error('Error guardando configuración:', error);
-    return false;
-  }
-}
-
-// Obtener valor específico de configuración
-function obtenerConfiguracionPorClave(clave) {
-  try {
-    const stmt = db.prepare('SELECT valor, tipo FROM configuracion WHERE clave = ?');
-    const row = stmt.get(clave);
-
+    const row = db.prepare('SELECT valor, tipo FROM configuracion WHERE clave = ?').get(clave);
     if (!row) return null;
-
     switch (row.tipo) {
       case 'json':
         return JSON.parse(row.valor);
@@ -374,55 +251,55 @@ function obtenerConfiguracionPorClave(clave) {
         return row.valor;
     }
   } catch (error) {
-    console.error('Error obteniendo configuración por clave:', error);
+    console.error('Error al obtener configuración:', error);
     return null;
   }
 }
 
 // Actualizar valor específico (UPSERT — inserta si no existe, actualiza si existe)
-function actualizarConfiguracionPorClave(clave, valor) {
+function actualizarConfiguracion(clave, valor) {
   try {
-    const stmt = db.prepare(`
-      INSERT INTO configuracion (clave, valor, tipo, descripcion, fecha_actualizacion)
-      VALUES (?, ?, 'string', '', CURRENT_TIMESTAMP)
+    const valorFinal =
+      valor === null || valor === undefined
+        ? ""
+        : typeof valor === "string"
+          ? valor
+          : typeof valor === "number" || typeof valor === "boolean"
+            ? String(valor)
+            : JSON.stringify(valor);
+
+    const result = db.prepare(`
+      INSERT INTO configuracion (clave, valor, fecha_actualizacion)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(clave) DO UPDATE SET
         valor = excluded.valor,
         fecha_actualizacion = CURRENT_TIMESTAMP
-    `);
+    `).run(clave, valorFinal);
 
-    let valorFormateado = valor;
-    if (typeof valor === 'object') {
-      valorFormateado = JSON.stringify(valor);
-    } else if (typeof valor === 'number') {
-      valorFormateado = valor.toString();
-    } else if (typeof valor === 'boolean') {
-      valorFormateado = valor.toString();
-    }
-
-    stmt.run(clave, valorFormateado); // orden: clave, valor
-    return true;
+    return result.changes > 0;
   } catch (error) {
-    console.error('Error actualizando configuración:', error);
+    console.error('Error al actualizar configuración:', error);
     return false;
   }
 }
 
-// Restaurar configuración por defecto
-function restaurarConfiguracionPorDefecto() {
+// Restaurar configuración a valores por defecto
+function restaurarConfiguracionDefecto() {
   try {
-    const stmt = db.prepare(`
-      UPDATE configuracion 
-      SET valor = ?, fecha_actualizacion = CURRENT_TIMESTAMP 
-      WHERE clave = ?
-    `);
+    console.log('🔄 [DB] Restaurando configuración a valores por defecto...');
+    db.prepare('DELETE FROM configuracion').run();
 
+    const stmt = db.prepare(
+      'INSERT INTO configuracion (clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?)'
+    );
     for (const [clave, config] of Object.entries(configuracionPorDefecto)) {
-      stmt.run(config.valor, clave);
+      stmt.run(clave, config.valor, config.tipo, config.descripcion);
     }
 
+    console.log('✅ [DB] Configuración restaurada con valores por defecto');
     return true;
   } catch (error) {
-    console.error('Error restaurando configuración:', error);
+    console.error('❌ [DB] Error al restaurar configuración:', error);
     return false;
   }
 }
@@ -431,75 +308,92 @@ function restaurarConfiguracionPorDefecto() {
 insertarConfiguracionPorDefecto();
 
 // ====================================
-// FUNCIONES EXISTENTES DE HIMNOS
+// FUNCIONES DE HIMNOS
 // ====================================
 
-// Agregar nuevo himno
-function agregarHimno(numero, titulo, letra, favorito = false) {
-  if (!numero || !titulo || !letra) {
-    throw new Error("Todos los campos (numero, titulo, letra) son obligatorios.");
-  }
-
-  const stmt = db.prepare(`
-    INSERT INTO himnos (numero, titulo, letra, favorito)
-    VALUES (?, ?, ?, ?)
-  `);
-  stmt.run(numero, titulo, JSON.stringify(letra), favorito ? 1 : 0);
-}
-
-// Obtener todos los himnos
+// Obtener todos los himnos (portado de db-new.js — única versión usada en producción)
 function obtenerHimnos() {
-  const stmt = db.prepare("SELECT * FROM himnos ORDER BY numero");
-  const rows = stmt.all();
-  return rows.map(row => ({
-    ...row,
-    letra: JSON.parse(row.letra),
-    favorito: Boolean(row.favorito),
-  }));
+  try {
+    return db.prepare('SELECT * FROM himnos ORDER BY numero ASC').all();
+  } catch (error) {
+    console.error('Error al obtener himnos:', error);
+    return [];
+  }
 }
 
-// Obtener himnos favoritos
-function obtenerFavoritos() {
-  const stmt = db.prepare("SELECT * FROM himnos WHERE favorito = 1 ORDER BY numero");
-  const rows = stmt.all();
-  return rows.map((row) => ({
-    ...row,
-    letra: JSON.parse(row.letra),
-    favorito: Boolean(row.favorito),
-  }));
+// Obtener un himno por ID
+function obtenerHimnoPorId(id) {
+  try {
+    return db.prepare('SELECT * FROM himnos WHERE id = ?').get(id) || null;
+  } catch (error) {
+    console.error('Error al obtener himno por ID:', error);
+    return null;
+  }
 }
 
-// Actualizar himno completo
-function actualizarHimno({ id, numero, titulo, letra, favorito }) {
-  const stmt = db.prepare(`
-    UPDATE himnos
-    SET numero = ?, titulo = ?, letra = ?, favorito = ?
-    WHERE id = ?
-  `);
-  stmt.run(numero, titulo, JSON.stringify(letra), favorito ? 1 : 0, id);
+// Buscar himnos por texto
+function buscarHimnos(termino) {
+  try {
+    const query = `
+      SELECT * FROM himnos
+      WHERE titulo LIKE ? OR letra LIKE ? OR numero LIKE ?
+      ORDER BY numero ASC
+    `;
+    const params = [`%${termino}%`, `%${termino}%`, `%${termino}%`];
+    return db.prepare(query).all(...params);
+  } catch (error) {
+    console.error('Error al buscar himnos:', error);
+    return [];
+  }
 }
 
-// Eliminar himno por ID
+// Crear un himno (nota: `letra` se guarda tal cual, sin JSON.stringify interno —
+// el stringify/parse ya ocurre en la capa de main.js)
+function crearHimno(himno) {
+  try {
+    const result = db.prepare(
+      'INSERT INTO himnos (numero, titulo, letra, autor, categoria, favorito, fuente) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0, himno.fuente || 'personal');
+    return Number(result.lastInsertRowid);
+  } catch (error) {
+    console.error('Error al crear himno:', error);
+    throw error;
+  }
+}
+
+// Actualizar un himno
+function actualizarHimno(id, himno) {
+  try {
+    const result = db.prepare(
+      'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, autor = ?, categoria = ?, favorito = ?, fuente = ? WHERE id = ?'
+    ).run(himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, himno.fuente || 'personal', id);
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al actualizar himno:', error);
+    return false;
+  }
+}
+
+// Eliminar un himno
 function eliminarHimno(id) {
-  const stmt = db.prepare("DELETE FROM himnos WHERE id = ?");
-  stmt.run(id);
+  try {
+    const result = db.prepare('DELETE FROM himnos WHERE id = ?').run(id);
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al eliminar himno:', error);
+    return false;
+  }
 }
 
-function agregarFavorito(id) {
-  const stmt = db.prepare("UPDATE himnos SET favorito = 1 WHERE id = ? AND favorito = 0");
-  stmt.run(id);
-}
-
-// Marcar o desmarcar como favorito
-function actualizarFavorito(id, favorito) {
-  const stmt = db.prepare("UPDATE himnos SET favorito = ? WHERE id = ?");
-  stmt.run(favorito ? 1 : 0, id);
-}
-
-//Eliminar himno por ID de favoritos
-function eliminarFavorito(id) {
-  const stmt = db.prepare("DELETE FROM himnos WHERE id = ?");
-  stmt.run(id);
+// Marcar/desmarcar favorito (rápido, sin actualizar todo el himno)
+function actualizarFavoritoHimno(id, favorito) {
+  try {
+    const result = db.prepare('UPDATE himnos SET favorito = ? WHERE id = ?').run(favorito ? 1 : 0, id);
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al actualizar favorito de himno:', error);
+    return false;
+  }
 }
 
 // ====================================
@@ -591,7 +485,10 @@ function obtenerFondos() {
     if (nombresColumnas.has('es_defecto')) selectFields += ", es_defecto";
     if (nombresColumnas.has('created_at')) selectFields += ", created_at";
 
-    const query = `SELECT ${selectFields} FROM fondos ORDER BY id DESC`;
+    // activo DESC, id ASC (no id DESC): GestionFondos.jsx asume que el ÚLTIMO
+    // elemento del array es el fondo recién agregado (para auto-activarlo tras
+    // descargar de Pixabay) — ver plan de consolidación de DB.
+    const query = `SELECT ${selectFields} FROM fondos ORDER BY activo DESC, id ASC`;
     console.log("📋 [DB] Query fondos:", query);
 
     const stmt = db.prepare(query);
@@ -695,9 +592,15 @@ function eliminarFondo(id) {
     console.log("🗑️ [DB] Eliminando fondo:", id);
 
     // Proteger fondos por defecto
-    const fondo = db.prepare("SELECT es_defecto FROM fondos WHERE id = ?").get(id);
+    const fondo = db.prepare("SELECT es_defecto, activo FROM fondos WHERE id = ?").get(id);
     if (fondo && fondo.es_defecto === 1) {
       console.warn("⚠️ [DB] Intento de eliminar fondo por defecto bloqueado, id:", id);
+      return false;
+    }
+
+    // Proteger fondo activo — el usuario debe quitarlo de activo antes de poder eliminarlo
+    if (fondo && fondo.activo === 1) {
+      console.warn("⚠️ [DB] Intento de eliminar fondo activo bloqueado, id:", id);
       return false;
     }
 
@@ -709,6 +612,43 @@ function eliminarFondo(id) {
 
   } catch (error) {
     console.error("❌ [DB] Error eliminando fondo:", error);
+    return false;
+  }
+}
+
+// Actualizar un fondo (parcial — solo los campos presentes; portado de db-new.js,
+// única implementación de update parcial de fondos)
+function actualizarFondo(fondoData) {
+  try {
+    if (!fondoData || !fondoData.id) {
+      throw new Error('ID del fondo es requerido');
+    }
+
+    const fields = [];
+    const params = [];
+
+    if (fondoData.url !== undefined) {
+      fields.push('url = ?');
+      params.push(fondoData.url);
+    }
+    if (fondoData.tipo !== undefined) {
+      fields.push('tipo = ?');
+      params.push(fondoData.tipo);
+    }
+    if (fondoData.activo !== undefined) {
+      fields.push('activo = ?');
+      params.push(fondoData.activo ? 1 : 0);
+    }
+
+    if (fields.length === 0) {
+      return false;
+    }
+
+    params.push(fondoData.id);
+    const result = db.prepare(`UPDATE fondos SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+    return result.changes > 0;
+  } catch (error) {
+    console.error('Error al actualizar fondo:', error);
     return false;
   }
 }
@@ -1058,415 +998,6 @@ function limpiarMultimediaActiva() {
     return false;
   }
 }
-
-// ✨ FUNCIÓN PARA MIGRAR TABLA PRESENTACIONES
-function migrarTablaPresentaciones() {
-  try {
-    console.log("🔧 [DB] Verificando estructura de tabla presentaciones...");
-
-    // Verificar si la tabla existe
-    const tablaExiste = db.prepare(`
-      SELECT name FROM sqlite_master 
-      WHERE type='table' AND name='presentaciones'
-    `).get();
-
-    if (!tablaExiste) {
-      // Crear tabla nueva con estructura completa
-      console.log("📋 [DB] Creando tabla presentaciones nueva...");
-      const createTable = db.prepare(`
-        CREATE TABLE presentaciones (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          titulo TEXT NOT NULL,
-          descripcion TEXT,
-          fecha TEXT NOT NULL,
-          hora TEXT NOT NULL,
-          lugar TEXT,
-          responsable TEXT,
-          estado TEXT NOT NULL DEFAULT 'Programado',
-          categoria TEXT DEFAULT 'Culto',
-          duracion TEXT,
-          notas TEXT,
-          archivos TEXT DEFAULT '[]',
-          tags TEXT DEFAULT '[]',
-          recordatorios TEXT DEFAULT '[]',
-          recursos_necesarios TEXT,
-          presupuesto INTEGER DEFAULT 0,
-          asistentes_esperados INTEGER DEFAULT 0,
-          es_publico INTEGER DEFAULT 1,
-          requiere_inscripcion INTEGER DEFAULT 0,
-          color_tema TEXT DEFAULT '#3B82F6',
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      createTable.run();
-      console.log("✅ [DB] Tabla presentaciones creada con estructura completa");
-      return;
-    }
-
-    // Verificar columnas existentes
-    const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-    console.log("📋 [DB] Columnas existentes en presentaciones:", nombresColumnas);
-
-    // Agregar columnas faltantes
-    const columnasRequeridas = [
-      { nombre: 'categoria', tipo: 'TEXT DEFAULT "Culto"' },
-      { nombre: 'duracion', tipo: 'TEXT' },
-      { nombre: 'notas', tipo: 'TEXT' },
-      { nombre: 'archivos', tipo: 'TEXT DEFAULT "[]"' },
-      { nombre: 'tags', tipo: 'TEXT DEFAULT "[]"' },
-      { nombre: 'recordatorios', tipo: 'TEXT DEFAULT "[]"' },
-      { nombre: 'recursos_necesarios', tipo: 'TEXT' },
-      { nombre: 'presupuesto', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'asistentes_esperados', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'es_publico', tipo: 'INTEGER DEFAULT 1' },
-      { nombre: 'requiere_inscripcion', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'color_tema', tipo: 'TEXT DEFAULT "#3B82F6"' },
-      { nombre: 'created_at', tipo: 'DATETIME' }, // ✨ Sin DEFAULT en ALTER TABLE
-      { nombre: 'updated_at', tipo: 'DATETIME' }  // ✨ Sin DEFAULT en ALTER TABLE
-    ];
-
-    for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.has(columna.nombre)) {
-        console.log(`➕ [DB] Agregando columna: ${columna.nombre}`);
-        try {
-          const alterTable = db.prepare(`
-            ALTER TABLE presentaciones 
-            ADD COLUMN ${columna.nombre} ${columna.tipo}
-          `);
-          alterTable.run();
-          console.log(`✅ [DB] Columna ${columna.nombre} agregada`);
-        } catch (error) {
-          console.error(`❌ [DB] Error agregando columna ${columna.nombre}:`, error);
-        }
-      }
-    }
-
-    // Verificar estructura final
-    const columnasFinales = db.prepare("PRAGMA table_info(presentaciones)").all();
-    console.log("✅ [DB] Estructura final de tabla presentaciones:", columnasFinales);
-
-  } catch (error) {
-    console.error("❌ [DB] Error migrando tabla presentaciones:", error);
-  }
-}
-
-// Agregar una nueva presentación - VERSIÓN CORREGIDA
-function agregarPresentacion(presentacionData) {
-  try {
-    console.log("💾 [DB] Agregando presentación:", presentacionData);
-
-    // Verificar columnas disponibles para compatibilidad
-    const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-
-    // Si las nuevas columnas no existen, usar la versión antigua
-    if (!nombresColumnas.has('categoria')) {
-      console.log("📋 [DB] Usando estructura antigua de presentaciones");
-      const stmt = db.prepare(`
-        INSERT INTO presentaciones (titulo, descripcion, fecha, hora, lugar, responsable, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      const info = stmt.run(
-        presentacionData.titulo,
-        presentacionData.descripcion || '',
-        presentacionData.fecha,
-        presentacionData.hora,
-        presentacionData.lugar || '',
-        presentacionData.responsable || '',
-        presentacionData.estado || 'Programado'
-      );
-      return { success: true, id: info.lastInsertRowid };
-    }
-
-    // Usar estructura completa si las columnas existen
-    const stmt = db.prepare(`
-      INSERT INTO presentaciones (
-        titulo, descripcion, fecha, hora, lugar, responsable, estado,
-        categoria, duracion, notas, archivos, tags, recordatorios,
-        recursos_necesarios, presupuesto, asistentes_esperados,
-        es_publico, requiere_inscripcion, color_tema
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const info = stmt.run(
-      presentacionData.titulo,
-      presentacionData.descripcion || '',
-      presentacionData.fecha,
-      presentacionData.hora,
-      presentacionData.lugar || '',
-      presentacionData.responsable || '',
-      presentacionData.estado || 'Programado',
-      presentacionData.categoria || 'Culto',
-      presentacionData.duracion || '',
-      presentacionData.notas || '',
-      JSON.stringify(presentacionData.archivos || []),
-      JSON.stringify(presentacionData.tags || []),
-      JSON.stringify(presentacionData.recordatorios || []),
-      presentacionData.recursos_necesarios || '',
-      presentacionData.presupuesto || 0,
-      presentacionData.asistentes_esperados || 0,
-      presentacionData.es_publico ? 1 : 0,
-      presentacionData.requiere_inscripcion ? 1 : 0,
-      presentacionData.color_tema || '#3B82F6'
-    );
-
-    console.log("✅ [DB] Presentación agregada con ID:", info.lastInsertRowid);
-    return { success: true, id: info.lastInsertRowid };
-
-  } catch (error) {
-    console.error("❌ [DB] Error agregando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Obtener todas las presentaciones - VERSIÓN CORREGIDA
-function obtenerPresentaciones() {
-  try {
-    console.log("📋 [DB] Obteniendo presentaciones...");
-
-    // Verificar columnas disponibles
-    const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-
-    // Construir query según columnas disponibles
-    let selectFields = "id, titulo, descripcion, fecha, hora, lugar, responsable, estado";
-
-    const columnasOpcionales = [
-      'categoria', 'duracion', 'notas', 'archivos', 'tags', 'recordatorios',
-      'recursos_necesarios', 'presupuesto', 'asistentes_esperados',
-      'es_publico', 'requiere_inscripcion', 'color_tema', 'created_at', 'updated_at'
-    ];
-
-    for (const columna of columnasOpcionales) {
-      if (nombresColumnas.has(columna)) {
-        selectFields += `, ${columna}`;
-      }
-    }
-
-    const query = `SELECT ${selectFields} FROM presentaciones ORDER BY fecha DESC, hora DESC`;
-    const stmt = db.prepare(query);
-    const presentaciones = stmt.all();
-
-    // Normalizar presentaciones
-    const presentacionesNormalizadas = presentaciones.map(p => ({
-      id: p.id,
-      titulo: p.titulo,
-      descripcion: p.descripcion || '',
-      fecha: p.fecha,
-      hora: p.hora,
-      lugar: p.lugar || '',
-      responsable: p.responsable || '',
-      estado: p.estado || 'Programado',
-      categoria: p.categoria || 'Culto',
-      duracion: p.duracion || '',
-      notas: p.notas || '',
-      archivos: p.archivos ? JSON.parse(p.archivos) : [],
-      tags: p.tags ? JSON.parse(p.tags) : [],
-      recordatorios: p.recordatorios ? JSON.parse(p.recordatorios) : [],
-      recursos_necesarios: p.recursos_necesarios || '',
-      presupuesto: p.presupuesto || 0,
-      asistentes_esperados: p.asistentes_esperados || 0,
-      es_publico: p.es_publico !== undefined ? Boolean(p.es_publico) : true,
-      requiere_inscripcion: p.requiere_inscripcion !== undefined ? Boolean(p.requiere_inscripcion) : false,
-      color_tema: p.color_tema || '#3B82F6',
-      created_at: p.created_at || null,
-      updated_at: p.updated_at || null
-    }));
-
-    console.log("✅ [DB] Presentaciones obtenidas:", presentacionesNormalizadas.length);
-    return presentacionesNormalizadas;
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo presentaciones:", error);
-    return [];
-  }
-}
-
-// Editar una presentación - VERSIÓN CORREGIDA
-function editarPresentacion(presentacionData) {
-  try {
-    console.log("✏️ [DB] Editando presentación:", presentacionData);
-
-    // Verificar columnas disponibles para compatibilidad
-    const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-
-    // Si las nuevas columnas no existen, usar la versión antigua
-    if (!nombresColumnas.has('categoria')) {
-      console.log("📋 [DB] Usando estructura antigua para edición");
-      const stmt = db.prepare(`
-        UPDATE presentaciones SET 
-          titulo = ?, descripcion = ?, fecha = ?, hora = ?, lugar = ?, 
-          responsable = ?, estado = ?
-        WHERE id = ?
-      `);
-      const info = stmt.run(
-        presentacionData.titulo,
-        presentacionData.descripcion || '',
-        presentacionData.fecha,
-        presentacionData.hora,
-        presentacionData.lugar || '',
-        presentacionData.responsable || '',
-        presentacionData.estado || 'Programado',
-        presentacionData.id
-      );
-      return { success: true, changes: info.changes };
-    }
-
-    // Usar estructura completa si las columnas existen
-    const stmt = db.prepare(`
-      UPDATE presentaciones SET 
-        titulo = ?, descripcion = ?, fecha = ?, hora = ?, lugar = ?, 
-        responsable = ?, estado = ?, categoria = ?, duracion = ?, 
-        notas = ?, archivos = ?, tags = ?, recordatorios = ?,
-        recursos_necesarios = ?, presupuesto = ?, asistentes_esperados = ?,
-        es_publico = ?, requiere_inscripcion = ?, color_tema = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-
-    const info = stmt.run(
-      presentacionData.titulo,
-      presentacionData.descripcion || '',
-      presentacionData.fecha,
-      presentacionData.hora,
-      presentacionData.lugar || '',
-      presentacionData.responsable || '',
-      presentacionData.estado || 'Programado',
-      presentacionData.categoria || 'Culto',
-      presentacionData.duracion || '',
-      presentacionData.notas || '',
-      JSON.stringify(presentacionData.archivos || []),
-      JSON.stringify(presentacionData.tags || []),
-      JSON.stringify(presentacionData.recordatorios || []),
-      presentacionData.recursos_necesarios || '',
-      presentacionData.presupuesto || 0,
-      presentacionData.asistentes_esperados || 0,
-      presentacionData.es_publico ? 1 : 0,
-      presentacionData.requiere_inscripcion ? 1 : 0,
-      presentacionData.color_tema || '#3B82F6',
-      presentacionData.id
-    );
-
-    console.log("✅ [DB] Presentación editada, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error editando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Eliminar una presentación por ID - VERSIÓN CORREGIDA
-function eliminarPresentacion(id) {
-  try {
-    console.log("🗑️ [DB] Eliminando presentación:", id);
-
-    const stmt = db.prepare("DELETE FROM presentaciones WHERE id = ?");
-    const info = stmt.run(id);
-
-    console.log("✅ [DB] Presentación eliminada, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error eliminando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Obtener presentación por ID
-function obtenerPresentacionPorId(id) {
-  try {
-    console.log("🔍 [DB] Obteniendo presentación por ID:", id);
-
-    // Verificar columnas disponibles
-    const columnas = db.prepare("PRAGMA table_info(presentaciones)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-
-    // Construir query según columnas disponibles
-    let selectFields = "id, titulo, descripcion, fecha, hora, lugar, responsable, estado";
-
-    const columnasOpcionales = [
-      'categoria', 'duracion', 'notas', 'archivos', 'tags', 'recordatorios',
-      'recursos_necesarios', 'presupuesto', 'asistentes_esperados',
-      'es_publico', 'requiere_inscripcion', 'color_tema', 'created_at', 'updated_at'
-    ];
-
-    for (const columna of columnasOpcionales) {
-      if (nombresColumnas.has(columna)) {
-        selectFields += `, ${columna}`;
-      }
-    }
-
-    const query = `SELECT ${selectFields} FROM presentaciones WHERE id = ?`;
-    const stmt = db.prepare(query);
-    const presentacion = stmt.get(id);
-
-    if (presentacion) {
-      // Normalizar presentación
-      const presentacionNormalizada = {
-        id: presentacion.id,
-        titulo: presentacion.titulo,
-        descripcion: presentacion.descripcion || '',
-        fecha: presentacion.fecha,
-        hora: presentacion.hora,
-        lugar: presentacion.lugar || '',
-        responsable: presentacion.responsable || '',
-        estado: presentacion.estado || 'Programado',
-        categoria: presentacion.categoria || 'Culto',
-        duracion: presentacion.duracion || '',
-        notas: presentacion.notas || '',
-        archivos: presentacion.archivos ? JSON.parse(presentacion.archivos) : [],
-        tags: presentacion.tags ? JSON.parse(presentacion.tags) : [],
-        recordatorios: presentacion.recordatorios ? JSON.parse(presentacion.recordatorios) : [],
-        recursos_necesarios: presentacion.recursos_necesarios || '',
-        presupuesto: presentacion.presupuesto || 0,
-        asistentes_esperados: presentacion.asistentes_esperados || 0,
-        es_publico: presentacion.es_publico !== undefined ? Boolean(presentacion.es_publico) : true,
-        requiere_inscripcion: presentacion.requiere_inscripcion !== undefined ? Boolean(presentacion.requiere_inscripcion) : false,
-        color_tema: presentacion.color_tema || '#3B82F6',
-        created_at: presentacion.created_at || null,
-        updated_at: presentacion.updated_at || null
-      };
-
-      console.log("✅ [DB] Presentación encontrada:", presentacionNormalizada);
-      return presentacionNormalizada;
-    } else {
-      console.log("ℹ️ [DB] Presentación no encontrada");
-      return null;
-    }
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo presentación por ID:", error);
-    return null;
-  }
-}
-
-// Función para exportar presentación (placeholder para implementación futura)
-function exportarPresentacion(id) {
-  try {
-    console.log("📤 [DB] Exportando presentación:", id);
-
-    const presentacion = obtenerPresentacionPorId(id);
-    if (!presentacion) {
-      return { success: false, error: "Presentación no encontrada" };
-    }
-
-    // Aquí implementarías la lógica de exportación
-    // Por ahora retornamos éxito como placeholder
-    return { success: true, data: presentacion };
-
-  } catch (error) {
-    console.error("❌ [DB] Error exportando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// ✨ EJECUTAR MIGRACIÓN AL INICIALIZAR
-console.log("🔧 [DB] Iniciando migración de tabla presentaciones...");
-migrarTablaPresentaciones();
 
 // ==================================================
 // Helpers Multimedia (URLs / YouTube)
@@ -2136,507 +1667,6 @@ function verificarArchivoDuplicado(nombre, tamaño, tipo) {
 }
 
 // ====================================
-// FUNCIONES DE PRESENTACIONES DE DIAPOSITIVAS - NUEVAS
-// ====================================
-
-// ✨ FUNCIÓN PARA MIGRAR TABLA PRESENTACIONES_SLIDES
-function migrarTablaPresentacionesSlides() {
-  try {
-    console.log("🔧 [DB] Verificando estructura de tabla presentaciones_slides...");
-
-    // Verificar si la tabla existe
-    const tablaExiste = db.prepare(`
-      SELECT name FROM sqlite_master 
-      WHERE type = 'table' AND name = 'presentaciones_slides'
-        `).get();
-
-    if (!tablaExiste) {
-      // Crear tabla nueva con estructura completa
-      console.log("📋 [DB] Creando tabla presentaciones_slides nueva...");
-      const createTable = db.prepare(`
-        CREATE TABLE presentaciones_slides(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          nombre TEXT NOT NULL,
-          descripcion TEXT,
-          slides TEXT NOT NULL,
-          importado_desde TEXT,
-          tipo_archivo TEXT DEFAULT 'custom',
-          tamano_archivo INTEGER DEFAULT 0,
-          total_slides INTEGER DEFAULT 0,
-          slide_actual INTEGER DEFAULT 0,
-          configuracion TEXT DEFAULT '{}',
-          tags TEXT DEFAULT '[]',
-          favorito INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      createTable.run();
-      console.log("✅ [DB] Tabla presentaciones_slides creada con estructura completa");
-      return;
-    }
-
-    // Verificar columnas existentes
-    const columnas = db.prepare("PRAGMA table_info(presentaciones_slides)").all();
-    const nombresColumnas = new Set(columnas.map(col => col.name));
-    console.log("📋 [DB] Columnas existentes en presentaciones_slides:", Array.from(nombresColumnas));
-
-    // Agregar columnas faltantes si es necesario
-    const columnasRequeridas = [
-      { nombre: 'descripcion', tipo: 'TEXT' },
-      { nombre: 'importado_desde', tipo: 'TEXT' },
-      { nombre: 'tipo_archivo', tipo: 'TEXT DEFAULT "custom"' },
-      { nombre: 'tamano_archivo', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'total_slides', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'slide_actual', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'configuracion', tipo: 'TEXT DEFAULT "{}"' },
-      { nombre: 'tags', tipo: 'TEXT DEFAULT "[]"' },
-      { nombre: 'favorito', tipo: 'INTEGER DEFAULT 0' },
-      { nombre: 'created_at', tipo: 'DATETIME' }, // ✨ Sin DEFAULT en ALTER TABLE
-      { nombre: 'updated_at', tipo: 'DATETIME' }  // ✨ Sin DEFAULT en ALTER TABLE
-    ];
-
-    for (const columna of columnasRequeridas) {
-      if (!nombresColumnas.has(columna.nombre)) {
-        console.log(`➕[DB] Agregando columna: ${columna.nombre} `);
-        try {
-          const alterTable = db.prepare(`
-            ALTER TABLE presentaciones_slides 
-            ADD COLUMN ${columna.nombre} ${columna.tipo}
-      `);
-          alterTable.run();
-          console.log(`✅[DB] Columna ${columna.nombre} agregada`);
-        } catch (error) {
-          console.error(`❌[DB] Error agregando columna ${columna.nombre}: `, error);
-        }
-      }
-    }
-
-    console.log("✅ [DB] Migración de tabla presentaciones_slides completada");
-
-  } catch (error) {
-    console.error("❌ [DB] Error migrando tabla presentaciones_slides:", error);
-  }
-}
-
-// Agregar nueva presentación de diapositivas
-function agregarPresentacionSlides(presentacionData) {
-  try {
-    console.log("💾 [DB] Agregando presentación de diapositivas:", presentacionData.nombre);
-
-    // Validar datos requeridos
-    if (!presentacionData.nombre || !presentacionData.slides) {
-      throw new Error("Nombre y slides son requeridos");
-    }
-
-    // Calcular total de slides
-    const slides = Array.isArray(presentacionData.slides)
-      ? presentacionData.slides
-      : JSON.parse(presentacionData.slides);
-
-    const totalSlides = slides.length;
-
-    const stmt = db.prepare(`
-      INSERT INTO presentaciones_slides(
-        nombre, descripcion, slides, importado_desde, tipo_archivo,
-        tamano_archivo, total_slides, slide_actual, configuracion,
-        tags, favorito
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-    const info = stmt.run(
-      presentacionData.nombre,
-      presentacionData.descripcion || '',
-      JSON.stringify(slides),
-      presentacionData.importado_desde || null,
-      presentacionData.tipo_archivo || 'custom',
-      presentacionData.tamano_archivo || 0,
-      totalSlides,
-      0, // slide_actual por defecto
-      JSON.stringify(presentacionData.configuracion || {}),
-      JSON.stringify(presentacionData.tags || []),
-      presentacionData.favorito ? 1 : 0
-    );
-
-    console.log("✅ [DB] Presentación de diapositivas agregada con ID:", info.lastInsertRowid);
-    return {
-      success: true,
-      id: info.lastInsertRowid,
-      totalSlides: totalSlides
-    };
-
-  } catch (error) {
-    console.error("❌ [DB] Error agregando presentación de diapositivas:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Obtener todas las presentaciones de diapositivas
-function obtenerPresentacionesSlides() {
-  try {
-    console.log("📋 [DB] Obteniendo presentaciones de diapositivas...");
-
-    const stmt = db.prepare(`
-      SELECT * FROM presentaciones_slides 
-      ORDER BY updated_at DESC, created_at DESC
-        `);
-    const presentaciones = stmt.all();
-
-    // Normalizar datos
-    const presentacionesNormalizadas = presentaciones.map(p => ({
-      id: p.id,
-      nombre: p.nombre || 'Sin nombre',
-      descripcion: p.descripcion || '',
-      slides: p.slides ? JSON.parse(p.slides) : [],
-      importado_desde: p.importado_desde || null,
-      tipo_archivo: p.tipo_archivo || 'custom',
-      tamano_archivo: p.tamano_archivo || 0,
-      total_slides: p.total_slides || 0,
-      slide_actual: p.slide_actual || 0,
-      configuracion: p.configuracion ? JSON.parse(p.configuracion) : {},
-      tags: p.tags ? JSON.parse(p.tags) : [],
-      favorito: Boolean(p.favorito),
-      created_at: p.created_at,
-      updated_at: p.updated_at
-    }));
-
-    console.log("✅ [DB] Presentaciones de diapositivas obtenidas:", presentacionesNormalizadas.length);
-    return presentacionesNormalizadas;
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo presentaciones de diapositivas:", error);
-    return [];
-  }
-}
-
-// Obtener presentación de diapositivas por ID
-function obtenerPresentacionSlidesPorId(id) {
-  try {
-    console.log("🔍 [DB] Obteniendo presentación de diapositivas por ID:", id);
-
-    const stmt = db.prepare(`
-      SELECT * FROM presentaciones_slides WHERE id = ?
-        `);
-    const presentacion = stmt.get(id);
-
-    if (presentacion) {
-      const presentacionNormalizada = {
-        id: presentacion.id,
-        nombre: presentacion.nombre || 'Sin nombre',
-        descripcion: presentacion.descripcion || '',
-        slides: presentacion.slides ? JSON.parse(presentacion.slides) : [],
-        importado_desde: presentacion.importado_desde || null,
-        tipo_archivo: presentacion.tipo_archivo || 'custom',
-        tamano_archivo: presentacion.tamano_archivo || 0,
-        total_slides: presentacion.total_slides || 0,
-        slide_actual: presentacion.slide_actual || 0,
-        configuracion: presentacion.configuracion ? JSON.parse(presentacion.configuracion) : {},
-        tags: presentacion.tags ? JSON.parse(presentacion.tags) : [],
-        favorito: Boolean(presentacion.favorito),
-        created_at: presentacion.created_at,
-        updated_at: presentacion.updated_at
-      };
-
-      console.log("✅ [DB] Presentación de diapositivas encontrada");
-      return presentacionNormalizada;
-    } else {
-      console.log("ℹ️ [DB] Presentación de diapositivas no encontrada");
-      return null;
-    }
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo presentación de diapositivas por ID:", error);
-    return null;
-  }
-}
-
-// Actualizar presentación de diapositivas
-function actualizarPresentacionSlides(presentacionData) {
-  try {
-    console.log("✏️ [DB] Actualizando presentación de diapositivas:", presentacionData.id);
-
-    // Validar datos requeridos
-    if (!presentacionData.id) {
-      throw new Error("ID de presentación es requerido");
-    }
-
-    // Calcular total de slides si se proporcionan nuevas slides
-    let totalSlides = presentacionData.total_slides;
-    if (presentacionData.slides) {
-      const slides = Array.isArray(presentacionData.slides)
-        ? presentacionData.slides
-        : JSON.parse(presentacionData.slides);
-      totalSlides = slides.length;
-    }
-
-    const stmt = db.prepare(`
-      UPDATE presentaciones_slides SET
-      nombre = ?, descripcion = ?, slides = ?, importado_desde = ?,
-        tipo_archivo = ?, tamano_archivo = ?, total_slides = ?,
-        slide_actual = ?, configuracion = ?, tags = ?, favorito = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-        `);
-
-    // Obtener presentación actual para mantener datos existentes
-    const presentacionActual = obtenerPresentacionSlidesPorId(presentacionData.id);
-    if (!presentacionActual) {
-      throw new Error("Presentación no encontrada");
-    }
-
-    const info = stmt.run(
-      presentacionData.nombre || presentacionActual.nombre,
-      presentacionData.descripcion !== undefined ? presentacionData.descripcion : presentacionActual.descripcion,
-      presentacionData.slides ? JSON.stringify(presentacionData.slides) : JSON.stringify(presentacionActual.slides),
-      presentacionData.importado_desde !== undefined ? presentacionData.importado_desde : presentacionActual.importado_desde,
-      presentacionData.tipo_archivo || presentacionActual.tipo_archivo,
-      presentacionData.tamano_archivo !== undefined ? presentacionData.tamano_archivo : presentacionActual.tamano_archivo,
-      totalSlides !== undefined ? totalSlides : presentacionActual.total_slides,
-      presentacionData.slide_actual !== undefined ? presentacionData.slide_actual : presentacionActual.slide_actual,
-      presentacionData.configuracion ? JSON.stringify(presentacionData.configuracion) : JSON.stringify(presentacionActual.configuracion),
-      presentacionData.tags ? JSON.stringify(presentacionData.tags) : JSON.stringify(presentacionActual.tags),
-      presentacionData.favorito !== undefined ? (presentacionData.favorito ? 1 : 0) : (presentacionActual.favorito ? 1 : 0),
-      presentacionData.id
-    );
-
-    console.log("✅ [DB] Presentación de diapositivas actualizada, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error actualizando presentación de diapositivas:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Eliminar presentación de diapositivas
-function eliminarPresentacionSlides(id) {
-  try {
-    console.log("🗑️ [DB] Eliminando presentación de diapositivas:", id);
-
-    const stmt = db.prepare("DELETE FROM presentaciones_slides WHERE id = ?");
-    const info = stmt.run(id);
-
-    console.log("✅ [DB] Presentación de diapositivas eliminada, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error eliminando presentación de diapositivas:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Duplicar presentación de diapositivas
-function duplicarPresentacionSlides(id) {
-  try {
-    console.log("📋 [DB] Duplicando presentación de diapositivas:", id);
-
-    // Obtener presentación original
-    const original = obtenerPresentacionSlidesPorId(id);
-    if (!original) {
-      throw new Error("Presentación original no encontrada");
-    }
-
-    // Crear copia con nuevo nombre
-    const nombreCopia = `${original.nombre} (Copia)`;
-    const datosClonados = {
-      nombre: nombreCopia,
-      descripcion: original.descripcion,
-      slides: original.slides,
-      importado_desde: original.importado_desde,
-      tipo_archivo: original.tipo_archivo,
-      tamano_archivo: original.tamano_archivo,
-      configuracion: original.configuracion,
-      tags: original.tags,
-      favorito: false // Las copias no son favoritas por defecto
-    };
-
-    const resultado = agregarPresentacionSlides(datosClonados);
-
-    if (resultado.success) {
-      console.log("✅ [DB] Presentación de diapositivas duplicada con ID:", resultado.id);
-    }
-
-    return resultado;
-
-  } catch (error) {
-    console.error("❌ [DB] Error duplicando presentación de diapositivas:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Marcar/desmarcar presentación como favorita
-function actualizarFavoritoPresentacionSlides(id, favorito) {
-  try {
-    console.log("⭐ [DB] Actualizando favorito presentación diapositivas:", { id, favorito });
-
-    const stmt = db.prepare(`
-      UPDATE presentaciones_slides 
-      SET favorito = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-        `);
-    const info = stmt.run(favorito ? 1 : 0, id);
-
-    console.log("✅ [DB] Favorito actualizado, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error actualizando favorito:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Obtener presentaciones favoritas
-function obtenerPresentacionesSlidesFavoritas() {
-  try {
-    console.log("⭐ [DB] Obteniendo presentaciones de diapositivas favoritas...");
-
-    const presentaciones = obtenerPresentacionesSlides();
-    const favoritas = presentaciones.filter(p => p.favorito);
-
-    console.log("✅ [DB] Presentaciones favoritas obtenidas:", favoritas.length);
-    return favoritas;
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo presentaciones favoritas:", error);
-    return [];
-  }
-}
-
-// Actualizar slide actual de presentación
-function actualizarSlideActualPresentacion(id, slideIndex) {
-  try {
-    console.log("🎯 [DB] Actualizando slide actual:", { id, slideIndex });
-
-    const stmt = db.prepare(`
-      UPDATE presentaciones_slides 
-      SET slide_actual = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-        `);
-    const info = stmt.run(slideIndex, id);
-
-    console.log("✅ [DB] Slide actual actualizado, filas afectadas:", info.changes);
-    return { success: true, changes: info.changes };
-
-  } catch (error) {
-    console.error("❌ [DB] Error actualizando slide actual:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Exportar presentación como JSON
-function exportarPresentacionSlides(id) {
-  try {
-    console.log("📤 [DB] Exportando presentación de diapositivas:", id);
-
-    const presentacion = obtenerPresentacionSlidesPorId(id);
-    if (!presentacion) {
-      return { success: false, error: "Presentación no encontrada" };
-    }
-
-    // Preparar datos para exportar
-    const datosExportar = {
-      version: "1.0",
-      tipo: "presentacion-diapositivas",
-      exportado_en: new Date().toISOString(),
-      datos: {
-        nombre: presentacion.nombre,
-        descripcion: presentacion.descripcion,
-        slides: presentacion.slides,
-        total_slides: presentacion.total_slides,
-        configuracion: presentacion.configuracion,
-        tags: presentacion.tags
-      }
-    };
-
-    console.log("✅ [DB] Presentación preparada para exportar");
-    return { success: true, data: datosExportar };
-
-  } catch (error) {
-    console.error("❌ [DB] Error exportando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Importar presentación desde JSON
-function importarPresentacionSlides(datosImportar, nombreArchivo = null) {
-  try {
-    console.log("📥 [DB] Importando presentación de diapositivas desde JSON");
-
-    // Validar estructura de datos
-    if (!datosImportar.datos || !datosImportar.datos.slides) {
-      throw new Error("Estructura de archivo JSON inválida");
-    }
-
-    const datos = datosImportar.datos;
-    const nombre = nombreArchivo ?
-      nombreArchivo.replace(/\.(json|txt)$/i, '') :
-      datos.nombre || 'Presentación Importada';
-
-    const presentacionData = {
-      nombre: `${nombre} (Importada)`,
-      descripcion: datos.descripcion || 'Presentación importada desde archivo JSON',
-      slides: datos.slides,
-      importado_desde: nombreArchivo || 'archivo.json',
-      tipo_archivo: 'imported',
-      configuracion: datos.configuracion || {},
-      tags: datos.tags || ['importada']
-    };
-
-    const resultado = agregarPresentacionSlides(presentacionData);
-
-    if (resultado.success) {
-      console.log("✅ [DB] Presentación importada exitosamente con ID:", resultado.id);
-    }
-
-    return resultado;
-
-  } catch (error) {
-    console.error("❌ [DB] Error importando presentación:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Obtener estadísticas de presentaciones
-function obtenerEstadisticasPresentacionesSlides() {
-  try {
-    console.log("📊 [DB] Obteniendo estadísticas de presentaciones...");
-
-    const stmt = db.prepare(`
-      SELECT
-      COUNT(*) as total,
-        COUNT(CASE WHEN favorito = 1 THEN 1 END) as favoritas,
-        COUNT(CASE WHEN tipo_archivo = 'powerpoint' THEN 1 END) as powerpoint,
-        COUNT(CASE WHEN tipo_archivo = 'image' THEN 1 END) as imagenes,
-        COUNT(CASE WHEN tipo_archivo = 'custom' THEN 1 END) as personalizadas,
-        SUM(total_slides) as total_slides,
-        AVG(total_slides) as promedio_slides
-      FROM presentaciones_slides
-        `);
-
-    const estadisticas = stmt.get();
-
-    console.log("✅ [DB] Estadísticas obtenidas:", estadisticas);
-    return estadisticas;
-
-  } catch (error) {
-    console.error("❌ [DB] Error obteniendo estadísticas:", error);
-    return {
-      total: 0,
-      favoritas: 0,
-      powerpoint: 0,
-      imagenes: 0,
-      personalizadas: 0,
-      total_slides: 0,
-      promedio_slides: 0
-    };
-  }
-}
-
-// ✨ EJECUTAR MIGRACIÓN AL INICIALIZAR
-console.log("🔧 [DB] Iniciando migración de tabla presentaciones_slides...");
-migrarTablaPresentacionesSlides();
-
-// ====================================
 // EXPORTAR TODAS LAS FUNCIONES - ACTUALIZADAS
 // ====================================
 
@@ -2779,20 +1809,33 @@ function reordenarAnuncios(ids) {
   }
 }
 
+// Cerrar la conexión a la base de datos (llamado al salir de la app)
+function cerrarDB() {
+  try {
+    if (db.open) {
+      db.close();
+      console.log('Base de datos cerrada');
+    }
+  } catch (err) {
+    console.error('Error al cerrar la base de datos:', err);
+  }
+}
+
 module.exports = {
   db,
+  cerrarDB,
   // Funciones de himnos
-  agregarHimno,
   obtenerHimnos,
-  obtenerFavoritos,
+  obtenerHimnoPorId,
+  buscarHimnos,
+  crearHimno,
   actualizarHimno,
+  actualizarFavoritoHimno,
   eliminarHimno,
-  agregarFavorito,
-  actualizarFavorito,
-  eliminarFavorito,
   // Funciones de fondos - CORREGIDAS
   obtenerFondos,
   agregarFondo,
+  actualizarFondo,
   eliminarFondo,
   establecerFondoActivo,
   obtenerFondoActivo,
@@ -2802,20 +1845,10 @@ module.exports = {
   establecerMultimediaActiva,
   obtenerMultimediaActiva,
   limpiarMultimediaActiva,
-  // Funciones de presentaciones - ACTUALIZADAS
-  agregarPresentacion,
-  obtenerPresentaciones,
-  eliminarPresentacion,
-  editarPresentacion,
-  obtenerPresentacionPorId,
-  exportarPresentacion,
-  migrarTablaPresentaciones,
   // Funciones de configuración
   obtenerConfiguracion,
-  guardarConfiguracion,
-  obtenerConfiguracionPorClave,
-  actualizarConfiguracionPorClave,
-  restaurarConfiguracionPorDefecto,
+  actualizarConfiguracion,
+  restaurarConfiguracionDefecto,
   // Funciones de multimedia - NUEVAS
   agregarMultimedia,
   obtenerMultimedia,
@@ -2828,20 +1861,6 @@ module.exports = {
   incrementarReproducido,
   migrarTablaMultimedia,
   verificarArchivoDuplicado,
-  // Funciones de presentaciones de diapositivas - NUEVAS
-  agregarPresentacionSlides,
-  obtenerPresentacionesSlides,
-  obtenerPresentacionSlidesPorId,
-  actualizarPresentacionSlides,
-  eliminarPresentacionSlides,
-  duplicarPresentacionSlides,
-  actualizarFavoritoPresentacionSlides,
-  obtenerPresentacionesSlidesFavoritas,
-  actualizarSlideActualPresentacion,
-  exportarPresentacionSlides,
-  importarPresentacionSlides,
-  obtenerEstadisticasPresentacionesSlides,
-  migrarTablaPresentacionesSlides,
   // Órdenes de servicio
   obtenerOrdenesServicio,
   obtenerOrdenServicioPorId,

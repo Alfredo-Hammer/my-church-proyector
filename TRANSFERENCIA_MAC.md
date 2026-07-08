@@ -7,7 +7,7 @@ Este proyecto es React (CRA) + Electron + electron-builder.
 - Recursos del app: `assets/`
 - Datos necesarios del app: `data/` (incluye `data/himnos.sqbpro` y `data/archivos/...`)
 - Configuración: `package.json`, `package-lock.json`, `electron-builder.yml`, `tailwind.config.js`
-- Backend local: `main.js`, `preload.js`, `db.js`, `db-new.js`
+- Backend local: `main.js`, `preload.js`, `db.js`
 
 ## Qué NO incluye (se regenera)
 - `node_modules/`

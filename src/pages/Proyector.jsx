@@ -20,18 +20,6 @@ setupConsoleSilencer();
 
 const optimizarUrlImagen = (url) => url || null;
 
-const precargarImagen = (url) =>
-  new Promise((resolve, reject) => {
-    if (!url) {
-      resolve(null);
-      return;
-    }
-    const img = new Image();
-    img.onload = () => resolve(url);
-    img.onerror = () => reject(new Error(`Failed: ${url}`));
-    img.src = url;
-  });
-
 const leerGsapGlobal = () => {
   try {
     return JSON.parse(
@@ -50,8 +38,6 @@ function modoReducer(_, action) {
       return "himno";
     case "MULTIMEDIA":
       return "multimedia";
-    case "PRESENTACION":
-      return "presentacion";
     case "SLIDE":
       return "slide";
     case "TEMPORIZADOR":
@@ -274,15 +260,10 @@ const Proyector = () => {
   const [multimediaActiva, setMultimediaActiva] = useState(null);
   const [tieneMultiplesMonitores, setTieneMultiplesMonitores] = useState(false);
   const tieneMultiplesMonitoresRef = useRef(false);
-  const [presentacionActiva, setPresentacionActiva] = useState(null);
-  const [slideActual, setSlideActual] = useState(0);
-  const [presentaciones, setPresentaciones] = useState([]);
   const [slideData, setSlideData] = useState(null);
   const [gsapGlobal, setGsapGlobal] = useState(leerGsapGlobal);
   const [efectosActivos, setEfectosActivos] = useState(true);
   const [transicionSuave, setTransicionSuave] = useState(true);
-  const [imagenesConError, setImagenesConError] = useState(new Set());
-  const [imagenCargando, setImagenCargando] = useState(false);
 
   useEffect(() => {
     tieneMultiplesMonitoresRef.current = tieneMultiplesMonitores;
@@ -307,9 +288,7 @@ const Proyector = () => {
       himnoActualRef.current = "";
       tituloMostradoRef.current = false;
       setMostrarTituloHimno(true);
-      setPresentacionActiva(null);
       setSlideData(null);
-      setSlideActual(0);
       dispatchModo({type: "BIENVENIDA"});
       setShowContent(true);
     };
@@ -417,31 +396,10 @@ const Proyector = () => {
     dispatchModo({type: "BIENVENIDA"});
   }, [modo]);
 
-  const handleMostrarPresentacion = useCallback((_, pres) => {
-    setPresentacionActiva(pres);
-    setSlideActual(pres.slideActual || 0);
-    dispatchModo({type: "PRESENTACION"});
-  }, []);
-
-  const handleCambiarSlide = useCallback((_, {presentacionId, slideIndex}) => {
-    setPresentacionActiva((prev) => {
-      if (prev?.id === presentacionId) setSlideActual(slideIndex);
-      return prev;
-    });
-  }, []);
-
-  const handleDetenerPresentacion = useCallback(() => {
-    setPresentacionActiva(null);
-    setSlideActual(0);
-    dispatchModo({type: "BIENVENIDA"});
-  }, []);
-
   const handleProyectarSlideData = useCallback((_, sd) => {
     if (!sd?.slide) return;
     setShowContent(true);
     setSlideData(sd);
-    setSlideActual(0);
-    setPresentacionActiva(null);
     setTitulo("");
     setParrafo("");
     setNumero("");
@@ -473,9 +431,6 @@ const Proyector = () => {
     handleActualizarMultimediaActiva,
   );
   useIpcListener("limpiar-multimedia-activa", handleLimpiarMultimediaActiva);
-  useIpcListener("mostrar-presentacion", handleMostrarPresentacion);
-  useIpcListener("cambiar-slide", handleCambiarSlide);
-  useIpcListener("detener-presentacion", handleDetenerPresentacion);
   useIpcListener("proyectar-slide-data", handleProyectarSlideData);
   useIpcListener("mostrar-temporizador", handleMostrarTemporizador);
   useIpcListener("configurar-monitores", handleConfigurarMonitores);
@@ -489,10 +444,9 @@ const Proyector = () => {
     }
   }, []);
 
-  // ── Carga inicial de presentaciones y multimedia activa ────────────────────
+  // ── Carga inicial de multimedia activa ──────────────────────────────────────
   useEffect(() => {
     const init = async () => {
-      // Multimedia activa
       try {
         const m = await window.electron?.obtenerMultimediaActiva?.();
         if (m?.url && m?.tipo) {
@@ -502,28 +456,6 @@ const Proyector = () => {
           setNumero("");
           setShowContent(true);
           dispatchModo({type: "MULTIMEDIA"});
-        }
-      } catch {
-        /* noop */
-      }
-
-      // Presentaciones
-      try {
-        const list = await window.electron?.obtenerPresentacionesSlides?.();
-        if (list?.length) {
-          setPresentaciones(
-            list.map((p) => ({
-              id: p.id,
-              name: p.nombre,
-              slides: Array.isArray(p.slides)
-                ? p.slides
-                : JSON.parse(p.slides || "[]"),
-              description: p.descripcion || "",
-              createdAt: p.created_at,
-              lastModified: p.last_modified,
-              slideActual: p.slide_actual || 0,
-            })),
-          );
         }
       } catch {
         /* noop */
@@ -553,22 +485,6 @@ const Proyector = () => {
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, [handleProyectarSlideData]);
-
-  // ── Precargar imagen de slide activo ──────────────────────────────────────
-  useEffect(() => {
-    const bgImage = presentacionActiva?.slides?.[slideActual]?.backgroundImage;
-    if (!bgImage) {
-      setImagenCargando(false);
-      return;
-    }
-    setImagenCargando(true);
-    precargarImagen(optimizarUrlImagen(bgImage))
-      .then(() => setImagenCargando(false))
-      .catch(() => {
-        setImagenesConError((prev) => new Set([...prev, bgImage]));
-        setImagenCargando(false);
-      });
-  }, [presentacionActiva, slideActual]);
 
   // ── Teclado ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -802,51 +718,6 @@ const Proyector = () => {
                   mostrarTitulo={mostrarTituloHimno}
                 />
               ))}
-          </AnimatePresence>
-
-          {/* ── Presentación completa ── */}
-          <AnimatePresence mode="wait">
-            {modo === "presentacion" && presentacionActiva && showContent && (
-              <m.div
-                key={`${presentacionActiva.id}-${slideActual}`}
-                className="w-full h-screen flex items-center justify-center relative z-20 overflow-hidden"
-                initial={{opacity: 0, y: 50}}
-                animate={{opacity: 1, y: 0}}
-                exit={{opacity: 0, y: -50}}
-                transition={{duration: 0.6, ease: "easeOut"}}
-              >
-                {presentacionActiva.slides?.[slideActual] &&
-                  (() => {
-                    const sl = presentacionActiva.slides[slideActual];
-                    const bgImg = sl.backgroundImage;
-                    const bgStyle =
-                      bgImg && !imagenesConError.has(bgImg)
-                        ? `url(${optimizarUrlImagen(bgImg)})`
-                        : "none";
-                    return (
-                      <SlideWrapper
-                        sl={{
-                          ...sl,
-                          backgroundImage: bgStyle !== "none" ? bgImg : null,
-                        }}
-                        counter={`${slideActual + 1} / ${presentacionActiva.slides?.length || 0}`}
-                      >
-                        {imagenCargando && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-950/50 z-5">
-                            <div className="flex items-center gap-x-3 text-white">
-                              <div className="animate-spin rounded-full size-8 border-b-2 border-white" />
-                              <span className="text-lg font-medium">
-                                Cargando imagen…
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                        <SlideContentBlock sl={sl} />
-                      </SlideWrapper>
-                    );
-                  })()}
-              </m.div>
-            )}
           </AnimatePresence>
 
           {/* ── Temporizador ── */}

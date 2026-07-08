@@ -56,7 +56,7 @@ try {
   // No bloquear la app si Electron cambia esta API.
 }
 const os = require("os");
-const { spawn, spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 const express = require("express");
 const cors = require("cors");
 const https = require("https");
@@ -73,8 +73,6 @@ try {
 } catch {
   // Si no está instalado, usamos ffmpeg del sistema (si existe).
 }
-// Importar la nueva base de datos
-const dbNew = require("./db-new");
 
 // ==================================================
 // Estado de reproducción multimedia (para app móvil)
@@ -103,17 +101,28 @@ const multimediaPlaybackStatus = {
   },
 };
 
-// ==================================================
-// Bridge: Express -> Renderer (Biblia preview)
-// ==================================================
-const pendingBibliaPreview = new Map();
-let bibliaPreviewListenerRegistered = false;
-
-// Importar funciones específicas que aún se necesitan de la base de datos antigua
+// Importar funciones de la base de datos (db.js es la única fuente de verdad)
 const {
-  // Funciones de fondos que aún se usan
+  cerrarDB,
+
+  // Funciones de himnos
+  obtenerHimnos,
+  obtenerHimnoPorId,
+  buscarHimnos,
+  crearHimno,
+  actualizarHimno,
+  actualizarFavoritoHimno,
+  eliminarHimno,
+
+  // Funciones de configuración
+  obtenerConfiguracion,
+  actualizarConfiguracion,
+  restaurarConfiguracionDefecto,
+
+  // Funciones de fondos
   agregarFondo,
   obtenerFondos,
+  actualizarFondo,
   eliminarFondo,
   establecerFondoActivo,
   obtenerFondoActivo,
@@ -134,18 +143,6 @@ const {
   obtenerMultimediaActiva,
   limpiarMultimediaActiva,
 
-  // Funciones de presentaciones slides
-  agregarPresentacionSlides,
-  obtenerPresentacionesSlides,
-  obtenerPresentacionSlidesPorId,
-  actualizarPresentacionSlides,
-  eliminarPresentacionSlides,
-  duplicarPresentacionSlides,
-  actualizarFavoritoPresentacionSlides,
-  actualizarSlideActualPresentacion,
-  exportarPresentacionSlides,
-  importarPresentacionSlides,
-  obtenerEstadisticasPresentacionesSlides,
   // Órdenes de servicio
   obtenerOrdenesServicio,
   obtenerOrdenServicioPorId,
@@ -159,12 +156,6 @@ const {
   eliminarAnuncio,
   reordenarAnuncios,
 } = require("./db");
-
-// Crear aliases para las funciones de presentaciones de la nueva base de datos
-const agregarPresentacion = dbNew.agregarPresentacion;
-const obtenerPresentaciones = dbNew.obtenerPresentaciones;
-const eliminarPresentacion = dbNew.eliminarPresentacion;
-const editarPresentacion = dbNew.editarPresentacion;
 
 // ✨ FUNCIÓN HELPER PARA RUTAS EN PRODUCCIÓN
 function obtenerRutaBase() {
@@ -218,12 +209,7 @@ const limpiarHandlers = () => {
     ipcMain.removeHandler("eliminar-favorito");
 
     // ✨ Limpiar handlers del proyector
-    ipcMain.removeHandler("proyectar-slide");
     ipcMain.removeHandler("limpiar-proyector");
-
-    // ✨ PowerPoint (conversión fiel a imágenes)
-    ipcMain.removeHandler("convertir-pptx-a-imagenes");
-    ipcMain.removeHandler("convertir-pptx-buffer-a-imagenes");
 
     // ✨ Limpiar handlers multimedia
     ipcMain.removeHandler("procesar-archivo-multimedia");
@@ -237,150 +223,6 @@ const limpiarHandlers = () => {
     // Los handlers no existían, está bien
   }
 };
-
-// ==================================================
-// PowerPoint -> Imágenes (preserva diseño)
-// ==================================================
-function encontrarLibreOfficeBin() {
-  // NO devolver "soffice" sin comprobar — en apps GUI el PATH suele ser limitado.
-  const platform = process.platform;
-  const candidatosAbsolutos = [];
-
-  if (platform === "win32") {
-    const pf = process.env["PROGRAMFILES"] || "C:\\Program Files";
-    const pf86 = process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)";
-    candidatosAbsolutos.push(
-      path.join(pf, "LibreOffice", "program", "soffice.exe"),
-      path.join(pf86, "LibreOffice", "program", "soffice.exe"),
-    );
-  } else if (platform === "darwin") {
-    candidatosAbsolutos.push(
-      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-      "/Applications/LibreOffice.app/Contents/MacOS/soffice.bin",
-      "/opt/homebrew/bin/soffice",
-      "/usr/local/bin/soffice",
-    );
-  } else {
-    // Linux
-    candidatosAbsolutos.push(
-      "/usr/bin/soffice",
-      "/usr/lib/libreoffice/program/soffice",
-      "/opt/libreoffice/program/soffice",
-    );
-  }
-
-  for (const candidato of candidatosAbsolutos) {
-    try {
-      if (fs.existsSync(candidato)) return candidato;
-    } catch {
-      // ignorar
-    }
-  }
-
-  // Intentar resolver por PATH como último recurso
-  try {
-    const whichCmd = platform === "win32" ? "where" : "which";
-    const sofficeName = platform === "win32" ? "soffice.exe" : "soffice";
-    const res = spawnSync(whichCmd, [sofficeName], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    const salida = String(res.stdout || "").trim();
-    const candidato = salida.split("\n").flatMap(s => { const v = s.trim(); return v ? [v] : []; })[0];
-    if (res.status === 0 && candidato && fs.existsSync(candidato)) {
-      return candidato;
-    }
-  } catch {
-    // ignorar
-  }
-
-  return null;
-}
-
-function spawnConPromise(cmd, args, opts = {}) {
-  const timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : 120000;
-  const cwd = opts.cwd || undefined;
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // ignore
-      }
-      reject(new Error(`Timeout ejecutando ${cmd}`));
-    }, timeoutMs);
-
-    child.stdout.on("data", (d) => {
-      stdout += String(d);
-    });
-    child.stderr.on("data", (d) => {
-      stderr += String(d);
-    });
-
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve({ code, stdout, stderr });
-      } else {
-        const msg = (stderr || stdout || "").trim();
-        reject(new Error(msg || `Proceso ${cmd} terminó con código ${code}`));
-      }
-    });
-  });
-}
-
-function ordenarPngPorSlide(files) {
-  // LibreOffice nombra la primera PNG sin número (ej: "slide.png") y las demás con
-  // sufijo incremental ("slide1.png", "slide2.png"...). Sin número → -1 para que
-  // quede primera en el orden, no al final.
-  const parse = (name) => {
-    const m = String(name).match(/(\d+)(?=\.png$)/i);
-    return m ? Number(m[1]) : -1;
-  };
-
-  return files.toSorted((a, b) => {
-    const na = parse(a);
-    const nb = parse(b);
-    if (na !== nb) return na - nb;
-    return String(a).localeCompare(String(b));
-  });
-}
-
-async function convertirPptxAImagenesEnDirectorio({ libreOfficeBin, sourcePath, outDir }) {
-  const args = [
-    "--headless",
-    "--nologo",
-    "--nolockcheck",
-    "--nodefault",
-    "--norestore",
-    "--convert-to",
-    "png",
-    "--outdir",
-    outDir,
-    sourcePath,
-  ];
-
-  await spawnConPromise(libreOfficeBin, args, { timeoutMs: 120000 });
-
-  const archivos = fs
-    .readdirSync(outDir)
-    .filter((f) => String(f).toLowerCase().endsWith(".png"));
-
-  return ordenarPngPorSlide(archivos);
-}
 
 // ✨ FUNCIÓN CSP ACTUALIZADA PARA YOUTUBE Y PIXABAY
 function obtenerCSP() {
@@ -707,50 +549,8 @@ function iniciarServidorMultimedia() {
     const expressApp = express();
     const PORT = 3001;
 
-    if (!bibliaPreviewListenerRegistered) {
-      bibliaPreviewListenerRegistered = true;
-      ipcMain.on('control-biblia-preview-response', (event, payload) => {
-        try {
-          const id = payload?.id;
-          if (!id) return;
-          const pending = pendingBibliaPreview.get(id);
-          if (!pending) return;
-          pendingBibliaPreview.delete(id);
-          pending.resolve(payload);
-        } catch (error) {
-          console.error('❌ [MAIN] Error procesando control-biblia-preview-response:', error);
-        }
-      });
-    }
-
-    const solicitarBibliaPreviewAlRenderer = ({ libroId, capitulo, versiculo }) => {
-      return new Promise((resolve, reject) => {
-        if (!mainWindow || mainWindow.isDestroyed()) {
-          reject(new Error('Ventana principal no disponible'));
-          return;
-        }
-
-        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const timeout = setTimeout(() => {
-          pendingBibliaPreview.delete(id);
-          reject(new Error('Timeout obteniendo vista previa de Biblia'));
-        }, 2500);
-
-        pendingBibliaPreview.set(id, {
-          resolve: (payload) => {
-            clearTimeout(timeout);
-            resolve(payload);
-          },
-        });
-
-        mainWindow.webContents.send('control-biblia-preview', {
-          id,
-          libroId,
-          capitulo,
-          versiculo,
-        });
-      });
-    };
+    const solicitarBibliaPreviewAlRenderer = (payload) =>
+      require("./ipc/biblia").solicitarBibliaPreviewAlRenderer(() => mainWindow, payload);
 
     const obtenerIpsLocalesV4 = () => {
       const nets = os.networkInterfaces();
@@ -1144,7 +944,7 @@ function iniciarServidorMultimedia() {
           const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
           let favoritosBaseIds = [];
           try {
-            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const rawFav = await obtenerConfiguracion(keyFavoritos);
             const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
             favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
           } catch {
@@ -1166,7 +966,7 @@ function iniciarServidorMultimedia() {
         }
 
         if (tipo === 'personal') {
-          const himnosDb = await dbNew.obtenerHimnos();
+          const himnosDb = await obtenerHimnos();
           dbNormalizados = (Array.isArray(himnosDb) ? himnosDb : []).flatMap((h) => {
             if (!String(h?.titulo || '').trim()) return [];
             let letra = [];
@@ -1213,7 +1013,7 @@ function iniciarServidorMultimedia() {
 
           let favoritosBaseIds = [];
           try {
-            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const rawFav = await obtenerConfiguracion(keyFavoritos);
             const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
             favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
           } catch {
@@ -1232,7 +1032,7 @@ function iniciarServidorMultimedia() {
           }
         }
 
-        const himnosDb = await dbNew.obtenerHimnos();
+        const himnosDb = await obtenerHimnos();
         for (const h of (Array.isArray(himnosDb) ? himnosDb : [])) {
           if (!h?.favorito) continue;
           const titulo = String(h?.titulo || '').trim();
@@ -1275,7 +1075,7 @@ function iniciarServidorMultimedia() {
             return res.status(400).json({ ok: false, error: 'id db inválido' });
           }
 
-          const ok = await dbNew.actualizarFavoritoHimno(dbId, favorito);
+          const ok = await actualizarFavoritoHimno(dbId, favorito);
           if (!ok) {
             return res.status(500).json({ ok: false, error: 'No se pudo actualizar favorito' });
           }
@@ -1289,7 +1089,7 @@ function iniciarServidorMultimedia() {
 
           let favoritosBaseIds = [];
           try {
-            const rawFav = await dbNew.obtenerConfiguracion(keyFavoritos);
+            const rawFav = await obtenerConfiguracion(keyFavoritos);
             const parsedFav = rawFav ? JSON.parse(String(rawFav)) : [];
             favoritosBaseIds = Array.isArray(parsedFav) ? parsedFav.map((x) => String(x)) : [];
           } catch {
@@ -1300,7 +1100,7 @@ function iniciarServidorMultimedia() {
           if (favorito) set.add(id);
           else set.delete(id);
 
-          const ok = await dbNew.actualizarConfiguracion(keyFavoritos, JSON.stringify(Array.from(set)));
+          const ok = await actualizarConfiguracion(keyFavoritos, JSON.stringify(Array.from(set)));
           if (!ok) {
             return res.status(500).json({ ok: false, error: 'No se pudo guardar favorito' });
           }
@@ -1327,7 +1127,7 @@ function iniciarServidorMultimedia() {
           return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
         }
         const parrafos = String(letra).split(/\n\n+/).flatMap(p => { const v = p.trim(); return v ? [v] : []; });
-        const id = await dbNew.crearHimno({
+        const id = await crearHimno({
           numero: String(numero || '').trim(),
           titulo: String(titulo).trim(),
           letra: JSON.stringify(parrafos),
@@ -1353,7 +1153,7 @@ function iniciarServidorMultimedia() {
           return res.status(400).json({ ok: false, error: 'La letra es obligatoria' });
         }
         const parrafos = String(letra).split(/\n\n+/).flatMap(p => { const v = p.trim(); return v ? [v] : []; });
-        const ok = await dbNew.actualizarHimno(id, {
+        const ok = await actualizarHimno(id, {
           numero: String(numero || '').trim(),
           titulo: String(titulo).trim(),
           letra: JSON.stringify(parrafos),
@@ -1372,7 +1172,7 @@ function iniciarServidorMultimedia() {
       try {
         const id = Number(req.params?.id);
         if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'id inválido' });
-        const ok = await dbNew.eliminarHimno(id);
+        const ok = await eliminarHimno(id);
         if (!ok) return res.status(404).json({ ok: false, error: 'Himno no encontrado' });
         return res.json({ ok: true });
       } catch (error) {
@@ -1427,7 +1227,7 @@ function iniciarServidorMultimedia() {
 
     const leerFavoritosBiblia = async () => {
       try {
-        const raw = await dbNew.obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
+        const raw = await obtenerConfiguracion(BIBLIA_FAVORITOS_KEY);
         const parsed = raw ? JSON.parse(String(raw)) : [];
         const arr = Array.isArray(parsed) ? parsed : [];
         const normalizados = arr.flatMap(f => { const v = normalizarFavoritoBiblia(f); return v ? [v] : []; });
@@ -1442,7 +1242,7 @@ function iniciarServidorMultimedia() {
     };
 
     const guardarFavoritosBiblia = async (favoritos) => {
-      return dbNew.actualizarConfiguracion(BIBLIA_FAVORITOS_KEY, JSON.stringify(favoritos));
+      return actualizarConfiguracion(BIBLIA_FAVORITOS_KEY, JSON.stringify(favoritos));
     };
 
     expressApp.get('/api/biblia/favoritos', async (_req, res) => {
@@ -2148,196 +1948,6 @@ function iniciarServidorMultimedia() {
     });
 
     // ==================================================
-    // ✅ Presentaciones Slides (App móvil)
-    // ==================================================
-
-    // ✅ Listado (ligero)
-    // Respuesta: { ok:true, presentaciones:[{id,nombre,descripcion,total_slides,slide_actual,favorito,updated_at,created_at}] }
-    expressApp.get('/api/presentaciones-slides', async (req, res) => {
-      try {
-        const presentaciones = await obtenerPresentacionesSlides();
-        const lista = (Array.isArray(presentaciones) ? presentaciones : []).map((p) => ({
-          id: p.id,
-          nombre: p.nombre,
-          descripcion: p.descripcion,
-          total_slides: p.total_slides,
-          slide_actual: p.slide_actual,
-          favorito: Boolean(p.favorito),
-          created_at: p.created_at,
-          updated_at: p.updated_at,
-        }));
-        return res.json({ ok: true, presentaciones: lista });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    // ✅ Detalle (incluye slides)
-    expressApp.get('/api/presentaciones-slides/:id', async (req, res) => {
-      try {
-        const id = Number(req.params?.id);
-        if (!Number.isFinite(id)) {
-          return res.status(400).json({ ok: false, error: 'id inválido' });
-        }
-
-        const presentacion = await obtenerPresentacionSlidesPorId(id);
-        if (!presentacion) {
-          return res.status(404).json({ ok: false, error: 'No encontrada' });
-        }
-
-        return res.json({ ok: true, presentacion });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    const proyectarPresentacionSlide = async ({ presentacionId, slideIndex }) => {
-      const presentacion = await obtenerPresentacionSlidesPorId(presentacionId);
-      if (!presentacion) {
-        throw new Error('Presentación no encontrada');
-      }
-      const slides = Array.isArray(presentacion.slides) ? presentacion.slides : [];
-      if (slides.length === 0) {
-        throw new Error('Presentación sin slides');
-      }
-
-      const index = Number(slideIndex);
-      if (!Number.isFinite(index) || index < 0 || index >= slides.length) {
-        throw new Error('slideIndex inválido');
-      }
-
-      const slideData = {
-        tipo: 'slide',
-        slide: slides[index],
-        presentation: {
-          name: presentacion.nombre,
-          currentIndex: index,
-          totalSlides: slides.length,
-        },
-      };
-
-      const proyector = await asegurarProyectorListo();
-      proyector.webContents.send('proyectar-slide-data', slideData);
-
-      try {
-        await actualizarSlideActualPresentacion(presentacionId, index);
-      } catch {
-        // No bloquear si falla actualizar en BD
-      }
-
-      return { presentacionId, slideIndex: index, totalSlides: slides.length };
-    };
-
-    // ✅ Proyectar slide (por id y slideIndex opcional)
-    // Body: { id:number, slideIndex?:number }
-    expressApp.post('/api/control/presentaciones-slides/proyectar', async (req, res) => {
-      try {
-        const id = Number(req.body?.id);
-        if (!Number.isFinite(id)) {
-          return res.status(400).json({ ok: false, error: 'id inválido' });
-        }
-
-        const presentacion = await obtenerPresentacionSlidesPorId(id);
-        if (!presentacion) {
-          return res.status(404).json({ ok: false, error: 'No encontrada' });
-        }
-
-        const slideIndex =
-          req.body?.slideIndex !== undefined && req.body?.slideIndex !== null
-            ? Number(req.body.slideIndex)
-            : Number(presentacion.slide_actual || 0);
-
-        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex });
-        return res.json({ ok: true, ...result });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/proyectar:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    // ✅ Siguiente slide
-    // Body: { id:number }
-    expressApp.post('/api/control/presentaciones-slides/siguiente', async (req, res) => {
-      try {
-        const id = Number(req.body?.id);
-        if (!Number.isFinite(id)) {
-          return res.status(400).json({ ok: false, error: 'id inválido' });
-        }
-
-        const presentacion = await obtenerPresentacionSlidesPorId(id);
-        if (!presentacion) {
-          return res.status(404).json({ ok: false, error: 'No encontrada' });
-        }
-
-        const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
-        if (total <= 0) {
-          return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
-        }
-
-        const current = Number(presentacion.slide_actual || 0);
-        const next = Math.min(total - 1, current + 1);
-
-        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: next });
-        return res.json({ ok: true, ...result });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/siguiente:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    // ✅ Slide anterior
-    // Body: { id:number }
-    expressApp.post('/api/control/presentaciones-slides/anterior', async (req, res) => {
-      try {
-        const id = Number(req.body?.id);
-        if (!Number.isFinite(id)) {
-          return res.status(400).json({ ok: false, error: 'id inválido' });
-        }
-
-        const presentacion = await obtenerPresentacionSlidesPorId(id);
-        if (!presentacion) {
-          return res.status(404).json({ ok: false, error: 'No encontrada' });
-        }
-
-        const total = Array.isArray(presentacion.slides) ? presentacion.slides.length : 0;
-        if (total <= 0) {
-          return res.status(400).json({ ok: false, error: 'Presentación sin slides' });
-        }
-
-        const current = Number(presentacion.slide_actual || 0);
-        const prev = Math.max(0, current - 1);
-
-        const result = await proyectarPresentacionSlide({ presentacionId: id, slideIndex: prev });
-        return res.json({ ok: true, ...result });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/control/presentaciones-slides/anterior:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    // ✅ Favorito presentación slides
-    // Body: { favorito: boolean }
-    expressApp.post('/api/presentaciones-slides/:id/favorito', async (req, res) => {
-      try {
-        const id = Number(req.params?.id);
-        if (!Number.isFinite(id)) {
-          return res.status(400).json({ ok: false, error: 'id inválido' });
-        }
-        const favorito = Boolean(req.body?.favorito);
-        const result = await actualizarFavoritoPresentacionSlides(id, favorito);
-        if (!result?.success) {
-          return res.status(500).json({ ok: false, error: result?.error || 'No se pudo actualizar favorito' });
-        }
-        return res.json({ ok: true });
-      } catch (error) {
-        console.error('❌ [MAIN] (API) Error /api/presentaciones-slides/:id/favorito:', error);
-        return res.status(500).json({ ok: false, error: error.message });
-      }
-    });
-
-    // ==================================================
     // ✅ Fondos (App móvil)
     // ==================================================
 
@@ -2345,7 +1955,7 @@ function iniciarServidorMultimedia() {
     // Respuesta: { ok:true, fondos:[{id,url,tipo,nombre,activo,created_at}] }
     expressApp.get('/api/fondos', async (req, res) => {
       try {
-        const fondos = await dbNew.obtenerFondos();
+        const fondos = await obtenerFondos();
         const base = getRequestBaseUrl(req);
 
         const normalizados = (Array.isArray(fondos) ? fondos : []).map((f) => {
@@ -2380,7 +1990,7 @@ function iniciarServidorMultimedia() {
     // ✅ Fondo activo
     expressApp.get('/api/fondos/activo', async (req, res) => {
       try {
-        const fondos = await dbNew.obtenerFondos();
+        const fondos = await obtenerFondos();
         const activo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo);
         if (!activo) return res.json({ ok: true, fondo: null });
 
@@ -2418,12 +2028,12 @@ function iniciarServidorMultimedia() {
           return res.status(400).json({ ok: false, error: 'id inválido' });
         }
 
-        const ok = await dbNew.activarFondo(id);
+        const ok = await establecerFondoActivo(id);
         if (!ok) {
           return res.status(500).json({ ok: false, error: 'No se pudo activar el fondo' });
         }
 
-        const fondos = await dbNew.obtenerFondos();
+        const fondos = await obtenerFondos();
         const fondoActivo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo) || null;
 
         // Sincronizar fondo para overlay OBS
@@ -2831,7 +2441,7 @@ function iniciarServidorMultimedia() {
     expressApp.get('/api/plantillas', async (req, res) => {
       try {
         const claves = ['plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
-        const cfgValues = await Promise.all(claves.map(c => dbNew.obtenerConfiguracion(c)));
+        const cfgValues = await Promise.all(claves.map(c => obtenerConfiguracion(c)));
         const cfg = Object.fromEntries(claves.map((c, i) => [c, cfgValues[i]]));
         const activa = (cfg.plantillaGsapActiva && cfg.plantillaGsapActiva !== 'ninguna') ? cfg.plantillaGsapActiva : null;
         const plantillas = Object.entries(PLANTILLAS_GSAP_META).map(([id, meta]) => ({
@@ -2855,10 +2465,10 @@ function iniciarServidorMultimedia() {
       try {
         const { id } = req.body || {};
         if (!id || !PLANTILLAS_GSAP_META[id]) return res.status(400).json({ ok: false, error: 'Plantilla no válida' });
-        await dbNew.actualizarConfiguracion('plantillaGsapActiva', id);
+        await actualizarConfiguracion('plantillaGsapActiva', id);
         const claves = ['plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
         const cfg = {};
-        for (const c of claves) cfg[c] = await dbNew.obtenerConfiguracion(c);
+        for (const c of claves) cfg[c] = await obtenerConfiguracion(c);
         const lsData = JSON.stringify({
           plantillaId: id,
           config: {
@@ -2879,7 +2489,7 @@ function iniciarServidorMultimedia() {
 
     expressApp.post('/api/control/plantillas/desactivar', async (req, res) => {
       try {
-        await dbNew.actualizarConfiguracion('plantillaGsapActiva', 'ninguna');
+        await actualizarConfiguracion('plantillaGsapActiva', 'ninguna');
         // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
         const jsRemove = `localStorage.removeItem("gsap-plantilla-global")`;
         if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsRemove).catch(() => { });
@@ -3475,7 +3085,7 @@ const toFondoRelUrl = (url) => {
 };
 const inicializarFondoObs = async () => {
   try {
-    const fondos = await dbNew.obtenerFondos();
+    const fondos = await obtenerFondos();
     const activo = (Array.isArray(fondos) ? fondos : []).find(f => f.activo);
     if (activo?.url) {
       const rel = toFondoRelUrl(activo.url) || (activo.url.startsWith('/') ? activo.url : null);
@@ -3602,7 +3212,7 @@ function createMainWindow() {
       webSecurity: true, // ✨ CAMBIAR A TRUE para seguridad
       allowRunningInsecureContent: false, // ✨ AGREGAR seguridad adicional
       experimentalFeatures: false, // ✨ AGREGAR seguridad adicional
-      sandbox: false, // Revertido: sandbox:true bloquea media API (new Audio) en app empaquetada
+      sandbox: true,
     },
   });
 
@@ -4220,7 +3830,7 @@ function createProyectorWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       allowRunningInsecureContent: false,
-      sandbox: false, // Revertido: sandbox:true bloquea media API en ventana proyector empaquetada
+      sandbox: true,
       // ✨ MEJORAS PARA ALTA CALIDAD
       hardwareAcceleration: true, // Acelerar hardware para mejor rendimiento
       enableBlinkFeatures: 'CSSBackdropFilter', // Mejor soporte para filtros CSS
@@ -4399,17 +4009,10 @@ app.whenReady().then(async () => {
     app.setName('GloryView');
     writeLog("✅ Nombre de aplicación configurado");
 
-    // Inicializar la nueva base de datos
-    try {
-      writeLog("Inicializando base de datos...");
-      await dbNew.initializeDatabase();
-      writeLog('✅ Base de datos inicializada correctamente');
-      console.log('Base de datos inicializada correctamente');
-    } catch (error) {
-      writeLog(`❌ Error al inicializar la base de datos: ${error.message}`);
-      console.error('Error al inicializar la base de datos:', error);
-      // No bloquear la app, continuar
-    }
+    // La base de datos (db.js) ya se inicializa de forma síncrona al cargar el módulo
+    // (conexión, tablas, migraciones y datos por defecto) — nada que esperar aquí.
+    writeLog('✅ Base de datos inicializada correctamente');
+    console.log('Base de datos inicializada correctamente');
 
     // ✨ INICIALIZAR FONDOS POR DEFECTO
     try {
@@ -4669,7 +4272,7 @@ app.on("window-all-closed", () => {
 
   if (process.platform !== "darwin") {
     // En Windows/Linux la app termina aquí — cerrar la DB antes de salir
-    dbNew.cerrarDB();
+    cerrarDB();
     console.log("👋 [MAIN] Saliendo de la aplicación");
     app.quit();
   }
@@ -4682,7 +4285,7 @@ app.on("before-quit", () => {
     proyectorWindow.close();
     proyectorWindow = null;
   }
-  dbNew.cerrarDB();
+  cerrarDB();
 });
 
 // ✨ FUNCIÓN COMPLETA PARA REGISTRAR TODOS LOS HANDLERS
@@ -4690,484 +4293,21 @@ function registrarHandlers() {
   console.log("🔧 [Main] Registrando handlers...");
 
   // ====================================
+  // HANDLERS DE BIBLIA
+  // ====================================
+  require("./ipc/biblia").registrar({
+    getMainWindow: () => mainWindow,
+  });
+
+  // ====================================
   // HANDLERS DE FONDOS
   // ====================================
-
-  // Handler para obtener todos los fondos
-  ipcMain.handle("obtener-fondos", async () => {
-    try {
-      console.log("📋 [Main] Obteniendo fondos...");
-      const fondos = await dbNew.obtenerFondos();
-
-      // Verificar si un archivo local existe en disco
-      const archivoExiste = (rawUrl) => {
-        if (!rawUrl || rawUrl.startsWith('http')) return true;
-        const relativePath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
-        const publicPath = path.join(obtenerRutaBase(), 'public', relativePath);
-        const buildPath = path.join(obtenerRutaRecursos(), 'build', relativePath);
-        return fs.existsSync(publicPath) || fs.existsSync(buildPath);
-      };
-
-      const fondosTransformados = fondos.flatMap(fondo => {
-        const existe = archivoExiste(fondo.url);
-        if (!existe) {
-          return [];
-        }
-        let rutaURL = fondo.url;
-        if (typeof rutaURL === 'string') {
-          if (rutaURL.startsWith('http')) {
-            // noop
-          } else if (rutaURL.startsWith('/')) {
-            rutaURL = `http://localhost:3001${rutaURL}`;
-          } else {
-            const fileName = path.basename(rutaURL);
-            rutaURL = `http://localhost:3001/fondos/${fileName}`;
-          }
-        }
-        return [{
-          id: fondo.id,
-          url: rutaURL,
-          tipo: fondo.tipo || 'imagen',
-          nombre: fondo.nombre || `Fondo ${fondo.id}`,
-          activo: Boolean(fondo.activo),
-          created_at: fondo.created_at || new Date().toISOString()
-        }];
-      });
-
-      console.log(`✅ [Main] Fondos con archivo: ${fondosTransformados.length} / ${fondos.length} total`);
-      return fondosTransformados;
-    } catch (error) {
-      console.error("❌ [Main] Error obteniendo fondos:", error);
-      return [];
-    }
-  });
-
-  // Handler para actualizar fondo (persistir migraciones/correcciones)
-  ipcMain.handle("actualizar-fondo", async (event, fondoData) => {
-    try {
-      if (!fondoData || !fondoData.id) {
-        throw new Error('ID del fondo es requerido');
-      }
-
-      const ok = await dbNew.actualizarFondo(fondoData);
-      return ok;
-    } catch (error) {
-      console.error("❌ [Main] Error actualizando fondo:", error);
-      return false;
-    }
-  });
-
-  // Handler para obtener fondo activo
-  ipcMain.handle("obtener-fondo-activo", async () => {
-    try {
-      console.log("🖼️ [Main] Obteniendo fondo activo...");
-      const fondos = await dbNew.obtenerFondos();
-      const fondo = fondos.find(f => f.activo);
-      if (!fondo) return null;
-      // Devolver siempre URL completa para que el proyector no tenga que transformar
-      const url = fondo.url && !fondo.url.startsWith('http')
-        ? `http://localhost:3001${fondo.url}`
-        : fondo.url;
-      console.log("✅ [Main] Fondo activo obtenido:", fondo.url, '->', url);
-      return { ...fondo, url };
-    } catch (error) {
-      console.error("❌ [Main] Error obteniendo fondo activo:", error);
-      return null;
-    }
-  });
-
-  // Handler MEJORADO para agregar fondo
-  ipcMain.handle("agregar-fondo", async (event, fondoData) => {
-    try {
-      console.log("➕ [Main] Agregando fondo - Datos recibidos:", fondoData);
-
-      // Validar que se recibieron datos
-      if (!fondoData) {
-        throw new Error("No se recibieron datos del fondo");
-      }
-
-      let url, tipo, nombre, activo;
-
-      // Verificar el formato de datos
-      if (typeof fondoData === 'string') {
-        // Formato simple: solo URL
-        console.log("🔄 [Main] Formato simple detectado");
-        url = fondoData;
-        tipo = 'imagen'; // Por defecto
-        nombre = null;
-        activo = false;
-      } else if (fondoData && typeof fondoData === 'object') {
-        // Formato objeto
-        console.log("🔄 [Main] Formato objeto detectado");
-        url = fondoData.url;
-        tipo = fondoData.tipo || 'imagen';
-        nombre = fondoData.nombre || null;
-        activo = fondoData.activo || false;
-      } else {
-        throw new Error("Formato de datos de fondo inválido");
-      }
-
-      // Validar URL
-      if (!url) {
-        throw new Error("URL del fondo es requerida");
-      }
-
-      console.log("📋 [Main] Parámetros procesados:", { url, tipo, nombre, activo });
-
-      // Llamar función de DB
-      const resultado = await dbNew.crearFondo({
-        url,
-        tipo,
-        nombre: nombre || null,
-        activo: activo ? 1 : 0
-      });
-
-      if (!resultado) {
-        throw new Error("Error en la base de datos al agregar fondo");
-      }
-
-      console.log("✅ [Main] Fondo agregado exitosamente:", resultado);
-      return resultado;
-
-    } catch (error) {
-      console.error("❌ [Main] Error agregando fondo:", error.message);
-      console.error("❌ [Main] Stack trace:", error.stack);
-
-      // Retornar false en lugar de lanzar error para evitar crashes
-      return false;
-    }
-  });
-
-  // Handler para establecer fondo activo
-  ipcMain.handle("establecer-fondo-activo", async (event, id) => {
-    try {
-      console.log("🖼️ [Main] Estableciendo fondo activo:", id);
-      const resultado = await dbNew.activarFondo(id);
-
-      if (resultado) {
-        const fondos = await dbNew.obtenerFondos();
-        const fondoRaw = fondos.find(f => f.activo);
-
-        // Transformar a URL completa antes de enviar al proyector
-        const fondoActivo = fondoRaw ? {
-          ...fondoRaw,
-          url: fondoRaw.url && !fondoRaw.url.startsWith('http')
-            ? `http://localhost:3001${fondoRaw.url}`
-            : fondoRaw.url
-        } : null;
-
-        // Sincronizar fondo para overlay OBS
-        sincronizarFondoObs(fondoRaw);
-
-        // Notificar a todas las ventanas sobre el cambio
-        const todasLasVentanas = BrowserWindow.getAllWindows();
-        todasLasVentanas.forEach(ventana => {
-          if (!ventana.isDestroyed()) {
-            ventana.webContents.send("actualizar-fondo-activo", fondoActivo);
-          }
-        });
-
-        console.log("✅ [Main] Fondo activo establecido:", fondoActivo?.url);
-      }
-
-      return resultado;
-    } catch (error) {
-      console.error("❌ [Main] Error estableciendo fondo activo:", error);
-      return false;
-    }
-  });
-
-  // Handler ÚNICO para eliminar fondo
-  ipcMain.handle("eliminar-fondo", async (event, id) => {
-    try {
-      console.log("🗑️ [Main] Eliminando fondo:", id);
-      const resultado = await dbNew.eliminarFondo(id);
-      console.log("✅ [Main] Fondo eliminado:", resultado);
-      return resultado;
-    } catch (error) {
-      console.error("❌ [Main] Error eliminando fondo:", error);
-      return false;
-    }
-  });
-
-  // Handler para seleccionar archivo de fondo desde dispositivo
-  ipcMain.handle("seleccionar-fondo", async () => {
-    try {
-      console.log("📁 [Main] Abriendo dialog para seleccionar fondo...");
-
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: "Seleccionar fondo",
-        filters: [
-          {
-            name: "Archivos de imagen y video",
-            extensions: ["jpg", "jpeg", "png", "gif", "bmp", "mp4", "avi", "mov", "wmv", "webm"]
-          },
-          {
-            name: "Imágenes",
-            extensions: ["jpg", "jpeg", "png", "gif", "bmp"]
-          },
-          {
-            name: "Videos",
-            extensions: ["mp4", "avi", "mov", "wmv", "webm"]
-          }
-        ],
-        properties: ["openFile"]
-      });
-
-      if (result.canceled || !result.filePaths.length) {
-        console.log("❌ [Main] Selección cancelada");
-        return null;
-      }
-
-      const filePath = result.filePaths[0];
-      const fileName = path.basename(filePath);
-      const extension = path.extname(filePath).toLowerCase();
-
-      // Determinar tipo de archivo
-      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
-      const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.webm'];
-
-      let tipo;
-      if (imageExtensions.includes(extension)) {
-        tipo = "imagen";
-      } else if (videoExtensions.includes(extension)) {
-        tipo = "video";
-      } else {
-        throw new Error("Tipo de archivo no soportado");
-      }
-
-      console.log("✅ [Main] Archivo seleccionado:", { filePath, fileName, tipo });
-
-      return {
-        filePath,
-        nombre: fileName,
-        tipo
-      };
-
-    } catch (error) {
-      console.error("❌ [Main] Error seleccionando fondo:", error);
-      return null;
-    }
-  });
-
-  // ✨ HANDLER CORREGIDO: copiar archivo (ambos nombres para compatibilidad)
-  ipcMain.handle("copiar-archivo-a-fondos", async (event, sourcePath) => {
-    try {
-      console.log("📁 [Main] Copiando archivo a fondos:", sourcePath);
-
-      const fileName = path.basename(sourcePath);
-      const uniqueName = `${Date.now()}-${fileName}`;
-      const destPath = path.join(fondosPublicDir, uniqueName);
-
-      // Copiar archivo
-      fs.copyFileSync(sourcePath, destPath);
-
-      const relativePath = `/fondos/${uniqueName}`;
-      console.log("✅ [Main] Archivo copiado a:", relativePath);
-
-      return relativePath;
-
-    } catch (error) {
-      console.error("❌ [Main] Error copiando archivo:", error);
-      return null;
-    }
-  });
-
-  // ✨ HANDLER DUPLICADO en camelCase para compatibilidad
-  ipcMain.handle("copiarArchivoAFondos", async (event, sourcePath) => {
-    try {
-      console.log("📁 [Main] Copiando archivo a fondos (camelCase):", sourcePath);
-
-      const fileName = path.basename(sourcePath);
-      const uniqueName = `${Date.now()}-${fileName}`;
-      const destPath = path.join(fondosPublicDir, uniqueName);
-
-      // Copiar archivo
-      fs.copyFileSync(sourcePath, destPath);
-
-      const relativePath = `/fondos/${uniqueName}`;
-      console.log("✅ [Main] Archivo copiado a:", relativePath);
-
-      return relativePath;
-
-    } catch (error) {
-      console.error("❌ [Main] Error copiando archivo:", error);
-      return null;
-    }
-  });
-
-  // ✨ NUEVO HANDLER: Importar fondos desde carpeta
-  ipcMain.handle("importar-fondos-desde-carpeta", async () => {
-    try {
-      console.log("📁 [Main] Abriendo dialog para seleccionar carpeta...");
-
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: "Seleccionar carpeta con fondos",
-        properties: ["openDirectory"]
-      });
-
-      if (result.canceled || !result.filePaths.length) {
-        console.log("❌ [Main] Selección de carpeta cancelada");
-        return { success: false, message: "Selección cancelada" };
-      }
-
-      const carpetaSeleccionada = result.filePaths[0];
-      console.log("📁 [Main] Carpeta seleccionada:", carpetaSeleccionada);
-
-      // Extensiones soportadas
-      const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
-      const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv']);
-      const extensionesSoportadas = new Set([...extensionesImagen, ...extensionesVideo]);
-
-      // Leer archivos de la carpeta
-      const archivos = fs.readdirSync(carpetaSeleccionada);
-      const archivosValidos = archivos.filter(archivo => {
-        const extension = path.extname(archivo).toLowerCase();
-        return extensionesSoportadas.includes(extension);
-      });
-
-      console.log(`📁 [Main] Archivos encontrados: ${archivos.length}, válidos: ${archivosValidos.length}`);
-
-      if (archivosValidos.length === 0) {
-        return {
-          success: false,
-          message: "No se encontraron archivos de imagen o video en la carpeta seleccionada"
-        };
-      }
-
-      let importados = 0;
-      let errores = 0;
-
-      for (const archivo of archivosValidos) {
-        try {
-          const rutaCompleta = path.join(carpetaSeleccionada, archivo);
-          const extension = path.extname(archivo).toLowerCase();
-
-          // Determinar tipo
-          const tipo = extensionesImagen.has(extension) ? 'imagen' : 'video';
-
-          // Generar nombre único para el archivo
-          const nombreUnico = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${archivo}`;
-          const rutaDestino = path.join(fondosPublicDir, nombreUnico);
-
-          // Copiar archivo a la carpeta de fondos
-          fs.copyFileSync(rutaCompleta, rutaDestino);
-
-          // Guardar en base de datos
-          const rutaRelativa = `/fondos/${nombreUnico}`;
-          const nombreSinExtension = path.basename(archivo, extension);
-
-          const resultado = agregarFondo(
-            rutaRelativa,
-            tipo,
-            nombreSinExtension,
-            false
-          );
-
-          if (resultado) {
-            importados++;
-            console.log(`✅ [Main] Importado: ${archivo}`);
-          } else {
-            errores++;
-            console.error(`❌ [Main] Error importando: ${archivo}`);
-          }
-
-        } catch (error) {
-          errores++;
-          console.error(`❌ [Main] Error procesando ${archivo}:`, error);
-        }
-      }
-
-      console.log(`✅ [Main] Importación completada: ${importados} importados, ${errores} errores`);
-
-      return {
-        success: true,
-        message: `Importación completada: ${importados} fondos importados${errores > 0 ? `, ${errores} errores` : ''}`,
-        importados,
-        errores
-      };
-
-    } catch (error) {
-      console.error("❌ [Main] Error en importación masiva:", error);
-      return {
-        success: false,
-        message: `Error durante la importación: ${error.message}`
-      };
-    }
-  });
-
-  // ✨ NUEVO HANDLER: Escanear carpeta de fondos existente
-  ipcMain.handle("escanear-carpeta-fondos", async () => {
-    try {
-      console.log("🔍 [Main] Escaneando carpeta de fondos existente...");
-
-      // Verificar si existe la carpeta de fondos
-      if (!fs.existsSync(fondosPublicDir)) {
-        return { success: false, message: "La carpeta de fondos no existe" };
-      }
-
-      const archivos = fs.readdirSync(fondosPublicDir);
-      const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
-      const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.webm', '.mkv']);
-      const extensionesSoportadas = new Set([...extensionesImagen, ...extensionesVideo]);
-
-      const archivosValidos = archivos.filter(archivo => {
-        const extension = path.extname(archivo).toLowerCase();
-        return extensionesSoportadas.includes(extension);
-      });
-
-      console.log(`🔍 [Main] Archivos en carpeta fondos: ${archivos.length}, válidos: ${archivosValidos.length}`);
-
-      // Obtener fondos ya existentes en BD
-      const fondosExistentes = obtenerFondos();
-      const urlsExistentes = new Set(fondosExistentes.map(f => f.url));
-
-      let agregados = 0;
-      let yaExistentes = 0;
-
-      for (const archivo of archivosValidos) {
-        try {
-          const rutaRelativa = `/fondos/${archivo}`;
-
-          // Verificar si ya existe en BD
-          if (urlsExistentes.has(rutaRelativa)) {
-            yaExistentes++;
-            console.log(`ℹ️ [Main] Ya existe en BD: ${archivo}`);
-            continue;
-          }
-
-          const extension = path.extname(archivo).toLowerCase();
-          const tipo = extensionesImagen.has(extension) ? 'imagen' : 'video';
-          const nombreSinExtension = path.basename(archivo, extension);
-
-          const resultado = agregarFondo(rutaRelativa, tipo, nombreSinExtension, false);
-
-          if (resultado) {
-            agregados++;
-            console.log(`✅ [Main] Agregado a BD: ${archivo}`);
-          }
-
-        } catch (error) {
-          console.error(`❌ [Main] Error procesando ${archivo}:`, error);
-        }
-      }
-
-      console.log(`✅ [Main] Escaneo completado: ${agregados} agregados, ${yaExistentes} ya existían`);
-
-      return {
-        success: true,
-        message: `Escaneo completado: ${agregados} fondos agregados a la base de datos${yaExistentes > 0 ? `, ${yaExistentes} ya existían` : ''}`,
-        agregados,
-        yaExistentes
-      };
-
-    } catch (error) {
-      console.error("❌ [Main] Error escaneando carpeta:", error);
-      return {
-        success: false,
-        message: `Error durante el escaneo: ${error.message}`
-      };
-    }
+  require("./ipc/fondos").registrar({
+    getMainWindow: () => mainWindow,
+    obtenerRutaBase,
+    obtenerRutaRecursos,
+    fondosPublicDir,
+    sincronizarFondoObs,
   });
 
   // ====================================
@@ -5267,132 +4407,9 @@ function registrarHandlers() {
   });
 
   // ====================================
-  // ✨ HANDLERS DE MULTIMEDIA ACTIVA
+  // ✨ HANDLERS DE MULTIMEDIA (activa, CRUD, archivos)
   // ====================================
-
-  // Establecer multimedia como activa
-  ipcMain.handle("establecer-multimedia-activa", async (event, multimediaData) => {
-    try {
-      const logMessage = "🎬 [Main] =============== ESTABLECER MULTIMEDIA ACTIVA ===============";
-      console.log(logMessage);
-
-      // Enviar logs también a las ventanas para mejor debugging
-      const todasLasVentanas = BrowserWindow.getAllWindows();
-      todasLasVentanas.forEach(ventana => {
-        if (!ventana.isDestroyed()) {
-          ventana.webContents.executeJavaScript(`console.log(${JSON.stringify(logMessage)})`);
-          ventana.webContents.executeJavaScript(`console.log("🎬 [Main] Datos recibidos:", ${JSON.stringify(multimediaData)})`);
-        }
-      });
-
-      console.log("🎬 [Main] Datos recibidos:", multimediaData);
-
-      const resultado = await establecerMultimediaActiva(multimediaData);
-      console.log("🎬 [Main] Resultado de establecerMultimediaActiva:", resultado);
-
-      if (resultado) {
-        // Notificar a todas las ventanas (especialmente el proyector)
-        console.log("🎬 [Main] Total de ventanas encontradas:", todasLasVentanas.length);
-
-        // Enviar a consolas también
-        todasLasVentanas.forEach(ventana => {
-          if (!ventana.isDestroyed()) {
-            ventana.webContents.executeJavaScript(`console.log("🎬 [Main] Total de ventanas encontradas: ${todasLasVentanas.length}")`);
-          }
-        });
-
-        let ventanasNotificadas = 0;
-        todasLasVentanas.forEach((ventana, index) => {
-          if (!ventana.isDestroyed()) {
-            const titulo = ventana.getTitle();
-            console.log(`🎬 [Main] Notificando ventana ${index + 1}:`, titulo);
-
-            // Enviar a consola también
-            ventana.webContents.executeJavaScript(`console.log("🎬 [Main] Notificando ventana ${index + 1}:", ${JSON.stringify(titulo)})`);
-
-            ventana.webContents.send("actualizar-multimedia-activa", multimediaData);
-            ventanasNotificadas++;
-          } else {
-            console.log(`⚠️ [Main] Ventana ${index + 1} está destruida, omitiendo`);
-          }
-        });
-
-        console.log("✅ [Main] Multimedia activa establecida");
-        console.log(`✅ [Main] ${ventanasNotificadas} ventanas notificadas del evento actualizar-multimedia-activa`);
-        console.log("🎬 [Main] ============================================================");
-
-        // Enviar logs finales a consolas
-        todasLasVentanas.forEach(ventana => {
-          if (!ventana.isDestroyed()) {
-            ventana.webContents.executeJavaScript(`console.log("✅ [Main] Multimedia activa establecida")`);
-            ventana.webContents.executeJavaScript(`console.log("✅ [Main] ${ventanasNotificadas} ventanas notificadas del evento actualizar-multimedia-activa")`);
-            ventana.webContents.executeJavaScript(`console.log("🎬 [Main] ============================================================")`);
-          }
-        });
-      } else {
-        console.error("❌ [Main] Error: establecerMultimediaActiva retornó false");
-
-        // Enviar error a consolas también
-        todasLasVentanas.forEach(ventana => {
-          if (!ventana.isDestroyed()) {
-            ventana.webContents.executeJavaScript(`console.error("❌ [Main] Error: establecerMultimediaActiva retornó false")`);
-          }
-        });
-      }
-
-      return resultado;
-    } catch (error) {
-      console.error("❌ [Main] Error estableciendo multimedia activa:", error);
-
-      // Enviar error a consolas también
-      const todasLasVentanas = BrowserWindow.getAllWindows();
-      todasLasVentanas.forEach(ventana => {
-        if (!ventana.isDestroyed()) {
-          ventana.webContents.executeJavaScript(`console.error("❌ [Main] Error estableciendo multimedia activa:", ${JSON.stringify(error.message)})`);
-        }
-      });
-
-      return false;
-    }
-  });
-
-  // Obtener multimedia activa
-  ipcMain.handle("obtener-multimedia-activa", async (event) => {
-    try {
-      console.log("🎬 [Main] Obteniendo multimedia activa...");
-      const multimedia = await obtenerMultimediaActiva();
-      console.log("✅ [Main] Multimedia activa obtenida:", multimedia);
-      return multimedia;
-    } catch (error) {
-      console.error("❌ [Main] Error obteniendo multimedia activa:", error);
-      return null;
-    }
-  });
-
-  // Limpiar multimedia activa
-  ipcMain.handle("limpiar-multimedia-activa", async (event) => {
-    try {
-      console.log("🧹 [Main] Limpiando multimedia activa...");
-      const resultado = await limpiarMultimediaActiva();
-
-      if (resultado) {
-        // Notificar a todas las ventanas
-        const todasLasVentanas = BrowserWindow.getAllWindows();
-        todasLasVentanas.forEach(ventana => {
-          if (!ventana.isDestroyed()) {
-            ventana.webContents.send("limpiar-multimedia-activa");
-          }
-        });
-
-        console.log("✅ [Main] Multimedia activa limpiada y notificada");
-      }
-
-      return resultado;
-    } catch (error) {
-      console.error("❌ [Main] Error limpiando multimedia activa:", error);
-      return false;
-    }
-  });
+  require("./ipc/multimedia").registrar({ obtenerRutaBase });
 
   // ✨ HANDLERS PARA CONTROL REMOTO DEL PROYECTOR
   ipcMain.on("proyector-play", (event) => {
@@ -5501,133 +4518,7 @@ function registrarHandlers() {
   // ====================================
   // HANDLERS DE HIMNOS
   // ====================================
-
-  ipcMain.handle("agregar-himno", async (event, nuevoHimno) => {
-    try {
-      const { numero, titulo, letra, favorito, fuente } = nuevoHimno;
-      const id = await dbNew.crearHimno({
-        numero,
-        titulo,
-        letra: JSON.stringify(letra),
-        favorito: favorito ? 1 : 0,
-        fuente: fuente || 'personal',
-      });
-      return { success: true, id };
-    } catch (error) {
-      console.error("Error en agregar-himno:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("obtener-himnos", async () => {
-    try {
-      const himnos = await dbNew.obtenerHimnos();
-      return himnos.map(himno => ({
-        ...himno,
-        letra: JSON.parse(himno.letra || '[]'),
-        favorito: Boolean(himno.favorito)
-      }));
-    } catch (error) {
-      console.error("Error al obtener los himnos:", error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle("obtener-himno-por-id", async (event, id) => {
-    try {
-      const himno = await dbNew.obtenerHimnoPorId(id);
-      if (!himno) {
-        throw new Error("Himno no encontrado");
-      }
-      return {
-        ...himno,
-        letra: JSON.parse(himno.letra || '[]'),
-        favorito: Boolean(himno.favorito)
-      };
-    } catch (error) {
-      console.error("Error al obtener el himno:", error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle("actualizar-himno", async (event, himno) => {
-    try {
-      const { id, numero, titulo, letra, fuente } = himno;
-      const success = await dbNew.actualizarHimno(id, {
-        numero,
-        titulo,
-        letra: JSON.stringify(letra),
-        favorito: himno.favorito ? 1 : 0,
-        fuente: fuente || 'personal',
-      });
-      return { success };
-    } catch (error) {
-      console.error("Error al actualizar el himno:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("eliminar-himno", async (event, id) => {
-    try {
-      const success = await dbNew.eliminarHimno(id);
-      return { success };
-    } catch (error) {
-      console.error("Error al eliminar el himno:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("obtener-favoritos", async () => {
-    try {
-      const himnos = await dbNew.obtenerHimnos();
-      const favoritos = himnos.filter(himno => himno.favorito);
-      return favoritos.map(himno => ({
-        ...himno,
-        letra: JSON.parse(himno.letra || '[]'),
-        favorito: Boolean(himno.favorito)
-      }));
-    } catch (error) {
-      console.error("Error al obtener favoritos:", error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle("marcar-favorito", async (event, { id, favorito }) => {
-    try {
-      const himno = await dbNew.obtenerHimnoPorId(id);
-      if (!himno) {
-        throw new Error("Himno no encontrado");
-      }
-
-      const success = await dbNew.actualizarHimno(id, {
-        ...himno,
-        favorito: favorito ? 1 : 0
-      });
-      return success;
-    } catch (error) {
-      console.error("Error al marcar favorito:", error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle("eliminar-favorito", async (event, id) => {
-    try {
-      const himno = await dbNew.obtenerHimnoPorId(id);
-      if (!himno) {
-        throw new Error("Himno no encontrado");
-      }
-
-      const success = await dbNew.actualizarHimno(id, {
-        ...himno,
-        favorito: 0
-      });
-      console.log(`Himno con ID ${id} marcado como no favorito.`);
-      return success;
-    } catch (error) {
-      console.error("Error al marcar el himno como no favorito:", error);
-      throw error;
-    }
-  });
+  require("./ipc/himnos").registrar();
 
   //Mostrar versículo
   ipcMain.on("proyectar-versiculo", (event, versiculo) => {
@@ -5663,363 +4554,8 @@ function registrarHandlers() {
   });
 
   // ====================================
-  // HANDLERS DE PRESENTACIONES
-  // ====================================
-
-  ipcMain.handle("agregar-presentacion", (event, presentacion) => {
-    try {
-      agregarPresentacion(presentacion);
-      return { success: true };
-    } catch (error) {
-      console.error("Error al guardar la presentación:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("obtener-presentaciones", async () => {
-    try {
-      const presentaciones = obtenerPresentaciones();
-      return presentaciones.map((row) => ({
-        ...row,
-        fecha: row.fecha ? new Date(row.fecha).toISOString().split("T")[0] : null,
-      }));
-    } catch (error) {
-      console.error("Error al obtener las presentaciones:", error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle("editar-presentacion", async (event, presentacion) => {
-    try {
-      // La función editarPresentacion espera el objeto completo con el id incluido
-      editarPresentacion(presentacion);
-      return { success: true };
-    } catch (error) {
-      console.error("Error al editar la presentación:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("eliminar-presentacion", async (event, id) => {
-    try {
-      eliminarPresentacion(id);
-      return { success: true };
-    } catch (error) {
-      console.error("Error al eliminar la presentación:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ====================================
-  // HANDLERS DE PRESENTACIONES SLIDES
-  // ====================================
-
-  // Obtener todas las presentaciones de slides
-  ipcMain.handle("obtener-presentaciones-slides", async () => {
-    try {
-      return obtenerPresentacionesSlides();
-    } catch (error) {
-      console.error("❌ [MAIN] Error obteniendo presentaciones slides:", error);
-      return [];
-    }
-  });
-
-  // Obtener presentación slides por ID
-  ipcMain.handle("obtener-presentacion-slides-por-id", async (event, id) => {
-    try {
-      return obtenerPresentacionSlidesPorId(id);
-    } catch (error) {
-      console.error("❌ [MAIN] Error obteniendo presentación slides por ID:", error);
-      return null;
-    }
-  });
-
-  // Agregar nueva presentación slides
-  ipcMain.handle("agregar-presentacion-slides", async (event, presentacionData) => {
-    try {
-      console.log("📥 [MAIN] Recibiendo datos para agregar presentación slides:", presentacionData.nombre);
-      const result = agregarPresentacionSlides(presentacionData);
-      console.log("📤 [MAIN] Resultado de agregarPresentacionSlides:", result);
-      return result;
-    } catch (error) {
-      console.error("❌ [MAIN] Error agregando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Actualizar presentación slides
-  ipcMain.handle("actualizar-presentacion-slides", async (event, presentacionData) => {
-    try {
-      return actualizarPresentacionSlides(presentacionData);
-    } catch (error) {
-      console.error("❌ [MAIN] Error actualizando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Eliminar presentación slides
-  ipcMain.handle("eliminar-presentacion-slides", async (event, id) => {
-    try {
-      return eliminarPresentacionSlides(id);
-    } catch (error) {
-      console.error("❌ [MAIN] Error eliminando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Duplicar presentación slides
-  ipcMain.handle("duplicar-presentacion-slides", async (event, id) => {
-    try {
-      return duplicarPresentacionSlides(id);
-    } catch (error) {
-      console.error("❌ [MAIN] Error duplicando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Actualizar favorito de presentación slides
-  ipcMain.handle("actualizar-favorito-presentacion-slides", async (event, id, favorito) => {
-    try {
-      return actualizarFavoritoPresentacionSlides(id, favorito);
-    } catch (error) {
-      console.error("❌ [MAIN] Error actualizando favorito:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Actualizar slide actual de presentación
-  ipcMain.handle("actualizar-slide-actual-presentacion", async (event, id, slideIndex) => {
-    try {
-      return actualizarSlideActualPresentacion(id, slideIndex);
-    } catch (error) {
-      console.error("❌ [MAIN] Error actualizando slide actual:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Exportar presentación slides
-  ipcMain.handle("exportar-presentacion-slides", async (event, id) => {
-    try {
-      return exportarPresentacionSlides(id);
-    } catch (error) {
-      console.error("❌ [MAIN] Error exportando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Importar presentación slides desde JSON
-  ipcMain.handle("importar-presentacion-slides", async (event, datosImportar, nombreArchivo) => {
-    try {
-      return importarPresentacionSlides(datosImportar, nombreArchivo);
-    } catch (error) {
-      console.error("❌ [MAIN] Error importando presentación slides:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Obtener estadísticas de presentaciones slides
-  ipcMain.handle("obtener-estadisticas-presentaciones-slides", async () => {
-    try {
-      return obtenerEstadisticasPresentacionesSlides();
-    } catch (error) {
-      console.error("❌ [MAIN] Error obteniendo estadísticas:", error);
-      return {
-        total: 0,
-        favoritas: 0,
-        powerpoint: 0,
-        imagenes: 0,
-        personalizadas: 0,
-        total_slides: 0,
-        promedio_slides: 0
-      };
-    }
-  });
-
-  // ====================================
-  // HANDLER: PowerPoint -> PNG (preservar diseño)
-  // ====================================
-
-  ipcMain.handle("convertir-pptx-a-imagenes", async (event, sourcePath) => {
-    try {
-      if (!sourcePath || typeof sourcePath !== "string") {
-        return { success: false, error: "Ruta de archivo inválida" };
-      }
-
-      const ext = path.extname(sourcePath).toLowerCase();
-      if (ext !== ".pptx" && ext !== ".ppt") {
-        return { success: false, error: "El archivo debe ser .ppt o .pptx" };
-      }
-
-      if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: "El archivo no existe" };
-      }
-
-      const libreOfficeBin = encontrarLibreOfficeBin();
-      if (!libreOfficeBin) {
-        return {
-          success: false,
-          error:
-            "LibreOffice no está disponible. Instálalo para importar PowerPoint conservando el diseño.",
-        };
-      }
-
-      const rutaBase = obtenerRutaBase();
-      const uploadsBaseDir = path.join(rutaBase, "public", "uploads");
-      const jobId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const outDir = path.join(uploadsBaseDir, "pptx", jobId);
-      fs.mkdirSync(outDir, { recursive: true });
-
-      // Convertir a PNG (una imagen por slide)
-      const ordenados = await convertirPptxAImagenesEnDirectorio({
-        libreOfficeBin,
-        sourcePath,
-        outDir,
-      });
-      if (ordenados.length === 0) {
-        return {
-          success: false,
-          error:
-            "No se generaron imágenes. Verifica que el PPTX no esté protegido o dañado.",
-        };
-      }
-
-      // Construir URLs servidas por el servidor local (puerto 3001)
-      const baseUrl = "http://localhost:3001/uploads";
-      const imageUrls = ordenados.map(
-        (fileName) => `${baseUrl}/pptx/${jobId}/${encodeURIComponent(fileName)}`,
-      );
-
-      return {
-        success: true,
-        jobId,
-        imageUrls,
-      };
-    } catch (error) {
-      console.error("❌ [MAIN] Error convertir-pptx-a-imagenes:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Alternativa: convertir PPTX desde buffer (cuando File.path no está disponible)
-  ipcMain.handle(
-    "convertir-pptx-buffer-a-imagenes",
-    async (event, payload) => {
-      try {
-        const fileName = String(payload?.fileName || "Presentacion.pptx");
-        const data = payload?.data;
-
-        const ext = path.extname(fileName).toLowerCase();
-        if (ext !== ".pptx" && ext !== ".ppt") {
-          return { success: false, error: "El archivo debe ser .ppt o .pptx" };
-        }
-
-        if (!data) {
-          return { success: false, error: "No se recibió contenido del archivo" };
-        }
-
-        const libreOfficeBin = encontrarLibreOfficeBin();
-        if (!libreOfficeBin) {
-          return {
-            success: false,
-            error:
-              "LibreOffice no está disponible. Instálalo para importar PowerPoint conservando el diseño.",
-          };
-        }
-
-        const rutaBase = obtenerRutaBase();
-        const uploadsBaseDir = path.join(rutaBase, "public", "uploads");
-        const jobId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const outDir = path.join(uploadsBaseDir, "pptx", jobId);
-        fs.mkdirSync(outDir, { recursive: true });
-
-        const safeInputName = `__input${ext}`;
-        const inputPath = path.join(outDir, safeInputName);
-        const buffer = Buffer.isBuffer(data)
-          ? data
-          : data instanceof ArrayBuffer
-            ? Buffer.from(new Uint8Array(data))
-            : Buffer.from(data);
-        fs.writeFileSync(inputPath, buffer);
-
-        const ordenados = await convertirPptxAImagenesEnDirectorio({
-          libreOfficeBin,
-          sourcePath: inputPath,
-          outDir,
-        });
-
-        if (ordenados.length === 0) {
-          return {
-            success: false,
-            error:
-              "No se generaron imágenes. Verifica que el PPTX no esté protegido o dañado.",
-          };
-        }
-
-        const baseUrl = "http://localhost:3001/uploads";
-        const imageUrls = ordenados.map(
-          (pngName) => `${baseUrl}/pptx/${jobId}/${encodeURIComponent(pngName)}`,
-        );
-
-        return { success: true, jobId, imageUrls };
-      } catch (error) {
-        console.error(
-          "❌ [MAIN] Error convertir-pptx-buffer-a-imagenes:",
-          error,
-        );
-        return { success: false, error: error.message };
-      }
-    },
-  );
-
-  // ====================================
   // HANDLERS DEL PROYECTOR
   // ====================================
-
-  // Abrir proyector con slide específico
-  ipcMain.handle("proyectar-slide", async (event, slideData) => {
-    try {
-      console.log("📺 [MAIN] Iniciando proyección de slide:", slideData);
-
-      // Verificar si existe ventana del proyector
-      if (!proyectorWindow || proyectorWindow.isDestroyed()) {
-        console.log("🆕 [MAIN] Creando nueva ventana del proyector");
-        proyectorWindow = createProyectorWindow();
-        if (!proyectorWindow) {
-          return { success: false, error: "No se pudo crear la ventana del proyector" };
-        }
-
-        // Esperar a que la página se cargue completamente
-        await new Promise((resolve) => {
-          proyectorWindow.webContents.once('did-finish-load', resolve);
-        });
-
-        // Dar tiempo adicional para que React se inicialice
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      // Enfocar y maximizar la ventana del proyector
-      proyectorWindow.focus();
-      proyectorWindow.setFullScreen(true);
-
-      // Verificar que el contenido web esté listo
-      if (proyectorWindow.webContents.isLoading()) {
-        console.log("⏳ [MAIN] Esperando que la página termine de cargar...");
-        await new Promise((resolve) => {
-          proyectorWindow.webContents.once('did-finish-load', resolve);
-        });
-      }
-
-      // Enviar datos del slide al proyector
-      console.log("📤 [MAIN] Enviando datos del slide al proyector");
-      proyectorWindow.webContents.send("proyectar-slide-data", slideData);
-
-      console.log("✅ [MAIN] Slide proyectado correctamente");
-      return { success: true };
-    } catch (error) {
-      console.error("❌ [MAIN] Error proyectando slide:", error);
-      return { success: false, error: error.message };
-    }
-  });
 
   // Limpiar proyector
   ipcMain.handle("limpiar-proyector", async () => {
@@ -6149,7 +4685,7 @@ function registrarHandlers() {
       ];
 
       for (const clave of claves) {
-        const valor = await dbNew.obtenerConfiguracion(clave);
+        const valor = await obtenerConfiguracion(clave);
         if (valor !== null) {
           // ✨ Convertir valores booleanos
           if (valor === 'true' || valor === 'false') {
@@ -6174,7 +4710,7 @@ function registrarHandlers() {
       let resultado = true;
 
       for (const [clave, valor] of Object.entries(configuracion)) {
-        const success = await dbNew.actualizarConfiguracion(clave, valor);
+        const success = await actualizarConfiguracion(clave, valor);
         if (!success) {
           resultado = false;
         }
@@ -6202,7 +4738,7 @@ function registrarHandlers() {
     try {
       console.log("🔄 [Main] Restaurando configuración por defecto...");
       // Usar la nueva función que limpia y restaura los valores
-      const resultado = await dbNew.restaurarConfiguracionDefecto();
+      const resultado = await restaurarConfiguracionDefecto();
 
       if (resultado) {
         console.log("✅ [Main] Configuración restaurada exitosamente");
@@ -6229,7 +4765,7 @@ function registrarHandlers() {
   ipcMain.handle('obtener-configuracion-clave', async (event, clave) => {
     try {
       console.log(`🔍 [Main] Obteniendo configuración por clave: ${clave}`);
-      const valor = await dbNew.obtenerConfiguracion(clave);
+      const valor = await obtenerConfiguracion(clave);
       console.log(`📋 [Main] Valor obtenido para ${clave}:`, valor);
       return valor;
     } catch (error) {
@@ -6241,7 +4777,7 @@ function registrarHandlers() {
   ipcMain.handle('actualizar-configuracion-clave', async (event, clave, valor) => {
     try {
       console.log(`💾 [Main] Actualizando ${clave} con valor:`, valor);
-      const resultado = await dbNew.actualizarConfiguracion(clave, valor);
+      const resultado = await actualizarConfiguracion(clave, valor);
       console.log(`✅ [Main] Resultado actualización ${clave}:`, resultado);
       return resultado;
     } catch (error) {
@@ -6301,75 +4837,9 @@ function registrarHandlers() {
 
   // ============================================================
   // VALIDACIÓN DE ARCHIVOS: magic numbers + tamaño + extensión
+  // Compartida con ipc/multimedia.js — ver ipc/shared/uploadValidation.js
   // ============================================================
-  const LIMITES_MB = {
-    logo: 10,
-    imagen: 50,
-    audio: 500,
-    video: 2048,
-    documento: 100,
-  };
-
-  const EXTENSIONES_PERMITIDAS = {
-    logo: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
-    imagen: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
-    audio: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
-    video: ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'],
-    documento: ['.pdf', '.pptx', '.ppt', '.key'],
-  };
-
-  // Devuelve true si el buffer corresponde al tipo indicado por la extensión
-  function verificarMagicNumber(buffer, ext) {
-    const e = ext.toLowerCase().replace('.', '');
-    if (buffer.length < 12) return false;
-    switch (e) {
-      case 'jpg': case 'jpeg':
-        return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
-      case 'png':
-        return buffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
-      case 'gif':
-        return buffer.slice(0, 6).equals(Buffer.from('GIF87a')) ||
-          buffer.slice(0, 6).equals(Buffer.from('GIF89a'));
-      case 'webp':
-        return buffer.slice(0, 4).equals(Buffer.from('RIFF')) &&
-          buffer.slice(8, 12).equals(Buffer.from('WEBP'));
-      case 'pdf':
-        return buffer.slice(0, 4).equals(Buffer.from('%PDF'));
-      case 'mp3':
-        return (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) || // sync frame
-          buffer.slice(0, 3).equals(Buffer.from('ID3'));
-      case 'wav':
-        return buffer.slice(0, 4).equals(Buffer.from('RIFF')) &&
-          buffer.slice(8, 12).equals(Buffer.from('WAVE'));
-      case 'ogg':
-        return buffer.slice(0, 4).equals(Buffer.from('OggS'));
-      case 'mp4': case 'mov': case 'm4a': case 'm4v':
-        return buffer.slice(4, 8).equals(Buffer.from('ftyp'));
-      case 'webm':
-        return buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3;
-      case 'pptx': case 'ppt':
-        return buffer.slice(0, 4).equals(Buffer.from([0x50, 0x4B, 0x03, 0x04])); // ZIP
-      default:
-        return true; // Sin firma definida → validación por extensión es suficiente
-    }
-  }
-
-  function validarArchivoUpload(buffer, extension, categoria) {
-    const limiteMB = LIMITES_MB[categoria] ?? LIMITES_MB.documento;
-    const limiteBytes = limiteMB * 1024 * 1024;
-    if (buffer.length > limiteBytes) {
-      throw new Error(`Archivo demasiado grande (${Math.round(buffer.length / 1024 / 1024)} MB). Límite: ${limiteMB} MB`);
-    }
-    // Normalizar a ".ext" — el frontend puede mandar la extensión con o sin punto
-    const ext = extension.toLowerCase().startsWith('.') ? extension.toLowerCase() : `.${extension.toLowerCase()}`;
-    const extsPermitidas = EXTENSIONES_PERMITIDAS[categoria];
-    if (extsPermitidas && !extsPermitidas.includes(ext)) {
-      throw new Error(`Extensión "${ext}" no permitida para ${categoria}`);
-    }
-    if (!verificarMagicNumber(buffer, ext)) {
-      throw new Error(`El contenido del archivo no corresponde a la extensión "${ext}"`);
-    }
-  }
+  const { validarArchivoUpload } = require("./ipc/shared/uploadValidation");
   // ============================================================
 
   ipcMain.handle('guardar-logo', async (event, archivoBuffer) => {
@@ -6399,158 +4869,9 @@ function registrarHandlers() {
     }
   });
 
-  // Función para subir archivos de presentación
-  ipcMain.handle('subir-archivo-presentacion', async (event, archivoData) => {
-    try {
-      console.log('📤 [MAIN] Subiendo archivo:', archivoData.nombre);
-
-      // Crear carpeta de archivos si no existe
-      const archivosDir = path.join(__dirname, 'data', 'archivos');
-      if (!fs.existsSync(archivosDir)) {
-        fs.mkdirSync(archivosDir, { recursive: true });
-      }
-
-      // Crear subcarpetas por tipo
-      const tiposDir = {
-        imagen: path.join(archivosDir, 'imagenes'),
-        video: path.join(archivosDir, 'videos'),
-        audio: path.join(archivosDir, 'audios'),
-        documento: path.join(archivosDir, 'documentos')
-      };
-
-      Object.values(tiposDir).forEach(dir => {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-      });
-
-      // Determinar la carpeta según el tipo
-      const carpetaDestino = tiposDir[archivoData.tipo] || tiposDir.documento;
-
-      // Generar nombre único para el archivo
-      const timestamp = Date.now();
-      const extension = path.extname(archivoData.nombre);
-      const nombreBase = path.basename(archivoData.nombre, extension);
-      const nombreUnico = `${nombreBase}_${timestamp}${extension}`;
-      const rutaCompleta = path.join(carpetaDestino, nombreUnico);
-
-      // Convertir base64 a buffer, validar y guardar archivo
-      const buffer = Buffer.from(archivoData.data, 'base64');
-      const categoriaMap = { imagen: 'imagen', video: 'video', audio: 'audio', documento: 'documento' };
-      const categoria = categoriaMap[archivoData.tipo] || 'documento';
-      validarArchivoUpload(buffer, extension, categoria);
-      fs.writeFileSync(rutaCompleta, buffer);
-
-      // Ruta relativa para almacenar en la base de datos
-      const rutaRelativa = path.relative(path.join(__dirname, 'data'), rutaCompleta).replace(/\\/g, '/');
-
-      console.log('✅ [MAIN] Archivo guardado en:', rutaCompleta);
-
-      return {
-        success: true,
-        ruta: rutaRelativa,
-        mensaje: 'Archivo subido exitosamente'
-      };
-
-    } catch (error) {
-      console.error('❌ [MAIN] Error subiendo archivo:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // Función para obtener archivos
-  ipcMain.handle('obtener-archivos-presentacion', async (event, presentacionId) => {
-    try {
-      // Aquí implementarías la lógica para obtener archivos de una presentación específica
-      return [];
-    } catch (error) {
-      console.error('❌ [MAIN] Error obteniendo archivos:', error);
-      return [];
-    }
-  });
-
-  // Función para eliminar archivos
-  ipcMain.handle('eliminar-archivo-presentacion', async (event, archivoId) => {
-    try {
-      // Aquí implementarías la lógica para eliminar un archivo específico
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
   // Enlace externo
   ipcMain.handle('abrir-enlace-externo', async (event, url) => {
     shell.openExternal(url);
-  });
-
-  // ==================================== FUNCIONES DE MULTIMEDIA 
-
-  ipcMain.handle('db-obtener-multimedia', async () => {
-    try {
-      console.log('🎵 [IPC] Obteniendo archivos multimedia...');
-      const multimedia = await obtenerMultimedia();
-      console.log('✅ [IPC] Archivos multimedia obtenidos:', multimedia?.length || 0);
-      return multimedia;
-    } catch (error) {
-      console.error('❌ [IPC] Error obteniendo multimedia:', error);
-      return [];
-    }
-  });
-
-  // Agregar nuevo archivo multimedia
-  ipcMain.handle('db-agregar-multimedia', async (event, multimediaData) => {
-    try {
-      console.log('💾 [IPC] Agregando archivo multimedia:', multimediaData);
-      const resultado = await agregarMultimedia(multimediaData);
-      console.log('✅ [IPC] Archivo multimedia agregado:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('❌ [IPC] Error agregando multimedia:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Eliminar archivo multimedia
-  ipcMain.handle('db-eliminar-multimedia', async (event, id) => {
-    try {
-      console.log('🗑️ [IPC] Eliminando archivo multimedia:', id);
-      const resultado = await eliminarMultimedia(id);
-      console.log('✅ [IPC] Archivo multimedia eliminado:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('❌ [IPC] Error eliminando multimedia:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ✨ AGREGAR HANDLERS ADICIONALES PARA EL MENÚ MEJORADO:
-
-  // Handler para abrir el buscador de la Biblia desde el menú
-  ipcMain.on('abrir-buscador-biblia', (event) => {
-    try {
-      console.log('🔍 [Main] Abriendo buscador de Biblia desde menú...');
-      if (mainWindow) {
-        mainWindow.webContents.send('abrir-buscador-biblia');
-      }
-    } catch (error) {
-      console.error('❌ [Main] Error abriendo buscador de Biblia:', error);
-    }
-  });
-
-  // Handler para seleccionar libro específico de la Biblia desde el menú
-  ipcMain.on('seleccionar-libro-biblia', (event, libroId) => {
-    try {
-      console.log('📖 [Main] Seleccionando libro bíblico desde menú:', libroId);
-      if (mainWindow) {
-        mainWindow.webContents.send('seleccionar-libro-biblia', libroId);
-      }
-    } catch (error) {
-      console.error('❌ [Main] Error seleccionando libro bíblico:', error);
-    }
   });
 
   // Handler para obtener información de la aplicación
@@ -6618,329 +4939,6 @@ function registrarHandlers() {
     } catch (error) {
       console.error('❌ [Main] Error gestionando pantalla completa:', error);
       return false;
-    }
-  });
-
-  // Incrementar contador de reproducido
-  ipcMain.handle('db-incrementar-reproducido', async (event, id) => {
-    try {
-      console.log('📈 [IPC] Incrementando contador de reproducido:', id);
-      const resultado = await incrementarReproducido(id);
-      console.log('✅ [IPC] Contador incrementado:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('❌ [IPC] Error incrementando reproducido:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Actualizar favorito multimedia
-  ipcMain.handle('db-actualizar-favorito-multimedia', async (event, id, favorito) => {
-    try {
-      console.log('⭐ [IPC] Actualizando favorito multimedia:', { id, favorito });
-      const resultado = await actualizarFavoritoMultimedia(id, favorito);
-      console.log('✅ [IPC] Favorito actualizado:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('❌ [IPC] Error actualizando favorito:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Actualizar multimedia
-  ipcMain.handle('db-actualizar-multimedia', async (event, multimediaData) => {
-    try {
-      console.log('📝 [IPC] Actualizando multimedia:', multimediaData);
-      const resultado = await actualizarMultimedia(multimediaData);
-      console.log('✅ [IPC] Multimedia actualizada:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('❌ [IPC] Error actualizando multimedia:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Obtener multimedia favoritos
-  ipcMain.handle('db-obtener-multimedia-favoritos', async () => {
-    try {
-      console.log('⭐ [IPC] Obteniendo multimedia favoritos...');
-      const multimedia = await obtenerMultimediaFavoritos();
-      console.log('✅ [IPC] Multimedia favoritos obtenidos:', multimedia?.length || 0);
-      return multimedia;
-    } catch (error) {
-      console.error('❌ [IPC] Error obteniendo multimedia favoritos:', error);
-      return [];
-    }
-  });
-
-  // Obtener multimedia por tipo
-  ipcMain.handle('db-obtener-multimedia-por-tipo', async (event, tipo) => {
-    try {
-      console.log('🎯 [IPC] Obteniendo multimedia por tipo:', tipo);
-      const multimedia = await obtenerMultimediaPorTipo(tipo);
-      console.log('✅ [IPC] Multimedia por tipo obtenidos:', multimedia?.length || 0);
-      return multimedia;
-    } catch (error) {
-      console.error('❌ [IPC] Error obteniendo multimedia por tipo:', error);
-      return [];
-    }
-  });
-
-  // ✨ VERIFICAR ARCHIVOS DUPLICADOS - COMENTADO PARA EVITAR DUPLICACIÓN
-  // console.log('🔧 [MAIN] Registrando handler verificar-archivo-duplicado...');
-
-  // Primero remover cualquier handler existente
-  try {
-    // ipcMain.removeHandler('verificar-archivo-duplicado');
-    console.log('🧹 [MAIN] Handler anterior removido');
-  } catch (e) {
-    console.log('🧹 [MAIN] No había handler anterior');
-  }
-
-  // COMENTADO: Handler duplicado - el real está en registrarHandlers()
-  /* ipcMain.handle('verificar-archivo-duplicado', async (event, datos) => {
-    console.log('🚨 [IPC] *** HANDLER VERIFICAR-ARCHIVO-DUPLICADO EJECUTADO ***');
-    console.log('🚨 [IPC] Datos completos recibidos:', datos);
-    console.log('🚨 [IPC] Tipo de datos:', typeof datos);
-
-    // VERSIÓN SIMPLIFICADA PARA DEBUGGING
-    try {
-      console.log('🔍 [IPC] VERSIÓN SIMPLIFICADA DE VERIFICACIÓN');
-
-      // Por ahora, siempre devolver que NO existe
-      console.log('� [IPC] Devolviendo resultado de prueba: NO existe');
-      return {
-        existe: false,
-        debug: 'Handler ejecutado correctamente'
-      };
-
-    } catch (error) {
-      console.error('❌ [IPC] Error en verificación simplificada:', error);
-      return {
-        existe: false,
-        error: error.message
-      };
-    }
-  });
-  console.log('✅ [MAIN] Handler verificar-archivo-duplicado registrado exitosamente');
-  */
-
-  // ✨ HANDLER DE PRUEBA SIMPLE
-  // console.log('🔧 [MAIN] Registrando handler de prueba test-duplicado...');
-  ipcMain.handle('test-duplicado', async (event, datos) => {
-    console.log('🧪 [TEST] Handler de prueba ejecutado con datos:', datos);
-    return { teste: true, datos: datos };
-  });
-  // console.log('✅ [MAIN] Handler de prueba test-duplicado registrado');
-
-  // ✨ NUEVO: Abrir diálogo para seleccionar archivos multimedia
-  ipcMain.handle('seleccionar-archivos-multimedia', async (event) => {
-    try {
-      console.log('📂 [IPC] Abriendo selector de archivos multimedia...');
-
-      const result = await dialog.showOpenDialog({
-        title: 'Seleccionar archivos multimedia',
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          { name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'] },
-          { name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'] },
-          { name: 'Imágenes', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] },
-          { name: 'Todos los archivos', extensions: ['*'] }
-        ]
-      });
-
-      if (result.canceled || result.filePaths.length === 0) {
-        console.log('❌ [IPC] Selección cancelada o sin archivos');
-        return { success: false, canceled: true };
-      }
-
-      console.log('✅ [IPC] Archivos seleccionados:', result.filePaths.length);
-      return { success: true, filePaths: result.filePaths };
-
-    } catch (error) {
-      console.error('❌ [IPC] Error abriendo selector de archivos:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ✨ NUEVO: Procesar archivos por ruta (sin base64)
-  ipcMain.handle('procesar-archivos-por-ruta', async (event, filePaths) => {
-    try {
-      console.log('📦 [IPC] Procesando archivos por ruta:', filePaths.length);
-
-      const resultados = [];
-      // ✨ USAR obtenerRutaBase() para producción
-      const multimediaDir = path.join(obtenerRutaBase(), "public", "multimedia");
-
-      // Crear directorio si no existe
-      if (!fs.existsSync(multimediaDir)) {
-        fs.mkdirSync(multimediaDir, { recursive: true });
-      }
-
-      for (const filePath of filePaths) {
-        try {
-          console.log('📁 [IPC] Procesando archivo:', filePath);
-
-          // Obtener información del archivo
-          const stats = fs.statSync(filePath);
-          const fileName = path.basename(filePath);
-          const extension = path.extname(filePath).toLowerCase();
-          const nombreSinExtension = path.basename(filePath, extension);
-
-          // Determinar tipo
-          let tipo;
-          const extensionesVideo = new Set(['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm']);
-          const extensionesAudio = new Set(['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a']);
-          const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
-
-          if (extensionesVideo.has(extension)) {
-            tipo = 'video';
-          } else if (extensionesAudio.has(extension)) {
-            tipo = 'audio';
-          } else if (extensionesImagen.has(extension)) {
-            tipo = 'imagen';
-          } else {
-            throw new Error(`Tipo de archivo no soportado: ${extension}`);
-          }
-
-          // Generar nombre único
-          const timestamp = Date.now();
-          const randomString = Math.random().toString(36).substring(2, 11);
-          const nombreOriginal = nombreSinExtension.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const nombreUnico = `${timestamp}-${randomString}-${nombreOriginal}${extension}`;
-
-          // Ruta destino
-          const rutaDestino = path.join(multimediaDir, nombreUnico);
-
-          // Copiar archivo (mucho más rápido que base64)
-          console.log('📋 [IPC] Copiando archivo a:', rutaDestino);
-          fs.copyFileSync(filePath, rutaDestino);
-          console.log('✅ [IPC] Archivo copiado exitosamente');
-
-          // Preparar datos para la base de datos
-          const multimediaData = {
-            nombre: fileName,
-            tipo: tipo,
-            tamaño: stats.size,
-            ruta_archivo: nombreUnico,
-            url: `/multimedia/${nombreUnico}`,
-            extension: extension,
-            favorito: false,
-            reproducido: 0,
-            fecha_agregado: new Date().toISOString()
-          };
-
-          console.log('💾 [IPC] Agregando a base de datos...');
-          const resultadoDB = await agregarMultimedia(multimediaData);
-          console.log('✅ [IPC] Agregado a BD con ID:', resultadoDB?.id);
-
-          resultados.push({
-            success: true,
-            id: resultadoDB?.id,
-            nombre: fileName,
-            tipo: tipo,
-            url: multimediaData.url
-          });
-
-        } catch (error) {
-          console.error('❌ [IPC] Error procesando archivo:', error);
-          resultados.push({
-            success: false,
-            nombre: path.basename(filePath),
-            error: error.message
-          });
-        }
-      }
-
-      console.log('✅ [IPC] Procesamiento completado:', resultados);
-      return { success: true, resultados: resultados };
-
-    } catch (error) {
-      console.error('❌ [IPC] Error general procesando archivos:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ✨ PROCESAR ARCHIVOS MULTIMEDIA SUBIDOS
-  ipcMain.handle('procesar-archivo-multimedia', async (event, fileData) => {
-    try {
-      console.log('📁 [IPC] Procesando archivo multimedia:', fileData?.nombre);
-      // console.log('📁 [IPC] fileData.tipo:', fileData?.tipo);
-      // console.log('📁 [IPC] fileData.tamaño:', fileData?.tamaño);
-      // console.log('📁 [IPC] fileData.extension:', fileData?.extension);
-
-      // Validar que fileData tiene las propiedades necesarias
-      if (!fileData || !fileData.nombre || !fileData.data) {
-        throw new Error('Datos de archivo incompletos. Se requiere nombre y data.');
-      }
-
-      // Crear directorio multimedia si no existe (userData en producción)
-      const multimediaDir = path.join(obtenerRutaBase(), "public", "multimedia");
-      if (!fs.existsSync(multimediaDir)) {
-        fs.mkdirSync(multimediaDir, { recursive: true });
-      }
-
-      // Generar nombre único para el archivo
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 11);
-      const nombreOriginal = fileData.nombre.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const extension = fileData.extension || '';
-      const nombreUnico = `${timestamp}-${randomString}-${nombreOriginal}${extension}`;
-
-      // console.log('📁 [IPC] Nombre único generado:', nombreUnico);
-
-      // Ruta completa del archivo
-      const rutaArchivo = path.join(multimediaDir, nombreUnico);
-      // console.log('📁 [IPC] Ruta archivo completa:', rutaArchivo);
-
-      // Convertir base64 a buffer, validar y escribir el archivo
-      const base64Data = fileData.data.replace(/^data:.*,/, ''); // Remover prefijo data:
-      const buffer = Buffer.from(base64Data, 'base64');
-      const categoriaMultimedia = ['imagen', 'video', 'audio'].includes(fileData.tipo) ? fileData.tipo : 'documento';
-      validarArchivoUpload(buffer, fileData.extension || '', categoriaMultimedia);
-      fs.writeFileSync(rutaArchivo, buffer);
-
-      console.log('✅ [IPC] Archivo guardado exitosamente');
-
-      // Preparar datos para la base de datos
-      const multimediaData = {
-        nombre: `${fileData.nombre}${extension}`, // Nombre completo con extensión
-        tipo: fileData.tipo,
-        tamaño: fileData.tamaño,
-        ruta_archivo: nombreUnico, // Solo el nombre único, no la ruta completa
-        url: `/multimedia/${nombreUnico}`, // URL relativa para el servidor
-        favorito: false,
-        reproducido: 0,
-        fecha_agregado: new Date().toISOString()
-      };
-
-      // console.log('💾 [IPC] Datos para base de datos:', multimediaData);
-
-      // Agregar a la base de datos
-      console.log('💾 [IPC] Agregando a base de datos...');
-      const resultado = await agregarMultimedia(multimediaData);
-
-      console.log('✅ [IPC] Resultado de agregar a BD:', resultado);
-
-      // Retornar un objeto simple sin datos binarios grandes
-      return {
-        success: true,
-        id: resultado?.id || resultado,
-        multimedia: {
-          id: resultado?.id || resultado,
-          nombre: multimediaData.nombre,
-          tipo: multimediaData.tipo,
-          url: multimediaData.url
-        },
-        mensaje: `Archivo ${fileData.nombre}${extension} procesado correctamente`
-      };
-
-    } catch (error) {
-      console.error('❌ [IPC] Error procesando archivo multimedia:', error);
-      return {
-        success: false,
-        error: error.message
-      };
     }
   });
 
@@ -7026,131 +5024,6 @@ function registrarHandlers() {
       }
     }
   });
-
-  // ✨ HANDLERS PARA COMUNICACIÓN CON PROYECTOR - PRESENTACIONES
-  ipcMain.handle('enviar-presentacion-al-proyector', async (event, presentacionData) => {
-    try {
-      console.log('📊 [IPC] Enviando presentación al proyector:', presentacionData.name);
-
-      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-        proyectorWindow.webContents.send('mostrar-presentacion', presentacionData);
-        proyectorWindow.focus();
-        return { success: true };
-      } else {
-        const nuevaVentana = createProyectorWindow();
-        if (nuevaVentana) {
-          nuevaVentana.webContents.once('did-finish-load', () => {
-            nuevaVentana.webContents.send('mostrar-presentacion', presentacionData);
-            nuevaVentana.focus();
-          });
-          return { success: true };
-        }
-        return { success: false, error: 'No se pudo crear ventana del proyector' };
-      }
-    } catch (error) {
-      console.error('❌ [IPC] Error enviando presentación al proyector:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle('cambiar-slide-proyector', async (event, { presentacionId, slideIndex }) => {
-    try {
-      console.log(`🎯 [IPC] Cambiando slide del proyector: ${presentacionId} -> ${slideIndex}`);
-
-      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-        proyectorWindow.webContents.send('cambiar-slide', { presentacionId, slideIndex });
-        return { success: true };
-      }
-      return { success: false, error: 'Proyector no disponible' };
-    } catch (error) {
-      console.error('❌ [IPC] Error cambiando slide:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle('detener-presentacion-proyector', async () => {
-    try {
-      console.log('🛑 [IPC] Deteniendo presentación en proyector');
-
-      if (proyectorWindow && !proyectorWindow.isDestroyed()) {
-        proyectorWindow.webContents.send('detener-presentacion');
-        return { success: true };
-      }
-      return { success: false, error: 'Proyector no disponible' };
-    } catch (error) {
-      console.error('❌ [IPC] Error deteniendo presentación:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ✨ VERIFICAR ARCHIVOS DUPLICADOS
-  console.log('🔧 [MAIN] Registrando handler verificar-archivo-duplicado...');
-
-  // Primero remover cualquier handler existente
-  try {
-    ipcMain.removeHandler('verificar-archivo-duplicado');
-    console.log('🧹 [MAIN] Handler anterior removido');
-  } catch (e) {
-    console.log('🧹 [MAIN] No había handler anterior');
-  }
-
-  ipcMain.handle('verificar-archivo-duplicado', async (event, datos) => {
-    console.log('� [IPC] Verificando duplicado:', datos?.nombre);
-
-    // VERSIÓN SIMPLIFICADA PARA DEBUGGING
-    try {
-      console.log('🔍 [IPC] VERSIÓN SIMPLIFICADA DE VERIFICACIÓN');
-
-      // *** IMPLEMENTAR LÓGICA REAL DE DUPLICADOS ***
-      console.log('🔍 [IPC] Datos recibidos:', { nombre: datos?.nombre, tipo: datos?.tipo, tamaño: datos?.tamaño });
-
-      // Obtener todos los archivos multimedia de la base de datos
-      const multimedia = obtenerMultimedia();
-      console.log(`📊 [IPC] Total archivos en BD: ${multimedia?.length || 0}`);
-
-      if (!multimedia || multimedia.length === 0) {
-        console.log('📭 [IPC] No hay archivos en BD - archivo es único');
-        return { existe: false };
-      }
-
-      // Buscar archivo con el mismo nombre (sin extensión)
-      const nombreBuscado = datos?.nombre || '';
-      console.log(`🔍 [IPC] Buscando duplicado de: "${nombreBuscado}"`);
-
-      for (const item of multimedia) {
-        const nombreExistente = item.nombre || '';
-        // Remover extensión de ambos nombres para comparar
-        const nombreExistenteSinExt = nombreExistente.replace(/\.[^/.]+$/, '');
-        const nombreBuscadoSinExt = nombreBuscado.replace(/\.[^/.]+$/, '');
-
-        console.log(`🔍 [IPC] Comparando: BD="${nombreExistenteSinExt}" vs Nuevo="${nombreBuscadoSinExt}"`);
-
-        // Comparar nombres sin extensión (case insensitive)
-        const nombreCoincide = nombreExistenteSinExt.toLowerCase() === nombreBuscadoSinExt.toLowerCase();
-        const tipoCoincide = item.tipo === datos?.tipo;
-
-        if (nombreCoincide && tipoCoincide) {
-          console.log('⚠️ [IPC] *** DUPLICADO ENCONTRADO ***');
-          console.log(`⚠️ [IPC] Archivo existente: "${nombreExistente}" (ID: ${item.id})`);
-          return {
-            existe: true,
-            archivo: item
-          };
-        }
-      }
-
-      console.log('✅ [IPC] No se encontró duplicado - archivo es único');
-      return { existe: false };
-
-    } catch (error) {
-      console.error('❌ [IPC] Error en verificación simplificada:', error);
-      return {
-        existe: false,
-        error: error.message
-      };
-    }
-  });
-  console.log('✅ [MAIN] Handler verificar-archivo-duplicado registrado exitosamente');
 
   console.log("✅ [Main] Todos los handlers registrados exitosamente");
 }

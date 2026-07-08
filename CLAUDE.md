@@ -133,7 +133,7 @@ iniciarServidorMultimedia(); // demasiado tarde
 
 ```
 my-church-proyector/
-├── main.js                  # Proceso principal Electron (~4800 líneas, en proceso de modularización)
+├── main.js                  # Proceso principal Electron (~4500 líneas, en proceso de modularización)
 ├── preload.js               # Bridge IPC seguro (~380 líneas)
 ├── db.js                    # Schema SQLite + toda la capa de datos (archivo único)
 ├── ipc/                     # Handlers IPC extraídos de main.js, por dominio (en progreso)
@@ -143,6 +143,7 @@ my-church-proyector/
 │   ├── biblia.js             # Consulta/preview de versículos bíblicos
 │   ├── timer.js               # Handlers IPC del temporizador (estado/helpers viven en main.js, compartidos con las rutas Express de la app móvil)
 │   ├── configuracion.js       # CRUD de configuración (obtener/guardar/restaurar por defecto/por clave)
+│   ├── proyectorControl.js    # Proyectar himno/versículo/multimedia, abrir/cerrar ventana, fondos, controles remotos, OBS (el dominio más acoplado — mainWindow/proyectorWindow, actualizarObs y timer se inyectan)
 │   └── shared/
 │       └── uploadValidation.js  # Validación de uploads (tamaño/extensión/magic number), usada por multimedia y por handlers aún en main.js (logo, presentaciones)
 ├── electron-builder.yml     # Configuración de build y empaquetado

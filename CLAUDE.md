@@ -141,6 +141,7 @@ my-church-proyector/
 │   ├── fondos.js             # CRUD de fondos + selección/importación de archivos
 │   ├── multimedia.js         # Multimedia activa, CRUD, subida/procesamiento de archivos
 │   ├── biblia.js             # Consulta/preview de versículos bíblicos
+│   ├── timer.js               # Handlers IPC del temporizador (estado/helpers viven en main.js, compartidos con las rutas Express de la app móvil)
 │   └── shared/
 │       └── uploadValidation.js  # Validación de uploads (tamaño/extensión/magic number), usada por multimedia y por handlers aún en main.js (logo, presentaciones)
 ├── electron-builder.yml     # Configuración de build y empaquetado

@@ -389,6 +389,32 @@ body.fondo-oscuro{background:#02050d}
 @keyframes _rdlg1{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
 @keyframes _rdlg2{from{transform:translate(-50%,-50%) rotate(360deg)}to{transform:translate(-50%,-50%) rotate(0deg)}}
 @keyframes _rdlpulso{0%,100%{opacity:.55}50%{opacity:.9}}
+/* ── Fondo animado de lluvia (fondo seleccionable "Lluvia") ── */
+#lluvia{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .7s ease;background:#050a12}
+#lluvia.show{opacity:1}
+#lluvia .lv-fondo{position:absolute;inset:0;background:radial-gradient(ellipse 120% 90% at 50% 0%,#0c1c2e 0%,#030509 78%);animation:_lluvia_niebla 10s ease-in-out infinite}
+#lluvia .lv-piso{position:absolute;left:50%;bottom:-8%;transform:translateX(-50%);width:90vw;height:24vh;border-radius:50%;background:radial-gradient(ellipse,rgba(120,170,255,.10) 0%,transparent 72%)}
+.gota{position:absolute;top:0;border-radius:999px;background:linear-gradient(to bottom,transparent,rgba(170,215,255,.65),rgba(200,230,255,.9))}
+@keyframes _gota{
+  0%{transform:translateY(-15vh);opacity:0}
+  8%{opacity:var(--gop)}
+  88%{opacity:var(--gop)}
+  100%{transform:translateY(115vh);opacity:0}
+}
+@keyframes _lluvia_niebla{0%,100%{opacity:.55}50%{opacity:.8}}
+/* ── Fondo animado de brasas (fondo seleccionable "Brasas") ── */
+#brasas{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .7s ease;background:#0a0402}
+#brasas.show{opacity:1}
+#brasas .br-fondo{position:absolute;inset:0;background:radial-gradient(ellipse 100% 55% at 50% 100%,#4a1503 0%,#0a0402 72%)}
+#brasas .br-piso{position:absolute;left:50%;bottom:-10%;transform:translateX(-50%);width:92vw;height:36vh;border-radius:50%;background:radial-gradient(ellipse,rgba(255,120,40,.35) 0%,rgba(255,80,20,.12) 45%,transparent 75%);animation:_fuego_glow 4s ease-in-out infinite}
+.brasa{position:absolute;bottom:0;border-radius:50%}
+@keyframes _brasa{
+  0%{transform:translate(0,8vh) scale(.6);opacity:0}
+  10%{opacity:var(--bop)}
+  80%{opacity:var(--bop)}
+  100%{transform:translate(var(--bdx),-112vh) scale(1.15);opacity:0}
+}
+@keyframes _fuego_glow{0%,100%{opacity:.65}50%{opacity:1}}
 /* ── Anillo de progreso del temporizador ── */
 .timer-ring-wrap{position:relative;width:50vmin;height:50vmin;margin:0 auto}
 .timer-ring-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
@@ -412,6 +438,8 @@ body.fondo-oscuro{background:#02050d}
 <body>
 <div id="starfield"><div class="nebula"></div><div class="core"></div></div>
 <div id="rayoluz"><div class="rl-fondo"></div><div class="rl-rayos1"></div><div class="rl-rayos2"></div><div class="rl-halo"></div><div class="rl-vineta"></div></div>
+<div id="lluvia"><div class="lv-fondo"></div><div class="lv-piso"></div></div>
+<div id="brasas"><div class="br-fondo"></div><div class="br-piso"></div></div>
 <div id="fondo-media"></div>
 <div id="fondo-overlay"></div>
 <div id="wrap"><div id="content"></div></div>
@@ -427,6 +455,8 @@ const fondoMedia=document.getElementById('fondo-media');
 const fondoOverlay=document.getElementById('fondo-overlay');
 const starfield=document.getElementById('starfield');
 const rayoluz=document.getElementById('rayoluz');
+const lluvia=document.getElementById('lluvia');
+const brasas=document.getElementById('brasas');
 function pad(n){return String(n).padStart(2,'0')}
 function fmt(s){const v=Math.max(0,Math.floor(s));return pad(Math.floor(v/60))+':'+pad(v%60)}
 function timerColor(s,fin){
@@ -467,13 +497,64 @@ function buildStarfield(){
   }
   starfield.appendChild(frag);
 }
-// Muestra el fondo animado con el id dado ('estrellas'|'rayo-de-luz') y
-// apaga cualquier otro. id=null apaga los dos.
+let lluviaBuilt=false;
+function buildLluvia(){
+  if(lluviaBuilt)return;
+  lluviaBuilt=true;
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<130;i++){
+    const left=Math.random()*100;
+    const length=16+Math.random()*38;
+    const width=1+Math.random()*1.4;
+    const dur=(0.55+Math.random()*0.85).toFixed(2);
+    const delay=(-(Math.random()*2)).toFixed(2);
+    const opacity=(0.15+Math.random()*0.4).toFixed(2);
+    const el=document.createElement('div');
+    el.className='gota';
+    el.style.cssText='left:'+left+'%;width:'+width+'px;height:'+length+'px;'+
+      '--gop:'+opacity+';'+
+      'animation:_gota '+dur+'s '+delay+'s linear infinite';
+    frag.appendChild(el);
+  }
+  lluvia.appendChild(frag);
+}
+let brasasBuilt=false;
+function buildBrasas(){
+  if(brasasBuilt)return;
+  brasasBuilt=true;
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<85;i++){
+    const left=Math.random()*100;
+    const size=2+Math.random()*5;
+    const dur=(3+Math.random()*4.5).toFixed(2);
+    const delay=(-(Math.random()*7)).toFixed(2);
+    const drift=((Math.random()-0.5)*22).toFixed(1);
+    const opacity=(0.4+Math.random()*0.5).toFixed(2);
+    const warm=Math.random()<0.7;
+    const color=warm?'255,140,60':'255,205,100';
+    const el=document.createElement('div');
+    el.className='brasa';
+    el.style.cssText='left:'+left+'%;width:'+size+'px;height:'+size+'px;'+
+      'background:rgba('+color+',1);'+
+      'box-shadow:0 0 '+(size*2.5)+'px rgba('+color+',.8);'+
+      '--bdx:'+drift+'vw;--bop:'+opacity+';'+
+      'animation:_brasa '+dur+'s '+delay+'s ease-in infinite';
+    frag.appendChild(el);
+  }
+  brasas.appendChild(frag);
+}
+// Muestra el fondo animado con el id dado
+// ('estrellas'|'rayo-de-luz'|'lluvia'|'brasas') y apaga cualquier otro.
+// id=null apaga los cuatro.
 function mostrarAnimado(id){
   if(id==='estrellas'){buildStarfield();starfield.classList.add('show');}
   else starfield.classList.remove('show');
   if(id==='rayo-de-luz')rayoluz.classList.add('show');
   else rayoluz.classList.remove('show');
+  if(id==='lluvia'){buildLluvia();lluvia.classList.add('show');}
+  else lluvia.classList.remove('show');
+  if(id==='brasas'){buildBrasas();brasas.classList.add('show');}
+  else brasas.classList.remove('show');
 }
 function actualizarFondo(fondo){
   if(SOLO_TEXTO)return; // modo solo texto: fondo siempre transparente

@@ -1,5 +1,7 @@
 import Estrellas from "./Estrellas";
 import RayoDeLuz from "./RayoDeLuz";
+import Lluvia from "./Lluvia";
+import Brasas from "./Brasas";
 
 // Los fondos "animado" no tienen archivo real — su `url` en la DB es un
 // identificador con prefijo "animado:" (ej. "animado:estrellas"), nunca una
@@ -8,6 +10,8 @@ import RayoDeLuz from "./RayoDeLuz";
 export const FONDOS_ANIMADOS = {
   estrellas: Estrellas,
   "rayo-de-luz": RayoDeLuz,
+  lluvia: Lluvia,
+  brasas: Brasas,
 };
 
 export function idFondoAnimado(url) {

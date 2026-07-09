@@ -942,6 +942,8 @@ function inicializarFondosAnimadosPorDefecto() {
     const fondosAnimados = [
       { url: "animado:estrellas", tipo: "animado", nombre: "Estrellas" },
       { url: "animado:rayo-de-luz", tipo: "animado", nombre: "Rayo de Luz" },
+      { url: "animado:lluvia", tipo: "animado", nombre: "Lluvia" },
+      { url: "animado:brasas", tipo: "animado", nombre: "Brasas" },
     ];
 
     const existsStmt = db.prepare("SELECT id FROM fondos WHERE url = ?");

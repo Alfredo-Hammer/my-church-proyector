@@ -6,13 +6,13 @@ import {useMemo} from "react";
 // corriendo un culto entero.
 export default function Lluvia() {
   const gotas = useMemo(() => {
-    return Array.from({length: 130}, (_, i) => {
+    return Array.from({length: 90}, (_, i) => {
       const left    = Math.random() * 100;
-      const length  = 16 + Math.random() * 38;
-      const width   = 1 + Math.random() * 1.4;
-      const dur     = (0.55 + Math.random() * 0.85).toFixed(2);
-      const delay   = `${-(Math.random() * 2).toFixed(2)}s`;
-      const opacity = 0.15 + Math.random() * 0.4;
+      const length  = 18 + Math.random() * 46;
+      const width   = 1 + Math.random() * 1.6;
+      const dur     = (3.2 + Math.random() * 3.4).toFixed(2);
+      const delay   = `${-(Math.random() * 5).toFixed(2)}s`;
+      const opacity = 0.12 + Math.random() * 0.32;
       return {i, left, length, width, dur, delay, opacity};
     });
   }, []);
@@ -54,9 +54,10 @@ export default function Lluvia() {
           top: 0, left: `${left}%`,
           width: `${width}px`, height: `${length}px`,
           borderRadius: "999px",
-          background: "linear-gradient(to bottom, transparent, rgba(170,215,255,0.65), rgba(200,230,255,0.9))",
+          background: "linear-gradient(to bottom, transparent, rgba(170,215,255,0.55), rgba(200,230,255,0.8))",
+          boxShadow: "0 0 6px rgba(170,215,255,0.25)",
           "--gop": opacity,
-          animation: `_gota ${dur}s ${delay} linear infinite`,
+          animation: `_gota ${dur}s ${delay} ease-in infinite`,
           willChange: "transform, opacity",
         }} />
       ))}

@@ -5,13 +5,13 @@ import {useMemo} from "react";
 // fondosAnimados: solo `transform`/opacity animados vía CSS.
 export default function Brasas() {
   const particulas = useMemo(() => {
-    return Array.from({length: 85}, (_, i) => {
+    return Array.from({length: 55}, (_, i) => {
       const left    = Math.random() * 100;
-      const size    = 2 + Math.random() * 5;
-      const dur     = (3 + Math.random() * 4.5).toFixed(2);
-      const delay   = `${-(Math.random() * 7).toFixed(2)}s`;
-      const drift   = ((Math.random() - 0.5) * 22).toFixed(1);
-      const opacity = 0.4 + Math.random() * 0.5;
+      const size    = 2 + Math.random() * 4.5;
+      const dur     = (7 + Math.random() * 6).toFixed(2);
+      const delay   = `${-(Math.random() * 12).toFixed(2)}s`;
+      const drift   = ((Math.random() - 0.5) * 14).toFixed(1);
+      const opacity = 0.35 + Math.random() * 0.45;
       const warm    = Math.random() < 0.7;
       const color   = warm ? "255,140,60" : "255,205,100";
       return {i, left, size, dur, delay, drift, opacity, color};
@@ -29,7 +29,7 @@ export default function Brasas() {
         }
         @keyframes _fuego_glow {
           0%,100% { opacity: 0.65; }
-          50%     { opacity: 1; }
+          50%     { opacity: 0.92; }
         }
       `}</style>
 
@@ -44,7 +44,7 @@ export default function Brasas() {
         position: "absolute", left: "50%", bottom: "-10%", transform: "translateX(-50%)",
         width: "92vw", height: "36vh", borderRadius: "50%",
         background: "radial-gradient(ellipse, rgba(255,120,40,0.35) 0%, rgba(255,80,20,0.12) 45%, transparent 75%)",
-        animation: "_fuego_glow 4s ease-in-out infinite",
+        animation: "_fuego_glow 7s ease-in-out infinite",
         pointerEvents: "none",
       }} />
 
@@ -59,7 +59,7 @@ export default function Brasas() {
           boxShadow: `0 0 ${size * 2.5}px rgba(${color},0.8)`,
           "--bdx": `${drift}vw`,
           "--bop": opacity,
-          animation: `_brasa ${dur}s ${delay} ease-in infinite`,
+          animation: `_brasa ${dur}s ${delay} ease-out infinite`,
           willChange: "transform, opacity",
         }} />
       ))}

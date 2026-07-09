@@ -1104,8 +1104,8 @@ const GestionFondos = () => {
               )}
 
               {fondo.tipo === "animado" && (
-                <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-xs flex items-center gap-1">
-                  <IoSparkles className="text-xs" /> Animado
+                <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white/80 p-1.5 rounded-full text-xs flex items-center gap-1">
+                  <IoSparkles className="text-xs" />
                 </div>
               )}
 

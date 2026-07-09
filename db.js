@@ -929,6 +929,38 @@ function inicializarFondosPorDefecto() {
   }
 }
 
+// Fondos animados (CSS/JS, sin archivo real — su `url` es un identificador
+// con prefijo "animado:", ver src/components/fondosAnimados/index.js).
+// Función deliberadamente separada e independiente de
+// inicializarFondosPorDefecto(): esa función borra y reinserta TODOS sus
+// candidatos cuando detecta que falta alguno (para poder agregar imágenes/
+// videos por defecto nuevos), lo que resetearía el fondo activo actual de
+// una instalación existente a su valor hardcodeado. Acá solo insertamos lo
+// que falte, sin tocar ni borrar nada más — seguro de correr en cada arranque.
+function inicializarFondosAnimadosPorDefecto() {
+  try {
+    const fondosAnimados = [
+      { url: "animado:estrellas", tipo: "animado", nombre: "Estrellas" },
+      { url: "animado:rayo-de-luz", tipo: "animado", nombre: "Rayo de Luz" },
+    ];
+
+    const existsStmt = db.prepare("SELECT id FROM fondos WHERE url = ?");
+    const insertStmt = db.prepare(`
+      INSERT INTO fondos (url, tipo, nombre, activo, es_defecto, created_at)
+      VALUES (?, ?, ?, 0, 1, datetime('now'))
+    `);
+
+    for (const fondo of fondosAnimados) {
+      if (!existsStmt.get(fondo.url)) {
+        insertStmt.run(fondo.url, fondo.tipo, fondo.nombre);
+        console.log(`  ✅ [DB] Fondo animado por defecto insertado: ${fondo.nombre}`);
+      }
+    }
+  } catch (error) {
+    console.error("❌ [DB] Error inicializando fondos animados por defecto:", error);
+  }
+}
+
 // ✨ EJECUTAR MIGRACIÓN AL INICIALIZAR
 console.log("🔧 [DB] Iniciando migración de tabla fondos...");
 migrarTablaFondos();
@@ -1840,6 +1872,7 @@ module.exports = {
   establecerFondoActivo,
   obtenerFondoActivo,
   inicializarFondosPorDefecto,
+  inicializarFondosAnimadosPorDefecto,
   migrarTablaFondos,
   // ✨ Funciones de multimedia activa - NUEVAS
   establecerMultimediaActiva,

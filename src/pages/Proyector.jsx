@@ -7,6 +7,7 @@ import ParticleBackground from "../components/ParticleBackground";
 import PlantillaGSAP from "../components/PlantillaGSAP";
 import TimerDisplay from "../components/TimerDisplay";
 import ErrorBoundary from "../components/ErrorBoundary";
+import {componenteFondoAnimado} from "../components/fondosAnimados";
 import {useIpcListener} from "../hooks/useIpcListener";
 import {useProyectorConfig} from "../hooks/useProyectorConfig";
 import {useBackground} from "../hooks/useBackground";
@@ -562,7 +563,12 @@ const Proyector = () => {
                     exit={{opacity: 0}}
                     transition={{duration: 1.2, ease: "easeInOut"}}
                   >
-                    {background.fondoPrevio.tipo === "imagen" ? (
+                    {background.fondoPrevio.tipo === "animado" ? (
+                      (() => {
+                        const FondoAnimado = componenteFondoAnimado(background.fondoPrevio.url);
+                        return FondoAnimado ? <FondoAnimado /> : null;
+                      })()
+                    ) : background.fondoPrevio.tipo === "imagen" ? (
                       <div
                         className="w-full h-full bg-cover bg-center bg-no-repeat"
                         style={{
@@ -598,7 +604,12 @@ const Proyector = () => {
                   exit={{opacity: 0}}
                   transition={{duration: 1.0, ease: "easeInOut"}}
                 >
-                  {background.fondoActivo?.tipo === "imagen" ? (
+                  {background.fondoActivo?.tipo === "animado" ? (
+                    (() => {
+                      const FondoAnimado = componenteFondoAnimado(background.fondoActivo.url);
+                      return FondoAnimado ? <FondoAnimado /> : null;
+                    })()
+                  ) : background.fondoActivo?.tipo === "imagen" ? (
                     <div
                       className="w-full h-full bg-cover bg-center bg-no-repeat"
                       style={{

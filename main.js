@@ -127,6 +127,7 @@ const {
   establecerFondoActivo,
   obtenerFondoActivo,
   inicializarFondosPorDefecto,
+  inicializarFondosAnimadosPorDefecto,
 
   // Funciones de multimedia
   obtenerMultimedia,
@@ -377,6 +378,17 @@ body.fondo-oscuro{background:#02050d}
   100%{transform:translate(var(--hdx),var(--hdy)) scaleX(1);opacity:0}
 }
 @keyframes _nebula{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:.85;transform:scale(1.04)}}
+/* ── Fondo animado de rayos de luz (fondo seleccionable "Rayo de Luz") ── */
+#rayoluz{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .7s ease;background:#04060d}
+#rayoluz.show{opacity:1}
+#rayoluz .rl-fondo{position:absolute;inset:0;background:radial-gradient(ellipse 100% 85% at 50% 36%,#0c1733 0%,#02040a 72%)}
+#rayoluz .rl-rayos1{position:absolute;left:50%;top:36%;width:170vmax;height:170vmax;background:repeating-conic-gradient(rgba(255,224,170,.11) 0deg 2.2deg,transparent 2.2deg 21deg);animation:_rdlg1 100s linear infinite;mix-blend-mode:screen}
+#rayoluz .rl-rayos2{position:absolute;left:50%;top:36%;width:150vmax;height:150vmax;background:repeating-conic-gradient(rgba(160,195,255,.07) 0deg 1.6deg,transparent 1.6deg 17deg);animation:_rdlg2 140s linear infinite;mix-blend-mode:screen}
+#rayoluz .rl-halo{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);width:42vmin;height:42vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,238,205,.28) 0%,rgba(255,205,150,.10) 45%,transparent 72%);animation:_rdlpulso 7s ease-in-out infinite}
+#rayoluz .rl-vineta{position:absolute;inset:0;background:radial-gradient(ellipse 120% 100% at 50% 50%,transparent 55%,rgba(0,0,0,.55) 100%)}
+@keyframes _rdlg1{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes _rdlg2{from{transform:translate(-50%,-50%) rotate(360deg)}to{transform:translate(-50%,-50%) rotate(0deg)}}
+@keyframes _rdlpulso{0%,100%{opacity:.55}50%{opacity:.9}}
 /* ── Anillo de progreso del temporizador ── */
 .timer-ring-wrap{position:relative;width:50vmin;height:50vmin;margin:0 auto}
 .timer-ring-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
@@ -399,6 +411,7 @@ body.fondo-oscuro{background:#02050d}
 </head>
 <body>
 <div id="starfield"><div class="nebula"></div><div class="core"></div></div>
+<div id="rayoluz"><div class="rl-fondo"></div><div class="rl-rayos1"></div><div class="rl-rayos2"></div><div class="rl-halo"></div><div class="rl-vineta"></div></div>
 <div id="fondo-media"></div>
 <div id="fondo-overlay"></div>
 <div id="wrap"><div id="content"></div></div>
@@ -407,12 +420,13 @@ const params=new URLSearchParams(location.search);
 if(params.get('fondo')==='oscuro')document.body.classList.add('fondo-oscuro');
 const SOLO_TEXTO=params.get('solo-texto')==='1';
 const BASE=location.origin;
-let lastTs=0,lastFondoUrl='',lastTipo='';
+let lastTs=0,lastFondoUrl='',lastTipo='',lastAnimadoId=null;
 const wrap=document.getElementById('wrap');
 const content=document.getElementById('content');
 const fondoMedia=document.getElementById('fondo-media');
 const fondoOverlay=document.getElementById('fondo-overlay');
 const starfield=document.getElementById('starfield');
+const rayoluz=document.getElementById('rayoluz');
 function pad(n){return String(n).padStart(2,'0')}
 function fmt(s){const v=Math.max(0,Math.floor(s));return pad(Math.floor(v/60))+':'+pad(v%60)}
 function timerColor(s,fin){
@@ -453,12 +467,33 @@ function buildStarfield(){
   }
   starfield.appendChild(frag);
 }
-function toggleStarfield(show){
-  if(show){buildStarfield();starfield.classList.add('show');}
-  else{starfield.classList.remove('show');}
+// Muestra el fondo animado con el id dado ('estrellas'|'rayo-de-luz') y
+// apaga cualquier otro. id=null apaga los dos.
+function mostrarAnimado(id){
+  if(id==='estrellas'){buildStarfield();starfield.classList.add('show');}
+  else starfield.classList.remove('show');
+  if(id==='rayo-de-luz')rayoluz.classList.add('show');
+  else rayoluz.classList.remove('show');
 }
 function actualizarFondo(fondo){
   if(SOLO_TEXTO)return; // modo solo texto: fondo siempre transparente
+
+  // Fondos animados (CSS/JS) — su url es un identificador ("animado:x"),
+  // no un archivo. Van por un camino separado de <img>/<video>.
+  const idAnimado=fondo&&fondo.tipo==='animado'
+    ?String(fondo.url||'').replace(/^animado:/,'')
+    :null;
+  if(idAnimado){
+    if(idAnimado===lastAnimadoId)return;
+    lastAnimadoId=idAnimado;lastFondoUrl='';
+    fondoMedia.innerHTML='';
+    fondoMedia.classList.remove('show');
+    fondoOverlay.classList.remove('show');
+    mostrarAnimado(idAnimado);
+    return;
+  }
+  if(lastAnimadoId){mostrarAnimado(null);lastAnimadoId=null;}
+
   const url=fondo?.url?BASE+fondo.url:'';
   if(url===lastFondoUrl)return;
   lastFondoUrl=url;
@@ -477,8 +512,13 @@ function actualizarFondo(fondo){
   fondoOverlay.classList.add('show');
 }
 function render(d){
-  actualizarFondo(d.fondo||null);
-  toggleStarfield(d.tipo==='temporizador'&&!d.fondo&&!SOLO_TEXTO);
+  // Caso especial preexistente: temporizador sin fondo propio usa el
+  // starfield en vez de quedar transparente.
+  if(d.tipo==='temporizador'&&!d.fondo&&!SOLO_TEXTO){
+    actualizarFondo({tipo:'animado',url:'animado:estrellas'});
+  } else {
+    actualizarFondo(d.fondo||null);
+  }
   if(d.tipo==='vacio'||(!d.parrafo&&d.tipo!=='temporizador')){
     wrap.classList.remove('show');return;
   }
@@ -3089,6 +3129,12 @@ const inicializarFondoObs = async () => {
     const fondos = await obtenerFondos();
     const activo = (Array.isArray(fondos) ? fondos : []).find(f => f.activo);
     if (activo?.url) {
+      // Los fondos animados no son un archivo — su url ya es el identificador
+      // final ("animado:estrellas"), no pasa por toFondoRelUrl.
+      if (activo.tipo === 'animado') {
+        fondoActivoObs = { url: activo.url, tipo: 'animado' };
+        return;
+      }
       const rel = toFondoRelUrl(activo.url) || (activo.url.startsWith('/') ? activo.url : null);
       if (rel) fondoActivoObs = { url: rel, tipo: activo.tipo || 'imagen' };
     }
@@ -3096,6 +3142,7 @@ const inicializarFondoObs = async () => {
 };
 const sincronizarFondoObs = (fondoRaw) => {
   if (!fondoRaw?.url) { fondoActivoObs = null; return; }
+  if (fondoRaw.tipo === 'animado') { fondoActivoObs = { url: fondoRaw.url, tipo: 'animado' }; return; }
   const rel = toFondoRelUrl(fondoRaw.url) || (fondoRaw.url.startsWith('/') ? fondoRaw.url : null);
   fondoActivoObs = rel ? { url: rel, tipo: fondoRaw.tipo || 'imagen' } : null;
 };
@@ -4030,6 +4077,15 @@ app.whenReady().then(async () => {
       writeLog(`❌ Error al inicializar fondos por defecto: ${error.message}`);
       console.error('❌ Error al inicializar fondos por defecto:', error);
       // No bloquear la app, continuar
+    }
+
+    // ✨ INICIALIZAR FONDOS ANIMADOS POR DEFECTO (independiente, no toca los de arriba)
+    try {
+      inicializarFondosAnimadosPorDefecto();
+      writeLog('✅ Fondos animados por defecto inicializados');
+    } catch (error) {
+      writeLog(`❌ Error al inicializar fondos animados por defecto: ${error.message}`);
+      console.error('❌ Error al inicializar fondos animados por defecto:', error);
     }
 
     // ✨ LIMPIAR HANDLERS ANTES DE CREAR VENTANAS

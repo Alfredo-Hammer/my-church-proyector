@@ -29,6 +29,20 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
       };
 
       const fondosTransformados = fondos.flatMap(fondo => {
+        // Los fondos animados (CSS/JS) no tienen archivo real — su url es un
+        // identificador ("animado:estrellas"), no una ruta de disco.
+        if (fondo.tipo === 'animado') {
+          return [{
+            id: fondo.id,
+            url: fondo.url,
+            tipo: fondo.tipo,
+            nombre: fondo.nombre || `Fondo ${fondo.id}`,
+            activo: Boolean(fondo.activo),
+            es_defecto: Boolean(fondo.es_defecto),
+            created_at: fondo.created_at || new Date().toISOString()
+          }];
+        }
+
         const existe = archivoExiste(fondo.url);
         if (!existe) {
           return [];
@@ -85,6 +99,11 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
       const fondos = await obtenerFondos();
       const fondo = fondos.find(f => f.activo);
       if (!fondo) return null;
+      // Los fondos animados no tienen archivo — su url ya es el identificador final
+      if (fondo.tipo === 'animado') {
+        console.log("✅ [Main] Fondo activo obtenido (animado):", fondo.url);
+        return fondo;
+      }
       // Devolver siempre URL completa para que el proyector no tenga que transformar
       const url = fondo.url && !fondo.url.startsWith('http')
         ? `http://localhost:3001${fondo.url}`
@@ -164,13 +183,14 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
         const fondos = await obtenerFondos();
         const fondoRaw = fondos.find(f => f.activo);
 
-        // Transformar a URL completa antes de enviar al proyector
-        const fondoActivo = fondoRaw ? {
+        // Transformar a URL completa antes de enviar al proyector (los fondos
+        // animados no tienen archivo — su url ya es el identificador final)
+        const fondoActivo = !fondoRaw ? null : fondoRaw.tipo === 'animado' ? { ...fondoRaw } : {
           ...fondoRaw,
           url: fondoRaw.url && !fondoRaw.url.startsWith('http')
             ? `http://localhost:3001${fondoRaw.url}`
             : fondoRaw.url
-        } : null;
+        };
 
         // Sincronizar fondo para overlay OBS
         sincronizarFondoObs(fondoRaw);

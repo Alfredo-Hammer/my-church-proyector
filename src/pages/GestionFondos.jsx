@@ -1,6 +1,7 @@
 import {useState, useEffect} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import ModalConfirmacion from "../components/ModalConfirmacion";
+import {componenteFondoAnimado} from "../components/fondosAnimados";
 import {
   IoImage,
   IoVideocam,
@@ -14,6 +15,7 @@ import {
   IoArrowBack,
   IoWifi,
   IoAlertCircle,
+  IoSparkles,
 } from "react-icons/io5";
 
 const GestionFondos = () => {
@@ -1041,7 +1043,21 @@ const GestionFondos = () => {
                   : "border-white/10 hover:border-white/20 hover:shadow-black/40"
               }`}
             >
-              {fondo.tipo === "video" ? (
+              {fondo.tipo === "animado" ? (
+                (() => {
+                  const FondoAnimado = componenteFondoAnimado(fondo.url);
+                  return FondoAnimado ? (
+                    <div className="relative w-full h-44 overflow-hidden">
+                      <FondoAnimado />
+                    </div>
+                  ) : (
+                    <div className="w-full h-44 bg-white/5 flex flex-col items-center justify-center text-white/30 text-center p-4">
+                      <IoSparkles className="text-3xl mb-1.5" />
+                      <p className="text-xs">Animación no encontrada</p>
+                    </div>
+                  );
+                })()
+              ) : fondo.tipo === "video" ? (
                 <video
                   src={fondo.url}
                   className="w-full h-44 object-cover"
@@ -1082,6 +1098,12 @@ const GestionFondos = () => {
               {fondo.tipo === "video" && !fondo.es_defecto && (
                 <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-xs flex items-center gap-1">
                   <IoVideocam className="text-xs" /> Video
+                </div>
+              )}
+
+              {fondo.tipo === "animado" && (
+                <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-xs flex items-center gap-1">
+                  <IoSparkles className="text-xs" /> Animado
                 </div>
               )}
 

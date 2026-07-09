@@ -4,8 +4,11 @@ import {useIpcListener} from "./useIpcListener";
 const BASE_URL = "http://localhost:3001";
 const videosDefecto = ["fondo.mp4", "video1.mp4", "video2.mp4", "video3.mp4"];
 
-function toAbsoluteUrl(url) {
+function toAbsoluteUrl(url, tipo) {
   if (!url) return null;
+  // Los fondos animados no son un archivo — su url ya es el identificador
+  // final ("animado:estrellas"), nunca hay que prefijarla con el servidor.
+  if (tipo === "animado") return url;
   return url.startsWith("http") ? url : `${BASE_URL}${url}`;
 }
 
@@ -50,7 +53,7 @@ export function useBackground({modo, configuracion}) {
       return;
     }
 
-    const url = toAbsoluteUrl(nuevoFondo.url);
+    const url = toAbsoluteUrl(nuevoFondo.url, nuevoFondo.tipo);
 
     // Guardar fondo actual como capa inferior del crossfade
     const snapshot = {url: fondoActualRef.current, tipo: fondoActivoRef.current?.tipo || "video"};
@@ -74,7 +77,7 @@ export function useBackground({modo, configuracion}) {
     try {
       const fondo = await window.electron?.obtenerFondoActivo?.();
       if (fondo?.url?.trim()) {
-        const url = toAbsoluteUrl(fondo.url);
+        const url = toAbsoluteUrl(fondo.url, fondo.tipo);
         // Carga inicial sin crossfade (setFondoPrevio omitido)
         setFondoActivo({...fondo, url});
         setFondoActual(url);

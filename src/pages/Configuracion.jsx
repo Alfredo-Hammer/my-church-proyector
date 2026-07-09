@@ -1,10 +1,11 @@
 import {useState, useEffect, useRef} from "react";
 import {
   IoSave, IoRefresh, IoImage, IoClose, IoCheckmark,
-  IoWarning, IoInformationCircle, IoEye, IoTrash,
+  IoWarning, IoInformationCircle, IoEye, IoTrash, IoSparkles,
 } from "react-icons/io5";
 import {FaVideo, FaUpload, FaTimes, FaChurch, FaPalette, FaFont} from "react-icons/fa";
 import {CLASS_PX} from "../utils/pantallaScale";
+import {componenteFondoAnimado} from "../components/fondosAnimados";
 
 const BASE_URL = "http://localhost:3001";
 
@@ -298,8 +299,12 @@ const Configuracion = () => {
 
   const eliminarFondo = async (id) => {
     if (!window.confirm("¿Eliminar este fondo?")) return;
-    try { await window.electron.eliminarFondo(id); await cargarFondos(); mostrarToast("Fondo eliminado", "success"); }
-    catch { mostrarToast("Error al eliminar", "error"); }
+    try {
+      const ok = await window.electron.eliminarFondo(id);
+      await cargarFondos();
+      if (ok) mostrarToast("Fondo eliminado", "success");
+      else mostrarToast("No se pudo eliminar (es un fondo protegido o está activo)", "error");
+    } catch { mostrarToast("Error al eliminar", "error"); }
   };
 
   const restaurarDefecto = async () => {
@@ -634,7 +639,12 @@ const Configuracion = () => {
                     <div className="shrink-0 flex flex-col gap-2" style={{width: 160}}>
                       <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-white/[0.06]" style={{width: 160, height: 160}}>
                         {fondoActual ? (
-                          fondoActual.tipo === "video"
+                          fondoActual.tipo === "animado"
+                            ? (() => {
+                                const FondoAnimado = componenteFondoAnimado(fondoActual.url);
+                                return FondoAnimado ? <FondoAnimado /> : null;
+                              })()
+                            : fondoActual.tipo === "video"
                             ? <video src={fondoActual.url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
                             : <img src={fondoActual.url} alt={fondoActual.nombre} className="w-full h-full object-cover" />
                         ) : (
@@ -912,7 +922,12 @@ const Configuracion = () => {
                       }`}
                     >
                       <div className="aspect-video bg-slate-900 relative overflow-hidden">
-                        {fondo.tipo === "video"
+                        {fondo.tipo === "animado"
+                          ? (() => {
+                              const FondoAnimado = componenteFondoAnimado(fondo.url);
+                              return FondoAnimado ? <FondoAnimado /> : null;
+                            })()
+                          : fondo.tipo === "video"
                           ? <video src={fondo.url} className="w-full h-full object-cover" muted
                               onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
                           : <img src={fondo.url} alt={fondo.nombre} className="w-full h-full object-cover" />
@@ -923,7 +938,7 @@ const Configuracion = () => {
                             className="p-1.5 bg-blue-500/80 hover:bg-blue-500 rounded-lg text-white transition-colors">
                             <IoEye className="text-xs" />
                           </button>
-                          {!fondo.activo && (
+                          {!fondo.activo && !fondo.es_defecto && (
                             <button type="button"
                               onClick={(e) => { e.stopPropagation(); eliminarFondo(fondo.id); }}
                               className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-lg text-white transition-colors">
@@ -962,13 +977,24 @@ const Configuracion = () => {
               <FaTimes className="text-sm" />
             </button>
             <div className="bg-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-white/6">
-              {previsualizandoFondo.tipo === "video"
+              {previsualizandoFondo.tipo === "animado"
+                ? (() => {
+                    const FondoAnimado = componenteFondoAnimado(previsualizandoFondo.url);
+                    return (
+                      <div className="relative w-full aspect-video">
+                        {FondoAnimado && <FondoAnimado />}
+                      </div>
+                    );
+                  })()
+                : previsualizandoFondo.tipo === "video"
                 ? <video src={previsualizandoFondo.url} className="w-full max-h-[70vh] object-contain" controls autoPlay />
                 : <img src={previsualizandoFondo.url} alt={previsualizandoFondo.nombre} className="w-full max-h-[70vh] object-contain" />
               }
               <div className="px-4 py-3 flex items-center justify-between border-t border-white/5">
                 <div className="flex items-center gap-2">
-                  {previsualizandoFondo.tipo === "video"
+                  {previsualizandoFondo.tipo === "animado"
+                    ? <IoSparkles className="text-amber-400 text-xs" />
+                    : previsualizandoFondo.tipo === "video"
                     ? <FaVideo className="text-red-400 text-xs" />
                     : <IoImage className="text-blue-400 text-xs" />
                   }

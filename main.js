@@ -1999,6 +1999,19 @@ function iniciarServidorMultimedia() {
         const base = getRequestBaseUrl(req);
 
         const normalizados = (Array.isArray(fondos) ? fondos : []).map((f) => {
+          // Los fondos animados no tienen archivo — su url ya es el
+          // identificador final ("animado:estrellas"), no se reescribe.
+          if (f.tipo === 'animado') {
+            return {
+              id: f.id,
+              url: f.url,
+              url_localhost: f.url,
+              tipo: f.tipo,
+              nombre: f.nombre || `Fondo ${f.id}`,
+              activo: Boolean(f.activo),
+              created_at: f.created_at || new Date().toISOString(),
+            };
+          }
           const rawUrl = String(f?.url || '').trim();
           let urlPublica = rawUrl;
           if (urlPublica && !/^https?:\/\//i.test(urlPublica)) {
@@ -2033,6 +2046,15 @@ function iniciarServidorMultimedia() {
         const fondos = await obtenerFondos();
         const activo = (Array.isArray(fondos) ? fondos : []).find((f) => f.activo);
         if (!activo) return res.json({ ok: true, fondo: null });
+
+        // Los fondos animados no tienen archivo — su url ya es el
+        // identificador final ("animado:estrellas"), no se reescribe.
+        if (activo.tipo === 'animado') {
+          return res.json({
+            ok: true,
+            fondo: { ...activo, url_localhost: activo.url },
+          });
+        }
 
         const base = getRequestBaseUrl(req);
         const rawUrl = String(activo?.url || '').trim();
@@ -2083,7 +2105,7 @@ function iniciarServidorMultimedia() {
         const todasLasVentanas = BrowserWindow.getAllWindows();
         todasLasVentanas.forEach((ventana) => {
           if (!ventana.isDestroyed()) {
-            if (fondoActivo && fondoActivo.url && !String(fondoActivo.url).startsWith('http')) {
+            if (fondoActivo && fondoActivo.tipo !== 'animado' && fondoActivo.url && !String(fondoActivo.url).startsWith('http')) {
               ventana.webContents.send('actualizar-fondo-activo', {
                 ...fondoActivo,
                 url: toLocalhostUrl(fondoActivo.url),

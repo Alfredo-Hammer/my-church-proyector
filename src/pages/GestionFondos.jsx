@@ -220,8 +220,10 @@ const GestionFondos = () => {
             }
           }
 
+          // Los fondos animados no son un archivo — su url ya es el
+          // identificador final ("animado:estrellas"), no hay que tocarla.
           // Si la URL no empieza con http (es archivo local), construir ruta completa
-          if (!urlFinal.startsWith("http")) {
+          if (fondo.tipo !== "animado" && !urlFinal.startsWith("http")) {
             // Para archivos locales, usar el servidor Express en puerto 3001
             urlFinal = `${getBaseURL()}${urlFinal}`;
           }

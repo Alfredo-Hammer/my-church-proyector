@@ -1,5 +1,6 @@
 import {useMemo} from "react";
 import Estrellas from "./fondosAnimados/Estrellas";
+import {componenteFondoAnimado} from "./fondosAnimados";
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -42,7 +43,20 @@ export default function TimerDisplay({
     <div className="w-full h-full relative flex flex-col items-center justify-center select-none overflow-hidden">
 
       {/* ── Fondo ── */}
-      {fondo ? (
+      {fondo?.tipo === "animado" ? (
+        (() => {
+          const FondoAnimado = componenteFondoAnimado(fondo.url);
+          return FondoAnimado ? (
+            <>
+              <div style={{position: "absolute", inset: 0, zIndex: 0}}><FondoAnimado /></div>
+              <div className="absolute inset-0" style={{
+                zIndex: 1,
+                background: `radial-gradient(ellipse 90% 80% at 50% 50%, ${accent}20 0%, transparent 65%), rgba(0,0,0,0.35)`,
+              }} />
+            </>
+          ) : <Estrellas />;
+        })()
+      ) : fondo ? (
         <>
           {fondo.tipo === "video" ? (
             <video key={fondo.url} src={fondo.url} autoPlay loop muted playsInline

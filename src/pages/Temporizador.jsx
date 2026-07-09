@@ -3,6 +3,7 @@ import {
   FaPlay, FaStop, FaPause, FaRedo, FaBroadcastTower,
   FaClock, FaPlus, FaMinus, FaVideo, FaCheck, FaTimes, FaImage,
 } from "react-icons/fa";
+import {componenteFondoAnimado} from "../components/fondosAnimados";
 
 const PRESETS = [
   {label: "5 min", minutos: 5},
@@ -335,7 +336,16 @@ export default function Temporizador() {
                               : "border-white/[0.08] hover:border-white/25"
                           }`}
                         >
-                          {f.tipo === "video" ? (
+                          {f.tipo === "animado" ? (
+                            (() => {
+                              const FondoAnimado = componenteFondoAnimado(f.url);
+                              return FondoAnimado ? <FondoAnimado /> : (
+                                <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+                                  <FaImage className="text-slate-600 text-sm" />
+                                </div>
+                              );
+                            })()
+                          ) : f.tipo === "video" ? (
                             <>
                               <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
                                 <FaVideo className="text-slate-600 text-sm" />

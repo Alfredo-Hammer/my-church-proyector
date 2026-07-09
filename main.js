@@ -3986,6 +3986,14 @@ function createProyectorWindow() {
       hardwareAcceleration: true, // Acelerar hardware para mejor rendimiento
       enableBlinkFeatures: 'CSSBackdropFilter', // Mejor soporte para filtros CSS
       experimentalFeatures: false,
+      // El proyector nunca tiene el foco (el operador trabaja en mainWindow
+      // mientras esta ventana corre sola en la pantalla externa). Sin esto,
+      // Chromium throttlea rendering/timers/decodificación de video de
+      // ventanas sin foco a los pocos segundos — se ve como que el video de
+      // fondo (y cualquier animación) "se traba" tras un rato en uso real,
+      // aunque en desarrollo no se note porque uno suele interactuar con
+      // esta ventana al probar (lo cual la mantiene con foco).
+      backgroundThrottling: false,
     },
     // ✨ CONFIGURACIONES ADICIONALES PARA CALIDAD
     show: false, // No mostrar hasta estar completamente cargado

@@ -1,3 +1,20 @@
+Version 0.3.3
+
+Nuevas funciones
+- 4 fondos animados nuevos para el proyector (Estrellas, Rayo de Luz,
+  Lluvia, Brasas), disponibles en Gestion de Fondos, Configuracion y el
+  Temporizador. Son protegidos, no se pueden eliminar
+
+Correcciones
+- Corregido: el texto proyectado (himnos, versiculos, pantalla de
+  bienvenida) se veia mas chico de lo esperado en pantallas de mayor
+  resolucion que 1920x1080, como TVs 4K. Ahora el tamano de fuente se
+  ajusta automaticamente segun la resolucion real de la pantalla
+- Corregido: el fondo de video del proyector funcionaba unos segundos y
+  despues se quedaba pegado en uso real (sin tocar la ventana del
+  proyector durante un rato). La ventana del proyector ya no reduce su
+  actividad cuando pierde el foco
+
 Version 0.3.2
 
 Nuevas funciones

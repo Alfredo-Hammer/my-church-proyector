@@ -2,6 +2,7 @@ import {useParams, useNavigate, useLocation} from "react-router-dom";
 import {useState, useEffect, useMemo} from "react";
 import himnosData from "../data/himnos.json";
 import vidacristianaData from "../data/vidacristiana.json";
+import {useNowPlaying} from "../contexts/NowPlayingContext";
 import {
   FaHeart,
   FaRegHeart,
@@ -67,10 +68,10 @@ function dividirEnSecciones(texto) {
 const HimnoDetalle = () => {
   const {id, numero} = useParams();
   const {state} = useLocation();
+  const nowPlaying = useNowPlaying();
   const [himno, setHimno] = useState(null);
-  const [selectedParrafo, setSelectedParrafo] = useState(0);
+  const [localSelectedParrafo, setLocalSelectedParrafo] = useState(0);
   const [favoritos, setFavoritos] = useState(new Set());
-  const [isProyectando, setIsProyectando] = useState(false);
   const [historial, setHistorial] = useState([0]);
   const [posicionHistorial, setPosicionHistorial] = useState(0);
   const [toasts, setToasts] = useState([]);
@@ -96,14 +97,32 @@ const HimnoDetalle = () => {
 
   const hayNewlinesExplicitos = himno?.parrafos?.some((p) => p.includes("\n\n")) ?? false;
 
-  // Mantener selectedParrafo válido si los slides cambian
+  // Identidad de este himno para el contexto global de "en vivo": los
+  // himnos base (moravo/vidaCristiana) se cargan por :numero, los personales
+  // (copias guardadas en DB) por :id.
+  const contextTipo = numero
+    ? state?.tipo === "vidaCristiana"
+      ? "vidaCristiana"
+      : "moravo"
+    : "personal";
+  const isProyectando = Boolean(himno) && nowPlaying.esActivo(himno.numero, contextTipo);
+  // Cuando este himno es el que está en vivo, la posición la manda el
+  // contexto global (así la barra persistente y esta página quedan en
+  // sincronía); si no, es solo una vista previa local sin proyectar.
+  const selectedParrafo = isProyectando
+    ? nowPlaying.currentIndex
+    : localSelectedParrafo;
+
+  // Mantener selectedParrafo local válido si los slides cambian
   useEffect(() => {
-    if (slides.length > 0 && selectedParrafo >= slides.length) {
-      setSelectedParrafo(0);
+    if (isProyectando) return;
+    if (slides.length > 0 && localSelectedParrafo >= slides.length) {
+      setLocalSelectedParrafo(0);
       setHistorial([0]);
       setPosicionHistorial(0);
     }
-  }, [slides.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides.length, isProyectando]);
 
   const API_BASE = "http://localhost:3001";
   const navigate = useNavigate();
@@ -211,30 +230,19 @@ const HimnoDetalle = () => {
 
 
   const proyectarHimno = () => {
-    if (himno && window.electron) {
-      window.electron.abrirProyector();
-      window.electron.enviarHimno({
-        parrafo: slides[selectedParrafo]?.texto ?? "",
-        titulo: himno.titulo,
-        numero: himno.numero,
-        origen: "himno",
-      });
-      setIsProyectando(true);
-      addToast(`Proyectando: ${himno.titulo}`, "success");
-    }
+    if (!himno) return;
+    nowPlaying.proyectar(
+      {numero: himno.numero, titulo: himno.titulo, tipo: contextTipo},
+      slides,
+      localSelectedParrafo,
+    );
+    addToast(`Proyectando: ${himno.titulo}`, "success");
   };
 
   const limpiarProyeccion = () => {
-    if (window.electron) {
-      window.electron.enviarVersiculo({
-        parrafo: "",
-        titulo: "",
-        numero: "",
-        origen: "clear",
-      });
-      setIsProyectando(false);
-      addToast("Proyección limpiada", "info");
-    }
+    if (!isProyectando) return;
+    nowPlaying.detener();
+    addToast("Proyección limpiada", "info");
   };
 
   const abrirEdicion = (parrafoIdx) => {
@@ -305,17 +313,19 @@ const HimnoDetalle = () => {
       );
 
       setHimno({...himno, parrafos: nuevosParrafos});
-      setSelectedParrafo(idxDestino);
       setHistorial([idxDestino]);
       setPosicionHistorial(0);
 
-      // Actualizar proyector inmediatamente si está activo
-      if (isProyectando && window.electron) {
-        window.electron.enviarHimno({
-          parrafo: nuevosSlides[idxDestino]?.texto ?? "",
-          titulo: himno.titulo,
-          numero: himno.numero,
-        });
+      // Actualizar proyector inmediatamente si este himno está en vivo;
+      // si no, solo mover la vista previa local.
+      if (isProyectando) {
+        nowPlaying.actualizarSlidesActivos(
+          {numero: himno.numero, titulo: himno.titulo, tipo: contextTipo},
+          nuevosSlides,
+          idxDestino,
+        );
+      } else {
+        setLocalSelectedParrafo(idxDestino);
       }
 
       setEditingParrafo(null);
@@ -377,17 +387,16 @@ const HimnoDetalle = () => {
       setHistorial(nuevoHistorial);
       setPosicionHistorial(nuevoHistorial.length - 1);
     }
-    setSelectedParrafo(indice);
-    if (window.electron && (isProyectando || forceProject)) {
-      if (forceProject && !isProyectando) {
-        window.electron.abrirProyector();
-        setIsProyectando(true);
-      }
-      window.electron.enviarHimno({
-        parrafo: slides[indice]?.texto ?? "",
-        titulo: himno.titulo,
-        numero: himno.numero,
-      });
+    if (isProyectando) {
+      nowPlaying.irA(indice);
+    } else if (forceProject) {
+      nowPlaying.proyectar(
+        {numero: himno.numero, titulo: himno.titulo, tipo: contextTipo},
+        slides,
+        indice,
+      );
+    } else {
+      setLocalSelectedParrafo(indice);
     }
   };
 
@@ -410,6 +419,12 @@ const HimnoDetalle = () => {
   const handleKeyDown = (e) => {
     if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
     if (!himno) return;
+    // Si este himno ya está en vivo, Escape/flechas las maneja el listener
+    // global de NowPlayingContext (funciona igual desde cualquier página) —
+    // manejarlas también acá duplicaría el avance.
+    if (isProyectando && ["Escape", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight", "Home", "End"].includes(e.key)) {
+      return;
+    }
     switch (e.key) {
       case "Escape":
         limpiarProyeccion();

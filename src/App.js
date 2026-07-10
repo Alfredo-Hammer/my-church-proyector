@@ -22,7 +22,9 @@ import Temporizador from "./pages/Temporizador";
 import Plantillas from "./pages/Plantillas";
 import Servidor from "./pages/Servidor";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
+import { NowPlayingProvider, useNowPlaying } from "./contexts/NowPlayingContext";
 import PersistentMediaPreview from "./components/PersistentMediaPreview";
+import NowPlayingBar from "./components/NowPlayingBar";
 import UpdateNotification from "./components/UpdateNotification";
 import librosDeLaBiblia from "./utils/libros";
 import { cargarLibro } from "./utils/cargarLibro";
@@ -255,14 +257,16 @@ function AppContent() {
 // Componente para el layout principal que adapta el padding según la ruta
 function MainLayout() {
   const location = useLocation();
+  const {isActive: nowPlayingActivo} = useNowPlaying();
 
   const isInicio = location.pathname === '/';
   const isMultimedia = location.pathname === '/multimedia';
+  const paddingInferior = nowPlayingActivo ? 'pb-16' : '';
   const contentClasses = isInicio
     ? `flex-1 min-h-0 overflow-hidden bg-gray-800`
     : isMultimedia
       ? `flex-1 min-h-0 overflow-hidden bg-gray-800`
-      : `flex-1 min-h-0 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5`;
+      : `flex-1 min-h-0 overflow-y-auto bg-gray-800 p-2 lg:p-3 xl:p-4 2xl:p-5 ${paddingInferior}`;
 
   return (
     <div className="flex h-screen">
@@ -301,22 +305,27 @@ function MainLayout() {
 function App() {
   return (
     <MediaPlayerProvider>
-      <Router>
-        <AppContent />
-        <Routes>
-          {/* Ruta especial para el proyector, sin sidebar */}
-          <Route path="/proyector" element={<Proyector />} />
+      <NowPlayingProvider>
+        <Router>
+          <AppContent />
+          <Routes>
+            {/* Ruta especial para el proyector, sin sidebar */}
+            <Route path="/proyector" element={<Proyector />} />
 
-          {/* Layout principal con sidebar y padding adaptable */}
-          <Route path="/*" element={<MainLayout />} />
-        </Routes>
+            {/* Layout principal con sidebar y padding adaptable */}
+            <Route path="/*" element={<MainLayout />} />
+          </Routes>
 
-        {/* Vista previa de video/YouTube que persiste entre navegaciones */}
-        <PersistentMediaPreview />
+          {/* Vista previa de video/YouTube que persiste entre navegaciones */}
+          <PersistentMediaPreview />
 
-        {/* Notificación de actualizaciones */}
-        <UpdateNotification />
-      </Router>
+          {/* Barra de himno en vivo, persiste entre navegaciones */}
+          <NowPlayingBar />
+
+          {/* Notificación de actualizaciones */}
+          <UpdateNotification />
+        </Router>
+      </NowPlayingProvider>
     </MediaPlayerProvider>
   );
 }

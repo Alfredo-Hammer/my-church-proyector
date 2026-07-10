@@ -1,3 +1,18 @@
+Version 0.3.4
+
+Nuevas funciones
+- Barra de proyeccion en vivo: al proyectar un himno, aparece una barra
+  flotante que te sigue a cualquier pagina (buscar el siguiente himno,
+  revisar la biblia, etc). Podes avanzar/retroceder estrofas o detener
+  la proyeccion desde ahi o con las flechas del teclado, sin importar
+  en que pantalla estes
+- Nuevo overlay para OBS "Solo multimedia": muestra la imagen, video o
+  YouTube proyectado a pantalla completa en OBS, sincronizado con lo
+  que se ve en el proyector (incluye pausa y avance). URL disponible en
+  Servidor / OBS
+- Barra de avance (arrastrar para saltar) para audio, video y YouTube
+  en el reproductor de Multimedia
+
 Version 0.3.3
 
 Nuevas funciones

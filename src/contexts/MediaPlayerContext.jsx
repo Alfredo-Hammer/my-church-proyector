@@ -43,6 +43,10 @@ export const MediaPlayerProvider = ({children}) => {
   const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  // Señal de "saltar a X segundos" para el YouTube local de PersistentMediaPreview
+  // (su iframe no vive en este contexto, así que no hay un ref al que escribirle
+  // directo como con audioRef/videoRef — se le avisa por este cambio de estado).
+  const [seekSignal, setSeekSignal] = useState(null); // {time, requestId} | null
   const [isMinimized, setIsMinimized] = useState(false);
   // Contenido que efectivamente está proyectado ahora mismo (distinto de
   // currentMedia, que puede ser solo una vista previa local sin proyectar).
@@ -317,16 +321,26 @@ export const MediaPlayerProvider = ({children}) => {
   };
 
   const seek = (time) => {
+    if (typeof time !== "number" || Number.isNaN(time)) return;
     const mediaType = String(
       currentMedia?.tipo || currentMedia?.type || "",
     ).toLowerCase();
     const soloAudio = Boolean(currentMedia?.soloAudio);
+    const isYoutubeMedia = Boolean(currentMedia?.isYoutube) || mediaType === "youtube";
     const usarAudioRef = mediaType === "audio" || soloAudio;
+
     if (audioRef.current && usarAudioRef) {
       audioRef.current.currentTime = time;
-      setCurrentTime(time);
+    } else if (mediaType === "video" && videoRef.current) {
+      // El <video> real vive en PersistentMediaPreview, pero comparte este
+      // mismo ref — se puede mover directo sin plumbing adicional.
+      videoRef.current.currentTime = time;
+    } else if (isYoutubeMedia && !soloAudio) {
+      setSeekSignal({time, requestId: Date.now()});
     }
-    if (typeof time === "number" && !Number.isNaN(time) && !soloAudio) {
+    setCurrentTime(time);
+
+    if (!soloAudio) {
       sendProjectorControl({action: "seek", time});
     }
   };
@@ -448,7 +462,10 @@ export const MediaPlayerProvider = ({children}) => {
     toggleLoop,
     volume,
     currentTime,
+    setCurrentTime, // Exportar para que PersistentMediaPreview reporte progreso real de video/YouTube
     duration,
+    setDuration,
+    seekSignal,
     isMinimized,
     setIsMinimized,
     proyectingMedia,

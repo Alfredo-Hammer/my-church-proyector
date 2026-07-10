@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import {
   FaServer, FaCopy, FaCheck, FaWifi, FaVideo,
-  FaCircle, FaCode, FaDesktop,
+  FaCircle, FaDesktop, FaPhotoVideo,
 } from "react-icons/fa";
 import {IoRefresh} from "react-icons/io5";
 
@@ -41,17 +41,6 @@ function UrlRow({label, url, mono = true, accent = "text-sky-300"}) {
   );
 }
 
-function EndpointRow({method, path, desc}) {
-  const color = method === "GET" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300";
-  return (
-    <div className="flex items-start gap-2 py-2 border-b border-white/[0.05] last:border-0">
-      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0 mt-0.5 ${color}`}>{method}</span>
-      <span className="font-mono text-xs text-slate-300 shrink-0 w-40 truncate">{path}</span>
-      <span className="text-[11px] text-slate-500">{desc}</span>
-    </div>
-  );
-}
-
 export default function Servidor() {
   const [estado, setEstado] = useState({status: "idle", info: null, error: null});
   const [copiado, setCopiado] = useState({});
@@ -72,7 +61,6 @@ export default function Servidor() {
 
   const preferredUrl = useMemo(() => estado.info?.preferredUrl || "", [estado.info]);
   const obsUrl = preferredUrl ? `${preferredUrl}/obs` : "";
-  const apiBase = preferredUrl || `http://[IP]:3001`;
 
   const copiar = (key, texto) => {
     navigator.clipboard?.writeText(texto).then(() => {
@@ -198,7 +186,7 @@ export default function Servidor() {
               </div>
 
               {/* Opción 2: solo texto transparente */}
-              <div className="mb-3">
+              <div className="mb-2">
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 uppercase tracking-wide">Solo texto</span>
                   <p className="text-[10px] text-slate-500">Transparente — superponer sobre cámara</p>
@@ -217,10 +205,33 @@ export default function Servidor() {
                 </div>
               </div>
 
+              {/* Opción 3: solo multimedia (imagen/video/YouTube proyectado) */}
+              <div className="mb-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 uppercase tracking-wide flex items-center gap-1">
+                    <FaPhotoVideo className="text-[9px]" /> Multimedia
+                  </span>
+                  <p className="text-[10px] text-slate-500">Solo imágenes/videos proyectados</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 font-mono text-xs text-fuchsia-300 bg-slate-900/80 border border-fuchsia-500/20 rounded-lg px-3 py-2 break-all">
+                    {obsUrl ? `${obsUrl}?solo-multimedia=1` : `http://[IP]:3001/obs?solo-multimedia=1`}
+                  </p>
+                  {obsUrl && (
+                    <button type="button" onClick={() => copiar("obsSoloMultimedia", `${obsUrl}?solo-multimedia=1`)}
+                      className={`shrink-0 p-2 rounded-lg border transition-colors ${copiado.obsSoloMultimedia ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border-fuchsia-500/20 text-fuchsia-400"}`}
+                      title="Copiar">
+                      {copiado.obsSoloMultimedia ? <FaCheck className="text-sm" /> : <FaCopy className="text-sm" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="bg-slate-900/60 rounded-lg p-3">
                 <ul className="text-[11px] text-slate-500 space-y-0.5">
                   <li>· Se actualiza cada 800 ms · el fondo cambia automáticamente</li>
                   <li>· Referencia (libro · capítulo:versículo) aparece sobre el texto</li>
+                  <li>· "Con fondo" también muestra imágenes/videos proyectados a pantalla completa</li>
                 </ul>
               </div>
             </div>
@@ -298,31 +309,6 @@ export default function Servidor() {
                 El fondo transparente del overlay permite verlo superpuesto sin ocultar otras fuentes.
               </p>
             </div>
-          </div>
-
-          {/* API Reference */}
-          <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 bg-amber-500/15 rounded-lg">
-                <FaCode className="text-amber-400 text-sm" />
-              </div>
-              <p className="text-sm font-semibold text-white">Endpoints del servidor</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-              <div>
-                <EndpointRow method="GET" path="/obs" desc="Overlay transparente para OBS Browser Source" />
-                <EndpointRow method="GET" path="/api/proyector/estado" desc="Estado actual del proyector (JSON)" />
-                <EndpointRow method="GET" path="/api/connection-info" desc="IPs del servidor y URLs de conexión" />
-              </div>
-              <div>
-                <EndpointRow method="GET" path="/api/qr.png" desc="Código QR para conectar la app móvil" />
-                <EndpointRow method="GET" path="/api/himnos" desc="Listado de himnos disponibles" />
-                <EndpointRow method="GET" path="/api/fondos" desc="Fondos de pantalla disponibles" />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-600 mt-3 font-mono">
-              Base: {apiBase}
-            </p>
           </div>
 
           {/* Info técnica */}

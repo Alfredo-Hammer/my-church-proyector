@@ -18,7 +18,8 @@ const { validarArchivoUpload } = require("./shared/uploadValidation");
 
 // deps.obtenerRutaBase: main.js resuelve rutas distinto en dev vs. empaquetado
 // (usa su propio __dirname/userData) — no se puede reimplementar acá.
-function registrar({ obtenerRutaBase }) {
+// deps.actualizarObs: refleja la multimedia activa en el overlay OBS.
+function registrar({ obtenerRutaBase, actualizarObs }) {
   // ====================================
   // HANDLERS DE MULTIMEDIA ACTIVA
   // ====================================
@@ -67,6 +68,10 @@ function registrar({ obtenerRutaBase }) {
           } else {
             console.log(`⚠️ [Main] Ventana ${index + 1} está destruida, omitiendo`);
           }
+        });
+
+        actualizarObs('multimedia', {
+          media: {url: multimediaData.url, tipo: multimediaData.tipo, nombre: multimediaData.nombre},
         });
 
         console.log("✅ [Main] Multimedia activa establecida");
@@ -134,6 +139,7 @@ function registrar({ obtenerRutaBase }) {
           }
         });
 
+        actualizarObs('vacio');
         console.log("✅ [Main] Multimedia activa limpiada y notificada");
       }
 

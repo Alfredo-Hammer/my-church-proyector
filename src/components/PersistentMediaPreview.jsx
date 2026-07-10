@@ -74,8 +74,12 @@ const PersistentMediaPreview = () => {
   const location = useLocation();
   const {
     currentMedia,
+    lastPlayedMedia,
     isPlaying,
     setIsPlaying,
+    setCurrentTime,
+    setDuration,
+    seekSignal,
     proyectingMedia,
     videoRef,
   } = useMediaPlayer();
@@ -84,7 +88,13 @@ const PersistentMediaPreview = () => {
   const youtubeIframeRef = useRef(null);
   const youtubeLocalInfoRef = useRef({currentTime: 0, updatedAt: 0});
 
-  const tipo = getMediaType(currentMedia);
+  // Al detener, currentMedia pasa a null (y lo último reproducido queda en
+  // lastPlayedMedia) — usamos ese respaldo para seguir mostrando el video/
+  // thumbnail congelado en vez de quedar en blanco. Los efectos de abajo que
+  // controlan reproducción real siguen atados a currentMedia a propósito: una
+  // vez detenido no debe autoreproducirse ni resincronizar contra el proyector.
+  const displayMedia = currentMedia || lastPlayedMedia;
+  const tipo = getMediaType(displayMedia);
   const isYoutube = tipo === "youtube";
   const isVideo = tipo === "video";
   const estaProyectandoActual = Boolean(
@@ -165,6 +175,19 @@ const PersistentMediaPreview = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, currentMedia, isYoutube]);
 
+  // Aplicar un salto de posición pedido desde afuera (barra de avance) al
+  // iframe local de YouTube — el <video> normal usa videoRef directo desde
+  // el propio seek() del contexto, pero el iframe no tiene un ref compartido.
+  useEffect(() => {
+    if (!seekSignal || !currentMedia || !isYoutube) return;
+    sendDesktopYouTubeCommand("seekTo", [seekSignal.time, true]);
+    youtubeLocalInfoRef.current = {
+      currentTime: seekSignal.time,
+      updatedAt: Date.now(),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seekSignal]);
+
   // Mutear/desmutear el iframe local de YouTube cuando cambia si este
   // contenido está proyectado o no (p.ej. sonaba en el escritorio y recién
   // ahí el operador le da "Proyectar").
@@ -193,6 +216,10 @@ const PersistentMediaPreview = () => {
             currentTime: Number(data.info.currentTime) || 0,
             updatedAt: Date.now(),
           };
+          setCurrentTime(Number(data.info.currentTime) || 0);
+          if (typeof data.info.duration === "number" && data.info.duration > 0) {
+            setDuration(data.info.duration);
+          }
           return;
         }
 
@@ -249,9 +276,9 @@ const PersistentMediaPreview = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMedia, isPlaying, estaProyectandoActual, tipo, videoRef]);
 
-  const mediaName = currentMedia?.nombre || currentMedia?.name || "";
+  const mediaName = displayMedia?.nombre || displayMedia?.name || "";
 
-  if (!currentMedia || (!isYoutube && !isVideo)) {
+  if (!displayMedia || (!isYoutube && !isVideo)) {
     return <div style={HIDDEN_STYLE} />;
   }
 
@@ -259,9 +286,9 @@ const PersistentMediaPreview = () => {
     <div style={style}>
       {isYoutube && (
         <iframe
-          key={`persistent-youtube-${currentMedia.url}`}
+          key={`persistent-youtube-${displayMedia.url}`}
           ref={youtubeIframeRef}
-          src={getDesktopYouTubeEmbedUrl(currentMedia.url, estaProyectandoActual)}
+          src={getDesktopYouTubeEmbedUrl(displayMedia.url, estaProyectandoActual)}
           title={mediaName}
           className="w-full h-full border-0 pointer-events-none"
           sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
@@ -306,9 +333,9 @@ const PersistentMediaPreview = () => {
 
       {isVideo && (
         <video
-          key={`persistent-video-${currentMedia.url}`}
+          key={`persistent-video-${displayMedia.url}`}
           ref={videoRef}
-          src={currentMedia.validatedUrl || currentMedia.url}
+          src={displayMedia.validatedUrl || displayMedia.url}
           controls={false}
           muted={estaProyectandoActual}
           playsInline
@@ -319,6 +346,7 @@ const PersistentMediaPreview = () => {
               : "Vista previa de video"
           }
           onLoadedMetadata={async (e) => {
+            setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0);
             if (!estaProyectandoActual) return;
             const status = await fetchProjectorPlaybackStatus();
             const t = Number(status?.currentTime);
@@ -330,6 +358,7 @@ const PersistentMediaPreview = () => {
               }
             }
           }}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onError={(e) => {
             console.error("❌ [PersistentMediaPreview] Error cargando video:", e);
           }}

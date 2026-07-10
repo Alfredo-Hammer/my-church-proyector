@@ -312,25 +312,6 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
     transition: {duration: 0.6, ease: "easeOut"},
   };
 
-  const renderMediaInfo = () => (
-    <m.div
-      initial={{opacity: 0, y: 20}}
-      animate={{opacity: 1, y: 0}}
-      transition={{delay: 0.5, duration: 0.6}}
-      className="absolute bottom-8 left-8 right-8 z-30"
-    >
-      <div className="backdrop-blur-xl bg-black/40 rounded-2xl px-8 py-4 border border-white/20 shadow-2xl">
-        <div className="flex items-center gap-x-4">
-          <div className="size-3 bg-green-400 rounded-full animate-pulse" />
-          <p className="text-2xl font-semibold text-white">{nombre}</p>
-          <div className="ml-auto text-sm text-gray-300 capitalize">
-            {tipoReal}
-          </div>
-        </div>
-      </div>
-    </m.div>
-  );
-
   const handleMediaError = (errorType, errorEvent) => {
     console.error(`❌ [Proyector] Error ${errorType}:`, errorEvent);
     setError(`Error cargando ${errorType}`);
@@ -516,7 +497,6 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
                 handleMediaError("youtube", e);
               }}
             />
-            {!loading && nombre && renderMediaInfo()}
           </div>
         </m.div>
       );
@@ -580,7 +560,6 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
                 );
               }}
             />
-            {!loading && nombre && renderMediaInfo()}
           </div>
         </m.div>
       );
@@ -685,7 +664,6 @@ const ModernMultimediaRenderer = ({multimediaActiva}) => {
             onError={(e) => handleMediaError("imagen", e)}
             onLoad={() => handleMediaLoad("Imagen")}
           />
-          {!loading && nombre && renderMediaInfo()}
         </m.div>
       );
 

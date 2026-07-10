@@ -139,6 +139,7 @@ function registrar({
     } else {
       console.warn("⚠️ [Main] No hay proyectorWindow activo para enviar STOP");
     }
+    actualizarObs('vacio');
   });
 
   ipcMain.on("proyector-limpiar", (event) => {
@@ -146,6 +147,7 @@ function registrar({
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
       proyectorWindow.webContents.send("control-multimedia", { action: "limpiar" });
     }
+    actualizarObs('vacio');
     // Si el timer estaba proyectando, restaurarlo tras el clear (200ms de margen)
     if (timerEstaProyectando()) {
       setTimeout(timerRestaurarEnProyector, 250);
@@ -162,6 +164,9 @@ function registrar({
         "⚠️ [Main] No hay proyectorWindow activo para enviar control genérico:",
         payload,
       );
+    }
+    if (payload?.action === "stop" || payload?.action === "limpiar") {
+      actualizarObs('vacio');
     }
   });
 
@@ -264,6 +269,9 @@ function registrar({
   ipcMain.handle('proyectar-multimedia', async (event, mediaData) => {
     try {
       console.log('📺 [IPC] Proyectando multimedia:', mediaData);
+      actualizarObs('multimedia', {
+        media: {url: mediaData.url, tipo: mediaData.tipo, nombre: mediaData.nombre},
+      });
 
       const proyectorWindow = getProyectorWindow();
       if (proyectorWindow && !proyectorWindow.isDestroyed()) {
@@ -308,6 +316,9 @@ function registrar({
   // ✨ HANDLER DIRECTO PARA MULTIMEDIA
   ipcMain.on('proyectar-multimedia-directo', (event, mediaData) => {
     console.log('📺 [IPC] Proyección directa de multimedia:', mediaData);
+    actualizarObs('multimedia', {
+      media: {url: mediaData.url, tipo: mediaData.tipo, nombre: mediaData.nombre},
+    });
 
     const proyectorWindow = getProyectorWindow();
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {
@@ -327,6 +338,9 @@ function registrar({
   // ✨ HANDLER PARA PROYECTAR-MULTIMEDIA-DATA (MEJORADO)
   ipcMain.on('proyectar-multimedia-data', (event, mediaData) => {
     console.log('📺 [IPC] Proyección multimedia mejorada:', mediaData);
+    actualizarObs('multimedia', {
+      media: {url: mediaData.url, tipo: mediaData.tipo, nombre: mediaData.nombre},
+    });
 
     const proyectorWindow = getProyectorWindow();
     if (proyectorWindow && !proyectorWindow.isDestroyed()) {

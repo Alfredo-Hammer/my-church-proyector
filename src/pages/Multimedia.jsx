@@ -137,10 +137,12 @@ const Multimedia = () => {
     isPlaying,
     volume,
     setVolume,
+    currentTime,
+    duration,
+    seek,
     playMedia: playMediaGlobal,
     togglePlayPause,
     stop: stopGlobal,
-    proyectingMedia,
     setProyectingMedia,
   } = useMediaPlayer();
 
@@ -467,46 +469,6 @@ const Multimedia = () => {
     }
   };
 
-  // ✨ FUNCIONES DE CONTROL REMOTO DEL PROYECTOR
-  const enviarComandoProyector = async (comando, datos = null) => {
-    try {
-      console.log(`🎮 [Control] Enviando comando: ${comando}`, datos);
-
-      if (window.electron?.send) {
-        window.electron.send(`proyector-${comando}`, datos);
-        console.log(`✅ [Control] Comando ${comando} enviado`);
-        return true;
-      } else {
-        console.warn("⚠️ [Control] window.electron.send no disponible");
-        return false;
-      }
-    } catch (error) {
-      console.error(`❌ [Control] Error enviando comando ${comando}:`, error);
-      return false;
-    }
-  };
-
-  const playProyector = () => {
-    enviarComandoProyector("play");
-    showInfo("▶️ Reproduciendo en proyector");
-  };
-
-  const pauseProyector = () => {
-    enviarComandoProyector("pause");
-    showInfo("⏸️ Pausado en proyector");
-  };
-
-  const stopProyector = () => {
-    enviarComandoProyector("stop");
-    showInfo("⏹️ Detenido en proyector");
-  };
-
-  const limpiarProyectorRemoto = () => {
-    enviarComandoProyector("limpiar");
-    showInfo("🧹 Proyector limpiado");
-    // Limpiar estado local también
-    setProyectingMedia(null);
-  };
 
   // ✨ FUNCIÓN MEJORADA PARA CARGAR MULTIMEDIA DESDE DB
   const loadMediaFromDB = async () => {
@@ -2057,6 +2019,16 @@ const Multimedia = () => {
     return (bytes / 1024 / 1024).toFixed(2);
   };
 
+  const formatTime = (seconds) => {
+    const total = Number(seconds);
+    if (!Number.isFinite(total) || total < 0) return "0:00";
+    const m = Math.floor(total / 60);
+    const s = Math.floor(total % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
   const getMediaName = (media) =>
     media.nombre || media.name || "Archivo sin nombre";
 
@@ -2709,6 +2681,31 @@ const Multimedia = () => {
                         ) : null}
                       </div>
 
+                      {/* Barra de avance — audio/video/YouTube mientras hay algo activo */}
+                      {currentMedia &&
+                        ["audio", "video", "youtube"].includes(
+                          getMediaType(currentMedia),
+                        ) &&
+                        duration > 0 && (
+                          <div className="flex items-center gap-x-3">
+                            <span className="text-xs text-gray-400 w-10 text-right tabular-nums">
+                              {formatTime(currentTime)}
+                            </span>
+                            <input
+                              type="range"
+                              min="0"
+                              max={duration}
+                              step="0.1"
+                              value={Math.min(currentTime, duration)}
+                              onChange={(e) => seek(Number(e.target.value))}
+                              className="flex-1 accent-red-400"
+                            />
+                            <span className="text-xs text-gray-400 w-10 tabular-nums">
+                              {formatTime(duration)}
+                            </span>
+                          </div>
+                        )}
+
                       {/* Controles principales */}
                       <div className="flex items-center justify-center gap-x-3">
                         <button
@@ -2758,54 +2755,6 @@ const Multimedia = () => {
                           </button>
                         )}
                       </div>
-
-                      {/* Controles del proyector cuando hay multimedia proyectada */}
-                      {proyectingMedia && (
-                        <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mt-4">
-                          <div className="text-center mb-3">
-                            <h4 className="text-blue-300 font-medium mb-1">
-                              🎬 Control del Proyector
-                            </h4>
-                            <p className="text-blue-200 text-sm">
-                              Proyectando: {getMediaName(proyectingMedia)}
-                            </p>
-                          </div>
-                          <div className="flex items-center justify-center gap-x-3">
-                            <button
-                              type="button"
-                              onClick={playProyector}
-                              className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                              title="Reproducir en proyector"
-                            >
-                              <FaPlay className="text-lg" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={pauseProyector}
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                              title="Pausar en proyector"
-                            >
-                              <FaPause className="text-lg" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={stopProyector}
-                              className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                              title="Detener en proyector"
-                            >
-                              <FaStop className="text-lg" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={limpiarProyectorRemoto}
-                              className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300 transform hover:scale-105"
-                              title="Limpiar proyector (ESC)"
-                            >
-                              <FaTimes className="text-lg" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
 
                       {/* Control de volumen (controla el audio del proyector) */}
                       <div className="bg-gray-700/50 p-4 rounded-xl">

@@ -320,6 +320,16 @@ body{font-family:'EB Garamond','Georgia',serif}
   opacity:0;transition:opacity .7s ease;
 }
 #fondo-overlay.show{opacity:1}
+#media-content{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:#000;opacity:0;transition:opacity .5s ease;
+  display:flex;align-items:center;justify-content:center;
+}
+#media-content.show{opacity:1}
+#media-content img,#media-content video{
+  width:100%;height:100%;object-fit:contain;display:block;background:#000;
+}
+#media-content iframe{width:100%;height:100%;border:0;display:block}
 body.fondo-oscuro{background:#02050d}
 #wrap{
   position:relative;z-index:2;
@@ -442,17 +452,20 @@ body.fondo-oscuro{background:#02050d}
 <div id="brasas"><div class="br-fondo"></div><div class="br-piso"></div></div>
 <div id="fondo-media"></div>
 <div id="fondo-overlay"></div>
+<div id="media-content"></div>
 <div id="wrap"><div id="content"></div></div>
 <script>
 const params=new URLSearchParams(location.search);
 if(params.get('fondo')==='oscuro')document.body.classList.add('fondo-oscuro');
 const SOLO_TEXTO=params.get('solo-texto')==='1';
+const SOLO_MULTIMEDIA=params.get('solo-multimedia')==='1';
 const BASE=location.origin;
-let lastTs=0,lastFondoUrl='',lastTipo='',lastAnimadoId=null;
+let lastTs=0,lastFondoUrl='',lastTipo='',lastAnimadoId=null,lastMediaKey='';
 const wrap=document.getElementById('wrap');
 const content=document.getElementById('content');
 const fondoMedia=document.getElementById('fondo-media');
 const fondoOverlay=document.getElementById('fondo-overlay');
+const mediaContent=document.getElementById('media-content');
 const starfield=document.getElementById('starfield');
 const rayoluz=document.getElementById('rayoluz');
 const lluvia=document.getElementById('lluvia');
@@ -592,7 +605,139 @@ function actualizarFondo(fondo){
   fondoMedia.classList.add('show');
   fondoOverlay.classList.add('show');
 }
+function extractYoutubeId(url){
+  const m=String(url||'').match(/(?:youtube\\.com\\/(?:[^/]+\\/.+\\/|(?:v|e(?:mbed)?)\\/|.*[?&]v=)|youtu\\.be\\/)([^"&?/\\s]{11})/);
+  return m?m[1]:null;
+}
+// Multimedia proyectada (imagen/video/YouTube) — capa aparte de fondo-media,
+// ya que acá la multimedia ES el contenido (opaca, cubre toda la pantalla),
+// no un fondo detrás de texto.
+//
+// mediaElRef guarda el <video>/<iframe> activo para que
+// sincronizarMultimediaConProyector() lo pueda pausar/reanudar/mover al
+// mismo punto que el proyector real — si no, este overlay solo "carga y
+// suelta" el archivo por su cuenta (autoplay/loop propio), sin enterarse de
+// pausas ni de en qué segundo va el proyector real.
+let mediaElRef=null;
+let ytReadyRef=false;
+let lastAppliedSeekTime=0;
+let ytHiddenForPause=false;
+function actualizarMedia(media){
+  const url=media&&media.url?String(media.url):'';
+  const tipo=media&&media.tipo?String(media.tipo).toLowerCase():'';
+  if(!url||tipo==='audio'){
+    mediaContent.classList.remove('show');
+    mediaContent.innerHTML='';
+    lastMediaKey='';
+    mediaElRef=null;ytReadyRef=false;ytHiddenForPause=false;
+    return;
+  }
+  const key=tipo+'|'+url;
+  if(key===lastMediaKey){mediaContent.classList.add('show');return;}
+  lastMediaKey=key;
+  ytReadyRef=false;
+  lastAppliedSeekTime=0;
+  ytHiddenForPause=false;
+  if(tipo==='youtube'){
+    const vid=extractYoutubeId(url);
+    const src=vid
+      ?('https://www.youtube.com/embed/'+vid+'?autoplay=1&mute=1&loop=1&playlist='+vid+'&controls=0&modestbranding=1&rel=0&enablejsapi=1')
+      :url;
+    mediaContent.innerHTML='<iframe src="'+src+'" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+    mediaElRef=mediaContent.querySelector('iframe');
+    if(mediaElRef){
+      mediaElRef.addEventListener('load',function(){
+        ytReadyRef=true;
+        try{
+          mediaElRef.contentWindow.postMessage(JSON.stringify({event:'listening',id:'obs-youtube-player'}),'*');
+        }catch(e){}
+      });
+    }
+  } else if(tipo==='video'){
+    mediaContent.innerHTML='<video src="'+url+'" autoplay loop muted playsinline></video>';
+    mediaElRef=mediaContent.querySelector('video');
+  } else {
+    mediaContent.innerHTML='<img src="'+url+'" alt="">';
+    mediaElRef=null;
+  }
+  mediaContent.classList.add('show');
+}
+function postYT(func,args){
+  if(!mediaElRef||!mediaElRef.contentWindow)return;
+  try{
+    mediaElRef.contentWindow.postMessage(JSON.stringify({event:'command',func:func,args:args||[]}),'*');
+  }catch(e){}
+}
+// Sincroniza el video/YouTube de este overlay contra el estado real del
+// proyector (pausa/reanuda, corrige el segundo) — sin esto, el overlay
+// arranca siempre desde 0 y no se entera de pausas hechas desde GloryView.
+async function sincronizarMultimediaConProyector(){
+  if(!mediaElRef)return;
+  try{
+    const r=await fetch(BASE+'/api/control/multimedia/status?destino=proyector');
+    if(!r.ok)return;
+    const d=await r.json();
+    const status=d&&d.status;
+    if(!status)return;
+    const paused=Boolean(status.paused);
+    const remoteTime=Number(status.currentTime);
+    if(mediaElRef.tagName==='VIDEO'){
+      if(paused!==mediaElRef.paused){
+        if(paused)mediaElRef.pause();else mediaElRef.play().catch(function(){});
+      }
+      if(Number.isFinite(remoteTime)&&Math.abs(mediaElRef.currentTime-remoteTime)>1.5){
+        try{mediaElRef.currentTime=remoteTime;}catch(e){}
+      }
+    } else if(mediaElRef.tagName==='IFRAME'&&ytReadyRef){
+      // YouTube muestra su propia pantalla de "pausado" (título, miniaturas,
+      // logo) apenas se pausa vía la API — no se puede tapar con parámetros
+      // de URL, así que en vez de dejarlo pausado a la vista, se oculta esta
+      // capa (revela el fondo) y se reanuda/resincroniza por detrás antes de
+      // volver a mostrarla.
+      if(paused&&!ytHiddenForPause){
+        ytHiddenForPause=true;
+        mediaContent.classList.remove('show');
+        postYT('pauseVideo',[]);
+      } else if(!paused&&ytHiddenForPause){
+        ytHiddenForPause=false;
+        postYT('playVideo',[]);
+        if(Number.isFinite(remoteTime)){
+          lastAppliedSeekTime=remoteTime;
+          postYT('seekTo',[remoteTime,true]);
+        }
+        setTimeout(function(){
+          if(!ytHiddenForPause)mediaContent.classList.add('show');
+        },350);
+      } else if(!paused&&Number.isFinite(remoteTime)&&Math.abs(remoteTime-lastAppliedSeekTime)>3){
+        lastAppliedSeekTime=remoteTime;
+        postYT('seekTo',[remoteTime,true]);
+      }
+    }
+  }catch(e){}
+}
 function render(d){
+  // Multimedia (imagen/video/YouTube) reemplaza el texto por completo —
+  // se resuelve antes que cualquier otra rama.
+  const esMultimedia=d.tipo==='multimedia'&&d.media&&d.media.url;
+  if(SOLO_MULTIMEDIA){
+    wrap.classList.remove('show');
+    actualizarMedia(esMultimedia?d.media:null);
+    return;
+  }
+  if(SOLO_TEXTO&&esMultimedia){
+    // Modo "solo texto" es para superponer sobre cámara — un video/imagen
+    // de fondo completo no tiene sentido ahí, se ignora.
+    actualizarMedia(null);
+    wrap.classList.remove('show');
+    return;
+  }
+  if(esMultimedia){
+    actualizarMedia(d.media);
+    wrap.classList.remove('show');
+    return;
+  }
+  actualizarMedia(null);
+
   // Caso especial preexistente: temporizador sin fondo propio usa el
   // starfield en vez de quedar transparente.
   if(d.tipo==='temporizador'&&!d.fondo&&!SOLO_TEXTO){
@@ -659,6 +804,7 @@ async function poll(){
   }catch(e){}
 }
 setInterval(poll,800);poll();
+setInterval(sincronizarMultimediaConProyector,1000);
 </script>
 </body>
 </html>`;
@@ -1846,6 +1992,9 @@ function iniciarServidorMultimedia() {
         };
 
         proyector.webContents.send('mostrar-multimedia', payload);
+        actualizarObs('multimedia', {
+          media: {url: payload.url, tipo: payload.tipo, nombre: payload.nombre},
+        });
 
         // Guardar id/nombre inmediatamente para que todos los clientes puedan
         // ver el estado sin esperar al IPC de playback-status del renderer.
@@ -1910,6 +2059,7 @@ function iniciarServidorMultimedia() {
           multimediaPlaybackStatus['proyector'].id = null;
           multimediaPlaybackStatus['proyector'].currentTime = 0;
           multimediaPlaybackStatus['proyector'].updatedAt = Date.now();
+          actualizarObs('vacio');
         }
 
         return res.json({ ok: true });
@@ -3202,10 +3352,11 @@ let timerIntervalServidor = null;
 // Se actualiza cada vez que el proyector muestra contenido nuevo.
 // GET /api/proyector/estado lo expone para que la página /obs pueda leerlo.
 const obsEstado = {
-  tipo: 'vacio', // 'vacio' | 'himno' | 'biblia' | 'anuncio' | 'temporizador'
+  tipo: 'vacio', // 'vacio' | 'himno' | 'biblia' | 'anuncio' | 'temporizador' | 'multimedia'
   parrafo: '', titulo: '', numero: '', origen: '',
   segundos: 0, total: 0, mensaje: '', terminado: false,
   fondo: null, // {url, tipo} | null — fondo específico del contenido actual (ej. temporizador)
+  media: null, // {url, tipo, nombre} | null — multimedia proyectada (tipo: 'imagen'|'video'|'youtube')
   updatedAt: Date.now(),
 };
 const actualizarObs = (tipo, datos = {}) => {
@@ -3214,6 +3365,7 @@ const actualizarObs = (tipo, datos = {}) => {
     parrafo: '', titulo: '', numero: '', origen: '',
     segundos: 0, total: 0, mensaje: '', terminado: false,
     fondo: null,
+    media: null,
     ...datos,
     updatedAt: Date.now(),
   });
@@ -4501,7 +4653,7 @@ function registrarHandlers() {
   // ====================================
   // ✨ HANDLERS DE MULTIMEDIA (activa, CRUD, archivos)
   // ====================================
-  require("./ipc/multimedia").registrar({ obtenerRutaBase });
+  require("./ipc/multimedia").registrar({ obtenerRutaBase, actualizarObs });
 
   ipcMain.on("debug-log", (_event, payload) => {
     try {

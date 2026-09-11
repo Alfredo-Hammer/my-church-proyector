@@ -18,7 +18,11 @@ if (!fs.existsSync(dataDir)) {
 }
 
 // Conectar a la base de datos
-const db = new Database(dbPath);
+// "let" (no "const") a propósito: reabrirDB() reasigna esta variable después
+// de restaurar un respaldo, y todas las funciones de este archivo la leen
+// por closure al momento de ejecutarse, así que ven la conexión nueva sin
+// necesidad de volver a requerir el módulo.
+let db = new Database(dbPath);
 
 // Crear tabla 'himnos' si no existe
 db.prepare(`
@@ -1855,9 +1859,22 @@ function cerrarDB() {
   }
 }
 
+// Reabre la conexión contra dbPath — usado después de restaurar un respaldo,
+// que sobrescribe el archivo de la base de datos mientras la app sigue
+// corriendo. No hace falta reiniciar la app: todas las funciones de este
+// módulo leen la variable "db" por closure, así que ven la conexión nueva
+// apenas se reasigna acá.
+function reabrirDB() {
+  cerrarDB();
+  db = new Database(dbPath);
+  return db;
+}
+
 module.exports = {
   db,
+  dbPath,
   cerrarDB,
+  reabrirDB,
   // Funciones de himnos
   obtenerHimnos,
   obtenerHimnoPorId,

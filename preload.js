@@ -299,6 +299,10 @@ contextBridge.exposeInMainWorld("electron", {
   // Info de monitores (asistente de configuración inicial)
   obtenerInfoMonitores: () => ipcRenderer.invoke('obtener-info-monitores'),
 
+  // Respaldo y restauración de datos
+  exportarRespaldo: (opciones) => ipcRenderer.invoke('exportar-respaldo', opciones),
+  restaurarRespaldo: () => ipcRenderer.invoke('restaurar-respaldo'),
+
   // ✨ IPC RENDERER PARA ESCUCHAR EVENTOS DEL PROYECTOR
   ipcRenderer: {
     on: (channel, func) => {

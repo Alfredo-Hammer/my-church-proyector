@@ -104,6 +104,8 @@ const multimediaPlaybackStatus = {
 // Importar funciones de la base de datos (db.js es la única fuente de verdad)
 const {
   cerrarDB,
+  reabrirDB,
+  dbPath,
 
   // Funciones de himnos
   obtenerHimnos,
@@ -4701,6 +4703,19 @@ function registrarHandlers() {
     getMainWindow: () => mainWindow,
     setUpdateCheckManual,
     setIsDownloadingUpdate,
+  });
+
+  // ====================================
+  // HANDLERS DE RESPALDO Y RESTAURACIÓN
+  // ====================================
+  require("./ipc/backup").registrar({
+    writeLog,
+    obtenerRutaBase,
+    getMainWindow: () => mainWindow,
+    getProyectorWindow: () => proyectorWindow,
+    dbPath,
+    cerrarDB,
+    reabrirDB,
   });
 
   console.log("✅ [Main] Todos los handlers registrados exitosamente");

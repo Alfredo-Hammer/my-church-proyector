@@ -3,7 +3,7 @@ import {
   IoSave, IoRefresh, IoImage, IoClose, IoCheckmark,
   IoWarning, IoInformationCircle, IoEye, IoTrash, IoSparkles,
 } from "react-icons/io5";
-import {FaVideo, FaUpload, FaTimes, FaChurch, FaPalette, FaFont} from "react-icons/fa";
+import {FaVideo, FaUpload, FaTimes, FaChurch, FaPalette, FaFont, FaDatabase} from "react-icons/fa";
 import {CLASS_PX} from "../utils/pantallaScale";
 import {componenteFondoAnimado} from "../components/fondosAnimados";
 
@@ -47,6 +47,7 @@ const TABS = [
   {id: "identidad",  label: "Identidad",  desc: "Nombre, logo e iglesia", icon: <FaChurch />},
   {id: "apariencia", label: "Apariencia", desc: "Colores y fondo",         icon: <FaPalette />},
   {id: "proyector",  label: "Proyector",  desc: "Texto y pantalla",        icon: <FaFont />},
+  {id: "datos",      label: "Datos",      desc: "Respaldo y restauración", icon: <FaDatabase />},
 ];
 
 // ── Paleta de acentos ─────────────────────────────────────────────────────────
@@ -173,6 +174,12 @@ const Configuracion = () => {
   const [toast, setToast]                       = useState(null);
   const [dragLogo, setDragLogo]                 = useState(false);
   const logoInputRef = useRef(null);
+
+  // Respaldo y restauración de datos
+  const [incluirMultimediaRespaldo, setIncluirMultimediaRespaldo] = useState(false);
+  const [exportandoRespaldo, setExportandoRespaldo]     = useState(false);
+  const [restaurandoRespaldo, setRestaurandoRespaldo]   = useState(false);
+  const [mostrarModalRestaurarRespaldo, setMostrarModalRestaurarRespaldo] = useState(false);
 
   const hasTextChanges =
     configuracion.nombreIglesia !== savedConfig.nombreIglesia ||
@@ -318,6 +325,36 @@ const Configuracion = () => {
       await cargarConfiguracion(); await cargarFondos();
       mostrarToast("Configuración restaurada", "success");
     } catch (err) { mostrarToast(`Error: ${err.message}`, "error"); }
+  };
+
+  const handleExportarRespaldo = async () => {
+    setExportandoRespaldo(true);
+    try {
+      const resultado = await window.electron?.exportarRespaldo?.({incluirMultimedia: incluirMultimediaRespaldo});
+      if (resultado?.cancelado) return;
+      if (!resultado?.ok) throw new Error(resultado?.error || "No se pudo exportar el respaldo");
+      mostrarToast("Respaldo guardado correctamente", "success");
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+    } finally {
+      setExportandoRespaldo(false);
+    }
+  };
+
+  const handleRestaurarRespaldo = async () => {
+    setMostrarModalRestaurarRespaldo(false);
+    setRestaurandoRespaldo(true);
+    try {
+      const resultado = await window.electron?.restaurarRespaldo?.();
+      if (resultado?.cancelado) { setRestaurandoRespaldo(false); return; }
+      if (!resultado?.ok) throw new Error(resultado?.error || "No se pudo restaurar el respaldo");
+      // Si tuvo éxito, main.js recarga esta misma ventana (y la del
+      // proyector) para que tomen los datos restaurados — no hace falta
+      // mostrar un toast, la propia recarga es la confirmación visual.
+    } catch (err) {
+      mostrarToast(`Error: ${err.message}`, "error");
+      setRestaurandoRespaldo(false);
+    }
   };
 
   const logoSrc = logoPreviewUrl ||
@@ -851,6 +888,67 @@ const Configuracion = () => {
               </div>
             )}
 
+            {/* ════════ TAB DATOS ════════ */}
+            {tab === "datos" && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+                {/* Exportar respaldo */}
+                <Section icon={<IoSave />} title="Exportar Respaldo" subtitle="Guardá una copia de tus datos en un archivo" accent="emerald">
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Incluye tus himnos agregados, orden de servicio, anuncios, configuración y
+                      fondos. Guardalo en un USB o en la nube para no perder nada si esta
+                      computadora falla.
+                    </p>
+
+                    <label className="flex items-center justify-between py-2.5 px-3 bg-slate-800/40 border border-white/[0.06] rounded-xl cursor-pointer">
+                      <span className="text-sm text-slate-300">
+                        Incluir archivos multimedia (audio/video)
+                        <span className="block text-[11px] text-slate-600 mt-0.5">
+                          Puede ocupar mucho espacio y tardar más. Si ya tenés los archivos originales
+                          en otro lado, podés dejar esto sin marcar.
+                        </span>
+                      </span>
+                      <Toggle checked={incluirMultimediaRespaldo} onChange={setIncluirMultimediaRespaldo} />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleExportarRespaldo}
+                      disabled={exportandoRespaldo}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 disabled:opacity-50 border border-emerald-500/30 rounded-xl text-sm font-semibold text-white transition-colors"
+                    >
+                      <IoSave className={exportandoRespaldo ? "animate-pulse" : ""} />
+                      {exportandoRespaldo ? "Guardando respaldo…" : "Exportar respaldo"}
+                    </button>
+                  </div>
+                </Section>
+
+                {/* Restaurar respaldo */}
+                <Section icon={<IoRefresh />} title="Restaurar Respaldo" subtitle="Recuperá tus datos desde un archivo guardado" accent="orange">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-2.5 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                      <IoWarning className="text-amber-400 shrink-0 mt-0.5 text-sm" />
+                      <p className="text-xs text-amber-200/90 leading-relaxed">
+                        Esto reemplaza todos tus datos actuales con los del respaldo elegido.
+                        No se puede deshacer, y la app se recarga automáticamente al terminar.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setMostrarModalRestaurarRespaldo(true)}
+                      disabled={restaurandoRespaldo}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700/60 rounded-xl text-sm font-semibold text-slate-200 transition-colors"
+                    >
+                      <IoRefresh className={restaurandoRespaldo ? "animate-spin" : ""} />
+                      {restaurandoRespaldo ? "Restaurando…" : "Elegir archivo de respaldo…"}
+                    </button>
+                  </div>
+                </Section>
+              </div>
+            )}
+
           </div>
         </main>
       </div>
@@ -1049,6 +1147,52 @@ const Configuracion = () => {
                 <button type="button" onClick={restaurarDefecto}
                   className="flex-1 py-2.5 bg-amber-600/90 hover:bg-amber-600 border border-amber-500/30 text-white text-sm rounded-xl font-semibold transition-colors">
                   Restaurar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Restaurar desde archivo de respaldo ─────────────────────── */}
+      {mostrarModalRestaurarRespaldo && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-white/8 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <IoWarning className="text-amber-400 text-lg" />
+                <span className="font-semibold text-white">Restaurar desde respaldo</span>
+              </div>
+              <button type="button" onClick={() => setMostrarModalRestaurarRespaldo(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                <IoClose />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+                Vas a elegir un archivo de respaldo. Al restaurarlo, se reemplazan{" "}
+                <strong className="text-white">todos</strong> tus himnos, orden de servicio,
+                anuncios, configuración y fondos actuales por los del respaldo.
+              </p>
+              <ul className="space-y-2 text-xs text-slate-500 mb-5">
+                {[
+                  "Esta acción no se puede deshacer",
+                  "La app se recarga sola al terminar",
+                  "Los archivos multimedia solo se restauran si el respaldo los incluía",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <IoInformationCircle className="text-slate-600 shrink-0 mt-0.5" /> {item}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2.5">
+                <button type="button" onClick={() => setMostrarModalRestaurarRespaldo(false)}
+                  className="flex-1 py-2.5 bg-white/5 hover:bg-white/8 border border-white/8 text-slate-300 text-sm rounded-xl font-medium transition-colors">
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleRestaurarRespaldo}
+                  className="flex-1 py-2.5 bg-amber-600/90 hover:bg-amber-600 border border-amber-500/30 text-white text-sm rounded-xl font-semibold transition-colors">
+                  Elegir archivo…
                 </button>
               </div>
             </div>

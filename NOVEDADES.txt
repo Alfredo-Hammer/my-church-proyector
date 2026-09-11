@@ -1,3 +1,23 @@
+Version 0.4.0
+
+Nuevas funciones
+- Asistente de configuracion inicial: al abrir la app por primera vez
+  te guia paso a paso para poner el nombre de tu iglesia, logo y color,
+  y te avisa si detecta un segundo monitor conectado para la proyeccion
+- Icono nuevo de la aplicacion, mas profesional y acorde a lo que hace
+  GloryView
+
+Correcciones
+- Corregido: activar o descargar un fondo desde Pixabay no actualizaba
+  el contador "Mis Fondos" hasta cambiar de pestana
+- Corregido: el tamano de letra configurado en Configuracion no se
+  aplicaba en las plantillas animadas (quedaban siempre mas chicas)
+- Corregido: los interruptores de mostrar/ocultar logo, nombre de la
+  iglesia y eslogan no se aplicaban al instante, habia que reiniciar
+  la app para que hicieran efecto
+- Corregido: la pagina de Soporte no enviaba nada al hacer clic en
+  "Enviar mensaje" - ahora abre WhatsApp con el mensaje ya redactado
+
 Version 0.3.4
 
 Nuevas funciones

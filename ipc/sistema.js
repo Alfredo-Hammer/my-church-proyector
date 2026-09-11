@@ -1,4 +1,4 @@
-const { app, ipcMain, shell } = require("electron");
+const { app, ipcMain, shell, screen } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
@@ -94,6 +94,18 @@ function registrar({
   // Enlace externo
   ipcMain.handle('abrir-enlace-externo', async (event, url) => {
     shell.openExternal(url);
+  });
+
+  // Info de monitores conectados — usado por el asistente de configuración
+  // inicial para avisar si conviene conectar un segundo monitor/TV.
+  ipcMain.handle('obtener-info-monitores', async () => {
+    try {
+      const displays = screen.getAllDisplays();
+      return {ok: true, total: displays.length};
+    } catch (error) {
+      console.error('❌ [Main] Error obteniendo info de monitores:', error);
+      return {ok: false, total: 1};
+    }
   });
 
   // Handler para obtener información de la aplicación

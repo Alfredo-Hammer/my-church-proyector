@@ -759,6 +759,7 @@ const Proyector = () => {
                     texto={slideData.slide.content || ""}
                     plantillaId={slideData.slide.gsapTemplate}
                     config={slideData.slide.gsapConfig || {}}
+                    configuracion={configuracion}
                   />
                 </div>
               ) : (

@@ -1,11 +1,18 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react";
+import {createContext, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {gsap} from "gsap";
 import {META_PLANTILLAS} from "./PlantillasConfig";
-import {calcularEscalaFuente} from "../utils/pantallaScale";
+import {calcularEscalaFuente, CLASS_PX} from "../utils/pantallaScale";
+
+// Config del proyector (incluye fontSize.parrafo elegido en Configuración) —
+// se provee una sola vez en PlantillaGSAP y se consume en useAutoFontSize,
+// evitando tener que pasarla como prop por las 10 funciones EstructuraX.
+const ConfigProyectorContext = createContext(null);
 
 // ── Auto-sizing: mide el área real del texto (flex-1), no el contenedor externo ─
 function useAutoFontSize(wrapRef, textRef, texto, titulo) {
   const [fontSizePx, setFontSizePx] = useState(null);
+  const configuracion = useContext(ConfigProyectorContext);
+  const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
 
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
@@ -22,7 +29,10 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
       // Escala vs. la resolución de referencia (1920×1080) — sin esto el
       // texto se ve chico en pantallas de mayor resolución (ej. TV 4K).
       const escala = calcularEscalaFuente();
-      const maxPx = 120 * escala;
+      // Techo configurable: el mismo "Letra del Himno / Versículo" de
+      // Configuración que usa ModernTextDisplay — antes esto era un 120
+      // fijo que ignoraba por completo esa opción para las plantillas GSAP.
+      const maxPx = (CLASS_PX[configClass] ?? 128) * escala;
       const minPx = 16 * escala;
 
       // Probar tamaño máximo primero
@@ -48,7 +58,7 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
     });
 
     return () => cancelAnimationFrame(raf);
-  }, [texto, titulo]);
+  }, [texto, titulo, configClass]);
 
   return fontSizePx;
 }
@@ -1300,6 +1310,7 @@ export default function PlantillaGSAP({
   texto,
   plantillaId = "revelar",
   config = {},
+  configuracion = null,
 }) {
   const containerRef = useRef(null);
   const velocidad = VEL[config.velocidad] || VEL.media;
@@ -1376,11 +1387,13 @@ export default function PlantillaGSAP({
   const Estructura = ESTRUCTURAS[plantillaId] || ESTRUCTURAS.revelar;
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full relative overflow-hidden flex items-center justify-center"
-    >
-      <Estructura titulo={titulo} texto={texto} config={config} />
-    </div>
+    <ConfigProyectorContext.Provider value={configuracion}>
+      <div
+        ref={containerRef}
+        className="w-full h-full relative overflow-hidden flex items-center justify-center"
+      >
+        <Estructura titulo={titulo} texto={texto} config={config} />
+      </div>
+    </ConfigProyectorContext.Provider>
   );
 }

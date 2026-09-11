@@ -23,6 +23,8 @@ function registrar() {
         // Plantillas GSAP
         'plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2',
         'plantillaGsapColorAcc', 'plantillaGsapVelocidad',
+        // Asistente de configuración inicial
+        'onboardingCompletado',
       ];
 
       for (const clave of claves) {
@@ -58,11 +60,24 @@ function registrar() {
       }
 
       if (resultado) {
+        // El renderer envía los booleanos como string ("true"/"false") porque
+        // así se guardan en la tabla configuracion (todo TEXT). obtener-configuracion
+        // los reconvierte a boolean real al leer, pero este broadcast reenviaba el
+        // objeto tal cual llegó — el proyector recibía la STRING "false", que es
+        // truthy en JS (`"false" !== false` → true), y el toggle no tenía efecto
+        // hasta cerrar y reabrir la app (momento en el que sí se pasa por
+        // obtener-configuracion). Aplicar la misma conversión acá.
+        const configParaBroadcast = {};
+        for (const [clave, valor] of Object.entries(configuracion)) {
+          configParaBroadcast[clave] =
+            valor === 'true' || valor === 'false' ? valor === 'true' : valor;
+        }
+
         const todasLasVentanas = BrowserWindow.getAllWindows();
         todasLasVentanas.forEach(ventana => {
           if (!ventana.isDestroyed()) {
             console.log("📡 [Main] Notificando configuración actualizada");
-            ventana.webContents.send("configuracion-actualizada", configuracion);
+            ventana.webContents.send("configuracion-actualizada", configParaBroadcast);
           }
         });
       }

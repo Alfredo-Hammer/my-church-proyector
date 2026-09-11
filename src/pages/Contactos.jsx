@@ -2,18 +2,15 @@ import React, {useState} from "react";
 import {
   FaPhone,
   FaEnvelope,
-  FaMapMarkerAlt,
-  FaPaperPlane,
-  FaLinkedin,
-  FaTwitter,
-  FaInstagram,
-  FaHeart,
-  FaCode,
   FaCheck,
+  FaWhatsapp,
 } from "react-icons/fa";
 
 const inputCls =
   "w-full px-3 py-2 bg-slate-800 border border-slate-600/60 hover:border-slate-500 focus:border-emerald-500/70 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none transition-colors";
+
+// Número de WhatsApp del desarrollador (sin +, espacios ni paréntesis — formato wa.me)
+const WHATSAPP_NUMERO = "19412964916";
 
 const Contactos = () => {
   const [formData, setFormData] = useState({
@@ -22,22 +19,27 @@ const Contactos = () => {
     mensaje: "",
   });
   const [enviado, setEnviado] = useState(false);
-  const [enviando, setEnviando] = useState(false);
 
   const handleInputChange = (e) => {
     const {name, value} = e.target;
     setFormData((prev) => ({...prev, [name]: value}));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setEnviando(true);
-    setTimeout(() => {
-      setEnviando(false);
-      setEnviado(true);
-      setFormData({nombre: "", email: "", mensaje: ""});
-      setTimeout(() => setEnviado(false), 3000);
-    }, 2000);
+    const texto =
+      `Hola, soy ${formData.nombre} (${formData.email}).\n\n${formData.mensaje}`;
+    const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(texto)}`;
+
+    if (window.electron?.abrirEnlaceExterno) {
+      window.electron.abrirEnlaceExterno(url);
+    } else {
+      window.open(url, "_blank");
+    }
+
+    setFormData({nombre: "", email: "", mensaje: ""});
+    setEnviado(true);
+    setTimeout(() => setEnviado(false), 4000);
   };
 
   return (
@@ -58,9 +60,8 @@ const Contactos = () => {
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
           {/* Grid principal */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {/* Columna izquierda: info + redes */}
+            {/* Columna izquierda: info de contacto */}
             <div className="flex flex-col gap-3">
-              {/* Info de contacto */}
               <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-800">
                   <FaPhone className="text-emerald-400 text-xs" />
@@ -72,7 +73,7 @@ const Contactos = () => {
                   {[
                     {
                       icon: <FaPhone className="text-emerald-400 text-xs" />,
-                      label: "Teléfono",
+                      label: "Teléfono / WhatsApp",
                       value: "+1 (941) 296 4916",
                       sub: "9 AM – 8 PM EST",
                     },
@@ -81,14 +82,6 @@ const Contactos = () => {
                       label: "Email",
                       value: "coderhammer70@gmail.com",
                       sub: "Respuesta en 24 h",
-                    },
-                    {
-                      icon: (
-                        <FaMapMarkerAlt className="text-rose-400 text-xs" />
-                      ),
-                      label: "Ubicación",
-                      value: "Sarasota, FL 34234",
-                      sub: "Estados Unidos",
                     },
                   ].map(({icon, label, value, sub}) => (
                     <div
@@ -108,84 +101,15 @@ const Contactos = () => {
                   ))}
                 </div>
               </div>
-
-              {/* Redes sociales */}
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-800">
-                  <FaCode className="text-emerald-400 text-xs" />
-                  <span className="text-xs font-semibold text-slate-300">
-                    Redes Sociales
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    {
-                      icon: <FaLinkedin className="text-blue-400" />,
-                      label: "LinkedIn",
-                    },
-                    {
-                      icon: <FaTwitter className="text-sky-400" />,
-                      label: "Twitter",
-                    },
-                    {
-                      icon: <FaInstagram className="text-pink-400" />,
-                      label: "Instagram",
-                    },
-                  ].map(({icon, label}) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className="flex items-center gap-2 px-3 py-2 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/40 hover:border-slate-600/60 rounded-lg transition-colors"
-                    >
-                      <span className="text-sm">{icon}</span>
-                      <span className="text-xs text-slate-400">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Testimonios */}
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-800">
-                  <FaHeart className="text-rose-400 text-xs" />
-                  <span className="text-xs font-semibold text-slate-300">
-                    Testimonios
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    {
-                      texto:
-                        "Transformaron mi visión en realidad. Una experiencia increíble.",
-                      autor: "Cliente Satisfecho",
-                    },
-                    {
-                      texto:
-                        "Altamente profesional y comprometido. ¡Muy recomendados!",
-                      autor: "Otro Cliente",
-                    },
-                  ].map(({texto, autor}) => (
-                    <div
-                      key={autor}
-                      className="px-3 py-2 bg-slate-800/60 border border-slate-700/40 rounded-lg"
-                    >
-                      <p className="text-xs text-slate-400 italic leading-relaxed">
-                        "{texto}"
-                      </p>
-                      <p className="text-[10px] text-slate-600 mt-1">{autor}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Columna derecha: formulario */}
             <div className="lg:col-span-2">
               <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 h-full flex flex-col">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-800 shrink-0">
-                  <FaPaperPlane className="text-emerald-400 text-xs" />
+                  <FaWhatsapp className="text-emerald-400 text-xs" />
                   <span className="text-xs font-semibold text-slate-300">
-                    Envíanos un mensaje
+                    Envíanos un mensaje por WhatsApp
                   </span>
                 </div>
 
@@ -249,43 +173,15 @@ const Contactos = () => {
                   {enviado && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs">
                       <FaCheck className="shrink-0" />
-                      Mensaje enviado. Nos pondremos en contacto pronto.
+                      Se abrió WhatsApp con tu mensaje listo — solo falta que le des enviar ahí.
                     </div>
                   )}
 
                   <button
                     type="submit"
-                    disabled={enviando}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-50 border border-emerald-500/30 rounded-lg text-sm font-medium text-white transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600/80 hover:bg-emerald-600 border border-emerald-500/30 rounded-lg text-sm font-medium text-white transition-colors"
                   >
-                    {enviando ? (
-                      <>
-                        <svg
-                          className="animate-spin size-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v8H4z"
-                          />
-                        </svg>
-                        Enviando…
-                      </>
-                    ) : (
-                      <>
-                        <FaPaperPlane className="text-xs" /> Enviar mensaje
-                      </>
-                    )}
+                    <FaWhatsapp className="text-sm" /> Enviar por WhatsApp
                   </button>
                 </form>
               </div>

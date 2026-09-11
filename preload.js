@@ -296,6 +296,9 @@ contextBridge.exposeInMainWorld("electron", {
   // Abrir enlace externo
   abrirEnlaceExterno: (url) => ipcRenderer.invoke('abrir-enlace-externo', url),
 
+  // Info de monitores (asistente de configuración inicial)
+  obtenerInfoMonitores: () => ipcRenderer.invoke('obtener-info-monitores'),
+
   // ✨ IPC RENDERER PARA ESCUCHAR EVENTOS DEL PROYECTOR
   ipcRenderer: {
     on: (channel, func) => {

@@ -539,10 +539,9 @@ const GestionFondos = () => {
 
       if (resultado && resultado !== false) {
         mostrarMensaje("Fondo descargado y guardado correctamente", "success");
-        // Si estamos en la pestaña de fondos guardados, recargar
-        if (tabActivo === "mis-imagenes") {
-          await cargarFondos();
-        }
+        // Recargar siempre: el contador "Mis Fondos" debe reflejar el nuevo
+        // fondo aunque se haya descargado desde la pestaña Online.
+        await cargarFondos();
       } else {
         throw new Error("Error al guardar el fondo en la base de datos");
       }
@@ -594,10 +593,10 @@ const GestionFondos = () => {
         mostrarMensaje("Fondo activado correctamente", "success");
         console.log("✅ [GestionFondos] Fondo activado:", fondoParaActivar);
 
-        // Recargar fondos para actualizar el indicador visual
-        if (tabActivo === "mis-imagenes") {
-          await cargarFondos();
-        }
+        // Recargar fondos para actualizar el contador "Mis Fondos" y la lista,
+        // sin importar en qué pestaña se activó (Imágenes/Videos Online también
+        // agregan un fondo nuevo a "Mis Fondos" y el contador debe reflejarlo YA).
+        await cargarFondos();
       } else {
         throw new Error("Error al activar el fondo en la base de datos");
       }

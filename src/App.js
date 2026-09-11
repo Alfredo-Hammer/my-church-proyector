@@ -7,7 +7,7 @@ import Himnos from "./pages/Himnos";
 import Favoritos from "./pages/Favoritos";
 import HimnoDetalle from "./pages/HimnoDetalle";
 import Proyector from "./pages/Proyector";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import GestionFondos from "./pages/GestionFondos";
 import Contactos from "./pages/Contactos";
 import Inicio from "./pages/Inicio";
@@ -26,6 +26,7 @@ import { NowPlayingProvider, useNowPlaying } from "./contexts/NowPlayingContext"
 import PersistentMediaPreview from "./components/PersistentMediaPreview";
 import NowPlayingBar from "./components/NowPlayingBar";
 import UpdateNotification from "./components/UpdateNotification";
+import OnboardingWizard from "./components/OnboardingWizard";
 import librosDeLaBiblia from "./utils/libros";
 import { cargarLibro } from "./utils/cargarLibro";
 
@@ -259,6 +260,24 @@ function MainLayout() {
   const location = useLocation();
   const {isActive: nowPlayingActivo} = useNowPlaying();
 
+  // Asistente de configuración inicial — solo en la ventana de control
+  // (MainLayout nunca se monta en la ventana del proyector, ver <App/> abajo).
+  // null = todavía no sabemos, true = mostrar, false = ya se completó/omitió.
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const config = await window.electron?.obtenerConfiguracion?.();
+        if (!cancelado) setMostrarOnboarding(config?.onboardingCompletado !== true);
+      } catch {
+        if (!cancelado) setMostrarOnboarding(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
   const isInicio = location.pathname === '/';
   const isMultimedia = location.pathname === '/multimedia';
   const paddingInferior = nowPlayingActivo ? 'pb-16' : '';
@@ -270,6 +289,9 @@ function MainLayout() {
 
   return (
     <div className="flex h-screen">
+      {mostrarOnboarding && (
+        <OnboardingWizard onFinish={() => setMostrarOnboarding(false)} />
+      )}
       <Sidebar />
       {/* Columna derecha: header pegado arriba + contenido con padding */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-800">

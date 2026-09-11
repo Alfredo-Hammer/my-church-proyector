@@ -157,10 +157,11 @@ const Contactos = () => {
                   </div>
 
                   <div className="flex-1 flex flex-col">
-                    <label className="block text-xs text-slate-400 mb-1">
+                    <label htmlFor="contact-mensaje" className="block text-xs text-slate-400 mb-1">
                       Mensaje
                     </label>
                     <textarea
+                      id="contact-mensaje"
                       name="mensaje"
                       value={formData.mensaje}
                       onChange={handleInputChange}
@@ -173,7 +174,7 @@ const Contactos = () => {
                   {enviado && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs">
                       <FaCheck className="shrink-0" />
-                      Se abrió WhatsApp con tu mensaje listo — solo falta que le des enviar ahí.
+                      Se abrió WhatsApp con tu mensaje listo, solo falta que le des enviar ahí.
                     </div>
                   )}
 

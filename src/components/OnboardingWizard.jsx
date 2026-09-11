@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useRef, useState} from "react";
 import {
   IoArrowForward,
   IoArrowBack,
@@ -26,13 +26,15 @@ export default function OnboardingWizard({onFinish}) {
   const [pastor, setPastor] = useState("");
   const [eslogan, setEslogan] = useState("");
   const [colorPrimario, setColorPrimario] = useState("#6366f1");
-  const [archivoLogo, setArchivoLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [dragLogo, setDragLogo] = useState(false);
   const [monitores, setMonitores] = useState(null);
   const [detectando, setDetectando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const fileInputRef = useRef(null);
+  // Solo se lee dentro de finalizar() (un handler), nunca durante el render
+  // — un ref evita un re-render de todo el wizard al elegir el archivo.
+  const archivoLogoRef = useRef(null);
 
   const paso = PASOS[pasoIdx];
 
@@ -48,30 +50,32 @@ export default function OnboardingWizard({onFinish}) {
     }
   };
 
-  useEffect(() => {
-    if (paso === "pantalla" && !monitores) detectarMonitores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paso]);
-
   const procesarLogo = (archivo) => {
     if (!archivo?.type?.startsWith("image/")) return;
-    setArchivoLogo(archivo);
+    archivoLogoRef.current = archivo;
     const r = new FileReader();
     r.onload = (e) => setLogoPreview(e.target.result);
     r.readAsDataURL(archivo);
   };
 
-  const siguiente = () => setPasoIdx((i) => Math.min(i + 1, PASOS.length - 1));
-  const anterior = () => setPasoIdx((i) => Math.max(i - 1, 0));
+  // Detectar monitores como reacción directa al clic que entra al paso
+  // "pantalla" (no como un useEffect que reacciona al cambio de estado).
+  const irAPaso = (i) => {
+    const nuevoPaso = PASOS[Math.max(0, Math.min(i, PASOS.length - 1))];
+    if (nuevoPaso === "pantalla" && !monitores && !detectando) detectarMonitores();
+    setPasoIdx(Math.max(0, Math.min(i, PASOS.length - 1)));
+  };
+  const siguiente = () => irAPaso(pasoIdx + 1);
+  const anterior = () => irAPaso(pasoIdx - 1);
 
   const finalizar = async (omitido = false) => {
     if (guardando) return;
     setGuardando(true);
     try {
       let logoUrl;
-      if (!omitido && archivoLogo) {
+      if (!omitido && archivoLogoRef.current) {
         try {
-          const buf = await archivoLogo.arrayBuffer();
+          const buf = await archivoLogoRef.current.arrayBuffer();
           logoUrl = await window.electron?.guardarLogo?.(new Uint8Array(buf));
         } catch {
           /* si falla el logo, seguimos igual — no es bloqueante */
@@ -113,6 +117,7 @@ export default function OnboardingWizard({onFinish}) {
             type="button"
             onClick={() => finalizar(true)}
             title="Omitir configuración inicial"
+            aria-label="Omitir configuración inicial"
             className="absolute top-4 right-4 size-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-colors z-10"
           >
             <IoClose />
@@ -160,11 +165,11 @@ export default function OnboardingWizard({onFinish}) {
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                <label htmlFor="onb-nombre" className="block text-xs font-medium text-slate-400 mb-1.5">
                   Nombre de la iglesia
                 </label>
                 <input
-                  autoFocus
+                  id="onb-nombre"
                   type="text"
                   value={nombreIglesia}
                   onChange={(e) => setNombreIglesia(e.target.value)}
@@ -173,10 +178,11 @@ export default function OnboardingWizard({onFinish}) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                <label htmlFor="onb-pastor" className="block text-xs font-medium text-slate-400 mb-1.5">
                   Pastor <span className="text-slate-600">(opcional)</span>
                 </label>
                 <input
+                  id="onb-pastor"
                   type="text"
                   value={pastor}
                   onChange={(e) => setPastor(e.target.value)}
@@ -185,10 +191,11 @@ export default function OnboardingWizard({onFinish}) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                <label htmlFor="onb-eslogan" className="block text-xs font-medium text-slate-400 mb-1.5">
                   Eslogan <span className="text-slate-600">(opcional)</span>
                 </label>
                 <input
+                  id="onb-eslogan"
                   type="text"
                   value={eslogan}
                   onChange={(e) => setEslogan(e.target.value)}
@@ -205,10 +212,11 @@ export default function OnboardingWizard({onFinish}) {
               <div>
                 <h2 className="text-lg font-bold text-white">Logo de la iglesia</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Opcional — podés agregarlo más tarde desde Configuración.
+                  Opcional, podés agregarlo más tarde desde Configuración.
                 </p>
               </div>
-              <div
+              <button
+                type="button"
                 onDragOver={(e) => { e.preventDefault(); setDragLogo(true); }}
                 onDragLeave={() => setDragLogo(false)}
                 onDrop={(e) => {
@@ -235,17 +243,18 @@ export default function OnboardingWizard({onFinish}) {
                 )}
                 <p className="text-xs text-slate-500 text-center px-6">
                   {logoPreview
-                    ? "Logo cargado — hacé clic para cambiarlo"
+                    ? "Logo cargado, hacé clic para cambiarlo"
                     : "Arrastrá una imagen aquí o hacé clic para elegirla"}
                 </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => { if (e.target.files[0]) procesarLogo(e.target.files[0]); }}
-                />
-              </div>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                aria-label="Subir logo de la iglesia"
+                className="hidden"
+                onChange={(e) => { if (e.target.files[0]) procesarLogo(e.target.files[0]); }}
+              />
             </div>
           )}
 
@@ -266,6 +275,7 @@ export default function OnboardingWizard({onFinish}) {
                     key={c}
                     onClick={() => setColorPrimario(c)}
                     title={c}
+                    aria-label={`Elegir color ${c}`}
                     className={`size-9 rounded-xl border-2 transition-all hover:scale-110 ${
                       colorPrimario === c
                         ? "border-white/70 scale-110 shadow"
@@ -309,7 +319,7 @@ export default function OnboardingWizard({onFinish}) {
                   <>
                     <IoCheckmarkCircle className="text-4xl text-emerald-400" />
                     <p className="text-sm text-slate-300 text-center max-w-xs">
-                      Detectamos {monitores.total} pantallas — la proyección se
+                      Detectamos {monitores.total} pantallas: la proyección se
                       abrirá automáticamente a pantalla completa en la segunda.
                     </p>
                   </>
@@ -318,7 +328,7 @@ export default function OnboardingWizard({onFinish}) {
                     <IoAlertCircleOutline className="text-4xl text-amber-400" />
                     <p className="text-sm text-slate-300 text-center max-w-xs">
                       Por ahora detectamos solo 1 pantalla. Podés seguir usando
-                      GloryView así — el proyector se abre en una ventana que
+                      GloryView así, el proyector se abre en una ventana que
                       podés mover a un segundo monitor o TV cuando lo conectes.
                     </p>
                   </>

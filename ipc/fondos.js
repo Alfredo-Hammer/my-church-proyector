@@ -25,7 +25,16 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
         const relativePath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
         const publicPath = path.join(obtenerRutaBase(), 'public', relativePath);
         const buildPath = path.join(obtenerRutaRecursos(), 'build', relativePath);
-        return fs.existsSync(publicPath) || fs.existsSync(buildPath);
+        // Las imágenes/videos de Pixabay descargados se guardan en
+        // userData/build/images/pixabay (ver 'download-pixabay-image' en
+        // main.js) — no en el build empaquetado de solo lectura
+        // (obtenerRutaRecursos()) ni en public/. Sin este tercer candidato,
+        // cualquier fondo bajado de Pixabay se consideraba "no existe" y
+        // desaparecía de Gestión de Fondos aunque el archivo sí estuviera
+        // en disco y el servidor lo sirviera bien (por eso la app móvil,
+        // que no aplica este filtro, sí los mostraba).
+        const userDataBuildPath = path.join(obtenerRutaBase(), 'build', relativePath);
+        return fs.existsSync(publicPath) || fs.existsSync(buildPath) || fs.existsSync(userDataBuildPath);
       };
 
       const fondosTransformados = fondos.flatMap(fondo => {

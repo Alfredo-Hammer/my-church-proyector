@@ -1,3 +1,22 @@
+Version 0.4.1
+
+Nuevas funciones
+- Respaldo y restauracion: desde Configuracion > Datos podes exportar
+  todo (himnos, fondos, configuracion) a un archivo y restaurarlo
+  despues, en la misma computadora o en otra
+- Icono de la aplicacion rediseñado de nuevo: una G con un haz de luz
+
+Correcciones
+- Corregido: si subias un logo que no fuera JPG (PNG, GIF, WebP) no se
+  guardaba, pero la app decia "guardado exitosamente" igual
+- Corregido: el nombre y logo de la iglesia en la barra superior a
+  veces no cargaban porque pedian una direccion que no existia
+- Corregido: en pasajes largos de la Biblia o himnos, la letra se
+  achicaba mas de lo necesario dejando espacio sin usar en los bordes
+- Corregido: el tamano de letra en la pantalla de proyeccion podia
+  verse distinto segun la plantilla visual elegida, para el mismo
+  texto y la misma pantalla
+
 Version 0.4.0
 
 Nuevas funciones

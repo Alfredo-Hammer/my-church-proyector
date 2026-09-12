@@ -30,3 +30,63 @@ export const CLASS_PX = {
   "text-10xl": 160,
   "text-11xl": 200,
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// AJUSTE DE TEXTO — fuente única para ModernTextDisplay.jsx y PlantillaGSAP.jsx
+// ════════════════════════════════════════════════════════════════════════
+// Antes cada uno tenía su propia búsqueda binaria + sus propios márgenes
+// hardcodeados, lo que hacía que el mismo texto en la misma pantalla se
+// viera con tamaño distinto según hubiera o no una plantilla GSAP activa.
+// Esta función es la única que decide "¿el texto entra?", para que ambos
+// caminos de render den el mismo resultado ante el mismo texto/pantalla.
+export const AJUSTE_TEXTO = {
+  // Margen de seguridad — % del alto/ancho del viewport que el texto nunca
+  // debe invadir. Se puede ajustar acá sin tocar los componentes.
+  safeArea: {top: 0.04, bottom: 0.04, left: 0.02, right: 0.02},
+  // Tope de líneas: preferimos no seguir agregando líneas sin límite para
+  // pasajes muy largos — mejor un tamaño mínimo legible que texto ilegible.
+  maxLines: 6,
+  minFontSizePx: 24,
+};
+
+// measureEl: elemento ya posicionado con el ancho real disponible (ya sea
+// offscreen con position:fixed + left/right en vw, o el contenedor visible
+// real) — el llamador es responsable de crearlo/reusarlo con
+// visibility:hidden si es offscreen. Esta función solo lee su scrollHeight
+// a distintos font-size para encontrar el más grande que entra.
+export function calcularAjusteTexto({
+  measureEl,
+  texto,
+  disponibleAlto,
+  maxFontSizePx,
+  minFontSizePx = AJUSTE_TEXTO.minFontSizePx,
+  maxLines = AJUSTE_TEXTO.maxLines,
+  lineHeight = 1.3,
+}) {
+  if (!measureEl || !texto?.trim() || !disponibleAlto || disponibleAlto <= 0) {
+    return maxFontSizePx;
+  }
+
+  const cabe = (px) => {
+    measureEl.style.fontSize = `${px}px`;
+    measureEl.style.lineHeight = String(lineHeight);
+    const lineas = Math.round(measureEl.scrollHeight / (px * lineHeight));
+    return measureEl.scrollHeight <= disponibleAlto && lineas <= maxLines;
+  };
+
+  if (cabe(maxFontSizePx)) return maxFontSizePx;
+
+  let lo = minFontSizePx,
+    hi = maxFontSizePx,
+    best = minFontSizePx;
+  for (let i = 0; i < 32 && hi - lo > 0.3; i++) {
+    const mid = (lo + hi) / 2;
+    if (cabe(mid)) {
+      best = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return best;
+}

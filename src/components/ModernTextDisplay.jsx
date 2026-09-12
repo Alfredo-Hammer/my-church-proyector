@@ -1,6 +1,6 @@
 import {Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {AnimatePresence, LazyMotion, domAnimation, m} from "framer-motion";
-import {calcularEscalaFuente, CLASS_PX} from "../utils/pantallaScale";
+import {calcularEscalaFuente, CLASS_PX, calcularAjusteTexto} from "../utils/pantallaScale";
 
 function parseLines(text) {
   if (!text) return [[""]];
@@ -91,21 +91,17 @@ const ModernTextDisplay = ({
     const tituloVisible = mostrarTitulo && display.titulo?.trim();
     const avail = window.innerHeight * (tituloVisible ? 0.54 : 0.93);
 
-    measure.style.fontSize = `${userMaxPx}px`;
-    if (measure.scrollHeight <= avail) {
-      setFontSizePx(userMaxPx);
-      return;
-    }
-
     const minPx = Math.max(24 * escala, Math.round(userMaxPx * 0.2));
-    let lo = minPx, hi = userMaxPx, best = minPx;
-    for (let i = 0; i < 32 && hi - lo > 0.3; i++) {
-      const mid = (lo + hi) / 2;
-      measure.style.fontSize = `${mid}px`;
-      if (measure.scrollHeight <= avail) { best = mid; lo = mid; }
-      else hi = mid;
-    }
-    setFontSizePx(best);
+    setFontSizePx(
+      calcularAjusteTexto({
+        measureEl: measure,
+        texto: display.parrafo,
+        disponibleAlto: avail,
+        maxFontSizePx: userMaxPx,
+        minFontSizePx: minPx,
+        lineHeight: 1.3,
+      })
+    );
   };
 
   // Ref siempre actualizado → evita stale closures en los event handlers

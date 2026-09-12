@@ -1,7 +1,7 @@
 import {createContext, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {gsap} from "gsap";
 import {META_PLANTILLAS} from "./PlantillasConfig";
-import {calcularEscalaFuente, CLASS_PX} from "../utils/pantallaScale";
+import {calcularEscalaFuente, CLASS_PX, calcularAjusteTexto} from "../utils/pantallaScale";
 
 // Config del proyector (incluye fontSize.parrafo elegido en Configuración) —
 // se provee una sola vez en PlantillaGSAP y se consume en useAutoFontSize,
@@ -14,12 +14,14 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
   const configuracion = useContext(ConfigProyectorContext);
   const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
 
+  const ajustarRef = useRef(null);
+
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
     const el = textRef.current;
     if (!wrap || !el || !texto) return;
 
-    const raf = requestAnimationFrame(() => {
+    const ajustar = () => {
       const rawAvail = wrap.clientHeight;
       if (rawAvail <= 0) return;
 
@@ -35,30 +37,36 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
       const maxPx = (CLASS_PX[configClass] ?? 128) * escala;
       const minPx = 16 * escala;
 
-      // Probar tamaño máximo primero
-      el.style.fontSize = `${maxPx}px`;
-      if (el.scrollHeight <= available) {
-        setFontSizePx(maxPx);
-        return;
-      }
+      // Misma función que usa ModernTextDisplay — antes cada uno tenía su
+      // propia búsqueda binaria, dando tamaños distintos para el mismo
+      // texto/pantalla según hubiera o no una plantilla GSAP activa.
+      setFontSizePx(
+        calcularAjusteTexto({
+          measureEl: el,
+          texto,
+          disponibleAlto: available,
+          maxFontSizePx: maxPx,
+          minFontSizePx: minPx,
+          lineHeight: 1.25,
+        })
+      );
+    };
 
-      // Búsqueda binaria: el.scrollHeight tiene en cuenta el word-wrap real
-      let lo = minPx,
-        hi = maxPx,
-        best = minPx;
-      for (let i = 0; i < 26 && hi - lo > 0.4; i++) {
-        const mid = (lo + hi) / 2;
-        el.style.fontSize = `${mid}px`;
-        if (el.scrollHeight <= available) {
-          best = mid;
-          lo = mid;
-        } else hi = mid;
-      }
-      setFontSizePx(best);
-    });
-
+    ajustarRef.current = ajustar;
+    const raf = requestAnimationFrame(ajustar);
     return () => cancelAnimationFrame(raf);
   }, [texto, titulo, configClass]);
+
+  // Recalcula si la ventana cambia de tamaño después del primer render (ej.
+  // la animación de pantalla completa de macOS al pasar al monitor externo,
+  // o al redimensionar la ventana flotante en modo un-solo-monitor) — antes
+  // faltaba este listener y el texto quedaba con el tamaño calculado para
+  // el tamaño de ventana anterior hasta el próximo cambio de texto.
+  useEffect(() => {
+    const handler = () => ajustarRef.current?.();
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   return fontSizePx;
 }
@@ -1097,14 +1105,21 @@ function TextoAuto({
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
 
+  // Título: mismo tamaño configurado/escalado que usa ModernTextDisplay —
+  // antes era un clamp() fijo en vw, ajeno a la resolución real y al
+  // tamaño elegido en Configuración (ver useAutoFontSize más arriba).
+  const configuracion = useContext(ConfigProyectorContext);
+  const tituloClass = configuracion?.fontSize?.titulo || "text-5xl";
+  const tituloFontSizePx = (CLASS_PX[tituloClass] ?? 48) * calcularEscalaFuente();
+
   return (
     <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[10%] py-[6%] gap-2">
       {titulo && (
         <h1
-          className={`plg-titulo font-bold leading-tight shrink-0 ${extraClass}`}
+          className={`plg-titulo font-bold leading-tight shrink-0 max-h-[35%] overflow-hidden ${extraClass}`}
           style={{
             color: colorTitulo || colorAccento,
-            fontSize: "clamp(1.6rem, 3.5vw, 4rem)",
+            fontSize: `${tituloFontSizePx}px`,
           }}
         >
           {titulo}

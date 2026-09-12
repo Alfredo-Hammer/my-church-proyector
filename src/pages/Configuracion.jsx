@@ -277,16 +277,29 @@ const Configuracion = () => {
     setGuardando(true);
     try {
       let cfg = {...configuracion};
+      let logoFallo = false;
       if (archivoLogo) {
         try {
           const buf  = await archivoLogo.arrayBuffer();
           const path = await window.electron.guardarLogo(new Uint8Array(buf));
-          if (path) { cfg = {...cfg, logo: path}; setConfiguracion((c) => ({...c, logo: path})); }
-        } catch { mostrarToast("Error al guardar el logo", "error"); }
+          if (path) {
+            cfg = {...cfg, logo: path};
+            setConfiguracion((c) => ({...c, logo: path}));
+          } else {
+            // El logo no se guardó (formato no reconocido, archivo
+            // demasiado grande, etc.) — no dejar que el resto de la
+            // configuración se guarde como "éxito" sin avisar.
+            logoFallo = true;
+          }
+        } catch { logoFallo = true; }
       }
       await guardarConfiguracionCompleta(cfg);
       setSavedConfig(cfg); setArchivoLogo(null); setLogoPreviewUrl(null);
-      mostrarToast("Configuración guardada", "success");
+      if (logoFallo) {
+        mostrarToast("Se guardó el resto de la configuración, pero el logo no se pudo procesar (probá con otra imagen)", "error");
+      } else {
+        mostrarToast("Configuración guardada", "success");
+      }
     } catch (err) { mostrarToast(`Error: ${err.message}`, "error"); }
     finally { setGuardando(false); }
   };

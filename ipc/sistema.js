@@ -2,7 +2,7 @@ const { app, ipcMain, shell, screen } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
-const { validarArchivoUpload } = require("./shared/uploadValidation");
+const { validarArchivoUpload, detectarExtensionImagen } = require("./shared/uploadValidation");
 
 // deps: writeLog, obtenerRutaBase, getMainWindow y los getters/setters del
 // estado del auto-updater (updateCheckManual/isDownloading son primitivos en
@@ -69,7 +69,15 @@ function registrar({
       console.log("🖼️ [Main] Guardando logo...");
 
       const buffer = Buffer.isBuffer(archivoBuffer) ? archivoBuffer : Buffer.from(archivoBuffer);
-      const extension = '.jpg';
+      // Detectar el tipo real por contenido — antes se asumía ".jpg" siempre,
+      // así que cualquier logo PNG/GIF/WebP (los formatos más comunes para
+      // un logo con transparencia) fallaba la validación de magic number en
+      // silencio y el handler devolvía null sin avisar al usuario.
+      const extension = detectarExtensionImagen(buffer);
+      if (!extension) {
+        console.error('❌ [Main] Tipo de imagen no reconocido para el logo');
+        return null;
+      }
       validarArchivoUpload(buffer, extension, 'logo');
 
       const uploadsDir = path.join(obtenerRutaBase(), 'public', 'uploads');
@@ -78,7 +86,7 @@ function registrar({
         console.log("📁 [Main] Directorio uploads creado");
       }
 
-      const fileName = `logo-${Date.now()}.jpg`;
+      const fileName = `logo-${Date.now()}${extension}`;
       const filePath = path.join(uploadsDir, fileName);
 
       fs.writeFileSync(filePath, buffer);

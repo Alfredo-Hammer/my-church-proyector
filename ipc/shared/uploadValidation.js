@@ -55,6 +55,17 @@ function verificarMagicNumber(buffer, ext) {
   }
 }
 
+// Detecta la extensión real de una imagen a partir de sus magic numbers —
+// usado donde el llamador no puede confiar en el nombre/extensión original
+// del archivo (por ej. el logo, que llega como buffer puro por IPC).
+// Devuelve null si no matchea ningún formato de imagen conocido.
+function detectarExtensionImagen(buffer) {
+  for (const ext of ['.png', '.jpg', '.gif', '.webp']) {
+    if (verificarMagicNumber(buffer, ext)) return ext;
+  }
+  return null;
+}
+
 function validarArchivoUpload(buffer, extension, categoria) {
   const limiteMB = LIMITES_MB[categoria] ?? LIMITES_MB.documento;
   const limiteBytes = limiteMB * 1024 * 1024;
@@ -72,4 +83,4 @@ function validarArchivoUpload(buffer, extension, categoria) {
   }
 }
 
-module.exports = { validarArchivoUpload, LIMITES_MB, EXTENSIONES_PERMITIDAS };
+module.exports = { validarArchivoUpload, detectarExtensionImagen, LIMITES_MB, EXTENSIONES_PERMITIDAS };

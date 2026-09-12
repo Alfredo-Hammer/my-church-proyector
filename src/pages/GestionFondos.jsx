@@ -466,7 +466,12 @@ const GestionFondos = () => {
       }
 
       console.log("✅ [GestionFondos] Fondo guardado:", fondoGuardado);
-      mostrarMensaje("Fondo agregado correctamente", "success");
+      mostrarMensaje(
+        fondoGuardado.duplicado
+          ? "Ya tenías este archivo guardado — no se duplicó"
+          : "Fondo agregado correctamente",
+        fondoGuardado.duplicado ? "info" : "success",
+      );
 
       // Recargar fondos
       await cargarFondos();
@@ -538,7 +543,12 @@ const GestionFondos = () => {
       console.log("📋 [GestionFondos] Resultado de BD:", resultado);
 
       if (resultado && resultado !== false) {
-        mostrarMensaje("Fondo descargado y guardado correctamente", "success");
+        mostrarMensaje(
+          resultado.duplicado
+            ? "Ya tenías este fondo guardado — no se duplicó"
+            : "Fondo descargado y guardado correctamente",
+          resultado.duplicado ? "info" : "success",
+        );
         // Recargar siempre: el contador "Mis Fondos" debe reflejar el nuevo
         // fondo aunque se haya descargado desde la pestaña Online.
         await cargarFondos();

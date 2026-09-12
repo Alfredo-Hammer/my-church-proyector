@@ -3073,6 +3073,26 @@ function iniciarServidorMultimedia() {
           throw new Error(`No se puede crear carpeta: ${dirError.message}`);
         }
 
+        // Evitar volver a descargar la misma imagen/video de Pixabay: el
+        // nombre de archivo ya codifica el imageId (pixabay_<id>_<hash>.ext),
+        // así que basta con buscar un archivo existente con ese prefijo.
+        if (imageId) {
+          const prefijo = `pixabay_${imageId}_`;
+          const existente = fs.readdirSync(pixabayFolder)
+            .find((nombre) => nombre.startsWith(prefijo));
+          if (existente) {
+            const statsExistente = fs.statSync(path.join(pixabayFolder, existente));
+            console.log('♻️  [Pixabay Download] Ya descargado antes, reutilizando:', existente);
+            return res.json({
+              success: true,
+              localPath: `http://localhost:${PORT}/images/pixabay/${existente}`,
+              filename: existente,
+              size: statsExistente.size,
+              duplicado: true,
+            });
+          }
+        }
+
         // Generar nombre único para la imagen
         const extension = imageUrl.split('.').pop().split('?')[0] || 'jpg';
         const filename = `pixabay_${imageId || Date.now()}_${crypto.randomBytes(4).toString('hex')}.${extension}`;

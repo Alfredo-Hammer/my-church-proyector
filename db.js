@@ -528,6 +528,22 @@ function agregarFondo(url, tipo = 'imagen', nombre = null, activo = false) {
       throw new Error("URL del fondo es requerida");
     }
 
+    // Evitar filas duplicadas: si ya existe un fondo con esta misma URL
+    // (el mismo archivo ya descargado de Pixabay o copiado antes),
+    // reutilizar esa fila en vez de insertar una nueva. Pasa seguido si
+    // se hace clic dos veces en la misma imagen/video de Pixabay, o se
+    // sube el mismo archivo local más de una vez.
+    const existente = db.prepare("SELECT * FROM fondos WHERE url = ?").get(url);
+    if (existente) {
+      console.log("♻️ [DB] Fondo ya existe, reutilizando fila:", existente.id);
+      if (activo && !existente.activo) {
+        db.prepare("UPDATE fondos SET activo = 0").run();
+        db.prepare("UPDATE fondos SET activo = 1 WHERE id = ?").run(existente.id);
+        existente.activo = 1;
+      }
+      return {...existente, duplicado: true};
+    }
+
     // Generar nombre automático si no se proporciona
     if (!nombre) {
       const timestamp = Date.now();

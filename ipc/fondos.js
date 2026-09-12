@@ -323,6 +323,38 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
     try {
       console.log("📁 [Main] Copiando archivo a fondos (camelCase):", sourcePath);
 
+      // Evitar copiar el mismo archivo dos veces: comparamos primero por
+      // tamaño (barato) y solo calculamos hash de contenido para los
+      // candidatos que ya coinciden en tamaño — así no hay que hashear
+      // toda la carpeta de fondos en cada subida.
+      const crypto = require("crypto");
+      const tamañoOrigen = fs.statSync(sourcePath).size;
+      const hashArchivo = (ruta) => {
+        const hash = crypto.createHash("md5");
+        hash.update(fs.readFileSync(ruta));
+        return hash.digest("hex");
+      };
+
+      const existentes = fs.existsSync(fondosPublicDir) ? fs.readdirSync(fondosPublicDir) : [];
+      const candidatos = existentes.filter((nombre) => {
+        try {
+          return fs.statSync(path.join(fondosPublicDir, nombre)).size === tamañoOrigen;
+        } catch {
+          return false;
+        }
+      });
+
+      if (candidatos.length > 0) {
+        const hashOrigen = hashArchivo(sourcePath);
+        const duplicado = candidatos.find(
+          (nombre) => hashArchivo(path.join(fondosPublicDir, nombre)) === hashOrigen,
+        );
+        if (duplicado) {
+          console.log("♻️ [Main] Archivo ya existe (mismo contenido), reutilizando:", duplicado);
+          return `/fondos/${duplicado}`;
+        }
+      }
+
       const fileName = path.basename(sourcePath);
       const uniqueName = `${Date.now()}-${fileName}`;
       const destPath = path.join(fondosPublicDir, uniqueName);

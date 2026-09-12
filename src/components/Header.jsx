@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from "react";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
+import {useProyectorConfig} from "../hooks/useProyectorConfig";
 import {
   FaPlay,
   FaPause,
@@ -57,10 +58,7 @@ const AnimatedSoundBars = () => {
 };
 
 const Header = () => {
-  const [configuracion, setConfiguracion] = useState({
-    nombreIglesia: "",
-    logoUrl: "",
-  });
+  const {configuracion} = useProyectorConfig();
   const [mensaje, setMensaje] = useState(() => {
     const hora = new Date().getHours();
     if (hora < 12) return "Buenos días";
@@ -88,22 +86,6 @@ const Header = () => {
   // Igual que GlobalMediaPlayer: mostrar el último medio aunque esté detenido
   const mediaToShow = currentMedia || lastPlayedMedia;
   const isStopped = !currentMedia && !!lastPlayedMedia;
-
-  // Cargar configuración
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const response = await fetch("http://localhost:3001/configuracion");
-        const data = await response.json();
-        if (data && data.length > 0) {
-          setConfiguracion(data[0]);
-        }
-      } catch (error) {
-        console.error("Error cargando configuración:", error);
-      }
-    };
-    loadConfig();
-  }, []);
 
   // Detectar cuando el proyector abre en modo un solo monitor
   useEffect(() => {

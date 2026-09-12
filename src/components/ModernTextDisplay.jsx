@@ -86,10 +86,10 @@ const ModernTextDisplay = ({
     const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
     const userMaxPx = (CLASS_PX[configClass] ?? 128) * escala;
 
-    // Altura disponible: viewport menos padding (py-[4vh] = 8vh total) con
-    // 5% de margen extra. Si hay título visible, reservamos ~40% para él.
+    // Altura disponible: viewport menos padding (py-[2vh] = 4vh total) con
+    // margen extra. Si hay título visible, reservamos ~46% para él.
     const tituloVisible = mostrarTitulo && display.titulo?.trim();
-    const avail = window.innerHeight * (tituloVisible ? 0.50 : 0.87);
+    const avail = window.innerHeight * (tituloVisible ? 0.54 : 0.93);
 
     measure.style.fontSize = `${userMaxPx}px`;
     if (measure.scrollHeight <= avail) {
@@ -143,8 +143,8 @@ const ModernTextDisplay = ({
         style={{
           position: "fixed",
           top: "-9999px",
-          left: "4vw",
-          right: "4vw",
+          left: "2vw",
+          right: "2vw",
           visibility: "hidden",
           pointerEvents: "none",
           zIndex: -1,
@@ -160,7 +160,7 @@ const ModernTextDisplay = ({
           : ""}
       </p>
 
-      <div className="text-center z-10 relative size-screen flex flex-col justify-center px-[4vw] py-[4vh] overflow-hidden">
+      <div className="text-center z-10 relative size-screen flex flex-col justify-center px-[2vw] py-[2vh] overflow-hidden">
         {/* Título */}
         {mostrarTitulo && display.titulo?.trim() && (
           <AnimatePresence mode="wait">

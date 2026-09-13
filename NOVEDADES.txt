@@ -1,3 +1,17 @@
+Version 0.4.2
+
+Correcciones
+- Corregido: los fondos descargados de Pixabay a veces desaparecian de
+  "Mis Fondos" aunque el archivo estuviera bien guardado
+- Corregido: descargar o usar la misma imagen/video de Pixabay varias
+  veces creaba copias duplicadas en vez de reutilizar la que ya tenias
+- Corregido: al editar un parrafo de un himno (Himnario Moravo o Vida
+  Cristiana), el cambio no se guardaba al salir y volver a entrar
+- Corregido: en la Biblia, elegir un resultado de busqueda (por
+  referencia o por frase) proyectaba de inmediato sin avisar. Ahora
+  elegis el resultado y proyectas cuando quieras, con la barra
+  espaciadora o el boton "Proyectar"
+
 Version 0.4.1
 
 Nuevas funciones

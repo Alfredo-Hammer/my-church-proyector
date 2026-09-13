@@ -355,9 +355,14 @@ function buscarHimnos(termino) {
 // el stringify/parse ya ocurre en la capa de main.js)
 function crearHimno(himno) {
   try {
+    // numero es columna TEXT, pero llega como number desde el JSON base
+    // (ej. 1, no "1") — sin convertir explícitamente, better-sqlite3 lo
+    // guarda como "1.0" en vez de "1", y la búsqueda por numero en
+    // HimnoDetalle.jsx (String(d.numero) === numeroDeLaURL) nunca vuelve
+    // a encontrar el himno editado.
     const result = db.prepare(
       'INSERT INTO himnos (numero, titulo, letra, autor, categoria, favorito, fuente) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0, himno.fuente || 'personal');
+    ).run(String(himno.numero), himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito || 0, himno.fuente || 'personal');
     return Number(result.lastInsertRowid);
   } catch (error) {
     console.error('Error al crear himno:', error);
@@ -370,7 +375,7 @@ function actualizarHimno(id, himno) {
   try {
     const result = db.prepare(
       'UPDATE himnos SET numero = ?, titulo = ?, letra = ?, autor = ?, categoria = ?, favorito = ?, fuente = ? WHERE id = ?'
-    ).run(himno.numero, himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, himno.fuente || 'personal', id);
+    ).run(String(himno.numero), himno.titulo, himno.letra, himno.autor || '', himno.categoria || '', himno.favorito, himno.fuente || 'personal', id);
     return result.changes > 0;
   } catch (error) {
     console.error('Error al actualizar himno:', error);

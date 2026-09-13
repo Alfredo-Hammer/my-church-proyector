@@ -457,8 +457,9 @@ const Biblia = () => {
     } else if (resultado.tipo === "versiculo") {
       setVersiculoSeleccionadoBuscador(resultado.versiculo);
 
-      // Proyectar automáticamente
-      await proyectarDesdeBuscador(
+      // Solo seleccionar/previsualizar — el usuario proyecta a mano con
+      // la barra espaciadora o el botón "Proyectar" (ver proyectarVersiculo).
+      await seleccionarDesdeBuscador(
         libroSeleccionadoBuscador,
         capituloSeleccionadoBuscador,
         resultado.versiculo,
@@ -466,25 +467,17 @@ const Biblia = () => {
     }
   };
 
-  // Función para proyectar desde el buscador
-  const proyectarDesdeBuscador = async (libro, capitulo, versiculo) => {
+  // Selecciona un versículo encontrado en el buscador como vista previa,
+  // sin proyectarlo — antes esto proyectaba de una, sin darle al usuario
+  // la chance de revisar el resultado antes de mandarlo a la pantalla.
+  const seleccionarDesdeBuscador = async (libro, capitulo, versiculo) => {
     try {
-      // Cargar datos y establecer estados principales
       setLibroSeleccionado(libro.id);
       const data = await cargarLibro(libro.id);
       setCapitulos(data);
       setCapituloSeleccionado(capitulo);
       setVersiculos(data[capitulo - 1] || []);
       setVersiculoSeleccionado(versiculo);
-
-      // Proyectar el versículo
-      window.electron.abrirProyector();
-      window.electron.enviarVersiculo({
-        parrafo: (data[capitulo - 1] || [])[versiculo - 1] || "No disponible",
-        titulo: libro.nombre,
-        numero: `${capitulo}:${versiculo}`,
-        origen: "biblia",
-      });
 
       // Cerrar buscador y mostrar detalle
       setMostrarBuscador(false);
@@ -493,7 +486,7 @@ const Biblia = () => {
       // Resetear buscador
       resetearBuscador();
     } catch (error) {
-      console.error("Error proyectando desde buscador:", error);
+      console.error("Error seleccionando desde buscador:", error);
     }
   };
 
@@ -552,7 +545,11 @@ const Biblia = () => {
     setBuscandoTexto(false);
   }, [busquedaTexto, buscandoTexto]);
 
-  const proyectarResultadoTexto = async (resultado) => {
+  // Selecciona un resultado de búsqueda por frase como vista previa, sin
+  // proyectarlo — el usuario proyecta a mano con la barra espaciadora o el
+  // botón "Proyectar" (ver proyectarVersiculo). Antes esto proyectaba de
+  // una al hacer clic, sin darle al usuario la chance de revisarlo antes.
+  const seleccionarResultadoTexto = async (resultado) => {
     try {
       const data = await cargarLibro(resultado.libroId);
       setLibroSeleccionado(resultado.libroId);
@@ -560,13 +557,6 @@ const Biblia = () => {
       setCapituloSeleccionado(resultado.capitulo);
       setVersiculos(data[resultado.capitulo - 1] || []);
       setVersiculoSeleccionado(resultado.versiculo);
-      window.electron.abrirProyector();
-      window.electron.enviarVersiculo({
-        parrafo: resultado.texto,
-        titulo: resultado.libroNombre,
-        numero: `${resultado.capitulo}:${resultado.versiculo}`,
-        origen: "biblia",
-      });
       setMostrarBuscador(false);
       setMostrarDetalle(true);
       setModoBuscador("referencia");
@@ -608,7 +598,7 @@ const Biblia = () => {
         e.preventDefault();
         setMostrarBuscador(true);
       }
-      // Escape: cerrar buscador primero; si no, detener proyección y cerrar detalle
+      // Escape: cerrar buscador primero; si no, limpiar todo del proyector
       if (e.key === "Escape") {
         if (mostrarBuscador) {
           setMostrarBuscador(false);
@@ -624,8 +614,19 @@ const Biblia = () => {
           setMostrarDetalle(false);
         }
       }
+      // Barra espaciadora: proyectar el versículo seleccionado — pero no si
+      // el usuario está escribiendo en un campo de texto (buscador, etc.)
+      if (e.key === " " && !mostrarBuscador) {
+        const tag = e.target?.tagName;
+        const escribiendo =
+          tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable;
+        if (!escribiendo) {
+          e.preventDefault();
+          proyectarVersiculo();
+        }
+      }
     },
-    [mostrarBuscador],
+    [mostrarBuscador, proyectarVersiculo],
   );
 
   useEffect(() => {
@@ -1405,7 +1406,7 @@ const Biblia = () => {
                         <button
                           key={`texto-${r.libroId}-${r.capitulo}-${r.versiculo}`}
                           type="button"
-                          onClick={() => proyectarResultadoTexto(r)}
+                          onClick={() => seleccionarResultadoTexto(r)}
                           className="w-full text-left px-3 py-2.5 rounded-xl border border-white/6 bg-white/4 hover:bg-violet-500/12 hover:border-violet-400/30 transition-all"
                         >
                           <div className="flex items-start gap-2.5">
@@ -1419,7 +1420,7 @@ const Biblia = () => {
                               </p>
                             </div>
                             <span className="shrink-0 text-[9px] text-slate-600 bg-white/5 border border-white/8 px-1.5 py-0.5 rounded mt-0.5">
-                              Proyectar
+                              Elegir
                             </span>
                           </div>
                         </button>

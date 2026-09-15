@@ -119,4 +119,4 @@ mac:
   entitlementsInherit: assets/entitlements.mac.plist
 
 dmg:
-  artifactName: "${productName}-${version}.${ext}"
+  artifactName: "${productName}-${version}-${arch}.${ext}"

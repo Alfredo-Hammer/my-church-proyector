@@ -1,0 +1,42 @@
+/* Tipografías de las plantillas del proyector (Reflexión / Especial /
+   Vibra / Gozo) —
+   empaquetadas localmente en vez de cargarlas de Google Fonts: la app
+   tiene que funcionar sin internet durante un culto. Son fuentes
+   variables (un solo archivo cubre varios pesos). Este archivo vive en
+   public/ (no en src/) para que CRA lo sirva tal cual, sin que webpack
+   intente resolver las rutas de font como módulos. */
+@font-face {
+  font-family: "Playfair Display";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("fonts/PlayfairDisplay-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cormorant Garamond";
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+  src: url("fonts/CormorantGaramond-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cormorant Garamond";
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/CormorantGaramond-Italic-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Anton";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/Anton-var.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/Baloo2-Bold-var.woff2") format("woff2");
+}

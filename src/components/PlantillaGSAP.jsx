@@ -1,6 +1,5 @@
 import {createContext, useContext, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {gsap} from "gsap";
-import {META_PLANTILLAS} from "./PlantillasConfig";
 import {calcularEscalaFuente, CLASS_PX, calcularAjusteTexto} from "../utils/pantallaScale";
 
 // Config del proyector (incluye fontSize.parrafo elegido en Configuración) —
@@ -71,6 +70,20 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
   return fontSizePx;
 }
 
+// ── Escala por resolución para elementos que no pasan por useAutoFontSize
+// (referencias, insignias) — sin esto se ven diminutas en 4K comparadas con
+// el párrafo principal, que sí escala (mismo bug que se corrigió en
+// ModernTextDisplay/useAutoFontSize para el tamaño de fuente configurado).
+function useEscalaFuente() {
+  const [escala, setEscala] = useState(() => calcularEscalaFuente());
+  useEffect(() => {
+    const handler = () => setEscala(calcularEscalaFuente());
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return escala;
+}
+
 // ── Velocidades ─────────────────────────────────────────────────────────────
 const VEL = {
   lenta: {base: 1.6, loop: 3.5},
@@ -79,1243 +92,670 @@ const VEL = {
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 1 — REVELAR
-// Marco se dibuja desde las esquinas, luego el texto aparece
+// LOOK 1 — ALABANZA
+// Tipografía audaz, punch de escala por palabra + destello de luz — energía
+// de escenario para cantos y celebración. Paleta cálida fija (naranja/ámbar),
+// no se personaliza por color como las plantillas anteriores: es un look
+// curado, no un editor de colores.
 // ────────────────────────────────────────────────────────────────────────────
-function animarRevelar(ctx, config, vel) {
-  const {
-    colorFondo = "#0f172a",
-    colorPrimario = "#e2e8f0",
-    colorAccento = "#34d399",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    const tl = gsap.timeline();
-
-    // Fondo
-    tl.set(".plg-bg", {backgroundColor: colorFondo, opacity: 0}).to(".plg-bg", {
-      opacity: 1,
-      duration: b * 0.3,
-    });
-
-    // Líneas horizontales (expand from center)
-    tl.set(".plg-line", {scaleX: 0, transformOrigin: "center"}).to(
-      ".plg-line",
-      {scaleX: 1, duration: b * 0.6, ease: "expo.out", stagger: 0.12},
-      "<0.1",
-    );
-
-    // Esquinas (slide in desde exterior)
-    tl.set(".plg-corner", {opacity: 0, scale: 0.6}).to(
-      ".plg-corner",
-      {
-        opacity: 1,
-        scale: 1,
-        duration: b * 0.5,
-        ease: "back.out(1.4)",
-        stagger: 0.08,
-      },
-      "<0.15",
-    );
-
-    // Título
-    tl.set(".plg-titulo", {opacity: 0, y: 40, color: colorAccento}).to(
-      ".plg-titulo",
-      {opacity: 1, y: 0, duration: b * 0.55, ease: "power3.out"},
-      "<0.2",
-    );
-
-    // Divisor
-    tl.set(".plg-divisor", {scaleX: 0, backgroundColor: colorAccento}).to(
-      ".plg-divisor",
-      {scaleX: 1, duration: b * 0.4, ease: "power2.out"},
-      "<0.1",
-    );
-
-    // Texto
-    tl.set(".plg-texto", {opacity: 0, y: 24, color: colorPrimario}).to(
-      ".plg-texto",
-      {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-      "<0.12",
-    );
-
-    // Loop — glow pulsante en los marcos
-    gsap.to(".plg-corner, .plg-line", {
-      filter: `drop-shadow(0 0 8px ${colorAccento}) drop-shadow(0 0 3px ${colorAccento})`,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 2 — NEÓN
-// Borde neón que parpadea, texto con efecto flicker
-// ────────────────────────────────────────────────────────────────────────────
-function animarNeon(ctx, config, vel) {
-  const {
-    colorFondo = "#000000",
-    colorPrimario = "#ffffff",
-    colorAccento = "#00f5ff",
-  } = config;
-  const b = vel.base;
-  const glow = `0 0 6px ${colorAccento}, 0 0 20px ${colorAccento}, 0 0 40px ${colorAccento}50`;
-  const glowHigh = `0 0 8px ${colorAccento}, 0 0 30px ${colorAccento}, 0 0 60px ${colorAccento}80`;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-    gsap.set(".plg-neon-box", {
-      borderColor: colorAccento,
-      boxShadow: "none",
-      opacity: 0,
-    });
-
-    const tl = gsap.timeline();
-
-    // Box scale in (primero X, luego Y)
-    tl.to(".plg-neon-box", {opacity: 1, duration: b * 0.1})
-      .to(
-        ".plg-neon-box",
-        {
-          scaleX: 1,
-          duration: b * 0.3,
-          ease: "power3.out",
-          transformOrigin: "center",
-        },
-        "<",
-      )
-      .to(".plg-neon-box", {
-        scaleY: 1,
-        boxShadow: glow,
-        duration: b * 0.3,
-        ease: "power3.out",
-        transformOrigin: "center",
-      });
-
-    // Flicker del título
-    tl.set(".plg-titulo", {opacity: 0, color: colorAccento, textShadow: glow});
-    [0, 1, 0, 1, 0, 1, 1].forEach((v, i) => {
-      tl.to(".plg-titulo", {opacity: v, duration: b * 0.04, ease: "none"});
-    });
-
-    // Texto
-    tl.set(".plg-texto", {opacity: 0, color: colorPrimario}).to(
-      ".plg-texto",
-      {opacity: 1, duration: b * 0.25, ease: "power2.out"},
-      "<0.1",
-    );
-
-    // Loop — glow box oscillation
-    gsap.to(".plg-neon-box", {
-      boxShadow: glowHigh,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop,
-      ease: "sine.inOut",
-    });
-    // Loop — título glow
-    gsap.to(".plg-titulo", {
-      textShadow: glowHigh,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 0.8,
-      ease: "sine.inOut",
-    });
-    // Scanlines drift
-    gsap.to(".plg-scanlines", {
-      backgroundPosition: "0 100%",
-      duration: 8,
-      repeat: -1,
-      ease: "none",
-    });
-  });
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 3 — IGLESIA
-// Ornamento cruz, línea divisora, tipografía clásica
-// ────────────────────────────────────────────────────────────────────────────
-function animarIglesia(ctx, config, vel) {
-  const {
-    colorFondo = "#1a0a00",
-    colorPrimario = "#fde68a",
-    colorAccento = "#f59e0b",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-
-    const tl = gsap.timeline();
-
-    // Fondo con velo
-    tl.set(".plg-velo", {opacity: 0, backgroundColor: colorFondo}).to(
-      ".plg-velo",
-      {opacity: 0.92, duration: b * 0.5},
-    );
-
-    // Ornamento superior (cruz/símbolo)
-    tl.set(".plg-ornamento", {opacity: 0, scale: 0.4, color: colorAccento}).to(
-      ".plg-ornamento",
-      {opacity: 1, scale: 1, duration: b * 0.7, ease: "back.out(1.6)"},
-      "<0.1",
-    );
-
-    // Líneas ornamentales
-    tl.set(".plg-ornline", {
-      scaleX: 0,
-      backgroundColor: colorAccento,
-      transformOrigin: "center",
-    }).to(
-      ".plg-ornline",
-      {scaleX: 1, duration: b * 0.5, ease: "power2.out", stagger: 0.1},
-      "<0.2",
-    );
-
-    // Título
-    tl.set(".plg-titulo", {
-      opacity: 0,
-      y: 20,
-      color: colorAccento,
-      letterSpacing: "0.3em",
-    }).to(
-      ".plg-titulo",
-      {
-        opacity: 1,
-        y: 0,
-        letterSpacing: "0.15em",
-        duration: b * 0.6,
-        ease: "power3.out",
-      },
-      "<0.15",
-    );
-
-    // Divisor central
-    tl.set(".plg-divisor", {
-      scaleX: 0,
-      backgroundColor: colorAccento,
-      transformOrigin: "center",
-    }).to(
-      ".plg-divisor",
-      {scaleX: 1, duration: b * 0.5, ease: "expo.out"},
-      "<0.1",
-    );
-
-    // Texto
-    tl.set(".plg-texto", {opacity: 0, y: 16, color: colorPrimario}).to(
-      ".plg-texto",
-      {opacity: 1, y: 0, duration: b * 0.55, ease: "power2.out"},
-      "<0.12",
-    );
-
-    // Loop — luz ambiental suave
-    gsap.to(".plg-velo", {
-      opacity: 0.86,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.2,
-      ease: "sine.inOut",
-    });
-    // Ornamento muy sutil giro
-    gsap.to(".plg-ornamento", {
-      rotation: 5,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 2,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 4 — CINEMATICA
-// Texto letra por letra, gradiente de fondo en movimiento
-// ────────────────────────────────────────────────────────────────────────────
-function animarCinematica(ctx, config, vel) {
-  const {
-    colorFondo = "#06082b",
-    colorPrimario = "#e0e7ff",
-    colorAccento = "#818cf8",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {
-      background: `linear-gradient(135deg, ${colorFondo}, #000000, ${colorFondo})`,
-    });
-    gsap.set(".plg-grad", {
-      background: `linear-gradient(135deg, ${colorAccento}20, transparent 60%, ${colorAccento}15)`,
-    });
-
-    const tl = gsap.timeline();
-
-    // Barras cinematográficas
-    tl.set(".plg-barra", {
-      scaleX: 0,
-      backgroundColor: "#000",
-      transformOrigin: "left",
-    }).to(".plg-barra", {
-      scaleX: 1,
-      duration: b * 0.5,
-      ease: "power3.out",
-      stagger: 0.08,
-    });
-
-    // Subtítulo / categoría
-    tl.set(".plg-cat", {
-      opacity: 0,
-      x: -30,
-      color: colorAccento,
-      letterSpacing: "0.4em",
-    }).to(
-      ".plg-cat",
-      {opacity: 1, x: 0, duration: b * 0.45, ease: "power2.out"},
-      "<0.3",
-    );
-
-    // Título (letra por letra simulado con clip)
-    tl.set(".plg-titulo", {
-      clipPath: "inset(0 100% 0 0)",
-      color: colorPrimario,
-    }).to(
-      ".plg-titulo",
-      {clipPath: "inset(0 0% 0 0)", duration: b * 0.8, ease: "power3.inOut"},
-      "<0.2",
-    );
-
-    // Línea lateral
-    tl.set(".plg-linelat", {
-      scaleY: 0,
-      backgroundColor: colorAccento,
-      transformOrigin: "top",
-    }).to(
-      ".plg-linelat",
-      {scaleY: 1, duration: b * 0.5, ease: "power3.out"},
-      "<0.2",
-    );
-
-    // Texto
-    tl.set(".plg-texto", {opacity: 0, x: 20, color: colorPrimario}).to(
-      ".plg-texto",
-      {opacity: 1, x: 0, duration: b * 0.5, ease: "power2.out"},
-      "<0.15",
-    );
-
-    // Loop — gradiente en movimiento
-    gsap.to(".plg-grad", {
-      backgroundPosition: "200% 200%",
-      duration: vel.loop * 2,
-      repeat: -1,
-      ease: "none",
-    });
-    // Barras opacidad sutil
-    gsap.to(".plg-barra", {
-      opacity: 0.85,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.5,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 5 — PARTICULAS
-// Partículas flotantes + texto centrado limpio
-// ────────────────────────────────────────────────────────────────────────────
-function animarParticulas(ctx, config, vel) {
-  const {
-    colorFondo = "#022c1a",
-    colorPrimario = "#d1fae5",
-    colorAccento = "#34d399",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-
-    // Animar partículas individuales
-    gsap.utils.toArray(".plg-particula").forEach((p, i) => {
-      gsap.set(p, {
-        x: `${Math.random() * 100}vw`,
-        y: `${Math.random() * 100}vh`,
-        opacity: 0,
-        scale: Math.random() * 0.5 + 0.3,
-        backgroundColor: colorAccento,
-      });
-      gsap.to(p, {
-        y: `-=${80 + Math.random() * 120}`,
-        opacity: Math.random() * 0.5 + 0.1,
-        duration: 5 + Math.random() * 8,
-        repeat: -1,
-        delay: Math.random() * 4,
-        ease: "none",
-        yoyo: false,
-      });
-    });
-
-    const tl = gsap.timeline();
-
-    // Halo circular
-    tl.set(".plg-halo", {opacity: 0, scale: 1.5, borderColor: colorAccento}).to(
-      ".plg-halo",
-      {opacity: 0.25, scale: 1, duration: b * 0.8, ease: "power2.out"},
-    );
-
-    // Título
-    tl.set(".plg-titulo", {opacity: 0, scale: 0.85, color: colorPrimario}).to(
-      ".plg-titulo",
-      {opacity: 1, scale: 1, duration: b * 0.6, ease: "back.out(1.2)"},
-      "<0.3",
-    );
-
-    // Divisor
-    tl.set(".plg-divisor", {
-      scaleX: 0,
-      backgroundColor: colorAccento,
-      transformOrigin: "center",
-    }).to(
-      ".plg-divisor",
-      {scaleX: 1, duration: b * 0.4, ease: "power2.out"},
-      "<0.2",
-    );
-
-    // Texto
-    tl.set(".plg-texto", {opacity: 0, y: 18, color: colorPrimario}).to(
-      ".plg-texto",
-      {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-      "<0.1",
-    );
-
-    // Loop — halo pulsa
-    gsap.to(".plg-halo", {
-      scale: 1.08,
-      opacity: 0.12,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.2,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 6 — GLORIA
-// Rayos de luz desde el centro, halos concéntricos, adoración
-// ────────────────────────────────────────────────────────────────────────────
-function animarGloria(ctx, config, vel) {
-  const {
-    colorFondo = "#080812",
-    colorPrimario = "#fef3c7",
-    colorAccento = "#f59e0b",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-    gsap.utils.toArray(".plg-rayo").forEach((r, i) => {
-      gsap.set(r, {
-        rotation: i * 20,
-        scaleY: 0,
-        opacity: 0,
-        transformOrigin: "bottom center",
-      });
-    });
-    gsap.set(".plg-gloria-outer", {scale: 0, opacity: 0});
-    gsap.set(".plg-gloria-inner", {scale: 0, opacity: 0});
-
-    const tl = gsap.timeline();
-    tl.to(".plg-gloria-outer", {
-      scale: 1,
-      opacity: 0.13,
-      duration: b * 0.8,
-      ease: "power3.out",
-    })
-      .to(
-        ".plg-gloria-inner",
-        {scale: 1, opacity: 0.24, duration: b * 0.6, ease: "power2.out"},
-        "<0.2",
-      )
-      .to(
-        ".plg-rayo",
-        {
-          scaleY: 1,
-          opacity: 0.12,
-          duration: b * 0.7,
-          stagger: 0.03,
-          ease: "power2.out",
-        },
-        "<0.1",
-      )
-      .set(".plg-titulo", {opacity: 0, scale: 0.85, color: colorAccento})
-      .to(
-        ".plg-titulo",
-        {opacity: 1, scale: 1, duration: b * 0.65, ease: "back.out(1.4)"},
-        "<0.25",
-      )
-      .set(".plg-divisor", {scaleX: 0, backgroundColor: colorAccento})
-      .to(
-        ".plg-divisor",
-        {scaleX: 1, duration: b * 0.4, ease: "expo.out"},
-        "<0.1",
-      )
-      .set(".plg-texto", {opacity: 0, y: 22, color: colorPrimario})
-      .to(
-        ".plg-texto",
-        {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-        "<0.12",
-      );
-
-    gsap.to(".plg-gloria-outer", {
-      scale: 1.07,
-      opacity: 0.18,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.5,
-      ease: "sine.inOut",
-    });
-    gsap.to(".plg-gloria-inner", {
-      scale: 1.05,
-      opacity: 0.28,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.2,
-      ease: "sine.inOut",
-    });
-    gsap.utils.toArray(".plg-rayo").forEach((r, i) => {
-      gsap.to(r, {
-        opacity: (i % 3) * 0.04 + 0.03,
-        repeat: -1,
-        yoyo: true,
-        duration: vel.loop * (0.6 + (i % 5) * 0.2),
-        ease: "sine.inOut",
-      });
-    });
-  });
-}
-
-function EstructuraGloria({titulo, texto, config}) {
-  const {colorAccento = "#f59e0b", colorPrimario = "#fef3c7"} = config;
-  return (
-    <>
-      <div
-        className="plg-bg absolute inset-0"
-        style={{
-          backgroundImage: `radial-gradient(ellipse 70% 55% at 50% 50%, ${colorAccento}20 0%, transparent 65%)`,
-        }}
-      />
-      {Array.from({length: 18}).map((_, i) => (
-        <div
-          key={`rayo-${i}`}
-          className="plg-rayo absolute pointer-events-none"
-          style={{
-            width: "2px",
-            height: "50%",
-            bottom: "50%",
-            left: "calc(50% - 1px)",
-            background: `linear-gradient(to top, ${colorAccento}55, transparent)`,
-          }}
-        />
-      ))}
-      <div
-        className="plg-gloria-outer absolute rounded-full border-[1.5px] pointer-events-none"
-        style={{inset: "18%", borderColor: colorAccento}}
-      />
-      <div
-        className="plg-gloria-inner absolute rounded-full border pointer-events-none"
-        style={{inset: "31%", borderColor: colorAccento}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={colorAccento}
-      />
-    </>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 7 — AURORA
-// Bandas de luz aurora boreal flotando, etéreo y celestial
-// ────────────────────────────────────────────────────────────────────────────
-function animarAurora(ctx, config, vel) {
-  const {
-    colorFondo = "#020611",
-    colorPrimario = "#e0f2fe",
-    colorAccento = "#06b6d4",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-    gsap.set(".plg-aurora-blob", {opacity: 0, scale: 0.8, y: 20});
-
-    const tl = gsap.timeline();
-    tl.to(".plg-aurora-blob", {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      duration: b * 1.1,
-      stagger: 0.15,
-      ease: "power2.out",
-    })
-      .set(".plg-titulo", {opacity: 0, y: 24, color: colorPrimario})
-      .to(
-        ".plg-titulo",
-        {opacity: 1, y: 0, duration: b * 0.6, ease: "power3.out"},
-        "<0.25",
-      )
-      .set(".plg-divisor", {scaleX: 0, backgroundColor: colorAccento})
-      .to(
-        ".plg-divisor",
-        {scaleX: 1, duration: b * 0.4, ease: "power2.out"},
-        "<0.1",
-      )
-      .set(".plg-texto", {opacity: 0, y: 18, color: colorPrimario})
-      .to(
-        ".plg-texto",
-        {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-        "<0.1",
-      );
-
-    gsap.utils.toArray(".plg-aurora-blob").forEach((blob, i) => {
-      const dir = i % 2 === 0 ? -1 : 1;
-      gsap.to(blob, {
-        y: dir * (25 + i * 12),
-        x: (i % 3 === 0 ? 1 : -1) * 18,
-        scale: 1 + i * 0.05,
-        repeat: -1,
-        yoyo: true,
-        duration: vel.loop * (1.4 + i * 0.35),
-        ease: "sine.inOut",
-      });
-    });
-  });
-}
-
-function EstructuraAurora({titulo, texto, config}) {
-  const {colorAccento = "#06b6d4", colorPrimario = "#e0f2fe"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      <div
-        className="plg-aurora-blob absolute pointer-events-none rounded-full"
-        style={{
-          width: "75%",
-          height: "55%",
-          top: "-15%",
-          left: "-10%",
-          background: `radial-gradient(ellipse, ${colorAccento}2a 0%, transparent 70%)`,
-          filter: "blur(10px)",
-        }}
-      />
-      <div
-        className="plg-aurora-blob absolute pointer-events-none rounded-full"
-        style={{
-          width: "60%",
-          height: "50%",
-          top: "10%",
-          right: "-5%",
-          background: `radial-gradient(ellipse, ${colorPrimario}18 0%, transparent 70%)`,
-          filter: "blur(10px)",
-        }}
-      />
-      <div
-        className="plg-aurora-blob absolute pointer-events-none rounded-full"
-        style={{
-          width: "65%",
-          height: "45%",
-          bottom: "-10%",
-          left: "15%",
-          background: `radial-gradient(ellipse, ${colorAccento}22 0%, transparent 70%)`,
-          filter: "blur(55px)",
-        }}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={colorAccento}
-      />
-    </>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 8 — MINIMAL
-// Ultra limpio, barrido de línea + texto revelado con clip
-// ────────────────────────────────────────────────────────────────────────────
-function animarMinimal(ctx, config, vel) {
-  const {
-    colorFondo = "#0f172a",
-    colorPrimario = "#f1f5f9",
-    colorAccento = "#6366f1",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-    gsap.set(".plg-min-line", {
-      scaleX: 0,
-      transformOrigin: "left",
-      backgroundColor: colorAccento,
-    });
-    gsap.set(".plg-min-dot", {scale: 0, backgroundColor: colorAccento});
-
-    const tl = gsap.timeline();
-    tl.to(".plg-min-line", {
-      scaleX: 1,
-      duration: b * 0.65,
-      ease: "power3.out",
-      stagger: 0.1,
-    })
-      .to(
-        ".plg-min-dot",
-        {scale: 1, duration: b * 0.3, ease: "back.out(2)"},
-        "<0.35",
-      )
-      .set(".plg-titulo", {
-        opacity: 0,
-        clipPath: "inset(0 100% 0 0)",
-        color: colorPrimario,
-      })
-      .to(
-        ".plg-titulo",
-        {
-          opacity: 1,
-          clipPath: "inset(0 0% 0 0)",
-          duration: b * 0.7,
-          ease: "power2.inOut",
-        },
-        "<0.05",
-      )
-      .set(".plg-texto", {opacity: 0, y: 14, color: colorPrimario})
-      .to(
-        ".plg-texto",
-        {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-        "<0.3",
-      );
-
-    gsap.to(".plg-min-line", {
-      opacity: 0.5,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.3,
-      ease: "sine.inOut",
-    });
-    gsap.to(".plg-min-dot", {
-      scale: 1.5,
-      opacity: 0.6,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 0.9,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-function EstructuraMinimal({titulo, texto, config}) {
-  const {colorAccento = "#6366f1", colorPrimario = "#f1f5f9"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      <div className="plg-min-line absolute top-[11%] left-[7%] right-[7%] h-[2px]" />
-      <div className="plg-min-dot  absolute top-[11%] left-[7%] size-2.5 rounded-full -translate-y-[5px]" />
-      <div
-        className="plg-min-line absolute bottom-[11%] left-[7%] right-[7%] h-px"
-        style={{opacity: 0.4}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={null}
-      />
-    </>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 9 — MAJESTAD
-// Diamantes en esquinas, paleta real púrpura/dorado, elegante
-// ────────────────────────────────────────────────────────────────────────────
-function animarMajestad(ctx, config, vel) {
-  const {
-    colorFondo = "#0d0520",
-    colorPrimario = "#fde68a",
-    colorAccento = "#a855f7",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {
-      backgroundColor: colorFondo,
-      backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 100%, ${colorAccento}18 0%, transparent 60%)`,
-    });
-    gsap.set(".plg-diamante", {scale: 0, opacity: 0, rotation: 45});
-    gsap.set(".plg-majline", {scaleX: 0, transformOrigin: "center"});
-
-    const tl = gsap.timeline();
-    tl.to(".plg-diamante", {
-      scale: 1,
-      opacity: 1,
-      duration: b * 0.5,
-      stagger: 0.07,
-      ease: "back.out(1.5)",
-    })
-      .to(
-        ".plg-majline",
-        {scaleX: 1, duration: b * 0.5, ease: "power2.out", stagger: 0.08},
-        "<0.2",
-      )
-      .set(".plg-titulo", {
-        opacity: 0,
-        letterSpacing: "0.35em",
-        color: colorPrimario,
-      })
-      .to(
-        ".plg-titulo",
-        {
-          opacity: 1,
-          letterSpacing: "0.06em",
-          duration: b * 0.7,
-          ease: "power3.out",
-        },
-        "<0.15",
-      )
-      .set(".plg-divisor", {scaleX: 0, backgroundColor: colorAccento})
-      .to(
-        ".plg-divisor",
-        {scaleX: 1, duration: b * 0.4, ease: "expo.out"},
-        "<0.1",
-      )
-      .set(".plg-texto", {opacity: 0, y: 16, color: colorPrimario})
-      .to(
-        ".plg-texto",
-        {opacity: 1, y: 0, duration: b * 0.55, ease: "power2.out"},
-        "<0.1",
-      );
-
-    gsap.to(".plg-diamante", {
-      scale: 1.15,
-      opacity: 0.75,
-      stagger: 0.25,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop * 1.4,
-      ease: "sine.inOut",
-    });
-    gsap.to(".plg-majline", {
-      opacity: 0.4,
-      repeat: -1,
-      yoyo: true,
-      duration: vel.loop,
-      ease: "sine.inOut",
-    });
-  });
-}
-
-function EstructuraMajestad({titulo, texto, config}) {
-  const {colorAccento = "#a855f7", colorPrimario = "#fde68a"} = config;
-  const corners = [
-    "top-[5%] left-[3.5%]",
-    "top-[5%] right-[3.5%]",
-    "bottom-[5%] left-[3.5%]",
-    "bottom-[5%] right-[3.5%]",
-  ];
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      {corners.map((pos, i) => (
-        <div
-          key={`diamante-${i}`}
-          className={`plg-diamante absolute ${pos} size-5 border-2 pointer-events-none`}
-          style={{borderColor: colorAccento}}
-        />
-      ))}
-      <div
-        className="plg-majline absolute top-[15%] left-[12%] right-[12%] h-px"
-        style={{backgroundColor: colorAccento, opacity: 0.6}}
-      />
-      <div
-        className="plg-majline absolute bottom-[13%] left-[12%] right-[12%] h-px"
-        style={{backgroundColor: colorAccento, opacity: 0.6}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorPrimario}
-        colorAccento={colorAccento}
-      />
-    </>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 10 — OLAS
-// Líneas de onda en bordes superior/inferior, centro limpio y amplio
-// ────────────────────────────────────────────────────────────────────────────
-function animarOlas(ctx, config, vel) {
-  const {
-    colorFondo = "#0c1a2e",
-    colorPrimario = "#e0f2fe",
-    colorAccento = "#38bdf8",
-  } = config;
-  const b = vel.base;
-
-  ctx.add(() => {
-    gsap.set(".plg-bg", {backgroundColor: colorFondo});
-    gsap.set(".plg-ola-top", {scaleX: 0, transformOrigin: "left"});
-    gsap.set(".plg-ola-bot", {scaleX: 0, transformOrigin: "right"});
-
-    const tl = gsap.timeline();
-    tl.to(".plg-ola-top", {
-      scaleX: 1,
-      duration: b * 0.6,
-      ease: "power3.out",
-      stagger: 0.08,
-    })
-      .to(
-        ".plg-ola-bot",
-        {
-          scaleX: 1,
-          duration: b * 0.6,
-          ease: "power3.out",
-          stagger: {each: 0.08, from: "end"},
-        },
-        "<0.05",
-      )
-      .set(".plg-titulo", {opacity: 0, y: -18, color: colorAccento})
-      .to(
-        ".plg-titulo",
-        {opacity: 1, y: 0, duration: b * 0.55, ease: "power3.out"},
-        "<0.2",
-      )
-      .set(".plg-divisor", {scaleX: 0, backgroundColor: colorAccento})
-      .to(
-        ".plg-divisor",
-        {scaleX: 1, duration: b * 0.4, ease: "power2.out"},
-        "<0.1",
-      )
-      .set(".plg-texto", {opacity: 0, y: 18, color: colorPrimario})
-      .to(
-        ".plg-texto",
-        {opacity: 1, y: 0, duration: b * 0.5, ease: "power2.out"},
-        "<0.1",
-      );
-
-    gsap.utils.toArray(".plg-ola-top").forEach((o, i) => {
-      gsap.to(o, {
-        y: i % 2 === 0 ? -7 : 7,
-        opacity: 0.5 + i * 0.15,
-        repeat: -1,
-        yoyo: true,
-        duration: vel.loop * (0.85 + i * 0.28),
-        ease: "sine.inOut",
-      });
-    });
-    gsap.utils.toArray(".plg-ola-bot").forEach((o, i) => {
-      gsap.to(o, {
-        y: i % 2 === 0 ? 7 : -7,
-        opacity: 0.5 + i * 0.15,
-        repeat: -1,
-        yoyo: true,
-        duration: vel.loop * (0.9 + i * 0.22),
-        ease: "sine.inOut",
-      });
-    });
-  });
-}
-
-function EstructuraOlas({titulo, texto, config}) {
-  const {colorAccento = "#38bdf8", colorPrimario = "#e0f2fe"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      {[
-        ["7%", "h-[3px]", 0.7],
-        ["12%", "h-[2px]", 0.45],
-        ["16.5%", "h-px", 0.25],
-      ].map(([top, h, op], i) => (
-        <div
-          key={`ola-${i}`}
-          className={`plg-ola-top absolute left-0 right-0 ${h} rounded-full pointer-events-none`}
-          style={{top, backgroundColor: colorAccento, opacity: op}}
-        />
-      ))}
-      {[
-        ["83.5%", "h-px", 0.25],
-        ["88%", "h-[2px]", 0.45],
-        ["93%", "h-[3px]", 0.7],
-      ].map(([top, h, op], i) => (
-        <div
-          key={`ola-${i}`}
-          className={`plg-ola-bot absolute left-0 right-0 ${h} rounded-full pointer-events-none`}
-          style={{top, backgroundColor: colorAccento, opacity: op}}
-        />
-      ))}
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={colorAccento}
-      />
-    </>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// MAPA DE PLANTILLAS
-// ────────────────────────────────────────────────────────────────────────────
-const ANIMADORES = {
-  revelar: animarRevelar,
-  neon: animarNeon,
-  iglesia: animarIglesia,
-  cinematica: animarCinematica,
-  particulas: animarParticulas,
-  gloria: animarGloria,
-  aurora: animarAurora,
-  minimal: animarMinimal,
-  majestad: animarMajestad,
-  olas: animarOlas,
+const PALETA_ALABANZA = {
+  bg1: "#2a0f05",
+  bg2: "#4a1a08",
+  bg3: "#1a0805",
+  glow: "#ffb45033",
+  texto: "#fff8ee",
+  acento: "#ffcf8a",
+  barra1: "#ffb35c",
+  barra2: "#ff7a3d",
 };
 
-// ────────────────────────────────────────────────────────────────────────────
-// ESTRUCTURAS JSX por plantilla
-// ────────────────────────────────────────────────────────────────────────────
-// ── Texto auto-dimensionado compartido por todas las plantillas ──────────────
-function TextoAuto({
-  texto,
-  titulo,
-  colorTexto,
-  colorTitulo,
-  colorAccento,
-  extraClass = "",
-}) {
+function animarAlabanza(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_ALABANZA;
+  ctx.add(() => {
+    // Estilo estático del look (color/fuente/fondos) — se aplica acá y no en
+    // el JSX porque el componente principal limpia TODOS los estilos
+    // inline (clearProps:"all") al cambiar de plantilla, y React no vuelve
+    // a escribir un valor que no cambió entre renders.
+    gsap.set(".plg-bg", {
+      background: `radial-gradient(ellipse 65% 55% at 28% 18%, ${p.glow}, transparent 55%), linear-gradient(160deg, ${p.bg1} 0%, ${p.bg2} 45%, ${p.bg3} 100%)`,
+    });
+    gsap.set(".plg-flash", {
+      background: `linear-gradient(100deg, transparent 42%, ${p.texto}55 50%, transparent 58%)`,
+    });
+    gsap.set(".plg-ref", {
+      color: p.acento,
+      border: `1px solid ${p.acento}66`,
+      backgroundColor: `${p.acento}14`,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      letterSpacing: "0.12em",
+      opacity: 0,
+      scale: 0.7,
+    });
+    gsap.set(".plg-texto", {
+      color: p.texto,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      lineHeight: 1.25,
+      letterSpacing: "-0.01em",
+      textShadow: `0 2px 24px ${p.glow}, 0 1px 3px rgba(0,0,0,0.6)`,
+    });
+    gsap.set(".plg-barra", {
+      background: `linear-gradient(90deg, ${p.barra1}, ${p.barra2})`,
+      scaleX: 0,
+    });
+    gsap.set(".plg-palabra", {opacity: 0, scale: 1.18, y: 14});
+    gsap.set(".plg-flash", {xPercent: -130});
+
+    const tl = gsap.timeline();
+    tl.to(".plg-ref", {opacity: 1, scale: 1, duration: b * 0.5, ease: "back.out(1.8)"}, 0.1)
+      .to(
+        ".plg-palabra",
+        {opacity: 1, scale: 1, y: 0, duration: b * 0.55, ease: "power3.out", stagger: 0.045},
+        0.35,
+      )
+      .to(".plg-flash", {xPercent: 130, duration: b * 0.9, ease: "power1.inOut"}, 0.55)
+      .to(".plg-barra", {scaleX: 1, duration: b * 0.5, ease: "power2.out"}, "-=0.25");
+  });
+}
+
+function EstructuraAlabanza({titulo, texto}) {
   const wrapRef = useRef(null);
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
 
-  // Título: mismo tamaño configurado/escalado que usa ModernTextDisplay —
-  // antes era un clamp() fijo en vw, ajeno a la resolución real y al
-  // tamaño elegido en Configuración (ver useAutoFontSize más arriba).
-  const configuracion = useContext(ConfigProyectorContext);
-  const tituloClass = configuracion?.fontSize?.titulo || "text-5xl";
-  const tituloFontSizePx = (CLASS_PX[tituloClass] ?? 48) * calcularEscalaFuente();
+  // Separar en palabras (conservando espacios) para el punch por palabra.
+  const partes = texto.split(/(\s+)/);
 
   return (
-    <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[10%] py-[6%] gap-2">
-      {titulo && (
-        <h1
-          className={`plg-titulo font-bold leading-tight shrink-0 max-h-[35%] overflow-hidden ${extraClass}`}
-          style={{
-            color: colorTitulo || colorAccento,
-            fontSize: `${tituloFontSizePx}px`,
-          }}
+    <>
+      <div className="plg-bg absolute inset-0" />
+      <div className="plg-flash absolute inset-0 pointer-events-none" />
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[8%] py-[6%] gap-2">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0 inline-block font-extrabold uppercase rounded-full"
+            style={{
+              fontSize: `${15 * escala}px`,
+              padding: `${5.5 * escala}px ${18 * escala}px`,
+              marginBottom: `${24 * escala}px`,
+            }}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
         >
-          {titulo}
-        </h1>
-      )}
-      {colorAccento && (
+          <p
+            ref={textRef}
+            className="plg-texto font-extrabold w-full"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(2rem, 5vw, 6rem)"}}
+          >
+            {partes.map((parte, i) =>
+              parte.trim() ? (
+                <span key={`palabra-${i}-${parte.slice(0, 6)}`} className="plg-palabra inline-block">
+                  {parte}
+                </span>
+              ) : (
+                parte
+              ),
+            )}
+          </p>
+        </div>
         <div
-          className="plg-divisor w-20 h-[3px] mx-auto shrink-0"
-          style={{backgroundColor: colorAccento}}
+          className="plg-barra shrink-0 rounded"
+          style={{width: 64 * escala, height: 4 * escala, marginTop: `${24 * escala}px`}}
         />
-      )}
-      <div
-        ref={wrapRef}
-        className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
-      >
-        <p
-          ref={textRef}
-          className="plg-texto font-semibold whitespace-pre-wrap w-full"
-          style={{
-            color: colorTexto,
-            lineHeight: 1.25,
-            fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(2rem, 5vw, 6rem)",
-          }}
+      </div>
+    </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// LOOK 2 — REFLEXIÓN / COMUNIÓN
+// Serif elegante (Playfair Display / Cormorant Garamond), fade lento con
+// desenfoque — para momentos quietos: comunión, oración, cierre. Paleta
+// fría/cálida fija (azul noche + dorado apagado).
+// ────────────────────────────────────────────────────────────────────────────
+const PALETA_REFLEXION = {
+  bg1: "#0d1220",
+  bg2: "#131a2e",
+  bg3: "#080b14",
+  glow: "#788cff1a",
+  texto: "#f1eee6",
+  acento: "#c9b88a",
+};
+
+function animarReflexion(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_REFLEXION;
+  ctx.add(() => {
+    gsap.set(".plg-bg", {
+      background: `radial-gradient(ellipse at 50% 0%, ${p.glow}, transparent 60%), linear-gradient(180deg, ${p.bg1} 0%, ${p.bg2} 55%, ${p.bg3} 100%)`,
+    });
+    gsap.set(".plg-ref", {
+      color: p.acento,
+      fontFamily: "'Cormorant Garamond', serif",
+      fontStyle: "italic",
+      fontWeight: 500,
+      letterSpacing: "0.05em",
+      opacity: 0,
+      y: 12,
+    });
+    gsap.set(".plg-texto", {
+      color: p.texto,
+      fontFamily: "'Playfair Display', serif",
+      fontWeight: 500,
+      lineHeight: 1.55,
+      opacity: 0,
+      y: 10,
+      filter: "blur(6px)",
+    });
+    gsap.set(".plg-barra", {
+      background: `linear-gradient(180deg, transparent, ${p.acento}, transparent)`,
+      scaleY: 0,
+      transformOrigin: "top center",
+    });
+
+    const tl = gsap.timeline();
+    tl.to(".plg-ref", {opacity: 1, y: 0, duration: b * 1.3, ease: "power2.out"})
+      .to(
+        ".plg-texto",
+        {opacity: 1, y: 0, filter: "blur(0px)", duration: b * 1.8, ease: "power2.out"},
+        "-=0.95",
+      )
+      .to(".plg-barra", {scaleY: 1, duration: b * 1, ease: "power2.out"}, "-=0.4");
+  });
+}
+
+function EstructuraReflexion({titulo, texto}) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
+
+  return (
+    <>
+      <div className="plg-bg absolute inset-0" />
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[10%] py-[7%] gap-2">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0"
+            style={{fontSize: `${22 * escala}px`, marginBottom: `${22 * escala}px`}}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
         >
-          {texto}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function EstructuraRevelar({titulo, texto, config}) {
-  const {colorAccento = "#34d399", colorPrimario = "#e2e8f0"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      <div
-        className="plg-line absolute left-[8%] right-[8%] top-[10%] h-[2px] origin-center"
-        style={{backgroundColor: colorAccento}}
-      />
-      <div
-        className="plg-line absolute left-[8%] right-[8%] bottom-[10%] h-[2px] origin-center"
-        style={{backgroundColor: colorAccento}}
-      />
-      {[
-        ["top-[7%] left-[5%]", "border-t-2 border-l-2"],
-        ["top-[7%] right-[5%]", "border-t-2 border-r-2"],
-        ["bottom-[7%] left-[5%]", "border-b-2 border-l-2"],
-        ["bottom-[7%] right-[5%]", "border-b-2 border-r-2"],
-      ].map(([pos, cls], i) => (
+          <p
+            ref={textRef}
+            className="plg-texto w-full"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
+          >
+            {texto}
+          </p>
+        </div>
         <div
-          key={`corner-${i}`}
-          className={`plg-corner absolute ${pos} size-10 ${cls}`}
-          style={{borderColor: colorAccento}}
+          className="plg-barra shrink-0"
+          style={{width: 1, height: 38 * escala, marginTop: `${26 * escala}px`}}
         />
-      ))}
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={colorAccento}
-      />
+      </div>
     </>
   );
 }
 
-function EstructuraNeon({titulo, texto, config}) {
-  const {colorAccento = "#00f5ff", colorPrimario = "#ffffff"} = config;
+// ────────────────────────────────────────────────────────────────────────────
+// LOOK 3 — ENSEÑANZA / PRÉDICA
+// Limpio, alineado a la izquierda, transición rápida y directa — prioriza
+// legibilidad durante lecturas largas. Sin adornos ni distracción.
+// ────────────────────────────────────────────────────────────────────────────
+const PALETA_ENSENANZA = {
+  bg1: "#14161c",
+  bg2: "#1c1f28",
+  texto: "#f5f6f8",
+  acento: "#7dd3c0",
+};
+
+function animarEnsenanza(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_ENSENANZA;
+  ctx.add(() => {
+    gsap.set(".plg-bg", {background: `linear-gradient(160deg, ${p.bg1} 0%, ${p.bg2} 100%)`});
+    gsap.set(".plg-ref", {
+      color: p.acento,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      letterSpacing: "0.07em",
+      borderLeftStyle: "solid",
+      borderLeftColor: p.acento,
+      opacity: 0,
+      x: -16,
+    });
+    gsap.set(".plg-texto", {
+      color: p.texto,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      lineHeight: 1.4,
+      opacity: 0,
+      x: -16,
+    });
+    const tl = gsap.timeline();
+    tl.to(".plg-ref", {opacity: 1, x: 0, duration: b * 0.45, ease: "power3.out"}).to(
+      ".plg-texto",
+      {opacity: 1, x: 0, duration: b * 0.45, ease: "power3.out"},
+      "-=0.28",
+    );
+  });
+}
+
+function EstructuraEnsenanza({titulo, texto}) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
+
   return (
     <>
       <div className="plg-bg absolute inset-0" />
-      <div
-        className="plg-scanlines absolute inset-0 pointer-events-none opacity-10"
-        style={{
-          background:
-            "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.3) 2px,rgba(0,0,0,0.3) 4px)",
-        }}
-      />
-      <div
-        className="plg-neon-box absolute inset-[6%] border-[3px] rounded-sm"
-        style={{borderColor: colorAccento, scaleX: 0, scaleY: 0}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={null}
-      />
+      <div className="relative z-10 flex flex-col justify-center size-full px-[9%] py-[6%] gap-3">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0 font-bold uppercase"
+            style={{
+              fontSize: `${15.5 * escala}px`,
+              borderLeftWidth: `${3 * escala}px`,
+              paddingLeft: `${11 * escala}px`,
+              marginBottom: `${6 * escala}px`,
+            }}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center overflow-hidden"
+        >
+          <p
+            ref={textRef}
+            className="plg-texto font-semibold w-full text-left"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
+          >
+            {texto}
+          </p>
+        </div>
+      </div>
     </>
   );
 }
 
-function EstructuraIglesia({titulo, texto, config}) {
-  const {colorAccento = "#f59e0b", colorPrimario = "#fde68a"} = config;
+// ────────────────────────────────────────────────────────────────────────────
+// LOOK 4 — ESPECIAL
+// Marco dorado que se dibuja solo + texto con brillo dorado continuo — para
+// Navidad, Semana Santa, conferencias y eventos grandes.
+// ────────────────────────────────────────────────────────────────────────────
+const PALETA_ESPECIAL = {
+  bg1: "#06110d",
+  bg2: "#0c1f16",
+  bg3: "#050c09",
+  glow: "#d4af5a",
+  claro: "#fff3d6",
+};
+
+function animarEspecial(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_ESPECIAL;
+  ctx.add(() => {
+    gsap.set(".plg-bg", {
+      background: `radial-gradient(circle at 20% 15%, ${p.glow}2e, transparent 45%), radial-gradient(circle at 85% 85%, ${p.glow}1f, transparent 45%), linear-gradient(160deg, ${p.bg1} 0%, ${p.bg2} 50%, ${p.bg3} 100%)`,
+    });
+    gsap.set(".plg-ref", {
+      color: p.glow,
+      fontFamily: "'Cormorant Garamond', serif",
+      fontWeight: 600,
+      opacity: 0,
+      letterSpacing: "0.9em",
+    });
+    gsap.set(".plg-texto", {
+      fontFamily: "'Playfair Display', serif",
+      fontWeight: 600,
+      lineHeight: 1.4,
+      backgroundImage: `linear-gradient(100deg, ${p.glow} 30%, ${p.claro} 50%, ${p.glow} 70%)`,
+      backgroundSize: "220% 100%",
+      webkitBackgroundClip: "text",
+      backgroundClip: "text",
+      color: "transparent",
+      opacity: 0,
+      scale: 0.96,
+      backgroundPosition: "200% 0",
+    });
+    gsap.set(".plg-marco-trazo", {strokeDashoffset: 900});
+
+    const tl = gsap.timeline();
+    tl.to(".plg-marco-trazo", {strokeDashoffset: 0, duration: b * 1.6, ease: "power2.inOut"})
+      .to(".plg-ref", {opacity: 1, letterSpacing: "0.5em", duration: b * 1.1, ease: "power2.out"}, "-=1.1")
+      .to(".plg-texto", {opacity: 1, scale: 1, duration: b * 1.1, ease: "power2.out"}, "-=0.6")
+      .to(
+        ".plg-texto",
+        {backgroundPosition: "-200% 0", duration: vel.loop * 1.8, ease: "none", repeat: -1},
+        "-=0.2",
+      );
+  });
+}
+
+function EstructuraEspecial({titulo, texto}) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
+  const p = PALETA_ESPECIAL;
+
   return (
     <>
-      <div
-        className="plg-bg absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse at center, rgba(255,220,100,0.04) 0%, transparent 70%)",
-        }}
-      />
-      <div className="plg-velo absolute inset-0" />
-      <div
-        className="plg-ornamento absolute top-[4%] left-1/2 -translate-x-1/2 text-4xl select-none"
-        style={{color: colorAccento}}
+      <div className="plg-bg absolute inset-0" />
+      <svg
+        className="plg-marco absolute pointer-events-none"
+        style={{inset: "5%", width: "90%", height: "90%"}}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
       >
-        ✝
-      </div>
-      <div
-        className="plg-ornline absolute top-[14%] left-[12%] right-[12%] h-px origin-center"
-        style={{backgroundColor: colorAccento}}
-      />
-      <div
-        className="plg-ornline absolute bottom-[8%] left-[12%] right-[12%] h-px origin-center"
-        style={{backgroundColor: colorAccento}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={null}
-      />
-    </>
-  );
-}
-
-function EstructuraCinematica({titulo, texto, config}) {
-  const {colorAccento = "#818cf8", colorPrimario = "#e0e7ff"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      <div
-        className="plg-grad absolute inset-0 pointer-events-none"
-        style={{backgroundSize: "300% 300%"}}
-      />
-      <div className="plg-barra absolute top-0 left-0 right-0 h-[7%]" />
-      <div className="plg-barra absolute bottom-0 left-0 right-0 h-[7%]" />
-      <div
-        className="plg-linelat absolute left-[7%] top-[10%] bottom-[10%] w-1"
-        style={{backgroundColor: colorAccento}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={null}
-        extraClass="pl-[4%]"
-      />
-    </>
-  );
-}
-
-function EstructuraParticulas({titulo, texto, config}) {
-  const {colorAccento = "#34d399", colorPrimario = "#d1fae5"} = config;
-  return (
-    <>
-      <div className="plg-bg absolute inset-0" />
-      {Array.from({length: 18}).map((_, i) => (
-        <div
-          key={`particula-${i}`}
-          className="plg-particula absolute size-1.5 rounded-full pointer-events-none"
+        <rect
+          className="plg-marco-trazo"
+          x="1"
+          y="1"
+          width="98"
+          height="98"
+          rx="0.5"
+          fill="none"
+          stroke={p.glow}
+          strokeWidth="0.35"
+          style={{strokeDasharray: 900}}
         />
-      ))}
-      <div
-        className="plg-halo absolute inset-[18%] rounded-full border-2 pointer-events-none"
-        style={{borderColor: colorAccento}}
-      />
-      <TextoAuto
-        texto={texto}
-        titulo={titulo}
-        colorTexto={colorPrimario}
-        colorTitulo={colorAccento}
-        colorAccento={colorAccento}
-      />
+      </svg>
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[9%] py-[7%] gap-2">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0 uppercase"
+            style={{fontSize: `${17 * escala}px`, marginBottom: `${22 * escala}px`}}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
+        >
+          <p
+            ref={textRef}
+            className="plg-texto font-semibold w-full"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
+          >
+            {texto}
+          </p>
+        </div>
+      </div>
     </>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// LOOK 5 — VIBRA
+// Neón de escenario para cultos de jóvenes — magenta/cian sobre casi negro,
+// tipografía condensada en mayúsculas, flicker de luces antes del destello
+// diagonal. Paleta fija, look curado (igual criterio que las 4 anteriores).
+// ────────────────────────────────────────────────────────────────────────────
+const PALETA_VIBRA = {
+  bg1: "#0a0416",
+  bg2: "#1c0b2e",
+  bg3: "#150a24",
+  magenta: "#ff2d95",
+  cyan: "#19e6ff",
+  texto: "#fdf3ff",
+};
+
+function animarVibra(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_VIBRA;
+  ctx.add(() => {
+    gsap.set(".plg-bg", {
+      background: `radial-gradient(ellipse 70% 60% at 78% 12%, ${p.cyan}29, transparent 55%), radial-gradient(ellipse 65% 70% at 15% 90%, ${p.magenta}2e, transparent 60%), linear-gradient(155deg, ${p.bg1} 0%, ${p.bg2} 48%, ${p.bg3} 100%)`,
+    });
+    gsap.set(".plg-flash", {
+      background: `linear-gradient(100deg, transparent 40%, ${p.cyan}80 50%, transparent 60%)`,
+    });
+    gsap.set(".plg-ref", {
+      color: p.magenta,
+      border: `1px solid ${p.magenta}80`,
+      backgroundColor: `${p.magenta}22`,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontWeight: 800,
+      letterSpacing: "0.13em",
+      textShadow: `0 0 14px ${p.magenta}99`,
+    });
+    gsap.set(".plg-texto", {
+      color: p.texto,
+      fontFamily: "'Anton', Arial, sans-serif",
+      fontWeight: 400,
+      lineHeight: 1.15,
+      letterSpacing: "0.01em",
+      textTransform: "uppercase",
+      textShadow: `0 0 22px ${p.cyan}70, 0 0 46px ${p.magenta}4d`,
+    });
+    gsap.set(".plg-barra", {
+      background: `linear-gradient(90deg, ${p.magenta}, ${p.cyan})`,
+      boxShadow: `0 0 16px ${p.cyan}8c`,
+    });
+
+    gsap.set(".plg-ref", {opacity: 0});
+    gsap.set(".plg-texto", {opacity: 0, y: 18});
+    gsap.set(".plg-barra", {scaleX: 0});
+    gsap.set(".plg-flash", {xPercent: -140});
+
+    // Flicker de luces de escenario encendiéndose antes del destello.
+    const tl = gsap.timeline();
+    tl.to(".plg-ref", {opacity: 1, duration: b * 0.06})
+      .to(".plg-ref", {opacity: 0.15, duration: b * 0.05})
+      .to(".plg-ref", {opacity: 1, duration: b * 0.08})
+      .to(".plg-flash", {xPercent: 140, duration: b * 0.85, ease: "power1.inOut"}, "-=0.05")
+      .to(".plg-texto", {opacity: 1, y: 0, duration: b * 0.5, ease: "power3.out"}, "-=0.6")
+      .to(".plg-barra", {scaleX: 1, duration: b * 0.45, ease: "power2.out"}, "-=0.2");
+  });
+}
+
+function EstructuraVibra({titulo, texto}) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
+
+  return (
+    <>
+      <div className="plg-bg absolute inset-0" />
+      <div className="plg-flash absolute inset-0 pointer-events-none" />
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[8%] py-[6%] gap-2">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0 inline-block uppercase rounded-full"
+            style={{
+              fontSize: `${14 * escala}px`,
+              padding: `${5.5 * escala}px ${18 * escala}px`,
+              marginBottom: `${24 * escala}px`,
+            }}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
+        >
+          <p
+            ref={textRef}
+            className="plg-texto w-full"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(2rem, 5vw, 6rem)"}}
+          >
+            {texto}
+          </p>
+        </div>
+        <div
+          className="plg-barra shrink-0 rounded"
+          style={{width: 74 * escala, height: 5 * escala, marginTop: `${24 * escala}px`}}
+        />
+      </div>
+    </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// LOOK 6 — GOZO
+// Fiesta y celebración para cultos de jóvenes — rayos de luz multicolor
+// irradiando desde el centro, tipografía redonda, entrada con rebote
+// elástico. Paleta fija, look curado.
+// ────────────────────────────────────────────────────────────────────────────
+const PALETA_GOZO = {
+  bg1: "#1b0e2e",
+  bg2: "#062e2a",
+  bg3: "#170a24",
+  pink: "#ff77c6",
+  yellow: "#ffd23f",
+  teal: "#2fe2c4",
+  lavanda: "#c893ff",
+  texto: "#fff7ec",
+};
+
+function animarGozo(ctx, vel) {
+  const b = vel.base;
+  const p = PALETA_GOZO;
+  ctx.add(() => {
+    gsap.set(".plg-bg", {
+      background: `radial-gradient(ellipse 60% 55% at 20% 15%, ${p.pink}29, transparent 55%), radial-gradient(ellipse 55% 60% at 85% 85%, ${p.teal}29, transparent 55%), linear-gradient(160deg, ${p.bg1} 0%, ${p.bg2} 55%, ${p.bg3} 100%)`,
+    });
+    gsap.set(".plg-ref", {
+      color: "#ffe9ad",
+      border: `2px dotted ${p.yellow}a6`,
+      backgroundColor: `${p.yellow}22`,
+      fontFamily: "'Baloo 2', Arial, sans-serif",
+      fontWeight: 700,
+    });
+    gsap.set(".plg-texto", {
+      color: p.texto,
+      fontFamily: "'Baloo 2', Arial, sans-serif",
+      fontWeight: 700,
+      lineHeight: 1.2,
+    });
+    gsap.set(".plg-barra", {
+      background: `linear-gradient(90deg, ${p.pink}, ${p.yellow}, ${p.teal})`,
+    });
+    // Ángulo y color propios por rayo — 5 elementos con la misma clase.
+    gsap.set(".plg-rayo", {
+      rotation: (i) => [-46, -23, 0, 23, 46][i] ?? 0,
+      background: (i) => {
+        const colores = [p.pink, p.yellow, p.lavanda, p.teal, p.pink];
+        return `linear-gradient(${colores[i] ?? p.pink}, transparent 75%)`;
+      },
+      opacity: 0,
+    });
+
+    gsap.set(".plg-ref", {opacity: 0, scale: 0.6});
+    gsap.set(".plg-texto", {opacity: 0, scale: 0.7});
+    gsap.set(".plg-barra", {scaleX: 0});
+
+    const tl = gsap.timeline();
+    tl.to(".plg-rayo", {opacity: 0.75, duration: b * 0.6, stagger: 0.06, ease: "power1.out"})
+      .to(".plg-ref", {opacity: 1, scale: 1, duration: b * 0.5, ease: "back.out(2.2)"}, "-=0.4")
+      .to(".plg-texto", {opacity: 1, scale: 1, duration: b * 0.75, ease: "elastic.out(1, 0.55)"}, "-=0.15")
+      .to(".plg-barra", {scaleX: 1, duration: b * 0.4, ease: "power2.out"}, "-=0.35")
+      .to(
+        ".plg-rayo",
+        {opacity: 0.4, duration: vel.loop, repeat: -1, yoyo: true, stagger: 0.25, ease: "sine.inOut"},
+        "-=0.1",
+      );
+  });
+}
+
+function EstructuraGozo({titulo, texto}) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
+  const escala = useEscalaFuente();
+
+  return (
+    <>
+      <div className="plg-bg absolute inset-0" />
+      <div
+        className="absolute pointer-events-none"
+        style={{left: "50%", top: "-6%", width: 2, height: "145%", mixBlendMode: "screen"}}
+      >
+        {[0, 1, 2, 3, 4].map((i) => (
+          <span
+            key={`rayo-${i}`}
+            className="plg-rayo absolute rounded-full"
+            style={{
+              top: 0,
+              left: 0,
+              width: 34 * escala,
+              height: "100%",
+              transformOrigin: "50% 0%",
+              filter: "blur(1px)",
+            }}
+          />
+        ))}
+      </div>
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[9%] py-[7%] gap-2">
+        {titulo && (
+          <span
+            className="plg-ref shrink-0 inline-block uppercase rounded-full"
+            style={{
+              fontSize: `${14 * escala}px`,
+              letterSpacing: "0.1em",
+              padding: `${6 * escala}px ${18 * escala}px`,
+              marginBottom: `${22 * escala}px`,
+            }}
+          >
+            {titulo}
+          </span>
+        )}
+        <div
+          ref={wrapRef}
+          className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden"
+        >
+          <p
+            ref={textRef}
+            className="plg-texto w-full"
+            style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.8rem, 4.5vw, 5.5rem)"}}
+          >
+            {texto}
+          </p>
+        </div>
+        <div
+          className="plg-barra shrink-0 rounded"
+          style={{width: 64 * escala, height: 5 * escala, marginTop: `${22 * escala}px`}}
+        />
+      </div>
+    </>
+  );
+}
+
+const ANIMADORES = {
+  alabanza: animarAlabanza,
+  reflexion: animarReflexion,
+  ensenanza: animarEnsenanza,
+  especial: animarEspecial,
+  vibra: animarVibra,
+  gozo: animarGozo,
+};
 
 const ESTRUCTURAS = {
-  revelar: EstructuraRevelar,
-  neon: EstructuraNeon,
-  iglesia: EstructuraIglesia,
-  cinematica: EstructuraCinematica,
-  particulas: EstructuraParticulas,
-  gloria: EstructuraGloria,
-  aurora: EstructuraAurora,
-  minimal: EstructuraMinimal,
-  majestad: EstructuraMajestad,
-  olas: EstructuraOlas,
+  alabanza: EstructuraAlabanza,
+  reflexion: EstructuraReflexion,
+  ensenanza: EstructuraEnsenanza,
+  especial: EstructuraEspecial,
+  vibra: EstructuraVibra,
+  gozo: EstructuraGozo,
 };
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
@@ -1323,7 +763,7 @@ const ESTRUCTURAS = {
 export default function PlantillaGSAP({
   titulo,
   texto,
-  plantillaId = "revelar",
+  plantillaId = "ensenanza",
   config = {},
   configuracion = null,
 }) {
@@ -1352,9 +792,18 @@ export default function PlantillaGSAP({
 
     const animar = ANIMADORES[plantillaId];
     if (animar) {
+      // No usar clearProps:"all" aquí: borraría TODO el estilo inline de los
+      // elementos, incluyendo tamaños/paddings que dependen de `escala` o
+      // `fontSizePx` y que React ya no vuelve a escribir si su valor no
+      // cambió respecto al render anterior (deja badges/barras en 0px).
+      // animar() ya fija su propio estado inicial (oculto) para cada
+      // propiedad que anima, así que no hace falta limpiar antes.
       gsap.killTweensOf(containerRef.current.querySelectorAll("*"));
-      gsap.set(containerRef.current.querySelectorAll("*"), {clearProps: "all"});
-      animar(ctx, config, velocidad);
+      // El useLayoutEffect de arriba puso opacity:0 en todo para evitar el
+      // flash pre-paint; sólo restauramos opacity (nada más) aquí — animar()
+      // vuelve a poner en 0 los elementos que sí tienen entrada animada.
+      gsap.set(containerRef.current.querySelectorAll("[class*='plg-']"), {opacity: 1});
+      animar(ctx, velocidad);
     }
 
     // La próxima vez que cambie el texto, la transición puede actuar normalmente
@@ -1376,7 +825,7 @@ export default function PlantillaGSAP({
     if (!containerRef.current) return;
 
     const els = containerRef.current.querySelectorAll(
-      ".plg-texto, .plg-titulo, .plg-divisor",
+      ".plg-texto, .plg-ref, .plg-barra",
     );
     if (!els.length) return;
 
@@ -1399,7 +848,7 @@ export default function PlantillaGSAP({
     return () => cancelAnimationFrame(r1);
   }, [texto, titulo]);
 
-  const Estructura = ESTRUCTURAS[plantillaId] || ESTRUCTURAS.revelar;
+  const Estructura = ESTRUCTURAS[plantillaId] || ESTRUCTURAS.ensenanza;
 
   return (
     <ConfigProyectorContext.Provider value={configuracion}>

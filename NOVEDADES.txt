@@ -1,3 +1,23 @@
+Version 0.4.3
+
+Nuevas funciones
+- Diapositivas ahora disponibles desde la app movil: podes ver tus
+  presentaciones de imagenes, saltar a cualquier diapositiva, avanzar,
+  retroceder o detener la proyeccion, todo desde el celular
+- 2 plantillas visuales nuevas para el proyector: Vibra (neon de
+  escenario) y Gozo (rayos de luz de colores), pensadas para cultos de
+  jovenes
+- Version para Mac firmada y notarizada por Apple: se abre sin
+  advertencias de seguridad
+
+Correcciones
+- Corregido: el control de Plantillas desde la app movil no aplicaba
+  ningun cambio real en el proyector. Ahora activa la plantilla
+  correcta igual que desde la computadora
+- Corregido: las flechas del teclado no avanzaban las diapositivas si
+  el foco quedaba en la ventana del proyector en vez de en la ventana
+  de control
+
 Version 0.4.2
 
 Correcciones

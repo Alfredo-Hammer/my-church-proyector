@@ -431,6 +431,7 @@ function migrarTablaFondos() {
           nombre TEXT,
           activo INTEGER DEFAULT 0,
           es_defecto INTEGER DEFAULT 0,
+          es_espera INTEGER DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -448,7 +449,8 @@ function migrarTablaFondos() {
     const columnasRequeridas = [
       { nombre: 'nombre', tipo: 'TEXT' },
       { nombre: 'created_at', tipo: 'DATETIME' },
-      { nombre: 'es_defecto', tipo: 'INTEGER DEFAULT 0' }
+      { nombre: 'es_defecto', tipo: 'INTEGER DEFAULT 0' },
+      { nombre: 'es_espera', tipo: 'INTEGER DEFAULT 0' }
     ];
 
     for (const columna of columnasRequeridas) {
@@ -492,6 +494,7 @@ function obtenerFondos() {
     if (nombresColumnas.has('nombre')) selectFields += ", nombre";
     if (nombresColumnas.has('activo')) selectFields += ", activo";
     if (nombresColumnas.has('es_defecto')) selectFields += ", es_defecto";
+    if (nombresColumnas.has('es_espera')) selectFields += ", es_espera";
     if (nombresColumnas.has('created_at')) selectFields += ", created_at";
 
     // activo DESC, id ASC (no id DESC): GestionFondos.jsx asume que el ÚLTIMO
@@ -511,6 +514,7 @@ function obtenerFondos() {
       nombre: fondo.nombre || `Fondo ${fondo.id}`,
       activo: fondo.activo || 0,
       es_defecto: fondo.es_defecto || 0,
+      es_espera: fondo.es_espera || 0,
       created_at: fondo.created_at || null
     }));
 
@@ -747,6 +751,69 @@ function obtenerFondoActivo() {
   }
 }
 
+// Establecer fondo de espera (pantalla de bienvenida / sin proyección activa)
+// — independiente del fondo activo, que sigue siendo el que se usa cuando
+// hay himno/versículo/etc. proyectándose.
+function establecerFondoEspera(id) {
+  try {
+    const fondo = db.prepare("SELECT * FROM fondos WHERE id = ?").get(id);
+    if (!fondo) {
+      console.error("❌ [DB] No se encontró el fondo con id:", id);
+      return false;
+    }
+
+    db.prepare("UPDATE fondos SET es_espera = 0").run();
+    const info = db.prepare("UPDATE fondos SET es_espera = 1 WHERE id = ?").run(id);
+
+    return info.changes > 0;
+  } catch (error) {
+    console.error("❌ [DB] Error estableciendo fondo de espera:", error);
+    return false;
+  }
+}
+
+// Quitar el fondo de espera configurado (vuelve a no haber ninguno)
+function quitarFondoEspera() {
+  try {
+    db.prepare("UPDATE fondos SET es_espera = 0").run();
+    return true;
+  } catch (error) {
+    console.error("❌ [DB] Error quitando fondo de espera:", error);
+    return false;
+  }
+}
+
+// Obtener fondo de espera
+function obtenerFondoEspera() {
+  try {
+    const columnas = db.prepare("PRAGMA table_info(fondos)").all();
+    const nombresColumnas = new Set(columnas.map(col => col.name));
+
+    let selectFields = "id, url";
+    if (nombresColumnas.has('tipo')) selectFields += ", tipo";
+    if (nombresColumnas.has('nombre')) selectFields += ", nombre";
+    if (nombresColumnas.has('es_espera')) selectFields += ", es_espera";
+    if (nombresColumnas.has('created_at')) selectFields += ", created_at";
+
+    const query = `SELECT ${selectFields} FROM fondos WHERE es_espera = 1 LIMIT 1`;
+    const fondo = db.prepare(query).get();
+
+    if (!fondo) return null;
+
+    return {
+      id: fondo.id,
+      url: fondo.url,
+      tipo: fondo.tipo || 'imagen',
+      nombre: fondo.nombre || `Fondo ${fondo.id}`,
+      es_espera: fondo.es_espera || 0,
+      created_at: fondo.created_at || null
+    };
+  } catch (error) {
+    console.error("❌ [DB] Error obteniendo fondo de espera:", error);
+    return null;
+  }
+}
+
 // ✨ FUNCIÓN PARA LIMPIAR DUPLICADOS EN FONDOS
 function limpiarDuplicadosFondos() {
   try {
@@ -836,7 +903,14 @@ function inicializarFondosPorDefecto() {
     const fondosPublicDir = isDev
       ? path.join(__dirname, 'public', 'fondos')
       : path.join(app.getPath('userData'), 'public', 'fondos');
-    const fondosBuildDir = path.join(__dirname, 'build', 'fondos');
+    // En producción, build/ vive como extraResource fuera del .asar
+    // (ver electron-builder.yml) — __dirname aquí apunta dentro del .asar,
+    // donde build/ no existe. Sin esto, existeEnDisco() siempre daba falso
+    // para los fondos por defecto empaquetados y la limpieza retroactiva de
+    // abajo los borraba de la BD en cada arranque.
+    const fondosBuildDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'build', 'fondos')
+      : path.join(__dirname, 'build', 'fondos');
 
     // Resolver ruta relativa "/fondos/X" a disco
     const existeEnDisco = (relativeUrl) => {
@@ -1868,6 +1942,68 @@ function reordenarAnuncios(ids) {
   }
 }
 
+// ====================================
+// TABLA Y FUNCIONES: PRESENTACIONES / DIAPOSITIVAS (secuencias de imágenes
+// navegables, ej. diapositivas exportadas de PowerPoint como PNG/JPG)
+//
+// La tabla se llama "diapositivas" (no "presentaciones") a propósito: una
+// función completamente distinta y ya eliminada (PresentationManager.jsx,
+// borrado en 7076897/b6e4556) usaba una tabla "presentaciones" con un
+// esquema incompatible que puede seguir existiendo en instalaciones viejas
+// — reutilizar ese nombre haría que CREATE TABLE IF NOT EXISTS fuera un
+// no-op sobre esas filas ajenas y todo esto fallara con "no such column".
+// ====================================
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS diapositivas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    imagenes TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`).run();
+
+function obtenerPresentaciones() {
+  try {
+    return db.prepare("SELECT * FROM diapositivas ORDER BY created_at DESC, id DESC").all().map(
+      (r) => ({ ...r, imagenes: JSON.parse(r.imagenes || "[]") })
+    );
+  } catch (e) {
+    return [];
+  }
+}
+
+function agregarPresentacion({ nombre, imagenes = [] }) {
+  try {
+    const info = db.prepare(
+      "INSERT INTO diapositivas (nombre, imagenes) VALUES (?, ?)"
+    ).run(nombre, JSON.stringify(imagenes));
+    return { success: true, id: info.lastInsertRowid };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function actualizarPresentacion({ id, nombre, imagenes }) {
+  try {
+    db.prepare(
+      "UPDATE diapositivas SET nombre = ?, imagenes = ? WHERE id = ?"
+    ).run(nombre, JSON.stringify(imagenes || []), id);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function eliminarPresentacion(id) {
+  try {
+    db.prepare("DELETE FROM diapositivas WHERE id = ?").run(id);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 // Cerrar la conexión a la base de datos (llamado al salir de la app)
 function cerrarDB() {
   try {
@@ -1911,6 +2047,9 @@ module.exports = {
   eliminarFondo,
   establecerFondoActivo,
   obtenerFondoActivo,
+  establecerFondoEspera,
+  quitarFondoEspera,
+  obtenerFondoEspera,
   inicializarFondosPorDefecto,
   inicializarFondosAnimadosPorDefecto,
   migrarTablaFondos,
@@ -1946,6 +2085,10 @@ module.exports = {
   actualizarAnuncio,
   eliminarAnuncio,
   reordenarAnuncios,
+  obtenerPresentaciones,
+  agregarPresentacion,
+  actualizarPresentacion,
+  eliminarPresentacion,
 };
 
 

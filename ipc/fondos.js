@@ -7,6 +7,8 @@ const {
   actualizarFondo,
   eliminarFondo,
   establecerFondoActivo,
+  establecerFondoEspera,
+  quitarFondoEspera,
 } = require("../db");
 
 // deps: dependencias que viven en main.js y no se pueden reimplementar
@@ -48,6 +50,7 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
             nombre: fondo.nombre || `Fondo ${fondo.id}`,
             activo: Boolean(fondo.activo),
             es_defecto: Boolean(fondo.es_defecto),
+            es_espera: Boolean(fondo.es_espera),
             created_at: fondo.created_at || new Date().toISOString()
           }];
         }
@@ -74,6 +77,7 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
           nombre: fondo.nombre || `Fondo ${fondo.id}`,
           activo: Boolean(fondo.activo),
           es_defecto: Boolean(fondo.es_defecto),
+          es_espera: Boolean(fondo.es_espera),
           created_at: fondo.created_at || new Date().toISOString()
         }];
       });
@@ -218,6 +222,79 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
       return resultado;
     } catch (error) {
       console.error("❌ [Main] Error estableciendo fondo activo:", error);
+      return false;
+    }
+  });
+
+  // Handler para obtener fondo de espera (pantalla de bienvenida / sin nada
+  // proyectándose) — independiente del fondo activo.
+  ipcMain.handle("obtener-fondo-espera", async () => {
+    try {
+      const fondos = await obtenerFondos();
+      const fondo = fondos.find(f => f.es_espera);
+      if (!fondo) return null;
+      if (fondo.tipo === 'animado') return fondo;
+      const url = fondo.url && !fondo.url.startsWith('http')
+        ? `http://localhost:3001${fondo.url}`
+        : fondo.url;
+      return { ...fondo, url };
+    } catch (error) {
+      console.error("❌ [Main] Error obteniendo fondo de espera:", error);
+      return null;
+    }
+  });
+
+  // Handler para establecer fondo de espera
+  ipcMain.handle("establecer-fondo-espera", async (event, id) => {
+    try {
+      console.log("🖼️ [Main] Estableciendo fondo de espera:", id);
+      const resultado = await establecerFondoEspera(id);
+
+      if (resultado) {
+        const fondos = await obtenerFondos();
+        const fondoRaw = fondos.find(f => f.es_espera);
+
+        const fondoEspera = !fondoRaw ? null : fondoRaw.tipo === 'animado' ? { ...fondoRaw } : {
+          ...fondoRaw,
+          url: fondoRaw.url && !fondoRaw.url.startsWith('http')
+            ? `http://localhost:3001${fondoRaw.url}`
+            : fondoRaw.url
+        };
+
+        const todasLasVentanas = BrowserWindow.getAllWindows();
+        todasLasVentanas.forEach(ventana => {
+          if (!ventana.isDestroyed()) {
+            ventana.webContents.send("actualizar-fondo-espera", fondoEspera);
+          }
+        });
+
+        console.log("✅ [Main] Fondo de espera establecido:", fondoEspera?.url);
+      }
+
+      return resultado;
+    } catch (error) {
+      console.error("❌ [Main] Error estableciendo fondo de espera:", error);
+      return false;
+    }
+  });
+
+  // Handler para quitar el fondo de espera (volver a no tener ninguno)
+  ipcMain.handle("quitar-fondo-espera", async () => {
+    try {
+      const resultado = await quitarFondoEspera();
+
+      if (resultado) {
+        const todasLasVentanas = BrowserWindow.getAllWindows();
+        todasLasVentanas.forEach(ventana => {
+          if (!ventana.isDestroyed()) {
+            ventana.webContents.send("actualizar-fondo-espera", null);
+          }
+        });
+      }
+
+      return resultado;
+    } catch (error) {
+      console.error("❌ [Main] Error quitando fondo de espera:", error);
       return false;
     }
   });

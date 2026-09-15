@@ -1,13 +1,10 @@
-import {useState, useEffect, useRef} from "react";
-import {gsap} from "gsap";
+import {useState, useEffect} from "react";
 import PlantillaGSAP from "../components/PlantillaGSAP";
 import {META_PLANTILLAS} from "../components/PlantillasConfig";
 import {
   FaCheck,
   FaSave,
-  FaBroadcastTower,
   FaStop,
-  FaPalette,
   FaMagic,
   FaToggleOn,
   FaToggleOff,
@@ -16,9 +13,6 @@ import {
 
 const DEFAULTS = {
   plantillaGsapActiva: "ninguna",
-  plantillaGsapColor1: "#e2e8f0",
-  plantillaGsapColor2: "#0f172a",
-  plantillaGsapColorAcc: "#34d399",
   plantillaGsapVelocidad: "media",
 };
 
@@ -26,40 +20,12 @@ const DEMO_TEXTO =
   "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito";
 const DEMO_TITULO = "Juan 3:16";
 
-function ColorInput({label, value, onChange}) {
-  return (
-    <div>
-      <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1.5">
-        {label}
-      </label>
-      <div className="flex items-center gap-2">
-        <div className="relative">
-          <input
-            type="color"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="size-9 rounded-lg border border-slate-600/60 cursor-pointer bg-transparent p-0.5"
-          />
-        </div>
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="flex-1 bg-slate-800 border border-slate-600/60 focus:border-indigo-500/70 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none"
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function Plantillas() {
   const [config, setConfig] = useState(DEFAULTS);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [proyectando, setProyectando] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
-  const previewRef = useRef(null);
-  const colorTimer = useRef(null);
 
   useEffect(() => {
     cargar();
@@ -72,12 +38,6 @@ export default function Plantillas() {
         const loaded = {
           plantillaGsapActiva:
             cfg.plantillaGsapActiva || DEFAULTS.plantillaGsapActiva,
-          plantillaGsapColor1:
-            cfg.plantillaGsapColor1 || DEFAULTS.plantillaGsapColor1,
-          plantillaGsapColor2:
-            cfg.plantillaGsapColor2 || DEFAULTS.plantillaGsapColor2,
-          plantillaGsapColorAcc:
-            cfg.plantillaGsapColorAcc || DEFAULTS.plantillaGsapColorAcc,
           plantillaGsapVelocidad:
             cfg.plantillaGsapVelocidad || DEFAULTS.plantillaGsapVelocidad,
         };
@@ -96,12 +56,7 @@ export default function Plantillas() {
         "gsap-plantilla-global:v1",
         JSON.stringify({
           plantillaId: cfg.plantillaGsapActiva,
-          config: {
-            colorPrimario: cfg.plantillaGsapColor1,
-            colorFondo: cfg.plantillaGsapColor2,
-            colorAccento: cfg.plantillaGsapColorAcc,
-            velocidad: cfg.plantillaGsapVelocidad,
-          },
+          config: {velocidad: cfg.plantillaGsapVelocidad},
         }),
       );
     } else {
@@ -134,7 +89,7 @@ export default function Plantillas() {
     const nuevo = plantillaActiva
       ? "ninguna"
       : config.plantillaGsapActiva === "ninguna"
-        ? "revelar"
+        ? "ensenanza"
         : config.plantillaGsapActiva;
     const nuevaConfig = {...config, plantillaGsapActiva: nuevo};
     setConfig(nuevaConfig);
@@ -148,17 +103,6 @@ export default function Plantillas() {
     recargarPreview();
   };
 
-  const cambiarColor = (campo, valor) => {
-    const nuevaConfig = {...config, [campo]: valor};
-    setConfig(nuevaConfig);
-    // Actualizar el proyector inmediatamente via localStorage
-    sincronizarLocalStorage(nuevaConfig);
-    recargarPreview();
-    // Guardar en DB con debounce para no saturar mientras se arrastra el color picker
-    clearTimeout(colorTimer.current);
-    colorTimer.current = setTimeout(() => guardar(nuevaConfig), 600);
-  };
-
   const cambiarVelocidad = (v) => {
     const nuevaConfig = {...config, plantillaGsapVelocidad: v};
     setConfig(nuevaConfig);
@@ -166,12 +110,7 @@ export default function Plantillas() {
     recargarPreview();
   };
 
-  const gsapConfig = {
-    colorPrimario: config.plantillaGsapColor1,
-    colorFondo: config.plantillaGsapColor2,
-    colorAccento: config.plantillaGsapColorAcc,
-    velocidad: config.plantillaGsapVelocidad,
-  };
+  const gsapConfig = {velocidad: config.plantillaGsapVelocidad};
 
   const proyectarTest = () => {
     if (!window.electron) return;
@@ -335,30 +274,6 @@ export default function Plantillas() {
                   )}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Colores */}
-          <div>
-            <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <FaPalette className="text-indigo-400 text-xs" /> Colores
-            </h3>
-            <div className="space-y-3">
-              <ColorInput
-                label="Fondo"
-                value={config.plantillaGsapColor2}
-                onChange={(v) => cambiarColor("plantillaGsapColor2", v)}
-              />
-              <ColorInput
-                label="Texto"
-                value={config.plantillaGsapColor1}
-                onChange={(v) => cambiarColor("plantillaGsapColor1", v)}
-              />
-              <ColorInput
-                label="Acento"
-                value={config.plantillaGsapColorAcc}
-                onChange={(v) => cambiarColor("plantillaGsapColorAcc", v)}
-              />
             </div>
           </div>
 

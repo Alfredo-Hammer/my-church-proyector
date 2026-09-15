@@ -219,7 +219,7 @@ const PreviewCard = ({anuncio, plt, enVivo, onClick, seleccionado}) => {
       onKeyDown={(e) => e.key === "Enter" && onClick && onClick()}
       role="button"
       tabIndex={0}
-      className={`relative rounded-2xl border-2 cursor-pointer transition-all duration-300 overflow-hidden
+      className={`relative aspect-video rounded-2xl border-2 cursor-pointer transition-all duration-300 overflow-hidden
         ${
           seleccionado
             ? isMultimedia
@@ -229,15 +229,11 @@ const PreviewCard = ({anuncio, plt, enVivo, onClick, seleccionado}) => {
         }
         ${enVivo ? "ring-2 ring-offset-2 ring-offset-slate-950 ring-orange-500" : ""}
       `}
-      style={{minHeight: "140px"}}
       aria-label={`Anuncio: ${anuncio.titulo}`}
     >
       {isMultimedia ? (
         /* ── Multimedia card ── */
-        <div
-          className="relative size-full bg-slate-950"
-          style={{minHeight: "140px"}}
-        >
+        <div className="relative size-full bg-slate-950">
           {anuncio.tipoMedia === "video" ? (
             <video
               src={anuncio.url}
@@ -287,10 +283,7 @@ const PreviewCard = ({anuncio, plt, enVivo, onClick, seleccionado}) => {
             className={`absolute inset-[10px] rounded-lg border ${plt.borderClass} opacity-40 pointer-events-none`}
           />
           <CornerDecos color={plt.accentClass} />
-          <div
-            className="relative z-10 flex flex-col items-center justify-center p-4 text-center"
-            style={{minHeight: "140px"}}
-          >
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4 text-center">
             {!anuncio.activo && (
               <span className="absolute top-2 right-2 text-[9px] text-slate-500 bg-slate-800/80 px-1.5 py-0.5 rounded-full">
                 Inactivo
@@ -888,20 +881,26 @@ export default function Anuncios() {
                       } else abrirEdicion(a);
                     }}
                   />
-                  {/* Controles bajo la card */}
-                  <div className="flex items-center gap-1 px-1">
+                  {/* Controles bajo la card — una sola barra cohesiva */}
+                  <div className="flex items-center gap-0.5 px-1.5 py-1 rounded-xl bg-white/[0.03] border border-white/8">
                     <button
                       type="button"
                       onClick={() => toggleActivo(a)}
-                      className="w-7 h-6 flex items-center justify-center text-base transition-colors hover:scale-110"
+                      className="flex items-center gap-1.5 pl-0.5 pr-2 py-1 rounded-lg text-[10px] font-semibold transition-colors hover:bg-white/5"
                       title={a.activo ? "Desactivar" : "Activar"}
                     >
                       {a.activo ? (
-                        <FaToggleOn className="text-emerald-400" />
+                        <FaToggleOn className="text-emerald-400 text-sm" />
                       ) : (
-                        <FaToggleOff className="text-slate-600" />
+                        <FaToggleOff className="text-slate-600 text-sm" />
                       )}
+                      <span className={a.activo ? "text-emerald-400" : "text-slate-600"}>
+                        {a.activo ? "Activo" : "Inactivo"}
+                      </span>
                     </button>
+
+                    <div className="flex-1" />
+
                     {proyectando && a.activo && (
                       <button
                         type="button"
@@ -910,35 +909,36 @@ export default function Anuncios() {
                             activos.findIndex((x) => x.id === a.id),
                           )
                         }
-                        className="size-6 rounded-md bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/25 flex items-center justify-center text-orange-400 transition-colors"
+                        className="size-6 rounded-md hover:bg-orange-500/20 flex items-center justify-center text-orange-400 transition-colors"
                         title="Proyectar ahora"
                       >
-                        <FaEye className="text-[9px]" />
+                        <FaEye className="text-[10px]" />
                       </button>
                     )}
-                    <div className="flex-1" />
+                    <div className="w-px h-4 bg-white/8 mx-0.5" />
                     <button
                       type="button"
                       onClick={() => mover(idx, -1)}
                       disabled={idx === 0}
-                      className="size-6 rounded-md bg-white/4 hover:bg-white/10 border border-white/6 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-20 transition-colors"
+                      className="size-6 rounded-md hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-20 transition-colors"
                     >
-                      <FaArrowUp className="text-[9px]" />
+                      <FaArrowUp className="text-[10px]" />
                     </button>
                     <button
                       type="button"
                       onClick={() => mover(idx, 1)}
                       disabled={idx === anuncios.length - 1}
-                      className="size-6 rounded-md bg-white/4 hover:bg-white/10 border border-white/6 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-20 transition-colors"
+                      className="size-6 rounded-md hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white disabled:opacity-20 transition-colors"
                     >
-                      <FaArrowDown className="text-[9px]" />
+                      <FaArrowDown className="text-[10px]" />
                     </button>
+                    <div className="w-px h-4 bg-white/8 mx-0.5" />
                     <button
                       type="button"
                       onClick={() => eliminar(a.id)}
-                      className="size-6 rounded-md bg-white/4 hover:bg-red-500/20 border border-white/6 flex items-center justify-center text-white/35 hover:text-red-400 transition-colors"
+                      className="size-6 rounded-md hover:bg-red-500/20 flex items-center justify-center text-white/35 hover:text-red-400 transition-colors"
                     >
-                      <FaTrash className="text-[9px]" />
+                      <FaTrash className="text-[10px]" />
                     </button>
                   </div>
                 </div>
@@ -1047,12 +1047,6 @@ export default function Anuncios() {
                       className="w-full bg-slate-800 border border-slate-600/60 focus:border-orange-500/70 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none resize-none"
                       rows={5}
                       aria-label="Texto del anuncio"
-                    />
-                          guardar();
-                      }}
-                      placeholder="Ej: Este viernes 8pm - Sala principal"
-                      rows={3}
-                      className="w-full bg-slate-800 border border-slate-600/60 focus:border-orange-500/70 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none resize-none"
                     />
                     <p className="text-[10px] text-slate-600 mt-1">
                       Ctrl+Enter para guardar

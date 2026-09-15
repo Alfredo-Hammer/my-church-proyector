@@ -123,3 +123,66 @@ jobs:
             INSTRUCCIONES-WINDOWS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-mac:
+    needs: release
+    runs-on: macos-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar React (UI)
+        run: npm run build
+        env:
+          CI: false
+
+      - name: Obtener versión
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Firma y notarización: electron-builder las hace automáticamente
+      # al detectar CSC_LINK/CSC_KEY_PASSWORD (certificado) y
+      # APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID (notarización).
+      # Ver comentarios en electron-builder.yml para el detalle de cada variable.
+      - name: Compilar .dmg de macOS (firmado y notarizado)
+        run: npx electron-builder --mac --x64 --arm64 --publish never
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar assets de macOS al Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          files: |
+            dist-installer/*.dmg
+            dist-installer/*.zip
+            dist-installer/*.blockmap
+            dist-installer/latest-mac.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

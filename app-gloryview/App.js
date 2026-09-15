@@ -544,7 +544,7 @@ const InicioGrid = ({ rows, cols, gap, cardH, setSeccion, iconBoxSz, iconSz, ico
 
 export default function App() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos' | 'anuncios' | 'temporizador' | 'plantillas' | 'presentaciones'
+  const [seccion, setSeccion] = useState('inicio'); // 'inicio' | 'conexion' | 'himnos' | 'biblia' | 'multimedia' | 'fondos' | 'favoritos' | 'anuncios' | 'diapositivas' | 'temporizador' | 'plantillas' | 'presentaciones'
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   const [serverBaseUrl, setServerBaseUrl] = useState('');
@@ -679,6 +679,15 @@ export default function App() {
   const [cargandoAnuncios, setCargandoAnuncios] = useState(false);
   const [proyectandoAnuncioId, setProyectandoAnuncioId] = useState(null);
   const [limpiandoAnuncio, setLimpiandoAnuncio] = useState(false);
+
+  // Diapositivas (presentaciones de imágenes navegables)
+  const [diapositivasPresentaciones, setDiapositivasPresentaciones] = useState([]);
+  const [cargandoDiapositivas, setCargandoDiapositivas] = useState(false);
+  const [diapositivaSeleccionada, setDiapositivaSeleccionada] = useState(null); // presentación abierta (vista de miniaturas) o null (lista)
+  const [diapositivaActivaInfo, setDiapositivaActivaInfo] = useState(null); // { presentacionId, indice, totalSlides } | null — estado real del proyector
+  const [proyectandoSlideKey, setProyectandoSlideKey] = useState(null); // `${presentacionId}-${indice}` en vuelo
+  const [navegandoDiapositiva, setNavegandoDiapositiva] = useState(false);
+  const [limpiandoDiapositiva, setLimpiandoDiapositiva] = useState(false);
 
   // Temporizador
   const [timerEstado, setTimerEstado] = useState({
@@ -827,6 +836,12 @@ export default function App() {
     const base = normalizarBaseUrl(serverBaseUrl);
     if (!base) return '';
     return `${base}/api/anuncios`;
+  }, [serverBaseUrl]);
+
+  const presentacionesApiUrl = useMemo(() => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return '';
+    return `${base}/api/presentaciones`;
   }, [serverBaseUrl]);
 
   const timerApiBase = useMemo(() => {
@@ -2905,6 +2920,89 @@ export default function App() {
     }
   };
 
+  // ── Diapositivas ───────────────────────────────────────────────────────────
+  const cargarDiapositivas = async () => {
+    if (!presentacionesApiUrl) return;
+    if (cargandoDiapositivas) return;
+    setCargandoDiapositivas(true);
+    try {
+      const { res, json } = await fetchJsonTimeout(presentacionesApiUrl, {
+        method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 12000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setDiapositivasPresentaciones(Array.isArray(json.presentaciones) ? json.presentaciones : []);
+    } catch (err) {
+      setDiapositivasPresentaciones([]);
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout cargando diapositivas.' : err?.message || 'Error cargando diapositivas.');
+    } finally {
+      setCargandoDiapositivas(false);
+    }
+  };
+
+  const cargarDiapositivaActiva = async () => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/presentaciones/activa`, {
+        method: 'GET', headers: { Accept: 'application/json' }, timeoutMs: 6000,
+      });
+      if (res.ok && json?.ok) setDiapositivaActivaInfo(json.activa || null);
+    } catch {}
+  };
+
+  const proyectarDiapositiva = async (presentacionId, indice) => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    const key = `${presentacionId}-${indice}`;
+    setProyectandoSlideKey(key);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/control/presentaciones/proyectar`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: presentacionId, indice }), timeoutMs: 12000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setDiapositivaActivaInfo(json.activa || { presentacionId, indice });
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.name === 'AbortError' ? 'Timeout proyectando diapositiva.' : err?.message || 'Error proyectando diapositiva.');
+    } finally {
+      setProyectandoSlideKey(null);
+    }
+  };
+
+  const navegarDiapositiva = async (direccion) => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base || !diapositivaActivaInfo) return;
+    setNavegandoDiapositiva(true);
+    try {
+      const { res, json } = await fetchJsonTimeout(`${base}/api/control/presentaciones/navegar`, {
+        method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: diapositivaActivaInfo.presentacionId, direccion }), timeoutMs: 10000,
+      });
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setDiapositivaActivaInfo(json.activa || null);
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.message || 'Error cambiando de diapositiva.');
+    } finally {
+      setNavegandoDiapositiva(false);
+    }
+  };
+
+  const limpiarDiapositivaProyector = async () => {
+    const base = normalizarBaseUrl(serverBaseUrl);
+    if (!base) return;
+    setLimpiandoDiapositiva(true);
+    try {
+      await fetchJsonTimeout(`${base}/api/control/presentaciones/limpiar`, {
+        method: 'POST', headers: { Accept: 'application/json' }, timeoutMs: 8000,
+      });
+      setDiapositivaActivaInfo(null);
+    } catch (err) {
+      reportarErrorSinDesconectar(err?.message || 'Error limpiando pantalla.');
+    } finally {
+      setLimpiandoDiapositiva(false);
+    }
+  };
+
   // ── Temporizador ───────────────────────────────────────────────────────────
   const cargarTimerEstado = async () => {
     if (!timerApiBase) return;
@@ -3054,6 +3152,10 @@ export default function App() {
     }
     if (seccion === 'anuncios') {
       cargarAnuncios();
+    }
+    if (seccion === 'diapositivas') {
+      cargarDiapositivas();
+      cargarDiapositivaActiva();
     }
     if (seccion === 'temporizador') {
       // Al abrir la sección: carga estado y sincroniza preset con el total del servidor (una sola vez)
@@ -3396,6 +3498,18 @@ export default function App() {
                   </Pressable>
 
                   <Pressable
+                    onPress={() => { setSeccion('diapositivas'); setMenuAbierto(false); }}
+                    style={({ pressed }) => [
+                      styles.drawerItem,
+                      seccion === 'diapositivas' && { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)' },
+                      pressed && styles.parrafoPressed,
+                    ]}
+                  >
+                    <Ionicons name="images" size={20} color={seccion === 'diapositivas' ? '#8b5cf6' : '#cbd5e1'} style={{ marginRight: 12 }} />
+                    <Text style={[styles.drawerItemText, seccion === 'diapositivas' && { color: '#8b5cf6' }]}>Diapositivas</Text>
+                  </Pressable>
+
+                  <Pressable
                     onPress={() => { setSeccion('temporizador'); setMenuAbierto(false); }}
                     style={({ pressed }) => [
                       styles.drawerItem,
@@ -3483,6 +3597,7 @@ export default function App() {
                 { id: 'fondos',         label: 'Fondos',           icon: 'image',          color: '#a855f7' },
                 { id: 'favoritos',      label: 'Favoritos',        icon: 'heart',          color: '#f43f5e' },
                 { id: 'anuncios',       label: 'Anuncios',         icon: 'megaphone',      color: '#ec4899' },
+                { id: 'diapositivas',   label: 'Diapositivas',     icon: 'images',         color: '#8b5cf6' },
                 { id: 'temporizador',   label: 'Temporizador',     icon: 'timer',          color: '#6366f1' },
                 { id: 'plantillas',     label: 'Plantillas',       icon: 'color-palette',  color: '#14b8a6' },
               ];
@@ -4904,6 +5019,168 @@ export default function App() {
                     )}
                     ListEmptyComponent={!cargandoAnuncios ? <Text style={styles.smallText}>No hay anuncios. Créalos desde el PC.</Text> : null}
                   />
+                </View>
+              </View>
+            )}
+
+            {/* ── Diapositivas ────────────────────────────────────────────────── */}
+            {seccion === 'diapositivas' && (
+              <View style={{ flex: 1, minHeight: 0 }}>
+                <View style={[styles.card, { flex: 1, minHeight: 0 }]}>
+                  {diapositivaSeleccionada ? (
+                    <>
+                      <View style={styles.rowBetween}>
+                        <Pressable
+                          onPress={() => setDiapositivaSeleccionada(null)}
+                          style={({ pressed }) => [styles.smallButton, pressed && styles.buttonPressed]}
+                        >
+                          <Ionicons name="arrow-back" size={14} color="#e2e8f0" />
+                        </Pressable>
+                        <Text style={[styles.sectionTitle, { flex: 1, marginLeft: 8 }]} numberOfLines={1}>
+                          {diapositivaSeleccionada.nombre}
+                        </Text>
+                      </View>
+                      <Text style={styles.smallText}>
+                        Toca una miniatura para proyectarla. {(diapositivaSeleccionada.imagenes || []).length} diapositivas.
+                      </Text>
+                      {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+
+                      {diapositivaActivaInfo && String(diapositivaActivaInfo.presentacionId) === String(diapositivaSeleccionada.id) && (
+                        <View style={[styles.row, { marginTop: 8, marginBottom: 4, justifyContent: 'space-between' }]}>
+                          <View style={styles.row}>
+                            <Pressable
+                              onPress={() => navegarDiapositiva(-1)}
+                              disabled={!conectado || navegandoDiapositiva}
+                              style={({ pressed }) => [styles.smallButton, (!conectado || navegandoDiapositiva) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                            >
+                              <Ionicons name="chevron-back" size={14} color="#e2e8f0" />
+                            </Pressable>
+                            <Text style={[styles.smallText, { marginHorizontal: 8 }]}>
+                              {diapositivaActivaInfo.indice + 1}/{diapositivaActivaInfo.totalSlides}
+                            </Text>
+                            <Pressable
+                              onPress={() => navegarDiapositiva(1)}
+                              disabled={!conectado || navegandoDiapositiva}
+                              style={({ pressed }) => [styles.smallButton, (!conectado || navegandoDiapositiva) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                            >
+                              <Ionicons name="chevron-forward" size={14} color="#e2e8f0" />
+                            </Pressable>
+                          </View>
+                          <Pressable
+                            onPress={limpiarDiapositivaProyector}
+                            disabled={!conectado || limpiandoDiapositiva}
+                            style={({ pressed }) => [styles.smallButton, (!conectado || limpiandoDiapositiva) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                          >
+                            <Text style={styles.smallButtonText}>Detener</Text>
+                          </Pressable>
+                        </View>
+                      )}
+
+                      <FlatList
+                        data={diapositivaSeleccionada.imagenes || []}
+                        numColumns={2}
+                        key="diapositivas-grid"
+                        keyExtractor={(item, index) => String(item?.url ?? index)}
+                        contentContainerStyle={styles.listContent}
+                        columnWrapperStyle={{ gap: 8 }}
+                        renderItem={({ item, index }) => {
+                          const enVivo = diapositivaActivaInfo
+                            && String(diapositivaActivaInfo.presentacionId) === String(diapositivaSeleccionada.id)
+                            && diapositivaActivaInfo.indice === index;
+                          const key = `${diapositivaSeleccionada.id}-${index}`;
+                          return (
+                            <Pressable
+                              onPress={() => proyectarDiapositiva(diapositivaSeleccionada.id, index)}
+                              disabled={!conectado || !!proyectandoSlideKey}
+                              style={({ pressed }) => [
+                                {
+                                  flex: 1, aspectRatio: 16 / 9, borderRadius: 10, overflow: 'hidden',
+                                  marginBottom: 8, borderWidth: 2,
+                                  borderColor: enVivo ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
+                                  backgroundColor: '#0f172a',
+                                },
+                                pressed && conectado && { opacity: 0.7 },
+                              ]}
+                            >
+                              <Image
+                                source={{ uri: resolverUrlMedia(item?.url) }}
+                                style={{ width: '100%', height: '100%' }}
+                                resizeMode="cover"
+                              />
+                              <View style={{ position: 'absolute', top: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 999, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>{index + 1}</Text>
+                              </View>
+                              {proyectandoSlideKey === key && (
+                                <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+                                  <ActivityIndicator color="#ffffff" />
+                                </View>
+                              )}
+                              {enVivo && (
+                                <View style={{ position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(139,92,246,0.85)', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                  <Text style={{ color: '#fff', fontSize: 8, fontWeight: '700' }}>EN VIVO</Text>
+                                </View>
+                              )}
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.rowBetween}>
+                        <Text style={styles.sectionTitle}>Diapositivas</Text>
+                        <Pressable
+                          onPress={cargarDiapositivas}
+                          disabled={!conectado || cargandoDiapositivas}
+                          style={({ pressed }) => [styles.smallButton, (!conectado || cargandoDiapositivas) && styles.buttonDisabled, pressed && conectado && styles.buttonPressed]}
+                        >
+                          <Text style={styles.smallButtonText}>Actualizar</Text>
+                        </Pressable>
+                      </View>
+                      <Text style={styles.smallText}>Presentaciones de imágenes (ej. exportadas de PowerPoint).</Text>
+                      {!conectado && <Text style={styles.smallText}>Tip: ve a Conexión para conectar al servidor.</Text>}
+                      {cargandoDiapositivas && (
+                        <View style={[styles.row, { marginTop: 6, marginBottom: 6 }]}>
+                          <ActivityIndicator color="#ffffff" />
+                          <Text style={styles.smallText}>Cargando…</Text>
+                        </View>
+                      )}
+                      <FlatList
+                        data={diapositivasPresentaciones}
+                        keyExtractor={(item) => String(item?.id)}
+                        keyboardDismissMode="on-drag"
+                        contentContainerStyle={styles.listContent}
+                        renderItem={({ item }) => {
+                          const enVivo = diapositivaActivaInfo && String(diapositivaActivaInfo.presentacionId) === String(item?.id);
+                          const portada = item?.imagenes?.[0]?.url;
+                          return (
+                            <View style={[styles.itemRow, enVivo && styles.itemRowActive]}>
+                              <View style={styles.thumbWrap}>
+                                {portada ? (
+                                  <Image source={{ uri: resolverUrlMedia(portada) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                ) : (
+                                  <Ionicons name="images" size={20} color="#64748b" />
+                                )}
+                              </View>
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text style={styles.itemTitle} numberOfLines={1}>{String(item?.nombre || 'Presentación')}</Text>
+                                <Text style={styles.itemMeta} numberOfLines={1}>
+                                  {(item?.imagenes || []).length} diapositivas{enVivo ? ' · En vivo' : ''}
+                                </Text>
+                              </View>
+                              <Pressable
+                                onPress={() => setDiapositivaSeleccionada(item)}
+                                style={({ pressed }) => [styles.smallButtonPrimary, pressed && styles.buttonPressed]}
+                              >
+                                <Text style={styles.smallButtonPrimaryText}>Ver</Text>
+                              </Pressable>
+                            </View>
+                          );
+                        }}
+                        ListEmptyComponent={!cargandoDiapositivas ? <Text style={styles.smallText}>No hay presentaciones. Créalas desde el PC.</Text> : null}
+                      />
+                    </>
+                  )}
                 </View>
               </View>
             )}

@@ -158,6 +158,11 @@ const {
   actualizarAnuncio,
   eliminarAnuncio,
   reordenarAnuncios,
+  // Presentaciones
+  obtenerPresentaciones,
+  agregarPresentacion,
+  actualizarPresentacion,
+  eliminarPresentacion,
 } = require("./db");
 
 // ✨ FUNCIÓN HELPER PARA RUTAS EN PRODUCCIÓN
@@ -191,6 +196,9 @@ const limpiarHandlers = () => {
     ipcMain.removeHandler("eliminarFondo");
     ipcMain.removeHandler("establecer-fondo-activo");
     ipcMain.removeHandler("obtener-fondo-activo");
+    ipcMain.removeHandler("establecer-fondo-espera");
+    ipcMain.removeHandler("obtener-fondo-espera");
+    ipcMain.removeHandler("quitar-fondo-espera");
     ipcMain.removeHandler("seleccionar-fondo");
     ipcMain.removeHandler("copiar-archivo-a-fondos");
     ipcMain.removeHandler("copiarArchivoAFondos"); // ✨ AGREGADO: camelCase
@@ -2631,6 +2639,112 @@ function iniciarServidorMultimedia() {
     });
 
     // ==================================================
+    // ✅ Diapositivas / Presentaciones de imágenes (App móvil)
+    // ==================================================
+    const enviarSlideDiapositiva = (presentacion, indice) => {
+      const img = presentacion.imagenes[indice];
+      if (!img) return false;
+      const slideData = {
+        tipo: 'slide',
+        slide: {
+          id: `pres-${presentacion.id}-${indice}`,
+          backgroundImage: img.url,
+          renderMode: 'pptx',
+        },
+        presentation: {
+          currentIndex: indice,
+          totalSlides: presentacion.imagenes.length,
+        },
+      };
+      proyectorWindow.webContents.send('proyectar-slide-data', slideData);
+      diapositivaActiva = {
+        presentacionId: presentacion.id,
+        indice,
+        totalSlides: presentacion.imagenes.length,
+      };
+      return true;
+    };
+
+    expressApp.get('/api/presentaciones', (req, res) => {
+      try {
+        const lista = obtenerPresentaciones();
+        return res.json({ ok: true, presentaciones: Array.isArray(lista) ? lista : [] });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.get('/api/presentaciones/activa', (req, res) => {
+      return res.json({ ok: true, activa: diapositivaActiva });
+    });
+
+    expressApp.post('/api/control/presentaciones/proyectar', async (req, res) => {
+      try {
+        const { id, indice } = req.body || {};
+        if (!id) return res.status(400).json({ ok: false, error: 'id requerido' });
+        const lista = obtenerPresentaciones();
+        const presentacion = lista.find((p) => String(p.id) === String(id));
+        if (!presentacion) return res.status(404).json({ ok: false, error: 'Presentación no encontrada' });
+        const idx = Number.isFinite(indice) ? indice : 0;
+        if (!presentacion.imagenes?.[idx]) {
+          return res.status(400).json({ ok: false, error: 'Índice de diapositiva inválido' });
+        }
+
+        if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+          proyectorWindow = createProyectorWindow();
+          await new Promise((resolve) => proyectorWindow.webContents.once('did-finish-load', resolve));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        enviarSlideDiapositiva(presentacion, idx);
+        return res.json({ ok: true, activa: diapositivaActiva });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/presentaciones/navegar', (req, res) => {
+      try {
+        const { id, direccion } = req.body || {};
+        if (!diapositivaActiva || String(diapositivaActiva.presentacionId) !== String(id)) {
+          return res.status(409).json({ ok: false, error: 'Esa presentación no está activa' });
+        }
+        const lista = obtenerPresentaciones();
+        const presentacion = lista.find((p) => String(p.id) === String(id));
+        if (!presentacion || !presentacion.imagenes?.length) {
+          return res.status(404).json({ ok: false, error: 'Presentación no encontrada' });
+        }
+        if (!proyectorWindow || proyectorWindow.isDestroyed()) {
+          return res.status(409).json({ ok: false, error: 'Proyector no disponible' });
+        }
+        const total = presentacion.imagenes.length;
+        const paso = direccion < 0 ? -1 : 1;
+        const nuevoIndice = ((diapositivaActiva.indice + paso) % total + total) % total;
+        enviarSlideDiapositiva(presentacion, nuevoIndice);
+        return res.json({ ok: true, activa: diapositivaActiva });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    expressApp.post('/api/control/presentaciones/limpiar', (req, res) => {
+      try {
+        if (timerEstaProyectando()) {
+          timerRestaurarEnProyector();
+          return res.json({ ok: true, timerActivo: true });
+        }
+        if (proyectorWindow && !proyectorWindow.isDestroyed()) {
+          proyectorWindow.webContents.send('mostrar-versiculo', {
+            parrafo: '', titulo: ' ', numero: ' ', origen: 'clear',
+          });
+        }
+        diapositivaActiva = null;
+        return res.json({ ok: true });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
+    });
+
+    // ==================================================
     // ✅ Temporizador (App móvil) — estado servidor
     // ==================================================
     expressApp.get('/api/temporizador/estado', (req, res) => {
@@ -2735,7 +2849,7 @@ function iniciarServidorMultimedia() {
     // ==================================================
     expressApp.get('/api/plantillas', async (req, res) => {
       try {
-        const claves = ['plantillaGsapActiva', 'plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
+        const claves = ['plantillaGsapActiva', 'plantillaGsapVelocidad'];
         const cfgValues = await Promise.all(claves.map(c => obtenerConfiguracion(c)));
         const cfg = Object.fromEntries(claves.map((c, i) => [c, cfgValues[i]]));
         const activa = (cfg.plantillaGsapActiva && cfg.plantillaGsapActiva !== 'ninguna') ? cfg.plantillaGsapActiva : null;
@@ -2745,9 +2859,6 @@ function iniciarServidorMultimedia() {
         return res.json({
           ok: true, plantillas, activa,
           config: {
-            color1: cfg.plantillaGsapColor1 || '#e2e8f0',
-            color2: cfg.plantillaGsapColor2 || '#0f172a',
-            colorAcc: cfg.plantillaGsapColorAcc || '#34d399',
             velocidad: cfg.plantillaGsapVelocidad || 'media',
           },
         });
@@ -2761,20 +2872,16 @@ function iniciarServidorMultimedia() {
         const { id } = req.body || {};
         if (!id || !PLANTILLAS_GSAP_META[id]) return res.status(400).json({ ok: false, error: 'Plantilla no válida' });
         await actualizarConfiguracion('plantillaGsapActiva', id);
-        const claves = ['plantillaGsapColor1', 'plantillaGsapColor2', 'plantillaGsapColorAcc', 'plantillaGsapVelocidad'];
-        const cfg = {};
-        for (const c of claves) cfg[c] = await obtenerConfiguracion(c);
+        const velocidad = (await obtenerConfiguracion('plantillaGsapVelocidad')) || 'media';
+        // Mismo shape/clave que sincronizarLocalStorage() en Plantillas.jsx —
+        // las 4 plantillas curadas actuales usan paletas fijas, ya no colores
+        // configurables, así que solo se manda plantillaId + velocidad.
         const lsData = JSON.stringify({
           plantillaId: id,
-          config: {
-            colorPrimario: cfg.plantillaGsapColor1 || '#e2e8f0',
-            colorFondo: cfg.plantillaGsapColor2 || '#0f172a',
-            colorAccento: cfg.plantillaGsapColorAcc || '#34d399',
-            velocidad: cfg.plantillaGsapVelocidad || 'media',
-          },
+          config: { velocidad },
         });
         // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
-        const jsSet = `localStorage.setItem("gsap-plantilla-global", ${JSON.stringify(lsData)})`;
+        const jsSet = `localStorage.setItem("gsap-plantilla-global:v1", ${JSON.stringify(lsData)})`;
         if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsSet).catch(() => { });
         return res.json({ ok: true, activa: id });
       } catch (error) {
@@ -2786,7 +2893,7 @@ function iniciarServidorMultimedia() {
       try {
         await actualizarConfiguracion('plantillaGsapActiva', 'ninguna');
         // Escribir solo en mainWindow → el evento "storage" se dispara en proyectorWindow
-        const jsRemove = `localStorage.removeItem("gsap-plantilla-global")`;
+        const jsRemove = `localStorage.removeItem("gsap-plantilla-global:v1")`;
         if (mainWindow && !mainWindow.isDestroyed()) await mainWindow.webContents.executeJavaScript(jsRemove).catch(() => { });
         return res.json({ ok: true, activa: null });
       } catch (error) {
@@ -3358,6 +3465,11 @@ let mainWindow;
 let proyectorWindow;
 const setProyectorWindow = (win) => { proyectorWindow = win; };
 
+// Diapositiva actualmente en pantalla (para que la app móvil sepa qué
+// presentación/índice está en vivo al abrir el módulo) — se actualiza desde
+// Diapositivas.jsx (IPC) y desde el propio control remoto móvil (REST).
+let diapositivaActiva = null; // { presentacionId, indice, totalSlides } | null
+
 // ── Temporizador servidor ──────────────────────────────────────────────────
 const timerEstadoServidor = {
   corriendo: false,
@@ -3508,17 +3620,16 @@ const timerRestaurarEnProyector = () => {
 };
 
 // ── Plantillas GSAP metadata ───────────────────────────────────────────────
+// Debe reflejar exactamente src/components/PlantillasConfig.js (META_PLANTILLAS)
+// — son las 4 plantillas GSAP curadas vigentes (reemplazaron a las 10 genéricas
+// de antes). Si se agregan/renombran plantillas ahí, actualizar acá también.
 const PLANTILLAS_GSAP_META = {
-  revelar: { nombre: 'Revelar', icono: '◈', desc: 'Marco que se dibuja desde las esquinas' },
-  neon: { nombre: 'Neón', icono: '⬡', desc: 'Borde luminoso con efecto flicker' },
-  iglesia: { nombre: 'Iglesia', icono: '✝', desc: 'Clásico con ornamentos y cruz' },
-  cinematica: { nombre: 'Cinemática', icono: '▶', desc: 'Barras de cine + texto con barrido' },
-  particulas: { nombre: 'Partículas', icono: '✦', desc: 'Partículas flotantes con halo' },
-  gloria: { nombre: 'Gloria', icono: '☀', desc: 'Rayos de luz desde el centro con halos' },
-  aurora: { nombre: 'Aurora', icono: '◉', desc: 'Bandas de aurora boreal flotando' },
-  minimal: { nombre: 'Minimal', icono: '—', desc: 'Ultra limpio con barrido de línea' },
-  majestad: { nombre: 'Majestad', icono: '◆', desc: 'Ornamentos reales púrpura y dorado' },
-  olas: { nombre: 'Olas', icono: '〜', desc: 'Líneas de onda en los bordes' },
+  alabanza: { nombre: 'Alabanza', icono: '🔥', desc: 'Audaz y enérgico — cantos, celebración' },
+  reflexion: { nombre: 'Reflexión', icono: '🕊', desc: 'Serif cálido y quieto — comunión, oración' },
+  ensenanza: { nombre: 'Enseñanza', icono: '📖', desc: 'Limpio y directo — máxima legibilidad para la prédica' },
+  especial: { nombre: 'Especial', icono: '✨', desc: 'Marco dorado — Navidad, Semana Santa, eventos' },
+  vibra: { nombre: 'Vibra', icono: '⚡', desc: 'Neón de escenario — cultos de jóvenes, energía' },
+  gozo: { nombre: 'Gozo', icono: '🎉', desc: 'Fiesta y celebración — rayos de luz, jóvenes' },
 };
 
 // ✨ CREAR VENTANA PRINCIPAL CON CSP CONFIGURADA
@@ -4454,6 +4565,37 @@ app.whenReady().then(async () => {
     safeHandle("actualizar-anuncio", (_, data) => { try { return actualizarAnuncio(data); } catch (e) { return { success: false, error: e.message }; } });
     safeHandle("eliminar-anuncio", (_, id) => { try { return eliminarAnuncio(id); } catch (e) { return { success: false, error: e.message }; } });
     safeHandle("reordenar-anuncios", (_, ids) => { try { return reordenarAnuncios(ids); } catch (e) { return { success: false, error: e.message }; } });
+    // ====================================
+    // HANDLERS: PRESENTACIONES (secuencias de imágenes navegables)
+    // ====================================
+    safeHandle("seleccionar-imagenes", async () => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: "Seleccionar imágenes",
+          properties: ["openFile", "multiSelections"],
+          filters: [
+            { name: "Imágenes", extensions: ["jpg", "jpeg", "png", "gif", "bmp", "webp"] },
+          ],
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, canceled: true };
+        }
+        return { success: true, filePaths: result.filePaths };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    });
+    safeHandle("obtener-presentaciones", () => { try { return obtenerPresentaciones(); } catch (e) { return []; } });
+    safeHandle("agregar-presentacion", (_, data) => { try { return agregarPresentacion(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("actualizar-presentacion", (_, data) => { try { return actualizarPresentacion(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("eliminar-presentacion", (_, id) => { try { return eliminarPresentacion(id); } catch (e) { return { success: false, error: e.message }; } });
+    // El control de Diapositivas.jsx (clics/teclado en la compu) avisa acá
+    // cuál diapositiva quedó en pantalla, para que la app móvil sepa el
+    // estado real al abrir el módulo o al usar sus propios botones ◀▶.
+    safeHandle("actualizar-diapositiva-activa", (_, data) => {
+      diapositivaActiva = data && data.presentacionId != null ? data : null;
+      return true;
+    });
     console.log("✅ [Main] Handlers de órdenes y anuncios registrados");
 
     // ✨ INICIAR SERVIDOR DE MULTIMEDIA PRIMERO (ANTES DE CREAR VENTANAS EN PRODUCCIÓN)

@@ -92,6 +92,9 @@ contextBridge.exposeInMainWorld("electron", {
   obtenerFondos: () => ipcRenderer.invoke("obtener-fondos"),
   obtenerFondoActivo: () => ipcRenderer.invoke("obtener-fondo-activo"),
   establecerFondoActivo: (id) => ipcRenderer.invoke("establecer-fondo-activo", id),
+  obtenerFondoEspera: () => ipcRenderer.invoke("obtener-fondo-espera"),
+  establecerFondoEspera: (id) => ipcRenderer.invoke("establecer-fondo-espera", id),
+  quitarFondoEspera: () => ipcRenderer.invoke("quitar-fondo-espera"),
   actualizarFondo: (fondo) => ipcRenderer.invoke("actualizar-fondo", fondo),
   eliminarFondo: (id) => ipcRenderer.invoke("eliminar-fondo", id),
   notificarFondoActivo: (fondo) => ipcRenderer.send("fondo-activo-cambiado", fondo),
@@ -172,6 +175,7 @@ contextBridge.exposeInMainWorld("electron", {
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
+      "actualizar-fondo-espera",
       "limpiar-proyector",
       "configuracion-actualizada", // ✨ NUEVO CANAL
       "proyectar-slide-data", // ✨ Canal para slides individuales
@@ -219,6 +223,7 @@ contextBridge.exposeInMainWorld("electron", {
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
+      "actualizar-fondo-espera",
       "limpiar-proyector",
       "configuracion-actualizada",
       "proyectar-slide-data",
@@ -258,6 +263,7 @@ contextBridge.exposeInMainWorld("electron", {
       "mostrar-multimedia",
       "fondo-seleccionado",
       "actualizar-fondo-activo",
+      "actualizar-fondo-espera",
       "limpiar-proyector",
       "configuracion-actualizada", // ✨ NUEVO CANAL
       "proyectar-slide-data", // ✨ Canal para slides individuales
@@ -384,6 +390,16 @@ contextBridge.exposeInMainWorld("electron", {
   actualizarAnuncio: (data) => ipcRenderer.invoke("actualizar-anuncio", data),
   eliminarAnuncio: (id) => ipcRenderer.invoke("eliminar-anuncio", id),
   reordenarAnuncios: (ids) => ipcRenderer.invoke("reordenar-anuncios", ids),
+
+  // ====================================
+  // PRESENTACIONES (secuencias de imágenes navegables)
+  // ====================================
+  seleccionarImagenes: () => ipcRenderer.invoke("seleccionar-imagenes"),
+  obtenerPresentaciones: () => ipcRenderer.invoke("obtener-presentaciones"),
+  agregarPresentacion: (data) => ipcRenderer.invoke("agregar-presentacion", data),
+  actualizarPresentacion: (data) => ipcRenderer.invoke("actualizar-presentacion", data),
+  eliminarPresentacion: (id) => ipcRenderer.invoke("eliminar-presentacion", id),
+  actualizarDiapositivaActiva: (data) => ipcRenderer.invoke("actualizar-diapositiva-activa", data),
 });
 
 // ✨ AGREGAR ALIAS PARA COMPATIBILIDAD CON electronAPI

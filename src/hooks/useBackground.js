@@ -23,6 +23,10 @@ export function useBackground({modo, configuracion}) {
   const [fondoActual,        setFondoActual]         = useState("/videos/video1.mp4");
   const [fondoPrevio,        setFondoPrevio]         = useState(null);
   const [usandoFondoDefecto, setUsandoFondoDefecto]  = useState(true);
+  // Fondo de espera: se muestra SOLO en la pantalla de bienvenida (nada
+  // proyectándose), en vez del fondo activo normal — independiente del
+  // crossfade de arriba, no participa en la rotación ni en actualizarFondo.
+  const [fondoEspera, setFondoEspera] = useState(null);
 
   const fondoPrevioTimerRef = useRef(null);
   // Refs para que actualizarFondo no se recree en cada cambio de fondo
@@ -96,10 +100,28 @@ export function useBackground({modo, configuracion}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, []); // Solo en mount
 
+  // Carga inicial del fondo de espera (independiente del fondo activo)
+  const reloadFondoEspera = useCallback(async () => {
+    try {
+      const fondo = await window.electron?.obtenerFondoEspera?.();
+      setFondoEspera(fondo?.url?.trim() ? {...fondo, url: toAbsoluteUrl(fondo.url, fondo.tipo)} : null);
+    } catch {
+      setFondoEspera(null);
+    }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { reloadFondoEspera(); }, []); // Solo en mount
+
   // IPC — actualizarFondo es estable, no causa re-registros innecesarios
   const handleActualizar = useCallback((_, fondo) => actualizarFondo(fondo), [actualizarFondo]);
   useIpcListener("actualizar-fondo-activo", handleActualizar);
   useIpcListener("fondo-seleccionado",      handleActualizar);
+
+  const handleActualizarEspera = useCallback((_, fondo) => {
+    setFondoEspera(fondo?.url?.trim() ? {...fondo, url: toAbsoluteUrl(fondo.url, fondo.tipo)} : null);
+  }, []);
+  useIpcListener("actualizar-fondo-espera", handleActualizarEspera);
 
   // Rotación de video por defecto
   const intervaloCambioRef = useRef(configuracion?.intervaloCambioVideo);
@@ -112,5 +134,5 @@ export function useBackground({modo, configuracion}) {
     return () => clearInterval(id);
   }, [usandoFondoDefecto, modo, seleccionarVideoDefecto]);
 
-  return {fondoActivo, fondoActual, fondoPrevio, usandoFondoDefecto, seleccionarVideoDefecto, reload};
+  return {fondoActivo, fondoActual, fondoPrevio, usandoFondoDefecto, seleccionarVideoDefecto, reload, fondoEspera};
 }

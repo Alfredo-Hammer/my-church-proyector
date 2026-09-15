@@ -16,6 +16,7 @@ import {
   IoWifi,
   IoAlertCircle,
   IoSparkles,
+  IoTime,
 } from "react-icons/io5";
 
 const GestionFondos = () => {
@@ -35,6 +36,7 @@ const GestionFondos = () => {
   const [pixabayImages, setPixabayImages] = useState([]);
   const [pixabayVideos, setPixabayVideos] = useState([]);
   const [fondoActivo, setFondoActivo] = useState(null);
+  const [fondoEspera, setFondoEspera] = useState(null);
   const [tabActivo, setTabActivo] = useState("mis-imagenes"); // ✨ Cambiar default a "mis-imagenes"
   const [modalOpen, setModalOpen] = useState(false);
   const [fondoAEliminar, setFondoAEliminar] = useState(null);
@@ -56,6 +58,7 @@ const GestionFondos = () => {
 
     // Siempre cargar fondo activo
     cargarFondoActivo();
+    cargarFondoEspera();
 
     // Cargar datos según el tab
     if (tabActivo === "mis-imagenes") {
@@ -146,6 +149,17 @@ const GestionFondos = () => {
       }
     } catch (error) {
       console.error("❌ [GestionFondos] Error cargando fondo activo:", error);
+    }
+  };
+
+  // ✨ CARGAR FONDO DE ESPERA DESDE LA BD (pantalla de bienvenida)
+  const cargarFondoEspera = async () => {
+    try {
+      if (!window.electron?.obtenerFondoEspera) return;
+      const espera = await window.electron.obtenerFondoEspera();
+      setFondoEspera(espera || null);
+    } catch (error) {
+      console.error("❌ [GestionFondos] Error cargando fondo de espera:", error);
     }
   };
 
@@ -742,6 +756,13 @@ const GestionFondos = () => {
       );
       return;
     }
+    if (esFondoEspera(fondo)) {
+      mostrarMensaje(
+        "Este fondo es el fondo de espera. Quítalo antes de poder eliminarlo.",
+        "error"
+      );
+      return;
+    }
     setFondoAEliminar(fondo);
     setModalOpen(true);
   };
@@ -757,9 +778,12 @@ const GestionFondos = () => {
       const resultado = await window.electron.eliminarFondo(fondoAEliminar.id);
 
       if (resultado) {
-        // Si era el fondo activo, limpiar
+        // Si era el fondo activo o el de espera, limpiar
         if (fondoActivo && fondoActivo.id === fondoAEliminar.id) {
           setFondoActivo(null);
+        }
+        if (fondoEspera && fondoEspera.id === fondoAEliminar.id) {
+          setFondoEspera(null);
         }
 
         mostrarMensaje("Fondo eliminado correctamente", "success");
@@ -787,6 +811,37 @@ const GestionFondos = () => {
   const esFondoActivo = (fondo) => {
     if (!fondoActivo || !fondo) return false;
     return fondoActivo.id === fondo.id;
+  };
+
+  // ✨ VERIFICAR SI UN FONDO ES EL FONDO DE ESPERA
+  const esFondoEspera = (fondo) => {
+    if (!fondoEspera || !fondo) return false;
+    return fondoEspera.id === fondo.id;
+  };
+
+  // ✨ USAR/QUITAR FONDO COMO FONDO DE ESPERA (pantalla de bienvenida)
+  const alternarFondoEspera = async (fondo) => {
+    try {
+      setCargando(true);
+      if (esFondoEspera(fondo)) {
+        const ok = await window.electron.quitarFondoEspera();
+        if (ok) {
+          setFondoEspera(null);
+          mostrarMensaje("Fondo de espera quitado", "success");
+        }
+      } else {
+        const ok = await window.electron.establecerFondoEspera(fondo.id);
+        if (ok) {
+          setFondoEspera(fondo);
+          mostrarMensaje("Fondo de espera actualizado", "success");
+        }
+      }
+    } catch (error) {
+      console.error("❌ [GestionFondos] Error actualizando fondo de espera:", error);
+      mostrarMensaje(`Error: ${error.message}`, "error");
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -830,6 +885,14 @@ const GestionFondos = () => {
               <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs text-emerald-300 font-medium max-w-[150px] truncate">
                 {fondoActivo.nombre || "Fondo activo"}
+              </span>
+            </div>
+          )}
+          {fondoEspera && (
+            <div className="hidden sm:flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-xl">
+              <span className="size-2 rounded-full bg-violet-400" />
+              <span className="text-xs text-violet-300 font-medium max-w-[150px] truncate">
+                Espera: {fondoEspera.nombre || `Fondo ${fondoEspera.id}`}
               </span>
             </div>
           )}
@@ -1099,10 +1162,20 @@ const GestionFondos = () => {
                 <p className="text-xs">No se pudo cargar</p>
               </div>
 
-              {!modoSeleccion && esFondoActivo(fondo) && (
-                <div className="absolute top-2.5 left-2.5 bg-emerald-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
-                  <span className="size-1.5 rounded-full bg-white animate-pulse" />
-                  Activo
+              {!modoSeleccion && (esFondoActivo(fondo) || esFondoEspera(fondo)) && (
+                <div className="absolute top-2.5 left-2.5 flex flex-col items-start gap-1">
+                  {esFondoActivo(fondo) && (
+                    <div className="bg-emerald-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
+                      <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                      Activo
+                    </div>
+                  )}
+                  {esFondoEspera(fondo) && (
+                    <div className="bg-violet-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
+                      <IoTime className="text-xs" />
+                      Espera
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1142,6 +1215,19 @@ const GestionFondos = () => {
                             <IoCheckmark /> Activar
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => alternarFondoEspera(fondo)}
+                          disabled={cargando}
+                          title={esFondoEspera(fondo) ? "Quitar como fondo de espera" : "Usar como fondo de espera (pantalla de bienvenida)"}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-center transition-colors ${
+                            esFondoEspera(fondo)
+                              ? "bg-violet-500 hover:bg-violet-400 text-white"
+                              : "bg-white/10 hover:bg-white/20 text-white/70"
+                          }`}
+                        >
+                          <IoTime />
+                        </button>
                         {!fondo.es_defecto && (
                           <button
                             type="button"

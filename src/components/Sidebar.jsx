@@ -19,6 +19,7 @@ import {
   FaPlus,
   FaMobileAlt,
   FaServer,
+  FaImages,
 } from "react-icons/fa";
 
 const COLLAPSED_W = 56;
@@ -71,6 +72,11 @@ const MENU = [
     id: "anuncios", path: "/anuncios", icon: <FaBullhorn />, label: "Anuncios",
     iconCls: "text-rose-400/70",
     iconActiveCls: "bg-rose-500/15 text-rose-300",
+  },
+  {
+    id: "diapositivas", path: "/diapositivas", icon: <FaImages />, label: "Diapositivas",
+    iconCls: "text-violet-400/70",
+    iconActiveCls: "bg-violet-500/15 text-violet-300",
   },
   {
     id: "temporizador", path: "/temporizador", icon: <FaClock />, label: "Temporizador",

@@ -18,6 +18,7 @@ import Configuracion from "./pages/Configuracion";
 import AppMovil from "./pages/AppMovil";
 import Presentaciones from "./pages/Presentaciones";
 import Anuncios from "./pages/Anuncios";
+import Diapositivas from "./pages/Diapositivas";
 import Temporizador from "./pages/Temporizador";
 import Plantillas from "./pages/Plantillas";
 import Servidor from "./pages/Servidor";
@@ -313,6 +314,7 @@ function MainLayout() {
             <Route path="/gestion-fondos" element={<GestionFondos />} />
             <Route path="/presentaciones" element={<Presentaciones />} />
             <Route path="/anuncios" element={<Anuncios />} />
+            <Route path="/diapositivas" element={<Diapositivas />} />
             <Route path="/temporizador" element={<Temporizador />} />
             <Route path="/plantillas" element={<Plantillas />} />
             <Route path="/servidor" element={<Servidor />} />

@@ -490,8 +490,23 @@ const Proyector = () => {
   // ── Teclado ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
+      // Navegación de diapositivas (Diapositivas.jsx): esta ventana no tiene
+      // el estado de la presentación (solo la imagen actual), así que en vez
+      // de avanzar acá, avisamos a la ventana de control vía localStorage
+      // (mismo mecanismo de "proyector-slide-data:v1" — ipcRenderer.send no
+      // está expuesto en preload.js, así que ese "IPC" real es código muerto
+      // y el fallback de localStorage es, en la práctica, el único camino).
+      const avisarNavegacionSlide = (action) => {
+        localStorage.setItem(
+          "proyector-slide-nav:v1",
+          JSON.stringify({action, ts: Date.now()}),
+        );
+      };
+      const enPresentacion = modo === "slide" && slideData?.presentation;
+
       switch (e.key) {
         case "Escape":
+          if (enPresentacion) avisarNavegacionSlide("stop");
           limpiarProyector();
           break;
         case "F5":
@@ -508,6 +523,18 @@ const Proyector = () => {
         case "F8":
           setTransicionSuave((p) => !p);
           break;
+        case "ArrowRight":
+          if (enPresentacion) {
+            e.preventDefault();
+            avisarNavegacionSlide("next");
+          }
+          break;
+        case "ArrowLeft":
+          if (enPresentacion) {
+            e.preventDefault();
+            avisarNavegacionSlide("prev");
+          }
+          break;
         case " ":
           if (modo === "multimedia" && multimediaActiva?.tipo === "video") {
             const v = document.querySelector(".multimedia-video");
@@ -515,6 +542,9 @@ const Proyector = () => {
               v.paused ? v.play() : v.pause();
             }
             e.preventDefault();
+          } else if (enPresentacion) {
+            e.preventDefault();
+            avisarNavegacionSlide("next");
           }
           break;
         default:
@@ -523,12 +553,23 @@ const Proyector = () => {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [limpiarProyector, reloadConfig, background, modo, multimediaActiva]);
+  }, [
+    limpiarProyector,
+    reloadConfig,
+    background,
+    modo,
+    multimediaActiva,
+    slideData,
+  ]);
 
   // ── Condiciones de render ──────────────────────────────────────────────────
   const isVideoBackground =
     modo === "multimedia" && multimediaActiva?.tipo === "video";
   const hideBg = isVideoBackground || modo === "slide";
+  // Fondo de espera: solo se usa en la pantalla de bienvenida (nada
+  // proyectándose) — el resto de los modos siguen usando el fondo activo
+  // normal (background.fondoActivo/fondoActual), sin cambios.
+  const fondoEsperaActivo = modo === "bienvenida" ? background.fondoEspera : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -553,6 +594,49 @@ const Proyector = () => {
           {/* ── Fondos dinámicos con crossfade ── */}
           {!hideBg && (
             <>
+              {fondoEsperaActivo ? (
+                <AnimatePresence>
+                  <m.div
+                    key={`espera-${fondoEsperaActivo.url}`}
+                    className="absolute top-0 left-0 size-full -z-10"
+                    initial={{opacity: 0}}
+                    animate={{opacity: 1}}
+                    exit={{opacity: 0}}
+                    transition={{duration: 1.0, ease: "easeInOut"}}
+                  >
+                    {fondoEsperaActivo.tipo === "animado" ? (
+                      (() => {
+                        const FondoAnimado = componenteFondoAnimado(fondoEsperaActivo.url);
+                        return FondoAnimado ? <FondoAnimado /> : null;
+                      })()
+                    ) : fondoEsperaActivo.tipo === "imagen" ? (
+                      <div
+                        className="w-full h-full bg-cover bg-center bg-no-repeat"
+                        style={{
+                          backgroundImage: `url(${fondoEsperaActivo.url})`,
+                          filter: "contrast(1.1) brightness(1.05)",
+                          backfaceVisibility: "hidden",
+                        }}
+                      />
+                    ) : (
+                      <video
+                        className="w-full h-full object-cover bg-gray-950"
+                        src={fondoEsperaActivo.url}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        preload="auto"
+                        style={{
+                          filter: "contrast(1.05) brightness(1.02)",
+                          backfaceVisibility: "hidden",
+                        }}
+                      />
+                    )}
+                  </m.div>
+                </AnimatePresence>
+              ) : (
+              <>
               <AnimatePresence>
                 {background.fondoPrevio && (
                   <m.div
@@ -639,6 +723,8 @@ const Proyector = () => {
                   )}
                 </m.div>
               </AnimatePresence>
+              </>
+              )}
 
               <m.div
                 className="absolute inset-0 bg-gradient-to-br from-black/20 via-transparent to-black/30 -z-5"
@@ -665,8 +751,9 @@ const Proyector = () => {
           </AnimatePresence>
 
           {/* ── Pantalla de bienvenida ── */}
+          {/* Si hay fondo de espera configurado, se muestra solo — sin logo/eslogan encima */}
           <AnimatePresence>
-            {modo === "bienvenida" && !parrafo && showContent && (
+            {modo === "bienvenida" && !parrafo && showContent && !fondoEsperaActivo && (
               <ModernWelcomeScreen configuracion={configuracion} />
             )}
           </AnimatePresence>

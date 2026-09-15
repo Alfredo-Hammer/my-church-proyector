@@ -160,15 +160,24 @@ jobs:
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Firma y notarización: electron-builder las hace automáticamente
-      # al detectar CSC_LINK/CSC_KEY_PASSWORD (certificado) y
-      # APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID (notarización).
+      # El manejo interno de electron-builder para crear el keychain temporal
+      # falla en runners de macOS nuevos ("SecKeychainUnlock: user name or
+      # passphrase not correct" en set-key-partition-list). Por eso importamos
+      # el certificado al keychain nosotros mismos con esta action, y dejamos
+      # que electron-builder solo lo autodescubra (sin pasarle CSC_LINK).
+      - name: Importar certificado de Apple al Keychain
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.CSC_LINK }}
+          p12-password: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      # Notarización: electron-builder la hace automáticamente al detectar
+      # APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID. La firma usa el
+      # certificado ya importado arriba (autodescubierto en el keychain).
       # Ver comentarios en electron-builder.yml para el detalle de cada variable.
       - name: Compilar .dmg de macOS (firmado y notarizado)
         run: npx electron-builder --mac --x64 --arm64 --publish never
         env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

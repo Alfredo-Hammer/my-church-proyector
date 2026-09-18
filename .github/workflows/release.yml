@@ -176,7 +176,10 @@ jobs:
       # certificado ya importado arriba (autodescubierto en el keychain).
       # Ver comentarios en electron-builder.yml para el detalle de cada variable.
       - name: Compilar .dmg de macOS (firmado y notarizado)
-        run: npx electron-builder --mac --x64 --arm64 --publish never
+        run: |
+          NOTES=$(cat NOVEDADES.txt)
+          npx electron-builder --mac --x64 --arm64 --publish never \
+            --config.releaseInfo.releaseNotes="$NOTES"
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}

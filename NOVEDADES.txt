@@ -1,3 +1,15 @@
+Version 0.4.4
+
+Correcciones
+- Corregido: las imagenes que subias en Diapositivas tambien
+  aparecian en la seccion de Multimedia. Ahora quedan separadas
+
+Mejoras en la app movil
+- Pantalla de Inicio rediseñada: colores unificados con la marca,
+  tarjetas con efecto vidrio y fondo animado
+- Corregido: en pantallas de celular chicas, el encabezado se
+  desbordaba y desordenaba la vista
+
 Version 0.4.3
 
 Nuevas funciones

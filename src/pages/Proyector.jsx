@@ -613,7 +613,7 @@ const Proyector = () => {
                       <div
                         className="w-full h-full bg-cover bg-center bg-no-repeat"
                         style={{
-                          backgroundImage: `url(${fondoEsperaActivo.url})`,
+                          backgroundImage: `url("${encodeURI(fondoEsperaActivo.url)}")`,
                           filter: "contrast(1.1) brightness(1.05)",
                           backfaceVisibility: "hidden",
                         }}
@@ -656,7 +656,7 @@ const Proyector = () => {
                       <div
                         className="w-full h-full bg-cover bg-center bg-no-repeat"
                         style={{
-                          backgroundImage: `url(${background.fondoPrevio.url})`,
+                          backgroundImage: `url("${encodeURI(background.fondoPrevio.url)}")`,
                           filter: "contrast(1.1) brightness(1.05)",
                           backfaceVisibility: "hidden",
                         }}
@@ -697,7 +697,7 @@ const Proyector = () => {
                     <div
                       className="w-full h-full bg-cover bg-center bg-no-repeat"
                       style={{
-                        backgroundImage: `url(${background.fondoActual})`,
+                        backgroundImage: `url("${encodeURI(background.fondoActual)}")`,
                         filter: "contrast(1.1) brightness(1.05)",
                         backfaceVisibility: "hidden",
                       }}

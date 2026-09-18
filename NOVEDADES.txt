@@ -1,3 +1,10 @@
+Version 0.4.5
+
+Correcciones
+- Corregido: un fondo de espera (imagen fija) con espacios o
+  parentesis en el nombre del archivo no se cargaba en el proyector
+  y se veia el fondo de estrellas por defecto en su lugar
+
 Version 0.4.4
 
 Correcciones

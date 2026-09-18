@@ -15,29 +15,32 @@ const {
 // tal cual (dependen de __dirname del proceso principal, de la ventana
 // activa, o mutan estado compartido con el overlay OBS).
 function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondosPublicDir, sincronizarFondoObs }) {
+  // Verifica si un archivo local existe en disco. Compartida por todos los
+  // handlers de este módulo (antes vivía solo dentro de "obtener-fondos",
+  // así que "obtener-fondo-espera" no la aplicaba y podía devolver un fondo
+  // cuyo archivo ya no existe).
+  const archivoExisteEnDisco = (rawUrl) => {
+    if (!rawUrl || rawUrl.startsWith('http')) return true;
+    const relativePath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+    const publicPath = path.join(obtenerRutaBase(), 'public', relativePath);
+    const buildPath = path.join(obtenerRutaRecursos(), 'build', relativePath);
+    // Las imágenes/videos de Pixabay descargados se guardan en
+    // userData/build/images/pixabay (ver 'download-pixabay-image' en
+    // main.js) — no en el build empaquetado de solo lectura
+    // (obtenerRutaRecursos()) ni en public/. Sin este tercer candidato,
+    // cualquier fondo bajado de Pixabay se consideraba "no existe" y
+    // desaparecía de Gestión de Fondos aunque el archivo sí estuviera
+    // en disco y el servidor lo sirviera bien (por eso la app móvil,
+    // que no aplica este filtro, sí los mostraba).
+    const userDataBuildPath = path.join(obtenerRutaBase(), 'build', relativePath);
+    return fs.existsSync(publicPath) || fs.existsSync(buildPath) || fs.existsSync(userDataBuildPath);
+  };
+
   // Handler para obtener todos los fondos
   ipcMain.handle("obtener-fondos", async () => {
     try {
       console.log("📋 [Main] Obteniendo fondos...");
       const fondos = await obtenerFondos();
-
-      // Verificar si un archivo local existe en disco
-      const archivoExiste = (rawUrl) => {
-        if (!rawUrl || rawUrl.startsWith('http')) return true;
-        const relativePath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
-        const publicPath = path.join(obtenerRutaBase(), 'public', relativePath);
-        const buildPath = path.join(obtenerRutaRecursos(), 'build', relativePath);
-        // Las imágenes/videos de Pixabay descargados se guardan en
-        // userData/build/images/pixabay (ver 'download-pixabay-image' en
-        // main.js) — no en el build empaquetado de solo lectura
-        // (obtenerRutaRecursos()) ni en public/. Sin este tercer candidato,
-        // cualquier fondo bajado de Pixabay se consideraba "no existe" y
-        // desaparecía de Gestión de Fondos aunque el archivo sí estuviera
-        // en disco y el servidor lo sirviera bien (por eso la app móvil,
-        // que no aplica este filtro, sí los mostraba).
-        const userDataBuildPath = path.join(obtenerRutaBase(), 'build', relativePath);
-        return fs.existsSync(publicPath) || fs.existsSync(buildPath) || fs.existsSync(userDataBuildPath);
-      };
 
       const fondosTransformados = fondos.flatMap(fondo => {
         // Los fondos animados (CSS/JS) no tienen archivo real — su url es un
@@ -55,7 +58,7 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
           }];
         }
 
-        const existe = archivoExiste(fondo.url);
+        const existe = archivoExisteEnDisco(fondo.url);
         if (!existe) {
           return [];
         }
@@ -234,6 +237,10 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
       const fondo = fondos.find(f => f.es_espera);
       if (!fondo) return null;
       if (fondo.tipo === 'animado') return fondo;
+      if (!archivoExisteEnDisco(fondo.url)) {
+        console.warn("⚠️ [Main] Fondo de espera configurado pero el archivo no existe en disco:", fondo.url);
+        return null;
+      }
       const url = fondo.url && !fondo.url.startsWith('http')
         ? `http://localhost:3001${fondo.url}`
         : fondo.url;
@@ -377,8 +384,9 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
     try {
       console.log("📁 [Main] Copiando archivo a fondos:", sourcePath);
 
-      const fileName = path.basename(sourcePath);
-      const uniqueName = `${Date.now()}-${fileName}`;
+      const extension = path.extname(sourcePath);
+      const nombreSinExtension = path.basename(sourcePath, extension).replace(/[^a-zA-Z0-9.-]/g, "_");
+      const uniqueName = `${Date.now()}-${nombreSinExtension}${extension}`;
       const destPath = path.join(fondosPublicDir, uniqueName);
 
       // Copiar archivo
@@ -432,8 +440,9 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
         }
       }
 
-      const fileName = path.basename(sourcePath);
-      const uniqueName = `${Date.now()}-${fileName}`;
+      const extension = path.extname(sourcePath);
+      const nombreSinExtension = path.basename(sourcePath, extension).replace(/[^a-zA-Z0-9.-]/g, "_");
+      const uniqueName = `${Date.now()}-${nombreSinExtension}${extension}`;
       const destPath = path.join(fondosPublicDir, uniqueName);
 
       // Copiar archivo
@@ -500,8 +509,10 @@ function registrar({ getMainWindow, obtenerRutaBase, obtenerRutaRecursos, fondos
           // Determinar tipo
           const tipo = extensionesImagen.has(extension) ? 'imagen' : 'video';
 
-          // Generar nombre único para el archivo
-          const nombreUnico = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${archivo}`;
+          // Generar nombre único para el archivo (sanitizado — un nombre con
+          // espacios o paréntesis rompe el `url()` de CSS al proyectarlo)
+          const nombreSinExtensionSano = path.basename(archivo, extension).replace(/[^a-zA-Z0-9.-]/g, "_");
+          const nombreUnico = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${nombreSinExtensionSano}${extension}`;
           const rutaDestino = path.join(fondosPublicDir, nombreUnico);
 
           // Copiar archivo a la carpeta de fondos

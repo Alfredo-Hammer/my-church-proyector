@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -418,6 +419,52 @@ const FondoThumb = ({ item, resolverUrl }) => {
 };
 
 
+const INICIO_BRAND = '#34ffa0';
+
+const InicioAmbientGlow = () => {
+  const t = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 6000, useNativeDriver: true }),
+        Animated.timing(t, { toValue: 0, duration: 6000, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t]);
+
+  const translateY1 = t.interpolate({ inputRange: [0, 1], outputRange: [0, 26] });
+  const translateY2 = t.interpolate({ inputRange: [0, 1], outputRange: [18, -10] });
+  const opacity1 = t.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.3] });
+  const opacity2 = t.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.16] });
+
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
+      <Animated.View
+        style={{
+          position: 'absolute', top: -80, left: -60,
+          width: 220, height: 220, borderRadius: 110,
+          backgroundColor: INICIO_BRAND,
+          opacity: opacity1,
+          transform: [{ translateY: translateY1 }],
+        }}
+      />
+      <Animated.View
+        style={{
+          position: 'absolute', bottom: -80, right: -70,
+          width: 220, height: 220, borderRadius: 110,
+          backgroundColor: '#19e6ff',
+          opacity: opacity2,
+          transform: [{ translateY: translateY2 }],
+        }}
+      />
+      <BlurView intensity={65} tint="dark" style={{ flex: 1 }} />
+    </View>
+  );
+};
+
 const InicioFooter = () => (
   <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
     <Text style={{ color: '#475569', fontSize: 12, fontWeight: '600', letterSpacing: 0.4 }}>
@@ -434,31 +481,48 @@ const InicioCard = ({ item, isLast, fixedH, gap, iconBoxSz, iconSz, iconRadius, 
       ...(fixedH ? { height: fixedH } : {}),
       marginRight: isLast ? 0 : gap,
       borderRadius: 16,
-      backgroundColor: 'rgba(15,23,42,0.55)',
-      borderWidth: 1,
-      borderColor: item.color + '40',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 10,
+      shadowColor: INICIO_BRAND,
+      shadowOpacity: 0.14,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 3,
     },
-    pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+    pressed && { opacity: 0.75, transform: [{ scale: 0.96 }] },
     ]}
   >
-    <View style={{
-      width: iconBoxSz, height: iconBoxSz,
-      borderRadius: iconRadius,
-      backgroundColor: item.color + '22',
-      alignItems: 'center', justifyContent: 'center',
-      marginBottom: 8,
-    }}>
-      <Ionicons name={item.icon} size={iconSz} color={item.color} />
-    </View>
-    <Text style={{
-      color: '#cbd5e1', fontSize: lblSz, fontWeight: '600',
-      textAlign: 'center', letterSpacing: 0.1,
-    }} numberOfLines={2}>
-      {item.label}
-    </Text>
+    <BlurView
+      intensity={45}
+      tint="dark"
+      style={{
+        flex: 1,
+        borderRadius: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(52,255,160,0.22)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        backgroundColor: 'rgba(12,17,28,0.35)',
+      }}
+    >
+      <View style={{
+        width: iconBoxSz, height: iconBoxSz,
+        borderRadius: iconRadius,
+        backgroundColor: 'rgba(52,255,160,0.16)',
+        borderWidth: 1,
+        borderColor: 'rgba(52,255,160,0.32)',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 8,
+      }}>
+        <Ionicons name={item.icon} size={iconSz} color={INICIO_BRAND} />
+      </View>
+      <Text style={{
+        color: '#e2e8f0', fontSize: lblSz, fontWeight: '600',
+        textAlign: 'center', letterSpacing: 0.1,
+      }} numberOfLines={2}>
+        {item.label}
+      </Text>
+    </BlurView>
   </Pressable>
 );
 
@@ -492,15 +556,15 @@ const InicioStatusPill = ({ hayMedia, nombreMedia, proyectando, conectado, setSe
       style={({ pressed }) => [{
         borderRadius: 14, marginBottom: 14,
         borderWidth: 1,
-        borderColor: conectado ? 'rgba(16,185,129,0.20)' : 'rgba(96,165,250,0.18)',
-        backgroundColor: conectado ? 'rgba(16,185,129,0.07)' : 'rgba(59,130,246,0.07)',
+        borderColor: conectado ? 'rgba(52,255,160,0.25)' : 'rgba(96,165,250,0.18)',
+        backgroundColor: conectado ? 'rgba(52,255,160,0.08)' : 'rgba(59,130,246,0.07)',
       }, pressed && { opacity: 0.75 }]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 10 }}>
-        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? '#10b981' : '#60a5fa'} />
+        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(52,255,160,0.14)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? INICIO_BRAND : '#60a5fa'} />
         </View>
-        <Text style={{ flex: 1, color: conectado ? '#6ee7b7' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
+        <Text style={{ flex: 1, color: conectado ? '#8ffcc4' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
           {conectado ? '' : 'Sin conexión — toca para conectar'}
         </Text>
         <Ionicons name="chevron-forward" size={14} color="#334155" />
@@ -3215,6 +3279,10 @@ export default function App() {
     }
   }, [seccion, conectado]);
 
+  // Header compacto en pantallas angostas (celulares chicos): oculta
+  // etiquetas de texto secundarias para que no se desborde la fila.
+  const headerCompacto = screenWidth < 380;
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safe}>
@@ -3231,11 +3299,10 @@ export default function App() {
               <Text style={styles.menuButtonText}>≡</Text>
             </Pressable>
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>GloryView</Text>
-              <Text style={styles.subtitle}>
-                {conectado ? 'Conectado al PC' : 'Sin conexión'}
-              </Text>
+            <Image source={require('./assets/icon.png')} style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0 }} resizeMode="cover" />
+
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.title, { fontSize: 15 }]} numberOfLines={1}>GloryView</Text>
             </View>
 
             {/* Indicador de timer activo — visible en cualquier sección */}
@@ -3273,16 +3340,18 @@ export default function App() {
                 name={conectado ? 'wifi' : 'wifi-outline'}
                 size={14}
                 color={conectado ? '#10b981' : '#94a3b8'}
-                style={{ marginRight: 4 }}
+                style={headerCompacto ? undefined : { marginRight: 4 }}
               />
-              <Text
-                style={[
-                  styles.badgeText,
-                  conectado ? styles.badgeTextSuccess : styles.badgeTextMuted,
-                ]}
-              >
-                {conectado ? 'ONLINE' : 'OFFLINE'}
-              </Text>
+              {!headerCompacto && (
+                <Text
+                  style={[
+                    styles.badgeText,
+                    conectado ? styles.badgeTextSuccess : styles.badgeTextMuted,
+                  ]}
+                >
+                  {conectado ? 'ONLINE' : 'OFFLINE'}
+                </Text>
+              )}
             </View>
 
             <Pressable
@@ -3299,9 +3368,11 @@ export default function App() {
                 name="trash-outline"
                 size={18}
                 color={conectado ? '#f43f5e' : '#94a3b8'}
-                style={{ marginRight: 6 }}
+                style={headerCompacto ? undefined : { marginRight: 6 }}
               />
-              <Text style={[styles.limpiarButtonText, conectado && { color: '#f43f5e' }]}>Limpiar</Text>
+              {!headerCompacto && (
+                <Text style={[styles.limpiarButtonText, conectado && { color: '#f43f5e' }]}>Limpiar</Text>
+              )}
             </Pressable>
 
             {seccion !== 'inicio' && (
@@ -3590,16 +3661,16 @@ export default function App() {
               const lblSz      = isTablet ? 13 : 11;
 
               const ITEMS = [
-                { id: 'himnos',         label: 'Himnos',           icon: 'musical-notes',  color: '#10b981' },
-                { id: 'biblia',         label: 'Biblia',           icon: 'book',           color: '#818cf8' },
-                { id: 'presentaciones', label: 'Orden de Servicio',icon: 'list',           color: '#fb923c' },
-                { id: 'multimedia',     label: 'Multimedia',       icon: 'play-circle',    color: '#f59e0b' },
-                { id: 'fondos',         label: 'Fondos',           icon: 'image',          color: '#a855f7' },
-                { id: 'favoritos',      label: 'Favoritos',        icon: 'heart',          color: '#f43f5e' },
-                { id: 'anuncios',       label: 'Anuncios',         icon: 'megaphone',      color: '#ec4899' },
-                { id: 'diapositivas',   label: 'Diapositivas',     icon: 'images',         color: '#8b5cf6' },
-                { id: 'temporizador',   label: 'Temporizador',     icon: 'timer',          color: '#6366f1' },
-                { id: 'plantillas',     label: 'Plantillas',       icon: 'color-palette',  color: '#14b8a6' },
+                { id: 'himnos',         label: 'Himnos',           icon: 'musical-notes' },
+                { id: 'biblia',         label: 'Biblia',           icon: 'book' },
+                { id: 'presentaciones', label: 'Orden de Servicio',icon: 'list' },
+                { id: 'multimedia',     label: 'Multimedia',       icon: 'play-circle' },
+                { id: 'fondos',         label: 'Fondos',           icon: 'image' },
+                { id: 'favoritos',      label: 'Favoritos',        icon: 'heart' },
+                { id: 'anuncios',       label: 'Anuncios',         icon: 'megaphone' },
+                { id: 'diapositivas',   label: 'Diapositivas',     icon: 'images' },
+                { id: 'temporizador',   label: 'Temporizador',     icon: 'timer' },
+                { id: 'plantillas',     label: 'Plantillas',       icon: 'color-palette' },
               ];
 
               const toRows = (arr) => {
@@ -3622,6 +3693,7 @@ export default function App() {
               if (isTablet) {
                 return (
                   <View style={{ flex: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 14 }}>
+                    <InicioAmbientGlow />
                     <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
                     <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} tablet />
                     <InicioFooter />
@@ -3633,9 +3705,10 @@ export default function App() {
               return (
                 <ScrollView
                   style={{ flex: 1 }}
-                  contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 14, paddingBottom: 20 }}
+                  contentContainerStyle={{ flexGrow: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 20 }}
                   showsVerticalScrollIndicator={false}
                 >
+                  <InicioAmbientGlow />
                   <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
                   <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} />
                   <InicioFooter />
@@ -5097,7 +5170,7 @@ export default function App() {
                                   flex: 1, aspectRatio: 16 / 9, borderRadius: 10, overflow: 'hidden',
                                   marginBottom: 8, borderWidth: 2,
                                   borderColor: enVivo ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
-                                  backgroundColor: '#0f172a',
+                                  backgroundColor: '#0d1117',
                                 },
                                 pressed && conectado && { opacity: 0.7 },
                               ]}
@@ -5605,7 +5678,7 @@ export default function App() {
             animationType="slide"
             onRequestClose={() => setModalOrdenEditor(false)}
           >
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0d1117' }}>
               <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 {/* Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' }}>
@@ -5725,7 +5798,7 @@ export default function App() {
             animationType="slide"
             onRequestClose={() => setModalPickerHimno(false)}
           >
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0d1117' }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' }}>
                 <Pressable onPress={() => setModalPickerHimno(false)} style={{ padding: 4 }}>
@@ -5801,7 +5874,7 @@ export default function App() {
             animationType="slide"
             onRequestClose={() => { setModalPickerVersi(false); setPickerVersiLibro(null); setPickerVersiCap(null); setPickerVersiVersos([]); setPickerVersiCantidadCaps(0); setPickerVersiBusqueda(''); }}
           >
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0d1117' }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', gap: 10 }}>
                 <Pressable
@@ -6008,7 +6081,7 @@ export default function App() {
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <Pressable
                   onPress={() => {}}
-                  style={[styles.card, { backgroundColor: 'rgba(15,23,42,0.97)', borderColor: 'rgba(255,255,255,0.15)' }]}
+                  style={[styles.card, { backgroundColor: 'rgba(13,17,23,0.97)', borderColor: 'rgba(255,255,255,0.15)' }]}
                 >
                   <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Agregar Nota</Text>
                   <TextInput
@@ -6568,15 +6641,17 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0f172a' },
+  safe: { flex: 1, backgroundColor: '#0d1117' },
   container: { flex: 1 },
   header: {
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 10,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 10,
+    rowGap: 8,
+    columnGap: 10,
   },
   content: { flex: 1, paddingHorizontal: 18, paddingBottom: 12 },
   menuButton: {
@@ -6662,7 +6737,7 @@ const styles = StyleSheet.create({
   statusSuccess: { color: '#10b981' },
   statusError: { color: '#f43f5e' },
   smallText: { color: '#94a3b8', marginTop: 6, fontSize: 12 },
-  sectionTitle: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  sectionTitle: { color: '#ffffff', fontSize: 16, fontWeight: '700', flexShrink: 1 },
 
   tabRow: { flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 12 },
   tabPill: {

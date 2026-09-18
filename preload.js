@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("electron", {
   // ✨ NUEVOS MÉTODOS OPTIMIZADOS PARA ARCHIVOS GRANDES
   seleccionarArchivosMultimedia: () => ipcRenderer.invoke('seleccionar-archivos-multimedia'),
   procesarArchivosPorRuta: (filePaths) => ipcRenderer.invoke('procesar-archivos-por-ruta', filePaths),
+  procesarImagenesDiapositiva: (filePaths) => ipcRenderer.invoke('procesar-imagenes-diapositiva', filePaths),
 
 
   // Función para proyectar multimedia
@@ -413,6 +414,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ✨ MÉTODOS OPTIMIZADOS PARA ARCHIVOS GRANDES
   seleccionarArchivosMultimedia: () => ipcRenderer.invoke('seleccionar-archivos-multimedia'),
   procesarArchivosPorRuta: (filePaths) => ipcRenderer.invoke('procesar-archivos-por-ruta', filePaths),
+  procesarImagenesDiapositiva: (filePaths) => ipcRenderer.invoke('procesar-imagenes-diapositiva', filePaths),
   actualizarFavoritoMultimedia: (id, favorito) => ipcRenderer.invoke('db-actualizar-favorito-multimedia', id, favorito),
   incrementarReproducido: (id) => ipcRenderer.invoke('db-incrementar-reproducido', id),
   enviarLog: (mensaje) => ipcRenderer.send('log-to-terminal', mensaje),

@@ -94,7 +94,7 @@ export default function Diapositivas() {
       const sel = await window.electron.seleccionarImagenes();
       if (!sel?.success) return;
 
-      const resultado = await window.electron.procesarArchivosPorRuta(
+      const resultado = await window.electron.procesarImagenesDiapositiva(
         sel.filePaths,
       );
       const nuevas = (resultado?.resultados || [])

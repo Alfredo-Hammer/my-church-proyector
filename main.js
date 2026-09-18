@@ -4585,6 +4585,50 @@ app.whenReady().then(async () => {
         return { success: false, error: e.message };
       }
     });
+    // Copia las imágenes al disco para una Diapositiva SIN registrarlas en la
+    // tabla `multimedia` — antes reusaba el pipeline de Multimedia entero y
+    // las imágenes terminaban apareciendo también en esa sección.
+    safeHandle("procesar-imagenes-diapositiva", async (_, filePaths) => {
+      try {
+        const multimediaDir = path.join(obtenerRutaBase(), "public", "multimedia");
+        if (!fs.existsSync(multimediaDir)) {
+          fs.mkdirSync(multimediaDir, { recursive: true });
+        }
+
+        const extensionesImagen = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']);
+        const resultados = [];
+
+        for (const filePath of filePaths || []) {
+          try {
+            const fileName = path.basename(filePath);
+            const extension = path.extname(filePath).toLowerCase();
+            if (!extensionesImagen.has(extension)) {
+              throw new Error(`Tipo de archivo no soportado: ${extension}`);
+            }
+
+            const nombreSinExtension = path.basename(filePath, extension);
+            const nombreOriginal = nombreSinExtension.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const nombreUnico = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}-${nombreOriginal}${extension}`;
+            const rutaDestino = path.join(multimediaDir, nombreUnico);
+
+            fs.copyFileSync(filePath, rutaDestino);
+
+            resultados.push({
+              success: true,
+              nombre: fileName,
+              tipo: 'imagen',
+              url: `/multimedia/${nombreUnico}`,
+            });
+          } catch (e) {
+            resultados.push({ success: false, nombre: path.basename(filePath), error: e.message });
+          }
+        }
+
+        return { success: true, resultados };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    });
     safeHandle("obtener-presentaciones", () => { try { return obtenerPresentaciones(); } catch (e) { return []; } });
     safeHandle("agregar-presentacion", (_, data) => { try { return agregarPresentacion(data); } catch (e) { return { success: false, error: e.message }; } });
     safeHandle("actualizar-presentacion", (_, data) => { try { return actualizarPresentacion(data); } catch (e) { return { success: false, error: e.message }; } });

@@ -54,6 +54,12 @@ jobs:
         run: |
           if (Test-Path "NOVEDADES.txt") {
             $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
+            # Solo la version actual (primer bloque) - el archivo acumula
+            # todo el historial y ya no entra en la linea de comandos de
+            # "Compilar instalador Windows" mas abajo (limite de Windows)
+            if ($notes -match "(?s)^(.*?)\r?\n\r?\nVersion \d") {
+              $notes = $Matches[1]
+            }
           } else {
             $notes = "Correcciones y mejoras generales"
           }
@@ -103,6 +109,11 @@ jobs:
       - name: Compilar instalador Windows (con notas en latest.yml)
         run: |
           $notes = Get-Content "NOVEDADES.txt" -Raw -Encoding UTF8
+          # Solo la version actual (primer bloque) - el archivo completo ya
+          # supera el limite de longitud de la linea de comandos de Windows
+          if ($notes -match "(?s)^(.*?)\r?\n\r?\nVersion \d") {
+            $notes = $Matches[1]
+          }
           # Pasar las notas a electron-builder para que las incluya en latest.yml
           # El updater lee latest.yml directamente -> texto plano sin HTML
           npx electron-builder --win nsis --x64 `
@@ -177,7 +188,9 @@ jobs:
       # Ver comentarios en electron-builder.yml para el detalle de cada variable.
       - name: Compilar .dmg de macOS (firmado y notarizado)
         run: |
-          NOTES=$(cat NOVEDADES.txt)
+          # Solo la version actual (primer bloque) - mismo recorte que en
+          # el job de Windows, para que ambos builds queden consistentes
+          NOTES=$(awk '/^Version /{n++} n==2{exit} {print}' NOVEDADES.txt)
           npx electron-builder --mac --x64 --arm64 --publish never \
             --config.releaseInfo.releaseNotes="$NOTES"
         env:

@@ -1,3 +1,19 @@
+Version 0.4.6
+
+Nuevas funciones
+- Tercio Inferior para OBS: mostra el nombre y cargo de quien esta
+  hablando (predicador, invitado, lider) como una franja inferior,
+  con el logo y nombre de tu iglesia. Tiene su propia URL en
+  Servidor / OBS, 4 plantillas de color, velocidad de entrada/salida
+  configurable y ocultado automatico opcional. Podes guardar personas
+  para reutilizarlas despues
+
+Correcciones
+- Corregido: en las plantillas animadas del proyector, la referencia
+  biblica (libro, capitulo y versiculo) no respetaba el tamano de
+  letra elegido en Configuracion y se veia mas chica de lo esperado,
+  aunque el texto del versiculo si se ajustaba bien
+
 Version 0.4.5
 
 Correcciones

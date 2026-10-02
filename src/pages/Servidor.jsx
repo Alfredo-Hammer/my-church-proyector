@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import {
   FaServer, FaCopy, FaCheck, FaWifi, FaVideo,
-  FaCircle, FaDesktop, FaPhotoVideo,
+  FaCircle, FaDesktop, FaPhotoVideo, FaIdCard,
 } from "react-icons/fa";
 import {IoRefresh} from "react-icons/io5";
 
@@ -61,6 +61,7 @@ export default function Servidor() {
 
   const preferredUrl = useMemo(() => estado.info?.preferredUrl || "", [estado.info]);
   const obsUrl = preferredUrl ? `${preferredUrl}/obs` : "";
+  const tercioInferiorUrl = preferredUrl ? `${preferredUrl}/obs/tercio-inferior` : "";
 
   const copiar = (key, texto) => {
     navigator.clipboard?.writeText(texto).then(() => {
@@ -222,6 +223,28 @@ export default function Servidor() {
                       className={`shrink-0 p-2 rounded-lg border transition-colors ${copiado.obsSoloMultimedia ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border-fuchsia-500/20 text-fuchsia-400"}`}
                       title="Copiar">
                       {copiado.obsSoloMultimedia ? <FaCheck className="text-sm" /> : <FaCopy className="text-sm" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Opción 4: Tercio Inferior — fuente propia, siempre activa */}
+              <div className="mb-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 uppercase tracking-wide flex items-center gap-1">
+                    <FaIdCard className="text-[9px]" /> Tercio Inferior
+                  </span>
+                  <p className="text-[10px] text-slate-500">Agregala como fuente aparte, se controla desde su propia página</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 font-mono text-xs text-amber-300 bg-slate-900/80 border border-amber-500/20 rounded-lg px-3 py-2 break-all">
+                    {tercioInferiorUrl || `http://[IP]:3001/obs/tercio-inferior`}
+                  </p>
+                  {tercioInferiorUrl && (
+                    <button type="button" onClick={() => copiar("tercioInferior", tercioInferiorUrl)}
+                      className={`shrink-0 p-2 rounded-lg border transition-colors ${copiado.tercioInferior ? "bg-green-500/15 border-green-500/30 text-green-400" : "bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/20 text-amber-400"}`}
+                      title="Copiar">
+                      {copiado.tercioInferior ? <FaCheck className="text-sm" /> : <FaCopy className="text-sm" />}
                     </button>
                   )}
                 </div>

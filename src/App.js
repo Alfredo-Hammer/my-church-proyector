@@ -22,6 +22,7 @@ import Diapositivas from "./pages/Diapositivas";
 import Temporizador from "./pages/Temporizador";
 import Plantillas from "./pages/Plantillas";
 import Servidor from "./pages/Servidor";
+import TercioInferior from "./pages/TercioInferior";
 import { MediaPlayerProvider } from "./contexts/MediaPlayerContext";
 import { NowPlayingProvider, useNowPlaying } from "./contexts/NowPlayingContext";
 import PersistentMediaPreview from "./components/PersistentMediaPreview";
@@ -318,6 +319,7 @@ function MainLayout() {
             <Route path="/temporizador" element={<Temporizador />} />
             <Route path="/plantillas" element={<Plantillas />} />
             <Route path="/servidor" element={<Servidor />} />
+            <Route path="/tercio-inferior" element={<TercioInferior />} />
           </Routes>
         </main>
       </div>

@@ -20,6 +20,7 @@ import {
   FaMobileAlt,
   FaServer,
   FaImages,
+  FaIdCard,
 } from "react-icons/fa";
 
 const COLLAPSED_W = 56;
@@ -109,6 +110,11 @@ const MENU = [
     id: "servidor", path: "/servidor", icon: <FaServer />, label: "Servidor / OBS",
     iconCls: "text-teal-400/70",
     iconActiveCls: "bg-teal-500/15 text-teal-300",
+  },
+  {
+    id: "tercio-inferior", path: "/tercio-inferior", icon: <FaIdCard />, label: "Tercio Inferior",
+    iconCls: "text-amber-400/70",
+    iconActiveCls: "bg-amber-500/15 text-amber-300",
   },
   {
     id: "configuracion", path: "/configuracion", icon: <FaCog />, label: "Configuración",

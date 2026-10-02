@@ -158,6 +158,11 @@ const {
   actualizarAnuncio,
   eliminarAnuncio,
   reordenarAnuncios,
+  // Oradores (Tercio Inferior)
+  obtenerOradores,
+  agregarOrador,
+  actualizarOrador,
+  eliminarOrador,
   // Presentaciones
   obtenerPresentaciones,
   agregarPresentacion,
@@ -815,6 +820,178 @@ async function poll(){
 }
 setInterval(poll,800);poll();
 setInterval(sincronizarMultimediaConProyector,1000);
+</script>
+</body>
+</html>`;
+}
+
+// ── Plantillas visuales del Tercio Inferior (lower third) ──────────────────
+const TERCIO_PLANTILLAS = {
+  dorado: {
+    nombre: 'Dorado Clásico',
+    bg: 'rgba(7,20,40,VAR)',
+    bgMedio: 'rgba(10,28,52,VAR2)',
+    accent: '#d4af37',
+    accentClaro: '#f2d77b',
+    cargo: '#e8c766',
+    logoBorde: '#d4af37',
+    logoFondo: '#0b1f3a',
+  },
+  esmeralda: {
+    nombre: 'Esmeralda',
+    bg: 'rgba(5,28,21,VAR)',
+    bgMedio: 'rgba(8,40,30,VAR2)',
+    accent: '#2fbf8f',
+    accentClaro: '#8fe9c9',
+    cargo: '#8fe9c9',
+    logoBorde: '#2fbf8f',
+    logoFondo: '#062219',
+  },
+  borgona: {
+    nombre: 'Borgoña Real',
+    bg: 'rgba(32,8,17,VAR)',
+    bgMedio: 'rgba(46,12,24,VAR2)',
+    accent: '#d4af37',
+    accentClaro: '#f2d77b',
+    cargo: '#e3a6b5',
+    logoBorde: '#d4af37',
+    logoFondo: '#210911',
+  },
+  plata: {
+    nombre: 'Plata Elegante',
+    bg: 'rgba(21,24,30,VAR)',
+    bgMedio: 'rgba(30,34,42,VAR2)',
+    accent: '#c9cdd6',
+    accentClaro: '#eef0f4',
+    cargo: '#c9cdd6',
+    logoBorde: '#c9cdd6',
+    logoFondo: '#15181e',
+  },
+};
+
+// ── Genera el HTML del overlay dedicado del Tercio Inferior ─────────────────
+// Endpoint propio (no comparte el /obs general) para que se agregue como su
+// propia fuente de Navegador en OBS, siempre visible, independiente de lo que
+// esté pasando en el proyector/anuncios/temporizador.
+function generarTercioInferiorHtml() {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GloryView · Tercio Inferior</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:transparent}
+#tercio-inferior{
+  position:fixed;left:0;bottom:7vh;z-index:10;
+  display:flex;align-items:center;
+  transform:translateX(-105%);opacity:0;
+  transition:transform .7s cubic-bezier(.16,.84,.44,1),opacity .7s ease;
+}
+#tercio-inferior.show{transform:translateX(0);opacity:1}
+#tercio-inferior.hide{transition:transform .6s cubic-bezier(.4,0,.68,.06),opacity .6s ease}
+#ti-logo{
+  width:84px;height:84px;border-radius:50%;flex-shrink:0;
+  margin-left:46px;margin-right:-28px;z-index:2;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  box-shadow:0 8px 22px rgba(0,0,0,.5);
+  transition:border-color .4s ease,background .4s ease,box-shadow .4s ease;
+}
+#ti-logo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+#ti-bar{position:relative;width:90vw;padding:17px 0 17px 54px}
+#ti-bar::before{content:"";position:absolute;top:0;left:0;height:2px;width:100%;transition:background .4s ease}
+#ti-bar::after{content:"";position:absolute;bottom:0;left:0;height:1px;width:100%;transition:background .4s ease}
+#ti-nombre{
+  font-family:'Cinzel',serif;font-weight:700;font-size:28px;color:#fff;
+  letter-spacing:.01em;text-shadow:0 2px 10px rgba(0,0,0,.6);
+}
+#ti-cargo{
+  font-family:'EB Garamond',serif;font-size:16px;
+  letter-spacing:.07em;text-transform:uppercase;margin-top:3px;
+  transition:color .4s ease;
+}
+#ti-inst{
+  font-family:'EB Garamond',serif;font-size:11.5px;color:rgba(220,230,255,.55);
+  letter-spacing:.17em;margin-top:7px;text-transform:uppercase;
+}
+</style>
+</head>
+<body>
+<div id="tercio-inferior">
+  <div id="ti-logo"><img id="ti-logo-img" src="" alt=""></div>
+  <div id="ti-bar">
+    <div id="ti-nombre"></div>
+    <div id="ti-cargo"></div>
+    <div id="ti-inst"></div>
+  </div>
+</div>
+<script>
+const BASE=location.origin;
+const PLANTILLAS=${JSON.stringify(TERCIO_PLANTILLAS)};
+const el=document.getElementById('tercio-inferior');
+const logoBox=document.getElementById('ti-logo');
+const logoImg=document.getElementById('ti-logo-img');
+const bar=document.getElementById('ti-bar');
+const nombreEl=document.getElementById('ti-nombre');
+const cargoEl=document.getElementById('ti-cargo');
+const instEl=document.getElementById('ti-inst');
+let shown=false,lastKey='',lastPlantilla='',lastLogo='',lastInst='';
+function aplicarPlantilla(id){
+  if(id===lastPlantilla)return;
+  lastPlantilla=id;
+  const p=PLANTILLAS[id]||PLANTILLAS.dorado;
+  logoBox.style.border='3px solid '+p.logoBorde;
+  logoBox.style.background=p.logoFondo;
+  logoBox.style.boxShadow='0 0 22px '+p.accent+'80,0 8px 22px rgba(0,0,0,.5)';
+  bar.style.background='linear-gradient(90deg,'+
+    p.bg.replace('VAR','.97')+' 0%,'+
+    p.bgMedio.replace('VAR2','.95')+' 48%,'+
+    p.bgMedio.replace('VAR2','.45')+' 78%,'+
+    p.bgMedio.replace('VAR2','0')+' 100%)';
+  bar.style.setProperty('--accent',p.accent);
+  const styleTag=document.getElementById('ti-dyn-style')||(() => {
+    const s=document.createElement('style');s.id='ti-dyn-style';document.head.appendChild(s);return s;
+  })();
+  styleTag.textContent=
+    '#ti-bar::before{background:linear-gradient(90deg,'+p.accentClaro+','+p.accent+' 38%,transparent 82%)}'+
+    '#ti-bar::after{background:linear-gradient(90deg,'+p.accent+'bf,'+p.accent+'4d 38%,transparent 82%)}';
+  cargoEl.style.color=p.cargo;
+}
+async function poll(){
+  try{
+    const r=await fetch(BASE+'/api/tercio-inferior/estado');
+    if(!r.ok)return;
+    const d=await r.json();
+    if(d.logoUrl&&d.logoUrl!==lastLogo){lastLogo=d.logoUrl;logoImg.src=d.logoUrl;}
+    const instTexto=String(d.nombreIglesia||'GloryView').toUpperCase();
+    if(instTexto!==lastInst){lastInst=instTexto;instEl.textContent=instTexto;}
+    aplicarPlantilla(d.plantilla||'dorado');
+    const activo=Boolean(d.activo);
+    const msEntrada=Number(d.duracionEntrada)||700;
+    const msSalida=Number(d.duracionSalida)||600;
+    if(!activo){
+      if(shown){
+        el.style.transitionDuration=msSalida+'ms';
+        el.classList.add('hide');el.classList.remove('show');shown=false;
+      }
+      return;
+    }
+    const key=(d.nombre||'')+'|'+(d.cargo||'');
+    if(key!==lastKey){
+      lastKey=key;
+      nombreEl.textContent=d.nombre||'';
+      cargoEl.textContent=d.cargo||'';
+    }
+    if(!shown){
+      el.style.transitionDuration=msEntrada+'ms';
+      el.classList.remove('hide');el.classList.add('show');shown=true;
+    }
+  }catch(e){}
+}
+setInterval(poll,500);poll();
 </script>
 </body>
 </html>`;
@@ -3330,6 +3507,20 @@ function iniciarServidorMultimedia() {
       res.send(generarObsHtml());
     });
 
+    // ✅ Tercio inferior — fuente de Navegador propia en OBS, independiente
+    // del /obs general (así queda siempre agregada en la escena sin
+    // depender de si el overlay de versículos/anuncios está activo).
+    // Uso: http://[IP]:3001/obs/tercio-inferior
+    expressApp.get('/obs/tercio-inferior', (_req, res) => {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(generarTercioInferiorHtml());
+    });
+    expressApp.get('/api/tercio-inferior/estado', (_req, res) => {
+      const logoUrl = obtenerConfiguracion('logoUrl') || '/images/icon-256.png';
+      const nombreIglesia = obtenerConfiguracion('nombreIglesia') || 'GloryView';
+      res.json({ ok: true, ...obsEstado.tercioInferior, logoUrl, nombreIglesia });
+    });
+
     expressApp.get('/', (req, res) => {
       const buildDir = path.join(obtenerRutaRecursos(), "build");
       const indexPath = path.join(buildDir, 'index.html');
@@ -3491,6 +3682,12 @@ const obsEstado = {
   segundos: 0, total: 0, mensaje: '', terminado: false,
   fondo: null, // {url, tipo} | null — fondo específico del contenido actual (ej. temporizador)
   media: null, // {url, tipo, nombre} | null — multimedia proyectada (tipo: 'imagen'|'video'|'youtube')
+  // Tercio inferior (lower third) — capa independiente de 'tipo': se
+  // muestra/oculta por su cuenta, sin que actualizarObs() la toque.
+  tercioInferior: {
+    activo: false, nombre: '', cargo: '', plantilla: 'dorado',
+    duracionEntrada: 700, duracionSalida: 600, // ms — velocidad de la animación
+  },
   updatedAt: Date.now(),
 };
 const actualizarObs = (tipo, datos = {}) => {
@@ -3503,6 +3700,25 @@ const actualizarObs = (tipo, datos = {}) => {
     ...datos,
     updatedAt: Date.now(),
   });
+};
+const actualizarTercioInferior = (datos = {}) => {
+  Object.assign(obsEstado.tercioInferior, datos);
+};
+// Auto-ocultar: vive en main.js (no en la página de control) para que siga
+// funcionando aunque el usuario navegue a otra pestaña de la app mientras
+// espera — un setTimeout en el renderer se perdería al desmontar la página.
+let tercioAutoOcultarTimeout = null;
+const cancelarAutoOcultarTercio = () => {
+  if (tercioAutoOcultarTimeout) { clearTimeout(tercioAutoOcultarTimeout); tercioAutoOcultarTimeout = null; }
+};
+const programarAutoOcultarTercio = (ms) => {
+  cancelarAutoOcultarTercio();
+  if (ms && ms > 0) {
+    tercioAutoOcultarTimeout = setTimeout(() => {
+      actualizarTercioInferior({ activo: false });
+      tercioAutoOcultarTimeout = null;
+    }, ms);
+  }
 };
 
 // Fondo activo del proyector — se sincroniza con la BD y con cambios en tiempo real
@@ -4565,6 +4781,45 @@ app.whenReady().then(async () => {
     safeHandle("actualizar-anuncio", (_, data) => { try { return actualizarAnuncio(data); } catch (e) { return { success: false, error: e.message }; } });
     safeHandle("eliminar-anuncio", (_, id) => { try { return eliminarAnuncio(id); } catch (e) { return { success: false, error: e.message }; } });
     safeHandle("reordenar-anuncios", (_, ids) => { try { return reordenarAnuncios(ids); } catch (e) { return { success: false, error: e.message }; } });
+
+    // ====================================
+    // HANDLERS: TERCIO INFERIOR (lower third para OBS)
+    // ====================================
+    safeHandle("obtener-oradores", () => { try { return obtenerOradores(); } catch (e) { return []; } });
+    safeHandle("agregar-orador", (_, data) => { try { return agregarOrador(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("actualizar-orador", (_, data) => { try { return actualizarOrador(data); } catch (e) { return { success: false, error: e.message }; } });
+    safeHandle("eliminar-orador", (_, id) => { try { return eliminarOrador(id); } catch (e) { return { success: false, error: e.message }; } });
+    // Mostrar/ocultar y actualizar texto del tercio inferior en el overlay
+    // de OBS. No pasa por el proyector ni por obsEstado.tipo — es una capa
+    // independiente (ver actualizarTercioInferior() y obsEstado arriba).
+    safeHandle("mostrar-tercio-inferior", (_, { nombre, cargo, plantilla, duracionEntrada, duracionSalida, autoOcultarMs }) => {
+      try {
+        actualizarTercioInferior({
+          activo: true,
+          nombre: nombre || '',
+          cargo: cargo || '',
+          ...(plantilla ? { plantilla } : {}),
+          ...(duracionEntrada ? { duracionEntrada } : {}),
+          ...(duracionSalida ? { duracionSalida } : {}),
+        });
+        programarAutoOcultarTercio(autoOcultarMs);
+        return { success: true };
+      } catch (e) { return { success: false, error: e.message }; }
+    });
+    safeHandle("cambiar-plantilla-tercio-inferior", (_, plantilla) => {
+      try {
+        actualizarTercioInferior({ plantilla });
+        return { success: true };
+      } catch (e) { return { success: false, error: e.message }; }
+    });
+    safeHandle("ocultar-tercio-inferior", () => {
+      try {
+        cancelarAutoOcultarTercio();
+        actualizarTercioInferior({ activo: false });
+        return { success: true };
+      } catch (e) { return { success: false, error: e.message }; }
+    });
+
     // ====================================
     // HANDLERS: PRESENTACIONES (secuencias de imágenes navegables)
     // ====================================

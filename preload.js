@@ -393,6 +393,17 @@ contextBridge.exposeInMainWorld("electron", {
   reordenarAnuncios: (ids) => ipcRenderer.invoke("reordenar-anuncios", ids),
 
   // ====================================
+  // TERCIO INFERIOR (lower third OBS)
+  // ====================================
+  obtenerOradores: () => ipcRenderer.invoke("obtener-oradores"),
+  agregarOrador: (data) => ipcRenderer.invoke("agregar-orador", data),
+  actualizarOrador: (data) => ipcRenderer.invoke("actualizar-orador", data),
+  eliminarOrador: (id) => ipcRenderer.invoke("eliminar-orador", id),
+  mostrarTercioInferior: (data) => ipcRenderer.invoke("mostrar-tercio-inferior", data),
+  cambiarPlantillaTercioInferior: (plantilla) => ipcRenderer.invoke("cambiar-plantilla-tercio-inferior", plantilla),
+  ocultarTercioInferior: () => ipcRenderer.invoke("ocultar-tercio-inferior"),
+
+  // ====================================
   // PRESENTACIONES (secuencias de imágenes navegables)
   // ====================================
   seleccionarImagenes: () => ipcRenderer.invoke("seleccionar-imagenes"),

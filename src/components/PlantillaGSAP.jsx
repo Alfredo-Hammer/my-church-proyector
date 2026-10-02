@@ -71,9 +71,8 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
 }
 
 // ── Escala por resolución para elementos que no pasan por useAutoFontSize
-// (referencias, insignias) — sin esto se ven diminutas en 4K comparadas con
-// el párrafo principal, que sí escala (mismo bug que se corrigió en
-// ModernTextDisplay/useAutoFontSize para el tamaño de fuente configurado).
+// (barras, rayos, bordes, paddings) — sin esto se ven diminutos en 4K
+// comparados con el párrafo principal, que sí escala.
 function useEscalaFuente() {
   const [escala, setEscala] = useState(() => calcularEscalaFuente());
   useEffect(() => {
@@ -82,6 +81,26 @@ function useEscalaFuente() {
     return () => window.removeEventListener("resize", handler);
   }, []);
   return escala;
+}
+
+// Mismo valor por defecto que CONFIG_DEFAULTS.fontSize.titulo en Configuracion.jsx.
+const TITULO_CLASS_DEFECTO = "text-6xl";
+
+// ── Escala de la referencia (.plg-ref) — combina la resolución (useEscalaFuente)
+// con la opción "Tamaño de fuente del título" de Configuración. Antes cada
+// plantilla usaba un px base fijo (14–22) multiplicado solo por la resolución,
+// por lo que cambiar esa opción no tenía ningún efecto sobre la referencia
+// aunque sí lo tenía sobre el párrafo (vía useAutoFontSize) — de ahí que el
+// usuario viera "el texto bíblico bien, pero la referencia no". El factor de
+// configuración es relativo al tamaño por defecto para no alterar el look ya
+// afinado de cada plantilla cuando el usuario no toca esa opción.
+function useEscalaReferencia() {
+  const configuracion = useContext(ConfigProyectorContext);
+  const escala = useEscalaFuente();
+  const tituloClass = configuracion?.fontSize?.titulo || TITULO_CLASS_DEFECTO;
+  const factorConfig =
+    (CLASS_PX[tituloClass] ?? CLASS_PX[TITULO_CLASS_DEFECTO]) / CLASS_PX[TITULO_CLASS_DEFECTO];
+  return escala * factorConfig;
 }
 
 // ── Velocidades ─────────────────────────────────────────────────────────────
@@ -163,6 +182,7 @@ function EstructuraAlabanza({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
 
   // Separar en palabras (conservando espacios) para el punch por palabra.
   const partes = texto.split(/(\s+)/);
@@ -176,7 +196,7 @@ function EstructuraAlabanza({titulo, texto}) {
           <span
             className="plg-ref shrink-0 inline-block font-extrabold uppercase rounded-full"
             style={{
-              fontSize: `${15 * escala}px`,
+              fontSize: `${15 * escalaRef}px`,
               padding: `${5.5 * escala}px ${18 * escala}px`,
               marginBottom: `${24 * escala}px`,
             }}
@@ -275,6 +295,7 @@ function EstructuraReflexion({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
 
   return (
     <>
@@ -283,7 +304,7 @@ function EstructuraReflexion({titulo, texto}) {
         {titulo && (
           <span
             className="plg-ref shrink-0"
-            style={{fontSize: `${22 * escala}px`, marginBottom: `${22 * escala}px`}}
+            style={{fontSize: `${22 * escalaRef}px`, marginBottom: `${22 * escala}px`}}
           >
             {titulo}
           </span>
@@ -356,6 +377,7 @@ function EstructuraEnsenanza({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
 
   return (
     <>
@@ -365,7 +387,7 @@ function EstructuraEnsenanza({titulo, texto}) {
           <span
             className="plg-ref shrink-0 font-bold uppercase"
             style={{
-              fontSize: `${15.5 * escala}px`,
+              fontSize: `${15.5 * escalaRef}px`,
               borderLeftWidth: `${3 * escala}px`,
               paddingLeft: `${11 * escala}px`,
               marginBottom: `${6 * escala}px`,
@@ -450,6 +472,7 @@ function EstructuraEspecial({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
   const p = PALETA_ESPECIAL;
 
   return (
@@ -478,7 +501,7 @@ function EstructuraEspecial({titulo, texto}) {
         {titulo && (
           <span
             className="plg-ref shrink-0 uppercase"
-            style={{fontSize: `${17 * escala}px`, marginBottom: `${22 * escala}px`}}
+            style={{fontSize: `${17 * escalaRef}px`, marginBottom: `${22 * escala}px`}}
           >
             {titulo}
           </span>
@@ -569,6 +592,7 @@ function EstructuraVibra({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
 
   return (
     <>
@@ -579,7 +603,7 @@ function EstructuraVibra({titulo, texto}) {
           <span
             className="plg-ref shrink-0 inline-block uppercase rounded-full"
             style={{
-              fontSize: `${14 * escala}px`,
+              fontSize: `${14 * escalaRef}px`,
               padding: `${5.5 * escala}px ${18 * escala}px`,
               marginBottom: `${24 * escala}px`,
             }}
@@ -680,6 +704,7 @@ function EstructuraGozo({titulo, texto}) {
   const textRef = useRef(null);
   const fontSizePx = useAutoFontSize(wrapRef, textRef, texto, titulo);
   const escala = useEscalaFuente();
+  const escalaRef = useEscalaReferencia();
 
   return (
     <>
@@ -708,7 +733,7 @@ function EstructuraGozo({titulo, texto}) {
           <span
             className="plg-ref shrink-0 inline-block uppercase rounded-full"
             style={{
-              fontSize: `${14 * escala}px`,
+              fontSize: `${14 * escalaRef}px`,
               letterSpacing: "0.1em",
               padding: `${6 * escala}px ${18 * escala}px`,
               marginBottom: `${22 * escala}px`,

@@ -1943,6 +1943,56 @@ function reordenarAnuncios(ids) {
 }
 
 // ====================================
+// TABLA Y FUNCIONES: ORADORES (personas guardadas para el Tercio Inferior)
+// ====================================
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS oradores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    cargo TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`).run();
+
+function obtenerOradores() {
+  try {
+    return db.prepare("SELECT * FROM oradores ORDER BY nombre ASC").all();
+  } catch (e) {
+    return [];
+  }
+}
+
+function agregarOrador({ nombre, cargo = "" }) {
+  try {
+    const info = db.prepare(
+      "INSERT INTO oradores (nombre, cargo) VALUES (?, ?)"
+    ).run(nombre, cargo);
+    return { success: true, id: info.lastInsertRowid };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function actualizarOrador({ id, nombre, cargo = "" }) {
+  try {
+    db.prepare("UPDATE oradores SET nombre = ?, cargo = ? WHERE id = ?").run(nombre, cargo, id);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function eliminarOrador(id) {
+  try {
+    db.prepare("DELETE FROM oradores WHERE id = ?").run(id);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ====================================
 // TABLA Y FUNCIONES: PRESENTACIONES / DIAPOSITIVAS (secuencias de imágenes
 // navegables, ej. diapositivas exportadas de PowerPoint como PNG/JPG)
 //
@@ -2085,6 +2135,10 @@ module.exports = {
   actualizarAnuncio,
   eliminarAnuncio,
   reordenarAnuncios,
+  obtenerOradores,
+  agregarOrador,
+  actualizarOrador,
+  eliminarOrador,
   obtenerPresentaciones,
   agregarPresentacion,
   actualizarPresentacion,

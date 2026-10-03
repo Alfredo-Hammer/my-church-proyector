@@ -869,6 +869,16 @@ const TERCIO_PLANTILLAS = {
   },
 };
 
+// ── Diseños (layouts) del Tercio Inferior — independientes del color ───────
+const TERCIO_DISENOS = {
+  clasico: { nombre: 'Clásico' },
+  minimal: { nombre: 'Minimalista' },
+  tarjeta: { nombre: 'Tarjeta' },
+  banda: { nombre: 'Banda completa' },
+  cristal: { nombre: 'Cristal' },
+  moderno: { nombre: 'Moderno' },
+};
+
 // ── Genera el HTML del overlay dedicado del Tercio Inferior ─────────────────
 // Endpoint propio (no comparte el /obs general) para que se agregue como su
 // propia fuente de Navegador en OBS, siempre visible, independiente de lo que
@@ -881,7 +891,7 @@ function generarTercioInferiorHtml() {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GloryView · Tercio Inferior</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:transparent}
@@ -891,74 +901,151 @@ html,body{width:100%;height:100%;overflow:hidden;background:transparent}
   transform:translateX(-105%);opacity:0;
   transition:transform .7s cubic-bezier(.16,.84,.44,1),opacity .7s ease;
 }
-#tercio-inferior.show{transform:translateX(0);opacity:1}
 #tercio-inferior.hide{transition:transform .6s cubic-bezier(.4,0,.68,.06),opacity .6s ease}
+#tercio-inferior.show[data-d]{transform:none;opacity:1}
 #ti-logo{
   width:84px;height:84px;border-radius:50%;flex-shrink:0;
-  margin-left:46px;margin-right:-28px;z-index:2;
   display:flex;align-items:center;justify-content:center;overflow:hidden;
-  box-shadow:0 8px 22px rgba(0,0,0,.5);
-  transition:border-color .4s ease,background .4s ease,box-shadow .4s ease;
+  border:3px solid var(--logo-borde);background:var(--logo-fondo);
+  transition:border-color .4s ease,background .4s ease;
 }
-#ti-logo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-#ti-bar{position:relative;width:90vw;padding:17px 0 17px 54px}
-#ti-bar::before{content:"";position:absolute;top:0;left:0;height:2px;width:100%;transition:background .4s ease}
-#ti-bar::after{content:"";position:absolute;bottom:0;left:0;height:1px;width:100%;transition:background .4s ease}
-#ti-nombre{
-  font-family:'Cinzel',serif;font-weight:700;font-size:28px;color:#fff;
-  letter-spacing:.01em;text-shadow:0 2px 10px rgba(0,0,0,.6);
+#ti-logo img{width:100%;height:100%;object-fit:cover}
+#ti-bar{position:relative}
+#ti-nombre{color:#fff}
+#ti-cargo{color:var(--cargo);transition:color .4s ease}
+#ti-cargo:empty{display:none}
+#ti-nombre:empty{display:none}
+#ti-tema{color:rgba(255,255,255,.92);font-style:italic}
+#ti-tema:empty{display:none}
+#ti-inst{text-transform:uppercase}
+
+/* ── 1. Clásico: logo sobre una franja que se desvanece a la derecha ── */
+[data-d="clasico"] #ti-logo{
+  margin-left:46px;margin-right:-28px;z-index:2;border-radius:50%;
+  box-shadow:0 0 22px var(--accent-glow),0 8px 22px rgba(0,0,0,.5);
 }
-#ti-cargo{
-  font-family:'EB Garamond',serif;font-size:16px;
-  letter-spacing:.07em;text-transform:uppercase;margin-top:3px;
-  transition:color .4s ease;
+[data-d="clasico"] #ti-bar{
+  width:90vw;padding:17px 0 17px 54px;
+  background:linear-gradient(90deg,var(--bg-solid) 0%,var(--bg-mid) 48%,var(--bg-soft) 78%,var(--bg-clear) 100%);
 }
-#ti-inst{
-  font-family:'EB Garamond',serif;font-size:11.5px;color:rgba(220,230,255,.55);
-  letter-spacing:.17em;margin-top:7px;text-transform:uppercase;
+[data-d="clasico"] #ti-bar::before{content:"";position:absolute;top:0;left:0;height:2px;width:100%;
+  background:linear-gradient(90deg,var(--accent-claro),var(--accent) 38%,transparent 82%)}
+[data-d="clasico"] #ti-bar::after{content:"";position:absolute;bottom:0;left:0;height:1px;width:100%;
+  background:linear-gradient(90deg,var(--accent-glow),transparent 82%)}
+[data-d="clasico"] #ti-nombre{font-family:'Cinzel',serif;font-weight:700;font-size:28px;letter-spacing:.01em;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+[data-d="clasico"] #ti-cargo{font-family:'EB Garamond',serif;font-size:16px;letter-spacing:.07em;text-transform:uppercase;margin-top:3px}
+[data-d="clasico"] #ti-tema{font-family:'EB Garamond',serif;font-size:19px;margin-top:6px;max-width:70vw}
+[data-d="clasico"] #ti-inst{font-family:'EB Garamond',serif;font-size:11.5px;color:rgba(220,230,255,.55);letter-spacing:.17em;margin-top:7px}
+
+/* ── 2. Minimalista: solo texto con una línea de acento, sin fondo ── */
+#tercio-inferior[data-d="minimal"]{bottom:8vh;left:46px}
+[data-d="minimal"] #ti-logo{width:64px;height:64px;border-width:2px;margin-right:18px;box-shadow:0 4px 16px rgba(0,0,0,.55)}
+[data-d="minimal"] #ti-bar{padding:2px 0 2px 18px;max-width:70vw;border-left:4px solid var(--accent)}
+[data-d="minimal"] #ti-nombre{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:38px;line-height:1.05;letter-spacing:.02em;text-shadow:0 2px 3px rgba(0,0,0,.9),0 0 18px rgba(0,0,0,.8)}
+[data-d="minimal"] #ti-cargo{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:21px;letter-spacing:.1em;text-transform:uppercase;margin-top:2px;text-shadow:0 2px 3px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.8)}
+[data-d="minimal"] #ti-tema{font-family:'EB Garamond',serif;font-size:21px;margin-top:5px;max-width:60vw;text-shadow:0 2px 3px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.8)}
+[data-d="minimal"] #ti-inst{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.18em;margin-top:5px;color:rgba(255,255,255,.7);text-shadow:0 1px 3px rgba(0,0,0,.9)}
+
+/* ── 3. Tarjeta: caja compacta con el logo dentro ── */
+#tercio-inferior[data-d="tarjeta"]{
+  left:46px;bottom:7vh;max-width:72vw;padding:14px 38px 14px 14px;
+  background:linear-gradient(135deg,var(--bg-solid),var(--bg-mid));
+  border:1px solid var(--accent-glow);border-left:6px solid var(--accent);border-radius:16px;
+  box-shadow:0 14px 34px rgba(0,0,0,.5);
 }
+[data-d="tarjeta"] #ti-logo{width:76px;height:76px;border-radius:14px;margin-right:20px}
+[data-d="tarjeta"] #ti-nombre{font-family:'EB Garamond',serif;font-weight:600;font-size:30px;line-height:1.1}
+[data-d="tarjeta"] #ti-cargo{font-family:'EB Garamond',serif;font-size:17px;letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+[data-d="tarjeta"] #ti-tema{font-family:'EB Garamond',serif;font-size:18px;margin-top:6px;max-width:50vw}
+[data-d="tarjeta"] #ti-inst{font-family:'EB Garamond',serif;font-size:11px;color:rgba(220,230,255,.55);letter-spacing:.17em;margin-top:6px}
+
+/* ── 4. Banda completa: franja de borde a borde, sube desde abajo ── */
+#tercio-inferior[data-d="banda"]{
+  left:0;right:0;bottom:0;width:100vw;padding:16px 54px;
+  background:linear-gradient(90deg,var(--bg-solid),var(--bg-mid) 50%,var(--bg-solid));
+  border-top:4px solid var(--accent);
+  transform:translateY(105%);
+}
+[data-d="banda"] #ti-logo{width:72px;height:72px;margin-right:22px;box-shadow:0 0 18px var(--accent-glow)}
+[data-d="banda"] #ti-nombre{font-family:'Cinzel',serif;font-weight:700;font-size:30px;letter-spacing:.01em}
+[data-d="banda"] #ti-cargo{font-family:'EB Garamond',serif;font-size:18px;letter-spacing:.07em;text-transform:uppercase;margin-top:3px}
+[data-d="banda"] #ti-bar{position:static}
+[data-d="banda"] #ti-tema{font-family:'EB Garamond',serif;font-size:19px;margin-top:4px;max-width:60vw}
+[data-d="banda"] #ti-inst{position:absolute;right:54px;top:50%;transform:translateY(-50%);font-family:'EB Garamond',serif;font-size:13px;letter-spacing:.2em;color:rgba(220,230,255,.6)}
+
+/* ── 5. Cristal: píldora oscura translúcida ── */
+#tercio-inferior[data-d="cristal"]{
+  left:46px;bottom:8vh;padding:10px 46px 10px 10px;
+  background:var(--bg-glass);border:1px solid rgba(255,255,255,.3);border-radius:999px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  transform:translateY(28px);
+}
+[data-d="cristal"] #ti-logo{width:66px;height:66px;margin-right:20px;box-shadow:0 0 14px var(--accent-glow)}
+[data-d="cristal"] #ti-nombre{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:30px;line-height:1.05;letter-spacing:.03em}
+[data-d="cristal"] #ti-cargo{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:17px;letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
+[data-d="cristal"] #ti-tema{font-family:'EB Garamond',serif;font-size:17px;margin-top:2px;max-width:50vw}
+[data-d="cristal"] #ti-inst{display:none}
+
+/* ── 6. Moderno: bloques con corte diagonal, estilo transmisión ── */
+#tercio-inferior[data-d="moderno"]{left:46px;bottom:8vh;align-items:stretch}
+[data-d="moderno"] #ti-logo{width:86px;height:86px;border-radius:0;border:none;background:var(--logo-fondo);margin-right:0;box-shadow:0 8px 22px rgba(0,0,0,.5);padding:6px}
+[data-d="moderno"] #ti-logo img{object-fit:contain}
+[data-d="moderno"] #ti-bar{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+[data-d="moderno"] #ti-nombre{
+  background:var(--accent);color:var(--logo-fondo);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:36px;line-height:1.05;letter-spacing:.02em;text-transform:uppercase;
+  padding:8px 64px 8px 24px;clip-path:polygon(0 0,100% 0,calc(100% - 24px) 100%,0 100%);
+}
+[data-d="moderno"] #ti-cargo{
+  background:var(--bg-solid);color:var(--accent-claro);
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:20px;letter-spacing:.12em;text-transform:uppercase;
+  padding:6px 52px 6px 24px;clip-path:polygon(0 0,100% 0,calc(100% - 18px) 100%,0 100%);
+}
+[data-d="moderno"] #ti-tema{
+  background:rgba(0,0,0,.6);color:#fff;
+  font-family:'EB Garamond',serif;font-size:19px;
+  padding:6px 40px 6px 24px;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);max-width:60vw;
+}
+[data-d="moderno"] #ti-inst{display:none}
 </style>
 </head>
 <body>
-<div id="tercio-inferior">
+<div id="tercio-inferior" data-d="clasico">
   <div id="ti-logo"><img id="ti-logo-img" src="" alt=""></div>
   <div id="ti-bar">
     <div id="ti-nombre"></div>
     <div id="ti-cargo"></div>
+    <div id="ti-tema"></div>
     <div id="ti-inst"></div>
   </div>
 </div>
 <script>
 const BASE=location.origin;
 const PLANTILLAS=${JSON.stringify(TERCIO_PLANTILLAS)};
+const DISENOS=${JSON.stringify(TERCIO_DISENOS)};
 const el=document.getElementById('tercio-inferior');
-const logoBox=document.getElementById('ti-logo');
 const logoImg=document.getElementById('ti-logo-img');
-const bar=document.getElementById('ti-bar');
 const nombreEl=document.getElementById('ti-nombre');
 const cargoEl=document.getElementById('ti-cargo');
+const temaEl=document.getElementById('ti-tema');
 const instEl=document.getElementById('ti-inst');
 let shown=false,lastKey='',lastPlantilla='',lastLogo='',lastInst='';
 function aplicarPlantilla(id){
   if(id===lastPlantilla)return;
   lastPlantilla=id;
   const p=PLANTILLAS[id]||PLANTILLAS.dorado;
-  logoBox.style.border='3px solid '+p.logoBorde;
-  logoBox.style.background=p.logoFondo;
-  logoBox.style.boxShadow='0 0 22px '+p.accent+'80,0 8px 22px rgba(0,0,0,.5)';
-  bar.style.background='linear-gradient(90deg,'+
-    p.bg.replace('VAR','.97')+' 0%,'+
-    p.bgMedio.replace('VAR2','.95')+' 48%,'+
-    p.bgMedio.replace('VAR2','.45')+' 78%,'+
-    p.bgMedio.replace('VAR2','0')+' 100%)';
-  bar.style.setProperty('--accent',p.accent);
-  const styleTag=document.getElementById('ti-dyn-style')||(() => {
-    const s=document.createElement('style');s.id='ti-dyn-style';document.head.appendChild(s);return s;
-  })();
-  styleTag.textContent=
-    '#ti-bar::before{background:linear-gradient(90deg,'+p.accentClaro+','+p.accent+' 38%,transparent 82%)}'+
-    '#ti-bar::after{background:linear-gradient(90deg,'+p.accent+'bf,'+p.accent+'4d 38%,transparent 82%)}';
-  cargoEl.style.color=p.cargo;
+  const s=el.style;
+  s.setProperty('--bg-solid',p.bg.replace('VAR','.97'));
+  s.setProperty('--bg-mid',p.bgMedio.replace('VAR2','.95'));
+  s.setProperty('--bg-soft',p.bgMedio.replace('VAR2','.45'));
+  s.setProperty('--bg-clear',p.bgMedio.replace('VAR2','0'));
+  s.setProperty('--bg-glass',p.bg.replace('VAR','.72'));
+  s.setProperty('--accent',p.accent);
+  s.setProperty('--accent-claro',p.accentClaro);
+  s.setProperty('--accent-glow',p.accent+'80');
+  s.setProperty('--cargo',p.cargo);
+  s.setProperty('--logo-borde',p.logoBorde);
+  s.setProperty('--logo-fondo',p.logoFondo);
 }
 async function poll(){
   try{
@@ -969,6 +1056,8 @@ async function poll(){
     const instTexto=String(d.nombreIglesia||'GloryView').toUpperCase();
     if(instTexto!==lastInst){lastInst=instTexto;instEl.textContent=instTexto;}
     aplicarPlantilla(d.plantilla||'dorado');
+    const diseno=DISENOS[d.diseno]?d.diseno:'clasico';
+    if(el.dataset.d!==diseno)el.dataset.d=diseno;
     const activo=Boolean(d.activo);
     const msEntrada=Number(d.duracionEntrada)||700;
     const msSalida=Number(d.duracionSalida)||600;
@@ -979,11 +1068,14 @@ async function poll(){
       }
       return;
     }
-    const key=(d.nombre||'')+'|'+(d.cargo||'');
+    const key=(d.nombre||'')+'|'+(d.cargo||'')+'|'+(d.tema||'');
     if(key!==lastKey){
       lastKey=key;
-      nombreEl.textContent=d.nombre||'';
+      // Sin nombre, el tema/evento ocupa la línea principal
+      const soloTema=!d.nombre&&d.tema;
+      nombreEl.textContent=soloTema?d.tema:(d.nombre||'');
       cargoEl.textContent=d.cargo||'';
+      temaEl.textContent=soloTema?'':(d.tema||'');
     }
     if(!shown){
       el.style.transitionDuration=msEntrada+'ms';
@@ -3685,7 +3777,7 @@ const obsEstado = {
   // Tercio inferior (lower third) — capa independiente de 'tipo': se
   // muestra/oculta por su cuenta, sin que actualizarObs() la toque.
   tercioInferior: {
-    activo: false, nombre: '', cargo: '', plantilla: 'dorado',
+    activo: false, nombre: '', cargo: '', tema: '', plantilla: 'dorado', diseno: 'clasico',
     duracionEntrada: 700, duracionSalida: 600, // ms — velocidad de la animación
   },
   updatedAt: Date.now(),
@@ -4792,13 +4884,15 @@ app.whenReady().then(async () => {
     // Mostrar/ocultar y actualizar texto del tercio inferior en el overlay
     // de OBS. No pasa por el proyector ni por obsEstado.tipo — es una capa
     // independiente (ver actualizarTercioInferior() y obsEstado arriba).
-    safeHandle("mostrar-tercio-inferior", (_, { nombre, cargo, plantilla, duracionEntrada, duracionSalida, autoOcultarMs }) => {
+    safeHandle("mostrar-tercio-inferior", (_, { nombre, cargo, tema, plantilla, diseno, duracionEntrada, duracionSalida, autoOcultarMs }) => {
       try {
         actualizarTercioInferior({
           activo: true,
           nombre: nombre || '',
           cargo: cargo || '',
+          tema: tema || '',
           ...(plantilla ? { plantilla } : {}),
+          ...(diseno && TERCIO_DISENOS[diseno] ? { diseno } : {}),
           ...(duracionEntrada ? { duracionEntrada } : {}),
           ...(duracionSalida ? { duracionSalida } : {}),
         });
@@ -4809,6 +4903,13 @@ app.whenReady().then(async () => {
     safeHandle("cambiar-plantilla-tercio-inferior", (_, plantilla) => {
       try {
         actualizarTercioInferior({ plantilla });
+        return { success: true };
+      } catch (e) { return { success: false, error: e.message }; }
+    });
+    safeHandle("cambiar-diseno-tercio-inferior", (_, diseno) => {
+      try {
+        if (!TERCIO_DISENOS[diseno]) return { success: false, error: 'Diseño no válido' };
+        actualizarTercioInferior({ diseno });
         return { success: true };
       } catch (e) { return { success: false, error: e.message }; }
     });

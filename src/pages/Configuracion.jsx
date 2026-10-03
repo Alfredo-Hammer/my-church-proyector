@@ -38,7 +38,7 @@ const CONFIG_DEFAULTS = {
   logo: "/images/icon-256.png", logoSize: "size-80",
   colorPrimario: "#ffffff", colorSecundario: "#d1d5db",
   fondoActivo: "", tipoFondo: "imagen",
-  fontSize: {titulo: "text-6xl", parrafo: "text-9xl", eslogan: "text-5xl"},
+  fontSize: {titulo: "text-8xl", parrafo: "text-9xl", eslogan: "text-5xl"},
   videosFondo: [], intervaloCambioVideo: 120,
   mostrarLogo: true, mostrarNombreIglesia: true, mostrarEslogan: true,
 };
@@ -257,7 +257,7 @@ const Configuracion = () => {
       logoUrl: cfg.logo || "", logoSize: cfg.logoSize || "size-80",
       colorPrimario: cfg.colorPrimario || "#ffffff",
       colorSecundario: cfg.colorSecundario || "#d1d5db",
-      fontSizeTitulo:  cfg.fontSize?.titulo  || "text-6xl",
+      fontSizeTitulo:  cfg.fontSize?.titulo  || "text-8xl",
       fontSizeParrafo: cfg.fontSize?.parrafo || "text-9xl",
       fontSizeEslogan: cfg.fontSize?.eslogan || "text-5xl",
       mostrarLogo:            String(cfg.mostrarLogo            ?? true),

@@ -57,7 +57,7 @@ const ModernTextDisplay = ({
     [configuracion]
   );
   const tamañoTitulo = useMemo(
-    () => configuracion?.fontSize?.titulo || "text-5xl",
+    () => configuracion?.fontSize?.titulo || "text-8xl",
     [configuracion]
   );
 
@@ -74,7 +74,7 @@ const ModernTextDisplay = ({
     // max-h-[35%] + overflow-hidden), pero sí necesita la misma escala que
     // el párrafo para no verse chico en pantallas de mayor resolución que
     // la de referencia (1920×1080).
-    const tituloClass = configuracion?.fontSize?.titulo || "text-5xl";
+    const tituloClass = configuracion?.fontSize?.titulo || "text-8xl";
     setTituloFontSizePx((CLASS_PX[tituloClass] ?? 48) * escala);
 
     const measure = measureRef.current;

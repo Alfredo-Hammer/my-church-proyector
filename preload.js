@@ -401,6 +401,7 @@ contextBridge.exposeInMainWorld("electron", {
   eliminarOrador: (id) => ipcRenderer.invoke("eliminar-orador", id),
   mostrarTercioInferior: (data) => ipcRenderer.invoke("mostrar-tercio-inferior", data),
   cambiarPlantillaTercioInferior: (plantilla) => ipcRenderer.invoke("cambiar-plantilla-tercio-inferior", plantilla),
+  cambiarDisenoTercioInferior: (diseno) => ipcRenderer.invoke("cambiar-diseno-tercio-inferior", diseno),
   ocultarTercioInferior: () => ipcRenderer.invoke("ocultar-tercio-inferior"),
 
   // ====================================

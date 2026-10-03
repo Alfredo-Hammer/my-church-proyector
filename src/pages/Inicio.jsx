@@ -17,6 +17,11 @@ import {
   FaBible,
   FaArrowRight,
   FaStar,
+  FaBullhorn,
+  FaList,
+  FaClock,
+  FaImages,
+  FaIdCard,
 } from "react-icons/fa";
 import {LazyMotion, domAnimation, m} from "framer-motion";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
@@ -179,19 +184,33 @@ const Inicio = () => {
     }
   };
 
-  const cargarEstadisticas = () => {
+  // Mismas fuentes que la página Favoritos (API + base de datos). Antes se
+  // leía de claves de localStorage que ya nada llena, por eso siempre decía 0.
+  const cargarEstadisticas = async () => {
+    const API_BASE = "http://localhost:3001";
+    const contar = async (ruta, campo) => {
+      try {
+        const res = await fetch(`${API_BASE}${ruta}`, {
+          headers: {Accept: "application/json"},
+        });
+        const json = await res.json().catch(() => null);
+        return res.ok && json?.ok && Array.isArray(json[campo])
+          ? json[campo].length
+          : 0;
+      } catch {
+        return 0;
+      }
+    };
     try {
-      const parse = (key) => {
-        try {
-          return JSON.parse(localStorage.getItem(key) || "[]");
-        } catch {
-          return [];
-        }
-      };
-      const himnosFav = parse("himnosFavoritos").length;
-      const vcFav = parse("himnosVidaCristianaFavoritos").length;
-      const personalizados = parse("favoritosPersonalizados").length;
-      const biblia = parse("favoritosBiblia").length;
+      const [himnosFav, vcFav, biblia, personalizados] = await Promise.all([
+        contar("/api/himnos/favoritos?tipo=moravo", "himnos"),
+        contar("/api/himnos/favoritos?tipo=vida", "himnos"),
+        contar("/api/biblia/favoritos", "favoritos"),
+        window.electron
+          ?.obtenerFavoritos?.()
+          .then((l) => (Array.isArray(l) ? l.length : 0))
+          .catch(() => 0) ?? 0,
+      ]);
       setEstadisticas({
         totalHimnos: himnosFav,
         totalVidaCristiana: vcFav,
@@ -317,6 +336,66 @@ const Inicio = () => {
       iconBg: "bg-violet-500/20",
       iconColor: "text-violet-300",
       glow: "hover:shadow-violet-900/40",
+    },
+    {
+      icon: FaBullhorn,
+      label: "Anuncios",
+      sub: "Avisos de la semana",
+      path: "/anuncios",
+      from: "from-pink-500/25",
+      to: "to-pink-600/10",
+      border: "border-pink-500/25 hover:border-pink-400/50",
+      iconBg: "bg-pink-500/20",
+      iconColor: "text-pink-300",
+      glow: "hover:shadow-pink-900/40",
+    },
+    {
+      icon: FaList,
+      label: "Orden de Servicio",
+      sub: "Liturgia del culto",
+      path: "/presentaciones",
+      from: "from-orange-500/25",
+      to: "to-orange-600/10",
+      border: "border-orange-500/25 hover:border-orange-400/50",
+      iconBg: "bg-orange-500/20",
+      iconColor: "text-orange-300",
+      glow: "hover:shadow-orange-900/40",
+    },
+    {
+      icon: FaClock,
+      label: "Temporizador",
+      sub: "Cuenta regresiva",
+      path: "/temporizador",
+      from: "from-cyan-500/25",
+      to: "to-cyan-600/10",
+      border: "border-cyan-500/25 hover:border-cyan-400/50",
+      iconBg: "bg-cyan-500/20",
+      iconColor: "text-cyan-300",
+      glow: "hover:shadow-cyan-900/40",
+    },
+    {
+      icon: FaImages,
+      label: "Diapositivas",
+      sub: "Presentaciones de imágenes",
+      path: "/diapositivas",
+      from: "from-sky-500/25",
+      to: "to-sky-600/10",
+      border: "border-sky-500/25 hover:border-sky-400/50",
+      iconBg: "bg-sky-500/20",
+      iconColor: "text-sky-300",
+      glow: "hover:shadow-sky-900/40",
+    },
+    {
+      icon: FaIdCard,
+      label: "Tercio Inferior",
+      sub: "Nombre y cargo en OBS",
+      path: "/tercio-inferior",
+      from: "from-yellow-500/25",
+      to: "to-yellow-600/10",
+      border: "border-yellow-500/25 hover:border-yellow-400/50",
+      iconBg: "bg-yellow-500/20",
+      iconColor: "text-yellow-300",
+      glow: "hover:shadow-yellow-900/40",
     },
   ];
 
@@ -621,14 +700,14 @@ const Inicio = () => {
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 xl:gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 xl:gap-2.5">
                 {accesos.map((item) => (
                   <m.button
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     whileHover={{scale: 1.03, y: -2}}
                     whileTap={{scale: 0.97}}
-                    className={`group relative flex flex-col items-start gap-3 p-4 xl:p-5 rounded-2xl border bg-gradient-to-br ${item.from} ${item.to} ${item.border} backdrop-blur-sm transition-all duration-200 shadow-lg ${item.glow} hover:shadow-xl text-left overflow-hidden`}
+                    className={`group relative flex flex-col items-start gap-2 p-3 xl:p-3.5 rounded-xl border bg-gradient-to-br ${item.from} ${item.to} ${item.border} backdrop-blur-sm transition-all duration-200 shadow-lg ${item.glow} hover:shadow-xl text-left overflow-hidden`}
                   >
                     {/* Glow de fondo en hover */}
                     <div
@@ -636,24 +715,24 @@ const Inicio = () => {
                     />
 
                     <div
-                      className={`relative shrink-0 size-10 xl:w-11 xl:h-11 rounded-xl ${item.iconBg} flex items-center justify-center`}
+                      className={`relative shrink-0 size-8 xl:size-9 rounded-lg ${item.iconBg} flex items-center justify-center`}
                     >
                       <item.icon
-                        className={`${item.iconColor} text-lg xl:text-xl`}
+                        className={`${item.iconColor} text-base xl:text-lg`}
                       />
                     </div>
 
                     <div className="relative min-w-0 flex-1">
-                      <p className="text-sm xl:text-base font-semibold text-white leading-tight">
+                      <p className="text-[13px] xl:text-sm font-semibold text-white leading-tight">
                         {item.label}
                       </p>
-                      <p className="text-[10px] xl:text-xs text-white/45 mt-0.5 leading-tight">
+                      <p className="text-[10px] xl:text-[11px] text-white/45 mt-0.5 leading-tight">
                         {item.sub}
                       </p>
                     </div>
 
                     <FaArrowRight
-                      className={`relative self-end ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`}
+                      className={`absolute right-2.5 bottom-2.5 ${item.iconColor} text-[10px] opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-200`}
                     />
                   </m.button>
                 ))}

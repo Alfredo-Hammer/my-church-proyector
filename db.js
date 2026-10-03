@@ -159,7 +159,7 @@ const configuracionPorDefecto = {
     descripcion: "Color secundario del tema"
   },
   fontSizeTitulo: {
-    valor: "text-5xl",
+    valor: "text-8xl",
     tipo: "string",
     descripcion: "Tamaño de fuente para títulos"
   },
@@ -310,6 +310,16 @@ function restaurarConfiguracionDefecto() {
 
 // Insertar configuración por defecto al inicializar
 insertarConfiguracionPorDefecto();
+
+// Una sola vez: el título/referencia por defecto subió a 2XL; quien lo tenía
+// en el valor viejo (M/L) pasa al nuevo, quien lo cambió a otro valor no se toca.
+if (!obtenerConfiguracion('migracionTituloGrande')) {
+  const tituloActual = obtenerConfiguracion('fontSizeTitulo');
+  if (tituloActual === 'text-5xl' || tituloActual === 'text-6xl') {
+    actualizarConfiguracion('fontSizeTitulo', 'text-8xl');
+  }
+  actualizarConfiguracion('migracionTituloGrande', 'true');
+}
 
 // ====================================
 // FUNCIONES DE HIMNOS

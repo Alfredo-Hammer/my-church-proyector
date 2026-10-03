@@ -83,7 +83,8 @@ function useEscalaFuente() {
   return escala;
 }
 
-// Mismo valor por defecto que CONFIG_DEFAULTS.fontSize.titulo en Configuracion.jsx.
+// Clase con la que se calibraron los px base de cada plantilla (no es el
+// valor por defecto de Configuración, que ahora es mayor).
 const TITULO_CLASS_DEFECTO = "text-6xl";
 
 // ── Escala de la referencia (.plg-ref) — combina la resolución (useEscalaFuente)
@@ -94,13 +95,15 @@ const TITULO_CLASS_DEFECTO = "text-6xl";
 // usuario viera "el texto bíblico bien, pero la referencia no". El factor de
 // configuración es relativo al tamaño por defecto para no alterar el look ya
 // afinado de cada plantilla cuando el usuario no toca esa opción.
+const REFERENCIA_BASE = 1.75;
+
 function useEscalaReferencia() {
   const configuracion = useContext(ConfigProyectorContext);
   const escala = useEscalaFuente();
-  const tituloClass = configuracion?.fontSize?.titulo || TITULO_CLASS_DEFECTO;
+  const tituloClass = configuracion?.fontSize?.titulo || "text-8xl";
   const factorConfig =
     (CLASS_PX[tituloClass] ?? CLASS_PX[TITULO_CLASS_DEFECTO]) / CLASS_PX[TITULO_CLASS_DEFECTO];
-  return escala * factorConfig;
+  return escala * factorConfig * REFERENCIA_BASE;
 }
 
 // ── Velocidades ─────────────────────────────────────────────────────────────
@@ -197,7 +200,7 @@ function EstructuraAlabanza({titulo, texto}) {
             className="plg-ref shrink-0 inline-block font-extrabold uppercase rounded-full"
             style={{
               fontSize: `${15 * escalaRef}px`,
-              padding: `${5.5 * escala}px ${18 * escala}px`,
+              padding: `${5.5 * escalaRef}px ${18 * escalaRef}px`,
               marginBottom: `${24 * escala}px`,
             }}
           >
@@ -388,8 +391,8 @@ function EstructuraEnsenanza({titulo, texto}) {
             className="plg-ref shrink-0 font-bold uppercase"
             style={{
               fontSize: `${15.5 * escalaRef}px`,
-              borderLeftWidth: `${3 * escala}px`,
-              paddingLeft: `${11 * escala}px`,
+              borderLeftWidth: `${3 * escalaRef}px`,
+              paddingLeft: `${11 * escalaRef}px`,
               marginBottom: `${6 * escala}px`,
             }}
           >
@@ -604,7 +607,7 @@ function EstructuraVibra({titulo, texto}) {
             className="plg-ref shrink-0 inline-block uppercase rounded-full"
             style={{
               fontSize: `${14 * escalaRef}px`,
-              padding: `${5.5 * escala}px ${18 * escala}px`,
+              padding: `${5.5 * escalaRef}px ${18 * escalaRef}px`,
               marginBottom: `${24 * escala}px`,
             }}
           >
@@ -735,7 +738,7 @@ function EstructuraGozo({titulo, texto}) {
             style={{
               fontSize: `${14 * escalaRef}px`,
               letterSpacing: "0.1em",
-              padding: `${6 * escala}px ${18 * escala}px`,
+              padding: `${6 * escalaRef}px ${18 * escalaRef}px`,
               marginBottom: `${22 * escala}px`,
             }}
           >

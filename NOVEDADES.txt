@@ -1,3 +1,32 @@
+Version 0.4.8
+
+Nuevas funciones
+- Tercio Inferior con 6 disenos a elegir: Clasico, Minimalista,
+  Tarjeta, Banda completa, Cristal y Moderno. Se combinan con los 4
+  colores y se pueden cambiar en vivo mientras esta en pantalla
+- Nuevo campo "Tema o evento" (opcional): muestra el tema de la predica
+  o el nombre del evento como una linea extra, o solo, sin nombre
+- Opcion "Mostrar al elegir": al escoger una persona guardada aparece en
+  OBS sin tener que pulsar MOSTRAR
+- El Tercio Inferior recuerda tus ajustes (diseno, color, velocidad de
+  la animacion, ocultado automatico y tema) para la proxima transmision
+- Pagina del Tercio Inferior rediseñada: cabe completa en laptops
+  chicas, sin tener que bajar con el scroll
+- Inicio: nuevos accesos rapidos a Anuncios, Orden de Servicio,
+  Temporizador, Diapositivas y Tercio Inferior
+
+Mejoras
+- El nombre del libro y la referencia biblica ahora se ven mas grandes,
+  tanto con plantillas animadas como sin plantilla. El tamano por
+  defecto del titulo subio y se ajusta desde Configuracion
+- Las tarjetas de Accesos Rapidos del Inicio son mas compactas
+
+Correcciones
+- Corregido: el contador de Favoritos del Inicio siempre decia 0 aunque
+  tuvieras favoritos guardados
+- Corregido: al guardar una persona del Tercio Inferior que ya estaba
+  guardada se creaba un duplicado. Ahora la reconoce por su nombre
+
 Version 0.4.7
 
 Nuevas funciones

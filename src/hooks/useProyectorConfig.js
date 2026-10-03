@@ -10,7 +10,7 @@ const CONFIG_DEFAULTS = {
   logoSize: "size-80",
   colorPrimario: "#fb923c",
   colorSecundario: "#ffffff",
-  fontSize: {titulo: "text-6xl", parrafo: "text-9xl", eslogan: "text-3xl"},
+  fontSize: {titulo: "text-8xl", parrafo: "text-9xl", eslogan: "text-3xl"},
   videosFondo: videosDefecto,
   intervaloCambioVideo: 120,
   mostrarLogo: true,

@@ -71,8 +71,8 @@ El algoritmo de búsqueda binaria asegura que **99.9% de textos** se ajusten per
 **¡CRÍTICO!** El orden de inicialización es fundamental para que la app funcione en producción:
 
 1. Configurar nombre de aplicación
-2. Inicializar base de datos (`dbNew.initializeDatabase()`)
-3. Inicializar fondos por defecto
+2. Base de datos: no hay paso explícito — `db.js` se inicializa de forma síncrona al hacer `require("./db")` (conexión, tablas, migraciones, datos por defecto)
+3. Inicializar fondos por defecto (y fondos animados por defecto)
 4. Limpiar handlers IPC anteriores
 5. Verificar integridad de archivos del build (solo producción)
 6. Registrar todos los handlers IPC
@@ -101,8 +101,11 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
 - Motor: **better-sqlite3** (síncrono, sin pool de conexiones).
 - Todo el esquema y las queries viven en `db.js` (archivo único; `db-new.js` se eliminó en la consolidación de julio 2026).
 - **Todas las queries deben usar parámetros (`?`)** — nunca concatenar strings con datos del usuario.
-- Tablas principales: `himnos`, `multimedia`, `fondos`, `configuracion`, `ordenes_servicio`, `anuncios`.
-- `presentaciones`/`presentaciones_slides` fueron eliminadas del código en julio 2026 (feature completa removida, ver `PresentationManager.jsx` en el historial de git). Las tablas pueden seguir existiendo en instalaciones productivas viejas, pero ya no se crean ni se usan.
+- Tablas principales: `himnos`, `multimedia`, `fondos`, `configuracion`, `ordenes_servicio`, `anuncios`, `oradores` (personas guardadas para el Tercio Inferior), `diapositivas`.
+- **Ojo con los nombres "presentaciones"** — hay tres cosas distintas:
+  - La feature vieja `PresentationManager.jsx` (tablas `presentaciones`/`presentaciones_slides`) se eliminó en julio 2026. Esas tablas pueden seguir existiendo en instalaciones viejas con un esquema incompatible: **no reutilizar el nombre de tabla `presentaciones`**.
+  - La feature actual de **diapositivas** (secuencias de imágenes, ej. PowerPoint exportado a PNG/JPG) usa la tabla `diapositivas`, aunque sus funciones/IPC se siguen llamando `obtenerPresentaciones`, `obtener-presentaciones`, `/api/presentaciones`, etc. UI: `src/pages/Diapositivas.jsx` (ruta `/diapositivas`).
+  - `src/pages/Presentaciones.jsx` (ruta `/presentaciones`) es en realidad el **orden de servicio** (`ordenes_servicio`, con fallback a localStorage), no diapositivas.
 
 ### Servidor Express
 
@@ -130,8 +133,8 @@ iniciarServidorMultimedia(); // demasiado tarde
 
 ```
 my-church-proyector/
-├── main.js                  # Proceso principal Electron (~4400 líneas)
-├── preload.js               # Bridge IPC seguro (~380 líneas)
+├── main.js                  # Proceso principal Electron (~5300 líneas; incluye rutas Express de la app móvil y algunos handlers IPC aún no extraídos, ej. diapositivas)
+├── preload.js               # Bridge IPC seguro (~450 líneas)
 ├── db.js                    # Schema SQLite + toda la capa de datos (archivo único)
 ├── ipc/                     # Handlers IPC extraídos de main.js, por dominio (modularización completa — ver nota abajo)
 │   ├── himnos.js             # CRUD de himnos (agregar/obtener/actualizar/eliminar/favoritos)
@@ -142,22 +145,30 @@ my-church-proyector/
 │   ├── configuracion.js       # CRUD de configuración (obtener/guardar/restaurar por defecto/por clave)
 │   ├── proyectorControl.js    # Proyectar himno/versículo/multimedia, abrir/cerrar ventana, fondos, controles remotos, OBS (el dominio más acoplado — mainWindow/proyectorWindow, actualizarObs y timer se inyectan)
 │   ├── sistema.js             # Updates (autoUpdater), logo, enlace externo, info de la app, zoom, fullscreen
+│   ├── backup.js              # Respaldo/restauración en .zip (JSZip) de DB + fondos/logos/multimedia; restaurar sobrescribe pero no borra archivos ajenos al respaldo
 │   └── shared/
-│       └── uploadValidation.js  # Validación de uploads (tamaño/extensión/magic number), usada por multimedia y por handlers aún en main.js (logo, presentaciones)
+│       └── uploadValidation.js  # Validación de uploads (tamaño/extensión/magic number), usada por ipc/multimedia.js e ipc/sistema.js (logo)
 ├── electron-builder.yml     # Configuración de build y empaquetado
 ├── assets/
 │   └── entitlements.mac.plist  # Permisos macOS (hardenedRuntime)
 ├── src/
 │   ├── App.js               # Routing principal (React Router v7)
-│   ├── pages/               # Vistas principales
-│   │   ├── Proyector.jsx    # Control del proyector (~91KB)
-│   │   ├── Multimedia.jsx   # Gestor multimedia (~133KB)
-│   │   ├── Biblia.jsx       # Visor bíblico (~59KB)
-│   │   ├── Himnos.jsx / HimnoDetalle.jsx
-│   │   ├── AgregarHimno.jsx
+│   ├── pages/               # Vistas principales (rutas en src/App.js)
+│   │   ├── Inicio.jsx       # Pantalla de inicio (ruta /)
+│   │   ├── Proyector.jsx    # Control del proyector
+│   │   ├── Multimedia.jsx   # Gestor multimedia
+│   │   ├── Biblia.jsx       # Visor bíblico
+│   │   ├── Himnos.jsx / HimnoDetalle.jsx / HimnoVidaCristiana.jsx / AgregarHimno.jsx / Favoritos.jsx
+│   │   ├── Presentaciones.jsx  # ⚠️ Orden de servicio (no diapositivas — ver sección Base de datos)
+│   │   ├── Diapositivas.jsx    # Secuencias de imágenes (tabla diapositivas)
+│   │   ├── Anuncios.jsx
+│   │   ├── TercioInferior.jsx  # Tercio inferior (lower third) para OBS — usa tabla oradores
+│   │   ├── Temporizador.jsx
+│   │   ├── Plantillas.jsx      # Plantillas animadas (PlantillaGSAP)
+│   │   ├── AppMovil.jsx / Servidor.jsx  # Conexión de la app móvil / servidor local
 │   │   ├── GestionFondos.jsx
-│   │   ├── Configuracion.jsx
-│   │   └── Favoritos.jsx
+│   │   ├── Contactos.jsx
+│   │   └── Configuracion.jsx
 │   ├── components/
 │   │   ├── GlobalMediaPlayer.jsx    # Reproductor global de audio/video
 │   │   ├── ModernMultimediaRenderer.jsx
@@ -176,6 +187,8 @@ my-church-proyector/
     ├── multimedia/          # Archivos multimedia del usuario
     ├── fondos/              # Imágenes de fondo
     └── uploads/             # Logos y uploads de usuario
+
+app-gloryview/               # App móvil de control remoto (Expo 54 / React Native 0.81, build con EAS — ver BUILD-APK.md). Habla con las rutas Express de main.js
 ```
 
 ---
@@ -201,7 +214,8 @@ my-church-proyector/
 - No modificar estos límites sin motivo justificado.
 
 ### CSP
-- `'unsafe-eval'` y `'unsafe-inline'` en `script-src` están **prohibidos en producción**.
+- **Objetivo:** `'unsafe-eval'` y `'unsafe-inline'` en `script-src` no deberían estar en producción.
+- **⚠️ Estado actual (nov 2026): la CSP de producción en `obtenerCSP()` (main.js) SÍ incluye ambos**, agregados "temporalmente". Es deuda de seguridad pendiente: no agregar más relajaciones, y si se quitan, probar el build empaquetado (pantalla blanca = algo dependía de eval/inline).
 - En desarrollo se permiten para el webpack dev server (source maps).
 - `style-src 'unsafe-inline'` se mantiene (React + TailwindCSS usan estilos inline).
 
@@ -316,8 +330,10 @@ Sin las variables de entorno, el build funciona sin firma (modo desarrollo/prueb
 | Multimedia del usuario | `{userData}/public/multimedia/` |
 | Fondos del usuario | `{userData}/public/fondos/` |
 | Uploads (logos) | `{userData}/public/uploads/` |
-- **No crear ventanas antes de iniciar el servidor Express** — siempre usar `await iniciarServidorMultimedia()` primero.
-- **No modificar el orden de inicialización en `app.whenReady()`** sin entender las dependencias.
+
+`{userData}` en Windows: `C:\Users\{usuario}\AppData\Roaming\GloryView Proyector`
+
+> En desarrollo, `{userData}` en macOS es `~/Library/Application Support/my-church-proyector`.
 
 ---
 
@@ -367,7 +383,7 @@ Atajos de teclado para abrir DevTools:
 #### Pantalla blanca / App no inicia
 **Causa:** Ventana creada antes de que el servidor esté listo.
 **Diagnóstico:** Revisar log, buscar `❌ Error cargando URL http://localhost:3001`
-**Solución:** El código ya está corregido (marzo 2026), actualizar a versión 0.2.0+
+**Solución:** El código ya está corregido (marzo 2026, desde la 0.2.0; versión actual 0.4.8)
 
 #### Puerto 3001 ocupado
 **Causa:** Otra instancia de GloryView o proceso bloqueando el puerto.
@@ -381,10 +397,6 @@ Stop-Process -Name "GloryViewProyector" -Force
 **Causa:** Build incompleto o corrupto.
 **Diagnóstico:** Log mostrará `❌ index.html no encontrado`
 **Solución:** Reinstalar aplicación
-
----
-
-`{userData}` en Windows: `C:\Users\{usuario}\AppData\Roaming\GloryView Proyector`
 
 ---
 
@@ -478,3 +490,6 @@ El proyector carga desde **puertos diferentes** según el modo:
 - No escribir archivos al disco sin pasar por `validarArchivoUpload()`.
 - No hacer queries SQL con concatenación de strings.
 - No agregar `require()` al preload.js (rompe el sandbox).
+- No crear ventanas antes de iniciar el servidor Express — siempre `await iniciarServidorMultimedia()` primero.
+- No modificar el orden de inicialización en `app.whenReady()` sin entender las dependencias.
+- No reutilizar el nombre de tabla `presentaciones` (choca con tablas viejas en instalaciones existentes).

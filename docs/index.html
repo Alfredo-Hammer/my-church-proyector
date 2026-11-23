@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GloryView Proyector</title>
+<meta name="description" content="Proyecta himnos, la Biblia, anuncios y multimedia en tu iglesia. Gratis para Windows y Mac, con control desde el celular.">
+<link rel="icon" href="favicon.png">
+<meta property="og:title" content="GloryView Proyector">
+<meta property="og:description" content="Himnos, Biblia, anuncios y multimedia en la pantalla de tu iglesia, controlados desde el celular.">
+<meta property="og:image" content="icono.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fondo: #070b16;
+    --fondo-2: #0d1324;
+    --tarjeta: #111a2e;
+    --borde: rgba(148, 163, 184, .14);
+    --texto: #e7ecf5;
+    --suave: #94a3b8;
+    --tenue: #64748b;
+    --indigo: #818cf8;
+    --indigo-fuerte: #4f46e5;
+    --verde: #10b981;
+    --oro: #fbbf24;
+    --radio: 18px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font: 16px/1.6 "Manrope", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; }
+  img { max-width: 100%; display: block; }
+  .ancho { width: min(1120px, 100% - 32px); margin-inline: auto; }
+
+  /* ---------- barra ---------- */
+  header.barra {
+    position: sticky; top: 0; z-index: 20;
+    backdrop-filter: blur(14px);
+    background: rgba(7, 11, 22, .72);
+    border-bottom: 1px solid var(--borde);
+  }
+  .barra .ancho { display: flex; align-items: center; gap: 12px; height: 64px; }
+  .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; letter-spacing: -.01em; }
+  .marca img { width: 32px; height: 32px; }
+  .barra nav { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
+  .barra nav a { text-decoration: none; color: var(--suave); }
+  .barra nav a:hover { color: var(--texto); }
+  @media (max-width: 720px) { .barra nav a:not(.cta-mini) { display: none; } }
+  .cta-mini {
+    padding: 7px 14px; border-radius: 999px;
+    background: var(--indigo-fuerte); color: #fff !important; font-weight: 600;
+  }
+
+  /* ---------- hero ---------- */
+  .hero { position: relative; padding: 72px 0 40px; }
+  .hero::before {
+    content: ""; position: absolute; inset: -200px 0 auto; height: 700px; z-index: -1;
+    background:
+      radial-gradient(600px 340px at 70% 30%, rgba(79, 70, 229, .28), transparent 70%),
+      radial-gradient(500px 300px at 15% 10%, rgba(16, 185, 129, .12), transparent 70%);
+  }
+  .hero .ancho { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+  @media (max-width: 920px) { .hero .ancho { grid-template-columns: 1fr; } }
+  .pastilla {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px 5px 6px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: rgba(16, 185, 129, .1); border: 1px solid rgba(16, 185, 129, .3); color: #6ee7b7;
+    text-decoration: none;
+  }
+  .pastilla b { background: var(--verde); color: #04120c; border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+  h1 {
+    font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600;
+    font-size: clamp(42px, 6vw, 68px); line-height: 1.02; letter-spacing: -.01em;
+    margin: 18px 0 16px;
+  }
+  h1 em { color: var(--oro); font-style: italic; font-weight: 500; }
+  .lead { color: var(--suave); font-size: 18px; max-width: 540px; margin: 0 0 28px; }
+
+  .descargas { display: flex; flex-wrap: wrap; gap: 10px; }
+  .boton {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 18px; border-radius: 14px; text-decoration: none; font-weight: 600; font-size: 15px;
+    border: 1px solid var(--borde); background: var(--tarjeta); transition: transform .15s, border-color .15s, background .15s;
+  }
+  .boton:hover { transform: translateY(-1px); border-color: rgba(129, 140, 248, .5); }
+  .boton.principal { background: var(--indigo-fuerte); border-color: transparent; color: #fff; }
+  .boton.principal:hover { background: #5b54f0; }
+  .boton svg { width: 20px; height: 20px; flex: none; }
+  .boton small { display: block; font-weight: 500; font-size: 12px; opacity: .7; line-height: 1.2; }
+  .boton span { line-height: 1.25; }
+  .nota-version { margin-top: 14px; font-size: 13px; color: var(--tenue); }
+  .nota-version a { color: var(--suave); }
+
+  /* proyector de muestra */
+  .escena { position: relative; padding-right: 17%; }
+  .pantalla {
+    aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; position: relative;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #1e1b4b 0%, #0b1023 55%, #050814 100%);
+    border: 1px solid rgba(129, 140, 248, .25);
+    box-shadow: 0 30px 80px -20px rgba(79, 70, 229, .45), 0 0 0 8px rgba(255, 255, 255, .02);
+    display: grid; place-items: center; text-align: center; padding: 6% 8%;
+  }
+  .pantalla::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(60% 40% at 50% 110%, rgba(251, 191, 36, .14), transparent 70%);
+  }
+  .verso {
+    font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600;
+    font-size: clamp(20px, 2.6vw, 32px); line-height: 1.22; color: #fff;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, .6);
+    transition: opacity .5s;
+  }
+  .ref { margin-top: 14px; font: 600 clamp(11px, 1.1vw, 14px)/1 "Manrope", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--oro); }
+  .partes { position: absolute; right: 14px; bottom: 12px; display: flex; gap: 5px; z-index: 1; }
+  .partes i { width: 18px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .2); transition: background .3s; }
+  .partes i.on { background: var(--verde); }
+  .vivo {
+    position: absolute; left: 14px; top: 12px; z-index: 1;
+    font: 700 10px/1 "Manrope", sans-serif; letter-spacing: .14em; color: #a7f3d0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .vivo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 10px var(--verde); }
+  .telefono {
+    position: absolute; right: 0; bottom: -34px; width: 24%; min-width: 110px;
+    aspect-ratio: 9 / 19; border-radius: 22px; padding: 7px;
+    background: #0a0f1d; border: 1px solid rgba(255, 255, 255, .1);
+    box-shadow: 0 24px 50px -10px rgba(0, 0, 0, .7);
+  }
+  @media (max-width: 920px) { .telefono { bottom: -24px; } }
+  .tel-pantalla { height: 100%; border-radius: 16px; background: linear-gradient(180deg, #121a33, #0a1022); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .tel-saludo { font-size: 9px; color: var(--suave); }
+  .tel-saludo b { display: block; color: #fff; font-size: 11px; }
+  .tel-estado { font-size: 8px; color: #6ee7b7; background: rgba(16, 185, 129, .12); border-radius: 8px; padding: 4px 6px; }
+  .tel-dest { border-radius: 9px; padding: 7px; font-size: 9px; font-weight: 700; color: #fff; }
+  .tel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .tel-grid span { aspect-ratio: 1; border-radius: 8px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .06); position: relative; }
+  .tel-grid span::after { content: ""; position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 3px; background: var(--c); opacity: .9; }
+
+  /* ---------- secciones ---------- */
+  section { padding: 80px 0; }
+  .sec-titulo { text-align: center; margin-bottom: 44px; }
+  .sec-titulo p.kicker { font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--indigo); margin: 0 0 8px; }
+  h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: clamp(32px, 4vw, 46px); line-height: 1.1; margin: 0 0 10px; }
+  .sec-titulo .lead { margin: 0 auto; }
+
+  .rejilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .rejilla { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .rejilla { grid-template-columns: 1fr; } }
+  .func {
+    background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 22px;
+  }
+  .func .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 14px; background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); }
+  .func .ico svg { width: 21px; height: 21px; }
+  .func h3 { margin: 0 0 6px; font-size: 17px; }
+  .func p { margin: 0; color: var(--suave); font-size: 14.5px; }
+
+  /* novedades */
+  .novedades { background: linear-gradient(180deg, var(--fondo), var(--fondo-2) 30%, var(--fondo)); }
+  .nov-caja { display: grid; grid-template-columns: 300px 1fr; gap: 40px; align-items: start; }
+  @media (max-width: 860px) { .nov-caja { grid-template-columns: 1fr; gap: 24px; } }
+  .nov-lado h2 { text-align: left; }
+  .nov-lado .lead { font-size: 16px; }
+  .nov-lista { display: grid; gap: 12px; }
+  .nov {
+    display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+    background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 18px 20px;
+  }
+  .etiqueta { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; margin-top: 2px; }
+  .etiqueta.nueva { background: rgba(16, 185, 129, .14); color: #6ee7b7; }
+  .etiqueta.mejora { background: rgba(129, 140, 248, .16); color: #c7d2fe; }
+  .etiqueta.arreglo { background: rgba(251, 191, 36, .14); color: #fde68a; }
+  .nov h3 { margin: 0 0 4px; font-size: 16px; }
+  .nov p { margin: 0; color: var(--suave); font-size: 14.5px; }
+  .aviso {
+    margin-top: 6px; padding: 14px 18px; border-radius: 14px; font-size: 14px;
+    background: rgba(251, 191, 36, .08); border: 1px solid rgba(251, 191, 36, .3); color: #fde68a;
+  }
+
+  /* movil */
+  .movil .ancho { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  @media (max-width: 860px) { .movil .ancho { grid-template-columns: 1fr; } }
+  .movil h2 { text-align: left; }
+  .pasos { list-style: none; padding: 0; margin: 22px 0 26px; display: grid; gap: 12px; counter-reset: paso; }
+  .pasos li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; color: var(--suave); }
+  .pasos li::before {
+    counter-increment: paso; content: counter(paso);
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(129, 140, 248, .14); color: var(--indigo); font-weight: 700; font-size: 14px;
+  }
+  .pasos b { color: var(--texto); font-weight: 600; }
+  .movil-arte { display: grid; place-items: center; }
+  .movil-arte .telefono { position: relative; right: auto; bottom: auto; width: 230px; min-width: 0; }
+  .movil-arte .tel-pantalla { padding: 18px 14px; gap: 10px; }
+  .movil-arte .tel-saludo { font-size: 12px; }
+  .movil-arte .tel-saludo b { font-size: 18px; }
+  .movil-arte .tel-estado { font-size: 11px; padding: 7px 9px; }
+  .movil-arte .tel-dest { font-size: 13px; padding: 12px; }
+  .movil-arte .tel-grid { gap: 8px; }
+  .movil-arte .tel-grid span::after { width: 13px; height: 13px; left: 9px; top: 9px; }
+
+  /* requisitos */
+  .req { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .req { grid-template-columns: 1fr; } }
+  .req .func ul { margin: 8px 0 0; padding-left: 18px; color: var(--suave); font-size: 14.5px; }
+  .req .func li + li { margin-top: 4px; }
+
+  footer { border-top: 1px solid var(--borde); padding: 30px 0 40px; color: var(--tenue); font-size: 14px; }
+  footer .ancho { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+  footer a { color: var(--suave); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="ancho">
+    <a class="marca" href="#"><img src="icono.png" alt="" width="32" height="32">GloryView</a>
+    <nav>
+      <a href="#funciones">Funciones</a>
+      <a href="#novedades">Novedades</a>
+      <a href="#movil">App móvil</a>
+      <a class="cta-mini" href="#descargar">Descargar</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero" id="descargar">
+    <div class="ancho">
+      <div>
+        <a class="pastilla" href="#novedades"><b>v0.5.0</b> Modo lejos, PIN y app móvil nueva</a>
+        <h1>La Palabra en pantalla, <em>clara desde la última fila</em></h1>
+        <p class="lead">GloryView proyecta himnos, la Biblia, anuncios, videos y presentaciones en tu iglesia. Gratis para Windows y Mac, y lo controlas desde el celular.</p>
+
+        <div class="descargas">
+          <a class="boton principal" data-descarga="win" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21V12.6h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
+            <span>Windows<small>Windows 10 y 11</small></span>
+          </a>
+          <a class="boton" data-descarga="mac-arm" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6ZM14.1 5.6c.6-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></svg>
+            <span>Mac<small>Apple M1, M2, M3…</small></span>
+          </a>
+          <a class="boton" data-descarga="mac-intel" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6ZM14.1 5.6c.6-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></svg>
+            <span>Mac<small>Procesador Intel</small></span>
+          </a>
+          <a class="boton" data-descarga="apk" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest/download/GloryView-Movil.apk">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.5 19.4 6.4a.4.4 0 0 0-.7-.4l-1.8 3.1A11 11 0 0 0 12 8a11 11 0 0 0-4.9 1.1L5.3 6a.4.4 0 0 0-.7.4l1.8 3.1A9.7 9.7 0 0 0 1.5 17h21a9.7 9.7 0 0 0-4.9-7.5ZM7 14.3a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm10 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+            <span>App Android<small>Control remoto (APK)</small></span>
+          </a>
+        </div>
+        <p class="nota-version">Versión <span data-version>0.5.0</span> · <a href="https://github.com/Alfredo-Hammer/my-church-proyector/releases">Todas las versiones</a> · La app se actualiza sola</p>
+      </div>
+
+      <div class="escena" aria-hidden="true">
+        <div class="pantalla">
+          <span class="vivo">EN VIVO</span>
+          <div>
+            <div class="verso" id="verso">Por lo cual estoy seguro de que ni la muerte, ni la vida, ni ángeles, ni principados, ni potestades,</div>
+            <div class="ref">Romanos 8:38</div>
+          </div>
+          <div class="partes"><i class="on"></i><i></i><i></i></div>
+        </div>
+        <div class="telefono">
+          <div class="tel-pantalla">
+            <div class="tel-saludo">Buenos días<b>Iglesia</b></div>
+            <div class="tel-estado">● Conectado</div>
+            <div class="tel-dest" style="background:linear-gradient(135deg,#6366f1,#4338ca)">Himnos</div>
+            <div class="tel-dest" style="background:linear-gradient(135deg,#f59e0b,#b45309)">Biblia</div>
+            <div class="tel-grid"><span style="--c:#fb7185"></span><span style="--c:#22d3ee"></span><span style="--c:#2dd4bf"></span><span style="--c:#a78bfa"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="funciones">
+    <div class="ancho">
+      <div class="sec-titulo">
+        <p class="kicker">Todo para el culto</p>
+        <h2>Una sola app, de la alabanza a la predicación</h2>
+        <p class="lead">Pensada para el equipo de medios de la iglesia: rápida, en español y sin suscripciones.</p>
+      </div>
+      <div class="rejilla">
+        <div class="func" style="--c:#818cf8">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+          <h3>Himnario completo</h3>
+          <p>Cientos de himnos listos para proyectar estrofa por estrofa, con buscador por número o título y tus propios cantos.</p>
+        </div>
+        <div class="func" style="--c:#fbbf24">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/><path d="M12 7v6M9 10h6"/></svg></div>
+          <h3>Biblia Reina-Valera</h3>
+          <p>Los 66 libros. Busca un versículo y proyéctalo en segundos; los largos se dividen solos con el modo lejos.</p>
+        </div>
+        <div class="func" style="--c:#10b981">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+          <h3>Control desde el celular</h3>
+          <p>Cambia himnos, versículos y diapositivas desde la app Android, conectada por la Wi-Fi de la iglesia y protegida con PIN.</p>
+        </div>
+        <div class="func" style="--c:#2dd4bf">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 9 5 3-5 3V9Z"/></svg></div>
+          <h3>Videos, música y fondos</h3>
+          <p>Reproduce multimedia en el proyector y usa fondos con imagen o video detrás del texto.</p>
+        </div>
+        <div class="func" style="--c:#fb7185">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg></div>
+          <h3>Anuncios y presentaciones</h3>
+          <p>Crea anuncios, diapositivas y el orden del culto, y pon el temporizador en pantalla cuando haga falta.</p>
+        </div>
+        <div class="func" style="--c:#c084fc">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/></svg></div>
+          <h3>Listo para transmitir</h3>
+          <p>Fuentes para OBS con fondo transparente y tercio inferior con el nombre de quien predica.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="novedades" id="novedades">
+    <div class="ancho nov-caja">
+      <div class="nov-lado">
+        <p class="kicker" style="font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--indigo);margin:0 0 8px">Novedades</p>
+        <h2>Qué hay en la 0.5.0</h2>
+        <p class="lead">Si ya tienes GloryView, la actualización te aparece sola al abrir la app.</p>
+      </div>
+      <div class="nov-lista">
+        <div class="nov"><span class="etiqueta nueva">Nuevo</span><div><h3>Modo lejos</h3><p>Los versículos largos se dividen solos en partes para que la letra se lea desde el fondo del templo. Avanzas parte por parte con las flechas, también desde el celular. Se ajusta en Configuración → Proyector.</p></div></div>
+        <div class="nov"><span class="etiqueta nueva">Nuevo</span><div><h3>PIN para la app móvil</h3><p>Los celulares de la red necesitan un PIN de 6 dígitos para controlar el proyector. Lo ves y lo renuevas en la página App Móvil, y lo puedes desactivar.</p></div></div>
+        <div class="nov"><span class="etiqueta nueva">Nuevo</span><div><h3>App móvil 1.1.0</h3><p>Pantalla de inicio nueva con saludo, estado de la conexión y accesos rápidos con los mismos colores del escritorio.</p></div></div>
+        <div class="nov"><span class="etiqueta mejora">Mejora</span><div><h3>Letra más grande y configuración más simple</h3><p>Texto más grande en el proyector para salones amplios. En Configuración los cambios se guardan solos y se quitaron opciones repetidas.</p></div></div>
+        <div class="nov"><span class="etiqueta mejora">Mejora</span><div><h3>Colores unificados</h3><p>Verde para proyectar, índigo para crear y guardar, rojo para eliminar, en todas las páginas.</p></div></div>
+        <div class="nov"><span class="etiqueta arreglo">Arreglo</span><div><h3>Temporizador y rendimiento</h3><p>El temporizador ya no abre en 00:00 con los botones bloqueados, y la app no se pone lenta al navegar mucho entre páginas.</p></div></div>
+        <div class="aviso"><b>Importante:</b> instala la app Android 1.1.0 en los celulares; la versión anterior no sabe pedir el PIN. Mientras los actualizas, desactiva “Exigir PIN” en la página App Móvil.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="movil" id="movil">
+    <div class="ancho">
+      <div>
+        <p class="kicker" style="font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--indigo);margin:0 0 8px">App móvil</p>
+        <h2>El proyector en tu bolsillo</h2>
+        <p class="lead">Quien dirige puede cambiar el himno o el versículo desde el púlpito, sin depender de la computadora.</p>
+        <ol class="pasos">
+          <li><span><b>Descarga el APK</b> en el celular Android y ábrelo. Si te lo pide, permite instalar apps de esta fuente.</span></li>
+          <li><span><b>Conecta el celular</b> a la misma Wi-Fi que la computadora del proyector.</span></li>
+          <li><span><b>Escanea el código QR</b> de la página App Móvil en GloryView, o escribe la dirección y el PIN.</span></li>
+        </ol>
+        <a class="boton principal" data-descarga="apk" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest/download/GloryView-Movil.apk">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.5 19.4 6.4a.4.4 0 0 0-.7-.4l-1.8 3.1A11 11 0 0 0 12 8a11 11 0 0 0-4.9 1.1L5.3 6a.4.4 0 0 0-.7.4l1.8 3.1A9.7 9.7 0 0 0 1.5 17h21a9.7 9.7 0 0 0-4.9-7.5ZM7 14.3a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm10 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+          <span>Descargar app Android<small>Versión 1.1.0 · APK</small></span>
+        </a>
+      </div>
+      <div class="movil-arte" aria-hidden="true">
+        <div class="telefono">
+          <div class="tel-pantalla">
+            <div class="tel-saludo">Buenas noches<b>Iglesia</b></div>
+            <div class="tel-estado">● Conectado al proyector</div>
+            <div class="tel-dest" style="background:linear-gradient(135deg,#6366f1,#4338ca)">Himnos<br><small style="font-weight:500;opacity:.8">Buscar y proyectar</small></div>
+            <div class="tel-dest" style="background:linear-gradient(135deg,#f59e0b,#b45309)">Biblia<br><small style="font-weight:500;opacity:.8">66 libros · RVR60</small></div>
+            <div class="tel-grid"><span style="--c:#fb7185"></span><span style="--c:#22d3ee"></span><span style="--c:#2dd4bf"></span><span style="--c:#a78bfa"></span><span style="--c:#fb923c"></span><span style="--c:#60a5fa"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="requisitos" style="padding-top:20px">
+    <div class="ancho">
+      <div class="sec-titulo">
+        <p class="kicker">Instalación</p>
+        <h2>Lo que necesitas</h2>
+      </div>
+      <div class="req">
+        <div class="func" style="--c:#60a5fa">
+          <h3>Windows</h3>
+          <ul>
+            <li>Windows 10 u 11 de 64 bits</li>
+            <li>Ejecuta el instalador y sigue el asistente</li>
+            <li>La primera vez, acepta el aviso del Firewall (puerto 3001) para que funcione el celular</li>
+          </ul>
+        </div>
+        <div class="func" style="--c:#e2e8f0">
+          <h3>Mac</h3>
+          <ul>
+            <li>macOS 11 o más nuevo</li>
+            <li>Elige la versión Apple (M1 o más nuevo) o Intel</li>
+            <li>Abre el .dmg y arrastra GloryView a Aplicaciones</li>
+          </ul>
+        </div>
+        <div class="func" style="--c:#10b981">
+          <h3>Android</h3>
+          <ul>
+            <li>Android 7 o más nuevo</li>
+            <li>Misma red Wi-Fi que la computadora</li>
+            <li>El PIN se ve en GloryView → App Móvil</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="ancho">
+    <span>GloryView Proyector · Hecho para la iglesia</span>
+    <span><a href="https://github.com/Alfredo-Hammer/my-church-proyector/releases">Versiones y notas</a></span>
+  </div>
+</footer>
+
+<script>
+  // Enlaces de descarga directos al ultimo release (los nombres llevan la
+  // version, por eso se leen de la API). Si la API falla quedan los enlaces
+  // a la pagina del release.
+  (function () {
+    var patrones = {
+      "win": /Installer\.exe$/i,
+      "mac-arm": /arm64\.dmg$/i,
+      "mac-intel": /x64\.dmg$/i,
+      "apk": /GloryView-Movil\.apk$/i
+    };
+    fetch("https://api.github.com/repos/Alfredo-Hammer/my-church-proyector/releases/latest")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rel) {
+        if (!rel || !rel.assets) return;
+        var version = String(rel.tag_name || "").replace(/^v/, "");
+        if (version) document.querySelectorAll("[data-version]").forEach(function (el) {
+          el.textContent = version;
+        });
+        document.querySelectorAll("[data-descarga]").forEach(function (a) {
+          var re = patrones[a.getAttribute("data-descarga")];
+          var asset = rel.assets.find(function (x) { return re.test(x.name); });
+          if (asset) a.href = asset.browser_download_url;
+        });
+      })
+      .catch(function () {});
+
+    // Demo del modo lejos: el versiculo pasa por sus partes
+    var partes = [
+      "Por lo cual estoy seguro de que ni la muerte, ni la vida, ni ángeles, ni principados, ni potestades,",
+      "ni lo presente, ni lo por venir, ni lo alto, ni lo profundo, ni ninguna otra cosa creada",
+      "nos podrá separar del amor de Dios, que es en Cristo Jesús Señor nuestro."
+    ];
+    var refs = ["Romanos 8:38", "Romanos 8:38-39", "Romanos 8:39"];
+    var verso = document.getElementById("verso");
+    var ref = verso && verso.nextElementSibling;
+    var barras = document.querySelectorAll(".partes i");
+    var i = 0;
+    if (!verso || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setInterval(function () {
+      i = (i + 1) % partes.length;
+      verso.style.opacity = 0;
+      setTimeout(function () {
+        verso.textContent = partes[i];
+        ref.textContent = refs[i];
+        barras.forEach(function (b, k) { b.classList.toggle("on", k === i); });
+        verso.style.opacity = 1;
+      }, 450);
+    }, 4200);
+  })();
+</script>
+</body>
+</html>

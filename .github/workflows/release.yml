@@ -122,12 +122,29 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
 
+      # APK de la app movil: se compila aparte con EAS (npm run build:preview
+      # en app-gloryview) y su URL de descarga se guarda en
+      # app-gloryview/apk-url.txt antes de crear el tag. Aca se baja y se
+      # adjunta con nombre fijo, asi la landing (docs/) siempre enlaza a
+      # releases/latest/download/GloryView-Movil.apk
+      - name: Descargar APK de la app movil
+        run: |
+          if (Test-Path "app-gloryview/apk-url.txt") {
+            $url = (Get-Content "app-gloryview/apk-url.txt" -Raw).Trim()
+            if ($url) {
+              New-Item -ItemType Directory -Force -Path dist-installer | Out-Null
+              Invoke-WebRequest -Uri $url -OutFile "dist-installer/GloryView-Movil.apk"
+            }
+          }
+        shell: pwsh
+
       - name: Publicar assets al Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           draft: false
           files: |
+            dist-installer/GloryView-Movil.apk
             dist-installer/*.exe
             dist-installer/*.blockmap
             dist-installer/latest.yml

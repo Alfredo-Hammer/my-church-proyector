@@ -328,6 +328,17 @@ npm run build-exe
 ```
 Sin las variables de entorno, el build funciona sin firma (modo desarrollo/pruebas).
 
+### Publicar una versión (release + APK + landing)
+1. APK: subir `version` y `android.versionCode` en `app-gloryview/app.json` (y el texto
+   "Versión x.y.z" del drawer en App.js), commit, y `eas build --platform android --profile preview`
+   (cuenta Expo `edu-aoc`). Pegar la "Application Archive URL" en `app-gloryview/apk-url.txt`.
+2. Escritorio: subir `version` en package.json/package-lock.json y agregar el bloque arriba de
+   NOVEDADES.txt (el CI usa solo el primer bloque como notas).
+3. Push del commit y del tag `vX.Y.Z` → `.github/workflows/release.yml` compila Windows y Mac,
+   publica el release y adjunta el APK como `GloryView-Movil.apk` (nombre fijo).
+4. Landing: `docs/index.html` (GitHub Pages, rama master, carpeta /docs). Los botones de descarga
+   se resuelven solos con la API del último release; las novedades están escritas a mano, actualizarlas.
+
 ---
 
 ## Datos de la app (rutas en producción)

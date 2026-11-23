@@ -1,3 +1,35 @@
+Version 0.5.0
+
+Nuevas funciones
+- Modo lejos: los versiculos largos se dividen solos en partes para
+  que la letra se lea desde el fondo del templo. Avanzas parte por
+  parte con las flechas, igual que con los versiculos (tambien desde la
+  app movil). Se activa y se ajusta en Configuracion > Proyector
+- PIN para la app movil: los celulares de la red local necesitan un PIN
+  de 6 digitos para controlar el proyector. Se ve y se renueva en la
+  pagina App Movil, y se puede desactivar si no lo necesitas.
+  IMPORTANTE: instala la app movil 1.1.0 en los celulares; la version
+  anterior no sabe pedir el PIN. Mientras los actualizas, desactiva
+  "Exigir PIN" en la pagina App Movil
+- App movil 1.1.0: pantalla de inicio nueva, con saludo, estado de la
+  conexion y accesos rapidos con los mismos colores del escritorio
+
+Mejoras
+- Letra mas grande en el proyector, pensada para pantallas grandes y
+  salones amplios
+- Configuracion mas simple: los cambios se guardan solos (ya no hay
+  boton Guardar), se quitaron opciones repetidas y el fondo se cambia
+  desde Gestion de Fondos
+- Colores unificados en toda la app: verde para Proyectar/Mostrar,
+  indigo para Crear/Guardar/Subir y rojo para Eliminar
+- Mayor seguridad en la version instalada
+
+Correcciones
+- Corregido: el Temporizador abria en 00:00 con los botones Iniciar y
+  Proyectar deshabilitados
+- Corregido: al navegar entre paginas se acumulaban avisos internos y
+  la app se podia poner lenta con el uso
+
 Version 0.4.8
 
 Nuevas funciones

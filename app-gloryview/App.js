@@ -3754,7 +3754,7 @@ export default function App() {
                   <View style={styles.drawerFooter}>
                     <View style={styles.drawerVersion}>
                       <Ionicons name="information-circle-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
-                      <Text style={styles.drawerVersionText}>Versión 1.0.0</Text>
+                      <Text style={styles.drawerVersionText}>Versión 1.1.0</Text>
                     </View>
                     <View style={styles.drawerDeveloper}>
                       <Ionicons name="code-slash" size={14} color="#64748b" style={{ marginRight: 6 }} />

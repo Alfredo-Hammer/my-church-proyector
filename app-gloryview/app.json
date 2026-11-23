@@ -2,7 +2,7 @@
   "expo": {
     "name": "GloryView",
     "slug": "app-gloryview",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,6 +22,7 @@
     },
     "android": {
       "package": "com.gloryview.remote",
+      "versionCode": 2,
       "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",

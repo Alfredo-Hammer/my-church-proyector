@@ -94,9 +94,9 @@ const Header = () => {
       setModoUnicoMonitor(true);
       setTimeout(() => setModoUnicoMonitor(false), 8000);
     };
-    window.electron.on("proyector-modo-unico-monitor", handler);
+    const off = window.electron.on("proyector-modo-unico-monitor", handler);
     return () => {
-      window.electron.removeListener?.("proyector-modo-unico-monitor", handler);
+      if (typeof off === "function") off();
     };
   }, []);
 

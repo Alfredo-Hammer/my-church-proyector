@@ -390,7 +390,7 @@ export default function Diapositivas() {
           <button
             type="button"
             onClick={abrirNueva}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white text-xs font-semibold transition-colors"
           >
             <FaPlus className="text-[9px]" /> Nueva
           </button>
@@ -457,7 +457,7 @@ export default function Diapositivas() {
               <button
                 type="button"
                 onClick={abrirNueva}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white text-sm font-semibold transition-colors"
               >
                 <FaPlus className="text-xs" /> Crear primera presentación
               </button>
@@ -513,7 +513,7 @@ export default function Diapositivas() {
                       type="button"
                       onClick={() => proyectar(p)}
                       disabled={!p.imagenes?.length}
-                      className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg text-[10px] font-semibold text-violet-400 hover:bg-violet-500/15 disabled:opacity-30 transition-colors"
+                      className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/15 disabled:opacity-30 transition-colors"
                       title="Proyectar"
                     >
                       <FaBroadcastTower className="text-xs" /> Proyectar

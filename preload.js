@@ -220,9 +220,16 @@ contextBridge.exposeInMainWorld("electron", {
       "solo-audio-control",
     ];
 
+    // Devuelve una función para desuscribirse. USARLA en vez de removeListener:
+    // contextBridge entrega una copia nueva del callback en cada llamada, así
+    // que removeListener(canal, mismaFuncion) nunca encontraba el listener
+    // original y los handlers se acumulaban (medido: 11 'navegar-a-ruta').
     if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, callback);
+      const envoltorio = (event, ...args) => callback(event, ...args);
+      ipcRenderer.on(channel, envoltorio);
+      return () => ipcRenderer.removeListener(channel, envoltorio);
     }
+    return () => {};
   },
 
   removeListener: (channel, callback) => {

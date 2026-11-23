@@ -1386,13 +1386,14 @@ function iniciarServidorMultimedia() {
     // (cuenta como intento para el límite anti fuerza bruta).
     expressApp.get('/api/ping', (req, res) => {
       const local = seguridad.esLoopback(req);
-      const auth = local ? { ok: true } : seguridad.autenticarPin(req);
+      const exigido = !local && seguridad.pinExigido();
+      const auth = exigido ? seguridad.autenticarPin(req) : { ok: true };
       res.json({
         ok: true,
         app: 'GloryView',
         version: app.getVersion(),
         serverTime: new Date().toISOString(),
-        requierePin: !local,
+        requierePin: exigido,
         autenticado: auth.ok,
         motivo: auth.ok ? undefined : auth.motivo,
       });
@@ -1400,10 +1401,17 @@ function iniciarServidorMultimedia() {
 
     // 🔐 PIN de emparejamiento (solo desde la PC — ver RUTAS_SOLO_LOCAL)
     expressApp.get('/api/movil/pin', (req, res) => {
-      res.json({ ok: true, pin: seguridad.obtenerPin() });
+      res.json({ ok: true, pin: seguridad.obtenerPin(), exigir: seguridad.pinExigido() });
     });
     expressApp.post('/api/movil/pin/regenerar', (req, res) => {
-      res.json({ ok: true, pin: seguridad.regenerarPin() });
+      res.json({ ok: true, pin: seguridad.regenerarPin(), exigir: seguridad.pinExigido() });
+    });
+    // Body: { exigir: boolean } — apagarlo deja usar APKs viejos sin PIN
+    expressApp.post('/api/movil/pin/exigir', (req, res) => {
+      if (typeof req.body?.exigir !== 'boolean') {
+        return res.status(400).json({ ok: false, error: 'exigir debe ser boolean' });
+      }
+      res.json({ ok: true, pin: seguridad.obtenerPin(), exigir: seguridad.establecerExigirPin(req.body.exigir) });
     });
 
     const urlConPin = (url) => {
@@ -1452,6 +1460,7 @@ function iniciarServidorMultimedia() {
           urls,
           preferredUrl,
           pin: seguridad.obtenerPin(),
+          exigirPin: seguridad.pinExigido(),
           qrValue: urlConPin(preferredUrl),
           serverTime: new Date().toISOString(),
         });

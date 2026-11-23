@@ -58,6 +58,10 @@ const coincide = (lista, ruta) => lista.some((re) => re.test(ruta));
 
 function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
   let pinActual = null;
+  // exigir=false: compatibilidad con APKs viejos que no mandan PIN (la iglesia
+  // lo apaga mientras actualiza los celulares). Las rutas solo-locales siguen
+  // bloqueadas igual.
+  let exigirActual = true;
   const fallosPorIp = new Map(); // ip -> { fallos, desde, bloqueadoHasta }
 
   const generarPin = () => String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -65,7 +69,7 @@ function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
   const guardarPin = (pin) => {
     try {
       fs.mkdirSync(path.dirname(rutaArchivoPin), { recursive: true });
-      fs.writeFileSync(rutaArchivoPin, JSON.stringify({ pin }), { mode: 0o600 });
+      fs.writeFileSync(rutaArchivoPin, JSON.stringify({ pin, exigir: exigirActual }), { mode: 0o600 });
     } catch (e) {
       log(`⚠️ [Seguridad] No se pudo guardar el PIN: ${e.message}`);
     }
@@ -77,6 +81,7 @@ function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
       const data = JSON.parse(fs.readFileSync(rutaArchivoPin, "utf8"));
       if (/^\d{6}$/.test(String(data?.pin))) {
         pinActual = String(data.pin);
+        exigirActual = data?.exigir !== false;
         return pinActual;
       }
     } catch {
@@ -93,6 +98,19 @@ function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
     fallosPorIp.clear();
     log("🔐 [Seguridad] PIN de la app móvil regenerado");
     return pinActual;
+  };
+
+  const pinExigido = () => {
+    obtenerPin(); // carga el archivo si todavía no se leyó
+    return exigirActual;
+  };
+
+  const establecerExigirPin = (exigir) => {
+    obtenerPin();
+    exigirActual = Boolean(exigir);
+    guardarPin(pinActual);
+    log(`🔐 [Seguridad] PIN de la app móvil ${exigirActual ? "exigido" : "desactivado (modo compatibilidad)"}`);
+    return exigirActual;
   };
 
   const pinEsValido = (recibido) => {
@@ -164,6 +182,8 @@ function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
     if (metodo === "OPTIONS") return next(); // preflight CORS
     if (esLectura && coincide(RUTAS_PUBLICAS_LAN, ruta)) return next();
 
+    if (!pinExigido()) return next();
+
     const auth = autenticarPin(req);
     if (auth.ok) return next();
     if (auth.motivo === "bloqueado") {
@@ -176,7 +196,7 @@ function crearSeguridadServidor({ rutaArchivoPin, log = () => {} }) {
     });
   };
 
-  return { middleware, opcionesCors, obtenerPin, regenerarPin, autenticarPin, esLoopback, HEADER_PIN };
+  return { middleware, opcionesCors, obtenerPin, regenerarPin, autenticarPin, pinExigido, establecerExigirPin, esLoopback, HEADER_PIN };
 }
 
 module.exports = { crearSeguridadServidor };

@@ -227,12 +227,9 @@ const Inicio = () => {
     const handleConfigActualizada = (_, nuevaConfig) => {
       setConfiguracion((prev) => ({...prev, ...nuevaConfig}));
     };
-    window.electron?.on?.("configuracion-actualizada", handleConfigActualizada);
+    const off = window.electron?.on?.("configuracion-actualizada", handleConfigActualizada);
     return () => {
-      window.electron?.removeListener?.(
-        "configuracion-actualizada",
-        handleConfigActualizada,
-      );
+      if (typeof off === "function") off();
     };
   }, []);
 

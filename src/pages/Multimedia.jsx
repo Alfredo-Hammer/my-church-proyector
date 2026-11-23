@@ -2125,8 +2125,8 @@ const Multimedia = () => {
                 className={`${
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-emerald-600/90 hover:bg-emerald-600"
-                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
+                    : "bg-indigo-600 hover:bg-indigo-500"
+                } text-white px-4 py-2 rounded-xl border border-indigo-500/30 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
                 title="Recomendado para videos grandes"
               >
                 <FaUpload />
@@ -2139,8 +2139,8 @@ const Multimedia = () => {
                 className={`${
                   loading
                     ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-emerald-600/90 hover:bg-emerald-600 cursor-pointer"
-                } text-white px-4 py-2 rounded-xl border border-emerald-500/20 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
+                    : "bg-indigo-600 hover:bg-indigo-500 cursor-pointer"
+                } text-white px-4 py-2 rounded-xl border border-indigo-500/30 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
                 title="Para archivos pequeños"
               >
                 <FaUpload />
@@ -2535,7 +2535,7 @@ const Multimedia = () => {
                                       e.stopPropagation();
                                       projectToScreenNew(media);
                                     }}
-                                    className="p-2 text-blue-400 hover:bg-blue-900/30 rounded transition-colors"
+                                    className="p-2 text-emerald-400 hover:bg-emerald-900/30 rounded transition-colors"
                                     title="Proyectar"
                                   >
                                     <FaExpand />
@@ -2729,7 +2729,7 @@ const Multimedia = () => {
                         <button
                           type="button"
                           onClick={() => projectToScreenNew(mediaForPlayer)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
                           title="Proyectar en pantalla completa"
                         >
                           <FaExpand />

@@ -574,7 +574,7 @@ const SeccionFavoritosBiblia = ({
               <button
                 type="button"
                 onClick={() => onProyectar(f)}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 rounded-lg text-xs text-yellow-300 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 transition-colors"
               >
                 <FaPlay className="text-[10px]" /> Proyectar
               </button>
@@ -601,7 +601,7 @@ const SeccionFavoritosBiblia = ({
                 <button
                   type="button"
                   onClick={() => onProyectar(f)}
-                  className="size-6 flex items-center justify-center rounded-md text-white/35 hover:text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                  className="size-6 flex items-center justify-center rounded-md text-white/35 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
                   title="Proyectar"
                 >
                   <FaPlay className="text-[10px]" />

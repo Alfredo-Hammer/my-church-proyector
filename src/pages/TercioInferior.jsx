@@ -609,7 +609,7 @@ export default function TercioInferior() {
             <button
               onClick={() => mostrar()}
               disabled={cargando}
-              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg transition disabled:opacity-50"
+              className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg transition disabled:opacity-50"
             >
               <FaEye /> MOSTRAR
             </button>

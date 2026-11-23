@@ -437,16 +437,14 @@ export const MediaPlayerProvider = ({children}) => {
       }
     };
 
-    window.electron.on("solo-audio-play", handleSoloAudioPlay);
-    window.electron.on("solo-audio-control", handleSoloAudioControl);
+    const offs = [
+      window.electron.on("solo-audio-play", handleSoloAudioPlay),
+      window.electron.on("solo-audio-control", handleSoloAudioControl),
+    ];
 
     return () => {
       try {
-        window.electron.removeListener("solo-audio-play", handleSoloAudioPlay);
-        window.electron.removeListener(
-          "solo-audio-control",
-          handleSoloAudioControl,
-        );
+        offs.forEach((off) => typeof off === "function" && off());
       } catch {
         // noop
       }

@@ -86,14 +86,10 @@ const GestionFondos = () => {
       setFondoActivo(nuevoFondo);
     };
 
-    if (window.electron?.on) {
-      window.electron.on("actualizar-fondo-activo", handleFondoActivo);
-    }
+    const off = window.electron?.on?.("actualizar-fondo-activo", handleFondoActivo);
 
     return () => {
-      if (window.electron?.removeListener) {
-        window.electron.removeListener("actualizar-fondo-activo", handleFondoActivo);
-      }
+      if (typeof off === "function") off();
     };
   }, []);
 
@@ -919,7 +915,7 @@ const GestionFondos = () => {
               ? "bg-emerald-500/15 border border-emerald-500/25 text-emerald-300"
               : mensaje.tipo === "error"
                 ? "bg-red-500/15 border border-red-500/25 text-red-300"
-                : "bg-blue-500/15 border border-blue-500/25 text-blue-300"
+                : "bg-indigo-500/15 border border-indigo-500/25 text-indigo-300"
           }`}
         >
           {mensaje.texto}
@@ -946,7 +942,7 @@ const GestionFondos = () => {
             onClick={() => setTabActivo("mis-imagenes")}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
               tabActivo === "mis-imagenes"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                 : "text-white/50 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -964,7 +960,7 @@ const GestionFondos = () => {
             title={!estaOnline ? "Requiere conexión a internet" : ""}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
               tabActivo === "imagenes"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                 : "text-white/50 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -980,7 +976,7 @@ const GestionFondos = () => {
               title={!estaOnline ? "Requiere conexión a internet" : ""}
               className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
                 tabActivo === "videos"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                   : "text-white/50 hover:text-white hover:bg-white/5"
               }`}
             >
@@ -997,7 +993,7 @@ const GestionFondos = () => {
             type="button"
             onClick={agregarFondoDesdeDispositivo}
             disabled={cargando}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20 flex-shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-indigo-600/20 flex-shrink-0"
           >
             <IoAdd />
             Agregar fondo
@@ -1046,7 +1042,7 @@ const GestionFondos = () => {
               type="button"
               onClick={manejarBusqueda}
               disabled={cargando || !terminoBusqueda.trim() || !estaOnline}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0"
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0"
             >
               <IoSearch />
               Buscar
@@ -1210,7 +1206,7 @@ const GestionFondos = () => {
                             type="button"
                             onClick={() => manejarClicEnImagen(fondo)}
                             disabled={cargando}
-                            className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                           >
                             <IoCheckmark /> Activar
                           </button>
@@ -1258,7 +1254,7 @@ const GestionFondos = () => {
                 type="button"
                 onClick={agregarFondoDesdeDispositivo}
                 disabled={cargando}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-blue-600/20"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-indigo-600/20"
               >
                 <IoAdd /> Agregar fondo
               </button>
@@ -1321,7 +1317,7 @@ const GestionFondos = () => {
                             type="button"
                             onClick={() => manejarClicEnImagenPixabay(image, "imagen")}
                             disabled={cargando}
-                            className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                           >
                             <IoCheckmark /> Usar
                           </button>
@@ -1414,7 +1410,7 @@ const GestionFondos = () => {
                           type="button"
                           onClick={() => manejarClicEnImagenPixabay(video, "video")}
                           disabled={cargando}
-                          className="flex-1 bg-blue-600 hover:bg-blue-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                         >
                           <IoCheckmark /> Usar
                         </button>

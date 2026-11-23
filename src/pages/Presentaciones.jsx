@@ -635,7 +635,7 @@ export default function Presentaciones() {
             <button
               type="button"
               onClick={crearOrden}
-              className="shrink-0 size-7 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 flex items-center justify-center text-white transition-colors"
+              className="shrink-0 size-7 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 flex items-center justify-center text-white transition-colors"
               title="Nuevo orden"
             >
               <FaPlus className="text-[10px]" />
@@ -1270,7 +1270,7 @@ export default function Presentaciones() {
               <button
                 type="button"
                 onClick={crearOrden}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white font-semibold text-sm transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white font-semibold text-sm transition-colors"
               >
                 <FaPlus className="text-xs" /> Crear Orden de Servicio
               </button>

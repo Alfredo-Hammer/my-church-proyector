@@ -26,6 +26,22 @@ const AppMovil = () => {
     }
   };
 
+  const cambiarExigirPin = async (exigir) => {
+    if (!exigir && !window.confirm("¿Quitar el PIN? Cualquier celular conectado a la misma Wi‑Fi podrá controlar el proyector. Úsalo solo mientras actualizas la app en los celulares viejos.")) return;
+    try {
+      const res = await fetch(`${getBaseURL()}/api/movil/pin/exigir`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({exigir}),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setEstado((prev) => ({...prev, info: {...prev.info, exigirPin: json.exigir}}));
+    } catch (e) {
+      window.alert(`No se pudo cambiar: ${e?.message || e}`);
+    }
+  };
+
   const cargarInfo = async () => {
     setEstado({status: "loading", info: null, error: null});
     try {
@@ -141,6 +157,22 @@ const AppMovil = () => {
                   <p className="text-xs text-slate-600 mt-1.5">
                     El QR ya incluye el PIN. Sin él, nadie en la red puede controlar el proyector. Genera uno nuevo si alguien que no debería lo conoce.
                   </p>
+                  <label className="mt-2.5 pt-2.5 border-t border-white/[0.06] flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 accent-sky-500"
+                      checked={estado.info?.exigirPin !== false}
+                      onChange={(e) => cambiarExigirPin(e.target.checked)}
+                    />
+                    <span className="text-xs">
+                      <span className="text-slate-300 font-medium">Exigir PIN</span>
+                      <span className="block text-slate-600 mt-0.5">
+                        {estado.info?.exigirPin === false
+                          ? "⚠️ Desactivado: cualquier celular en la Wi‑Fi puede controlar el proyector. Actívalo cuando todos tengan la app nueva."
+                          : "Si un celular tiene una versión vieja de la app (sin campo de PIN), desactívalo un momento mientras la actualizas."}
+                      </span>
+                    </span>
+                  </label>
                 </div>
 
                 {/* URL recomendada */}

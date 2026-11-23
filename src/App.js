@@ -111,14 +111,10 @@ function AppContent() {
       navigate(ruta);
     };
 
-    if (window.electron?.on) {
-      window.electron.on('navegar-a-ruta', handleNavigation);
-    }
+    const off = window.electron?.on?.('navegar-a-ruta', handleNavigation);
 
     return () => {
-      if (window.electron?.removeListener) {
-        window.electron.removeListener('navegar-a-ruta', handleNavigation);
-      }
+      if (typeof off === "function") off();
     };
   }, [navigate]);
 
@@ -168,14 +164,10 @@ function AppContent() {
       }
     };
 
-    if (window.electron?.on) {
-      window.electron.on("control-biblia-proyectar", handleControlBibliaProyectar);
-    }
+    const off = window.electron?.on?.("control-biblia-proyectar", handleControlBibliaProyectar);
 
     return () => {
-      if (window.electron?.removeListener) {
-        window.electron.removeListener("control-biblia-proyectar", handleControlBibliaProyectar);
-      }
+      if (typeof off === "function") off();
     };
   }, []);
 
@@ -245,14 +237,10 @@ function AppContent() {
       }
     };
 
-    if (window.electron?.on) {
-      window.electron.on('control-biblia-preview', handleControlBibliaPreview);
-    }
+    const off = window.electron?.on?.('control-biblia-preview', handleControlBibliaPreview);
 
     return () => {
-      if (window.electron?.removeListener) {
-        window.electron.removeListener('control-biblia-preview', handleControlBibliaPreview);
-      }
+      if (typeof off === "function") off();
     };
   }, []);
 

@@ -1,9 +1,10 @@
 import {useState, useEffect, useRef} from "react";
+import {useNavigate} from "react-router-dom";
 import {
   IoSave, IoRefresh, IoImage, IoClose, IoCheckmark,
-  IoWarning, IoInformationCircle, IoEye, IoTrash, IoSparkles,
+  IoWarning, IoInformationCircle, IoEye, IoCloudDone,
 } from "react-icons/io5";
-import {FaVideo, FaUpload, FaTimes, FaChurch, FaPalette, FaFont, FaDatabase} from "react-icons/fa";
+import {FaVideo, FaChurch, FaPalette, FaFont, FaDatabase} from "react-icons/fa";
 import {CLASS_PX} from "../utils/pantallaScale";
 import {componenteFondoAnimado} from "../components/fondosAnimados";
 
@@ -33,8 +34,7 @@ const COLOR_PRESETS = [
 ];
 
 const CONFIG_DEFAULTS = {
-  nombreIglesia: "", eslogan: "", pastor: "", direccion: "",
-  telefono: "", email: "", website: "",
+  nombreIglesia: "", eslogan: "",
   logo: "/images/icon-256.png", logoSize: "size-80",
   colorPrimario: "#ffffff", colorSecundario: "#d1d5db",
   fondoActivo: "", tipoFondo: "imagen",
@@ -174,15 +174,19 @@ const Configuracion = () => {
   const [tab, setTab]                           = useState("identidad");
   const [configuracion, setConfiguracion]       = useState(CONFIG_DEFAULTS);
   const [savedConfig, setSavedConfig]           = useState(CONFIG_DEFAULTS);
-  const [fondos, setFondos]                     = useState([]);
   const [fondoActual, setFondoActual]           = useState(null);
-  const [mostrarSelectorFondo, setMostrarSelectorFondo] = useState(false);
-  const [previsualizandoFondo, setPrevisualizandoFondo] = useState(null);
   const [mostrarModalRestaurar, setMostrarModalRestaurar] = useState(false);
-  const [archivoLogo, setArchivoLogo]           = useState(null);
   const [logoPreviewUrl, setLogoPreviewUrl]     = useState(null);
-  const [guardando, setGuardando]               = useState(false);
+  const [subiendoLogo, setSubiendoLogo]         = useState(false);
+  // Todo se guarda solo: idle | guardando | guardado | error
+  const [estadoGuardado, setEstadoGuardado]     = useState("idle");
   const [cargando, setCargando]                 = useState(true);
+  const navigate = useNavigate();
+  // Siempre la última config: el guardado diferido de los campos de texto
+  // no debe pisar un switch que se tocó mientras tanto.
+  const configRef = useRef(configuracion);
+  configRef.current = configuracion;
+  const timerGuardadoRef = useRef(null);
   const [toast, setToast]                       = useState(null);
   const [dragLogo, setDragLogo]                 = useState(false);
   const logoInputRef = useRef(null);
@@ -193,17 +197,10 @@ const Configuracion = () => {
   const [restaurandoRespaldo, setRestaurandoRespaldo]   = useState(false);
   const [mostrarModalRestaurarRespaldo, setMostrarModalRestaurarRespaldo] = useState(false);
 
-  const hasTextChanges =
-    configuracion.nombreIglesia !== savedConfig.nombreIglesia ||
-    configuracion.eslogan       !== savedConfig.eslogan ||
-    configuracion.pastor        !== savedConfig.pastor;
-  const hasChanges = hasTextChanges || !!archivoLogo;
-
   // ── Carga ─────────────────────────────────────────────────────────────────
   const cargarFondos = async () => {
     try {
       const data = await window.electron.obtenerFondos();
-      setFondos(data || []);
       setFondoActual((data || []).find((f) => !!f.activo) || null);
     } catch { mostrarToast("Error al cargar los fondos", "error"); }
   };
@@ -217,7 +214,6 @@ const Configuracion = () => {
           ...CONFIG_DEFAULTS, ...config,
           nombreIglesia: config.nombreIglesia || "",
           eslogan:       config.eslogan       || "",
-          website:       config.sitioWeb      || "",
           logo: config.logoUrl && config.logoUrl !== "/logo.jpg" && config.logoUrl !== ""
             ? config.logoUrl : "/images/icon-256.png",
           fontSize: {
@@ -254,10 +250,10 @@ const Configuracion = () => {
 
   const procesarArchivoLogo = (archivo) => {
     if (!archivo?.type?.startsWith("image/")) { mostrarToast("Archivo no válido", "error"); return; }
-    setArchivoLogo(archivo);
     const r = new FileReader();
     r.onload = (ev) => setLogoPreviewUrl(ev.target.result);
     r.readAsDataURL(archivo);
+    subirLogo(archivo);
   };
 
   // ── Guardar ───────────────────────────────────────────────────────────────
@@ -265,9 +261,6 @@ const Configuracion = () => {
     if (!window.electron?.guardarConfiguracion) throw new Error("No disponible");
     const flat = {
       nombreIglesia: cfg.nombreIglesia || "", eslogan: cfg.eslogan || "",
-      pastor: cfg.pastor || "", direccion: cfg.direccion || "",
-      telefono: cfg.telefono || "", email: cfg.email || "",
-      sitioWeb: cfg.website || cfg.sitioWeb || "",
       logoUrl: cfg.logo || "", logoSize: cfg.logoSize || "size-80",
       colorPrimario: cfg.colorPrimario || "#ffffff",
       colorSecundario: cfg.colorSecundario || "#d1d5db",
@@ -286,61 +279,50 @@ const Configuracion = () => {
   };
 
   const guardarSilencioso = async (nuevaCfg) => {
-    try { await guardarConfiguracionCompleta(nuevaCfg); } catch { /* noop */ }
+    setEstadoGuardado("guardando");
+    try {
+      await guardarConfiguracionCompleta(nuevaCfg);
+      setSavedConfig(nuevaCfg);
+      setEstadoGuardado("guardado");
+    } catch {
+      setEstadoGuardado("error");
+    }
   };
 
-  const guardarConfiguracion = async () => {
-    setGuardando(true);
-    try {
-      let cfg = {...configuracion};
-      let logoFallo = false;
-      if (archivoLogo) {
-        try {
-          const buf  = await archivoLogo.arrayBuffer();
-          const path = await window.electron.guardarLogo(new Uint8Array(buf));
-          if (path) {
-            cfg = {...cfg, logo: path};
-            setConfiguracion((c) => ({...c, logo: path}));
-          } else {
-            // El logo no se guardó (formato no reconocido, archivo
-            // demasiado grande, etc.) — no dejar que el resto de la
-            // configuración se guarde como "éxito" sin avisar.
-            logoFallo = true;
-          }
-        } catch { logoFallo = true; }
-      }
-      await guardarConfiguracionCompleta(cfg);
-      setSavedConfig(cfg); setArchivoLogo(null); setLogoPreviewUrl(null);
-      if (logoFallo) {
-        mostrarToast("Se guardó el resto de la configuración, pero el logo no se pudo procesar (probá con otra imagen)", "error");
-      } else {
-        mostrarToast("Configuración guardada", "success");
-      }
-    } catch (err) { mostrarToast(`Error: ${err.message}`, "error"); }
-    finally { setGuardando(false); }
-  };
+  // Nombre y eslogan: se guardan solos 700 ms después de dejar de escribir
+  useEffect(() => {
+    if (cargando) return;
+    if (configuracion.nombreIglesia === savedConfig.nombreIglesia &&
+        configuracion.eslogan === savedConfig.eslogan) return;
+    clearTimeout(timerGuardadoRef.current);
+    timerGuardadoRef.current = setTimeout(() => guardarSilencioso(configRef.current), 700);
+    return () => clearTimeout(timerGuardadoRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuracion.nombreIglesia, configuracion.eslogan, cargando]);
 
-  const seleccionarFondo = async (fondo) => {
-    try {
-      await window.electron.establecerFondoActivo(fondo.id);
-      setFondoActual(fondo);
-      const cfg = {...configuracion, fondoActivo: fondo.url, tipoFondo: fondo.tipo};
-      setConfiguracion(cfg);
-      await guardarConfiguracionCompleta(cfg);
-      await cargarFondos();
-      mostrarToast(`Fondo "${fondo.nombre}" aplicado`, "success");
-      setMostrarSelectorFondo(false);
-    } catch { mostrarToast("Error al establecer el fondo", "error"); }
-  };
+  // El "Guardado ✓" se apaga solo
+  useEffect(() => {
+    if (estadoGuardado !== "guardado") return;
+    const t = setTimeout(() => setEstadoGuardado("idle"), 2500);
+    return () => clearTimeout(t);
+  }, [estadoGuardado]);
 
-  const eliminarFondo = async (id) => {
-    if (!window.confirm("¿Eliminar este fondo?")) return;
+  const subirLogo = async (archivo) => {
+    setSubiendoLogo(true);
     try {
-      const ok = await window.electron.eliminarFondo(id);
-      await cargarFondos();
-      if (ok) mostrarToast("Fondo eliminado", "success");
-      else mostrarToast("No se pudo eliminar (es un fondo protegido o está activo)", "error");
-    } catch { mostrarToast("Error al eliminar", "error"); }
+      const buf  = await archivo.arrayBuffer();
+      const path = await window.electron.guardarLogo(new Uint8Array(buf));
+      if (!path) throw new Error("formato");
+      const nueva = {...configRef.current, logo: path};
+      setConfiguracion(nueva);
+      await guardarSilencioso(nueva);
+    } catch {
+      // formato no reconocido, archivo demasiado grande, etc.
+      mostrarToast("No se pudo usar esa imagen como logo (probá con otra PNG o JPG)", "error");
+    } finally {
+      setLogoPreviewUrl(null);
+      setSubiendoLogo(false);
+    }
   };
 
   const restaurarDefecto = async () => {
@@ -349,8 +331,8 @@ const Configuracion = () => {
       const ok = await window.electron?.restaurarConfiguracionDefecto?.();
       if (!ok) throw new Error("No se pudo restaurar");
       setConfiguracion(CONFIG_DEFAULTS); setSavedConfig(CONFIG_DEFAULTS);
-      setArchivoLogo(null); setLogoPreviewUrl(null);
-      setFondoActual(null); setFondos([]);
+      setLogoPreviewUrl(null);
+      setFondoActual(null);
       await cargarConfiguracion(); await cargarFondos();
       mostrarToast("Configuración restaurada", "success");
     } catch (err) { mostrarToast(`Error: ${err.message}`, "error"); }
@@ -444,21 +426,16 @@ const Configuracion = () => {
 
         {/* Acciones */}
         <div className="p-3 border-t border-white/[0.06] space-y-2">
-          {hasChanges && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/8 border border-amber-500/18 mb-1">
-              <span className="size-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-              <span className="text-[10px] text-amber-400 font-medium">Cambios sin guardar</span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={guardarConfiguracion}
-            disabled={guardando || !hasChanges}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl text-xs text-white font-semibold transition-all shadow-lg shadow-indigo-900/30"
-          >
-            <IoSave className="text-sm" />
-            {guardando ? "Guardando…" : "Guardar cambios"}
-          </button>
+          <div className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-medium transition-colors ${
+            estadoGuardado === "error" ? "text-red-400 bg-red-500/10"
+            : estadoGuardado === "guardando" ? "text-slate-400"
+            : estadoGuardado === "guardado" ? "text-emerald-400" : "text-slate-600"
+          }`}>
+            {estadoGuardado === "error" ? <><IoWarning /> No se pudo guardar</>
+              : estadoGuardado === "guardando" ? <><IoRefresh className="animate-spin" /> Guardando…</>
+              : estadoGuardado === "guardado" ? <><IoCheckmark /> Guardado</>
+              : <><IoCloudDone /> Los cambios se guardan solos</>}
+          </div>
           <button
             type="button"
             onClick={() => setMostrarModalRestaurar(true)}
@@ -492,15 +469,9 @@ const Configuracion = () => {
                 </button>
               ))}
             </nav>
-            <button
-              type="button"
-              onClick={guardarConfiguracion}
-              disabled={guardando || !hasChanges}
-              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl text-xs text-white font-semibold transition-all shrink-0"
-            >
-              <IoSave className="text-xs" />
-              {guardando ? "…" : "Guardar"}
-            </button>
+            <span className={`shrink-0 text-xs ${estadoGuardado === "error" ? "text-red-400" : estadoGuardado === "guardado" ? "text-emerald-400" : "text-slate-600"}`}>
+              {estadoGuardado === "error" ? <IoWarning /> : estadoGuardado === "guardando" ? <IoRefresh className="animate-spin" /> : <IoCheckmark />}
+            </span>
           </div>
         </div>
 
@@ -549,19 +520,10 @@ const Configuracion = () => {
                       </div>
                       <div className="text-center">
                         <p className="text-xs font-semibold text-slate-300">
-                          {archivoLogo ? archivoLogo.name : "Arrastra o clic para cambiar"}
+                          {subiendoLogo ? "Guardando logo…" : "Arrastra o clic para cambiar"}
                         </p>
                         <p className="text-[10px] text-slate-600 mt-0.5">PNG, JPG · 500×500 px recomendado</p>
                       </div>
-                      {archivoLogo && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setArchivoLogo(null); setLogoPreviewUrl(null); }}
-                          className="absolute top-2 right-2 p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400"
-                        >
-                          <IoClose className="text-xs" />
-                        </button>
-                      )}
                     </div>
                     <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
                       onChange={(e) => { if (e.target.files[0]) procesarArchivoLogo(e.target.files[0]); }} />
@@ -608,14 +570,6 @@ const Configuracion = () => {
                         <input id="cfg-eslogan" type="text" value={configuracion.eslogan}
                           onChange={(e) => set("eslogan", e.target.value)}
                           className={inputCls} placeholder="Ej: Bienvenidos a la Casa de Dios" />
-                      </div>
-                      <div>
-                        <label htmlFor="cfg-pastor" className="block text-xs font-medium text-slate-400 mb-1.5">
-                          Pastor / Líder Principal
-                        </label>
-                        <input id="cfg-pastor" type="text" value={configuracion.pastor}
-                          onChange={(e) => set("pastor", e.target.value)}
-                          className={inputCls} placeholder="Ej: Pastor Juan Pérez" />
                       </div>
                     </div>
                   </Section>
@@ -698,87 +652,35 @@ const Configuracion = () => {
                   </div>
                 </Section>
 
-                {/* Fondo */}
+                {/* Fondo: se administra en Gestión de Fondos (antes estaba duplicado acá) */}
                 <Section icon={<IoImage />} title="Fondo del Proyector" subtitle="Imagen o video que se muestra detrás del texto" accent="purple">
-                  <div className="flex gap-4 items-start">
-                    {/* Preview cuadrado */}
-                    <div className="shrink-0 flex flex-col gap-2" style={{width: 160}}>
-                      <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-white/[0.06]" style={{width: 160, height: 160}}>
-                        {fondoActual ? (
-                          fondoActual.tipo === "animado"
-                            ? (() => {
-                                const FondoAnimado = componenteFondoAnimado(fondoActual.url);
-                                return FondoAnimado ? <FondoAnimado /> : null;
-                              })()
-                            : fondoActual.tipo === "video"
-                            ? <video src={fondoActual.url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
-                            : <img src={fondoActual.url} alt={fondoActual.nombre} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                            <FaVideo className="text-3xl text-slate-700" />
-                            <p className="text-slate-600 text-[10px] text-center px-2">Video por defecto</p>
-                          </div>
-                        )}
-                        {fondoActual && (
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 py-2">
-                            <p className="text-[9px] text-white/80 truncate">{fondoActual.nombre}</p>
-                            <span className="text-[8px] font-bold text-emerald-400">● Activo</span>
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMostrarSelectorFondo(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-dashed border-white/10 hover:border-white/20 text-xs text-slate-400 hover:text-slate-200 transition-all"
-                      >
-                        <FaUpload className="text-[9px]" />
-                        {fondoActual ? "Cambiar" : "Seleccionar"}
-                      </button>
-                    </div>
-
-                    {/* Grid fondos disponibles */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-2.5">
-                        Disponibles {fondos.length > 0 && `(${fondos.length})`}
-                      </p>
-                      {fondos.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-36 gap-2 rounded-xl border border-dashed border-white/6 text-slate-700">
-                          <IoImage className="text-2xl" />
-                          <p className="text-xs">Sin fondos subidos</p>
-                        </div>
+                  <div className="flex gap-4 items-center">
+                    <div className="relative shrink-0 w-48 aspect-video rounded-xl overflow-hidden bg-slate-950 border border-white/[0.06]">
+                      {fondoActual ? (
+                        fondoActual.tipo === "animado"
+                          ? (() => {
+                              const FondoAnimado = componenteFondoAnimado(fondoActual.url);
+                              return FondoAnimado ? <FondoAnimado /> : null;
+                            })()
+                          : fondoActual.tipo === "video"
+                          ? <video src={fondoActual.url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
+                          : <img src={fondoActual.url} alt={fondoActual.nombre} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="grid gap-2 overflow-y-auto pr-0.5"
-                          style={{gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", maxHeight: 200}}>
-                          {fondos.map((f) => (
-                            <button type="button" key={f.id} onClick={() => seleccionarFondo(f)} title={f.nombre}
-                              className={`relative rounded-xl overflow-hidden border-2 transition-all hover:scale-105 group ${
-                                !!f.activo ? "border-emerald-400/70" : "border-white/8 hover:border-white/25"
-                              }`}
-                              style={{aspectRatio: "1/1"}}
-                            >
-                              {f.tipo === "video"
-                                ? <video src={f.url} className="w-full h-full object-cover" muted
-                                    onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
-                                : <img src={f.url} alt={f.nombre} className="w-full h-full object-cover" />
-                              }
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <IoCheckmark className="text-white text-base" />
-                              </div>
-                              {!!f.activo && (
-                                <div className="absolute top-1 right-1 size-4 rounded-full bg-emerald-500 flex items-center justify-center">
-                                  <IoCheckmark className="text-white text-[8px]" />
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                          <button type="button" onClick={() => setMostrarSelectorFondo(true)}
-                            className="rounded-xl border-2 border-dashed border-white/8 hover:border-white/20 flex flex-col items-center justify-center gap-1 text-slate-600 hover:text-slate-400 transition-all"
-                            style={{aspectRatio: "1/1"}}>
-                            <FaUpload className="text-xs" />
-                            <span className="text-[9px]">Subir</span>
-                          </button>
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FaVideo className="text-2xl text-slate-700" />
                         </div>
                       )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">Fondo activo</p>
+                      <p className="text-sm text-slate-200 truncate mt-0.5">{fondoActual?.nombre || "Video por defecto"}</p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/gestion-fondos")}
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors"
+                      >
+                        <IoImage /> Cambiar fondo
+                      </button>
                     </div>
                   </div>
                 </Section>
@@ -930,38 +832,6 @@ const Configuracion = () => {
                       </button>
                     ))}
                   </div>
-
-                  {/* Preview del logo en tamaño configurado */}
-                  <div className="mt-5 border-t border-white/[0.05] pt-5">
-                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-3">
-                      Comparativa de tamaños
-                    </p>
-                    <div className="flex items-end gap-3 flex-wrap">
-                      {LOGO_SIZES.map(({valor, etiqueta}) => {
-                        const pxMap = {"size-56": 56*4, "size-64": 64*4, "size-80": 80*4, "size-96": 96*4, "w-[28rem] h-[28rem]": 448};
-                        const px = pxMap[valor] || 320;
-                        const scale = Math.round(px / 16); // en px, dividido para mostrar en pequeño
-                        const previewPx = Math.max(24, Math.min(56, scale * 0.14));
-                        const isActive = configuracion.logoSize === valor;
-                        return (
-                          <div key={valor} className="flex flex-col items-center gap-1">
-                            <div
-                              className={`rounded-xl flex items-center justify-center border-2 transition-all ${
-                                isActive ? "border-orange-400/50 bg-orange-500/8" : "border-white/8 bg-slate-800/40"
-                              }`}
-                              style={{width: previewPx + 16, height: previewPx + 16}}
-                            >
-                              <img src={logoSrc} alt="" style={{width: previewPx, height: previewPx, objectFit: "contain"}}
-                                onError={(e) => { e.target.src = "/images/icon-256.png"; }} />
-                            </div>
-                            <span className={`text-[9px] font-semibold ${isActive ? "text-orange-300" : "text-slate-600"}`}>
-                              {etiqueta}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </Section>
               </div>
             )}
@@ -1044,146 +914,6 @@ const Configuracion = () => {
           {toast.tipo === "error"   && <IoWarning   className="text-red-400 shrink-0" />}
           {toast.tipo === "info"    && <IoInformationCircle className="text-blue-400 shrink-0" />}
           {toast.texto}
-        </div>
-      )}
-
-      {/* ── Modal: Selector de fondos ─────────────────────────────────────── */}
-      {mostrarSelectorFondo && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/8 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/6 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <IoImage className="text-purple-400" />
-                <span className="font-semibold text-white">Fondos del Proyector</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const r = await window.electron.subirFondo();
-                      if (r) { await cargarFondos(); mostrarToast("Fondo subido", "success"); }
-                    } catch { mostrarToast("Error al subir", "error"); }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600/80 hover:bg-emerald-600 border border-emerald-500/30 rounded-xl text-sm text-white font-medium transition-colors"
-                >
-                  <FaUpload className="text-xs" /> Subir Fondo
-                </button>
-                <button type="button" onClick={() => setMostrarSelectorFondo(false)}
-                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-colors">
-                  <FaTimes />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4">
-              {fondos.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-4">
-                  <IoImage className="text-5xl text-slate-700" />
-                  <div className="text-center">
-                    <p className="text-slate-400 font-medium mb-1">Sin fondos</p>
-                    <p className="text-slate-600 text-sm">Sube imágenes o videos para usar como fondo</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {fondos.map((fondo) => (
-                    <div
-                      key={fondo.id}
-                      onClick={() => seleccionarFondo(fondo)}
-                      onKeyDown={(e) => e.key === "Enter" && seleccionarFondo(fondo)}
-                      role="button" tabIndex={0}
-                      aria-label={`Seleccionar fondo: ${fondo.nombre}`}
-                      className={`group relative bg-slate-800/60 rounded-2xl overflow-hidden border cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
-                        !!fondo.activo ? "border-emerald-400/60 shadow-emerald-900/30 shadow-lg" : "border-white/6 hover:border-white/20"
-                      }`}
-                    >
-                      <div className="aspect-video bg-slate-900 relative overflow-hidden">
-                        {fondo.tipo === "animado"
-                          ? (() => {
-                              const FondoAnimado = componenteFondoAnimado(fondo.url);
-                              return FondoAnimado ? <FondoAnimado /> : null;
-                            })()
-                          : fondo.tipo === "video"
-                          ? <video src={fondo.url} className="w-full h-full object-cover" muted
-                              onMouseEnter={(e) => e.target.play()} onMouseLeave={(e) => e.target.pause()} />
-                          : <img src={fondo.url} alt={fondo.nombre} className="w-full h-full object-cover" />
-                        }
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-1 p-2">
-                          <button type="button"
-                            onClick={(e) => { e.stopPropagation(); setPrevisualizandoFondo(fondo); }}
-                            className="p-1.5 bg-blue-500/80 hover:bg-blue-500 rounded-lg text-white transition-colors">
-                            <IoEye className="text-xs" />
-                          </button>
-                          {!fondo.activo && !fondo.es_defecto && (
-                            <button type="button"
-                              onClick={(e) => { e.stopPropagation(); eliminarFondo(fondo.id); }}
-                              className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-lg text-white transition-colors">
-                              <IoTrash className="text-xs" />
-                            </button>
-                          )}
-                        </div>
-                        {!!fondo.activo && (
-                          <div className="absolute top-2 left-2 text-[9px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold flex items-center gap-1">
-                            <IoCheckmark className="text-[8px]" /> ACTIVO
-                          </div>
-                        )}
-                      </div>
-                      <div className="px-2.5 py-2 flex items-center gap-1.5">
-                        {fondo.tipo === "video"
-                          ? <FaVideo className="text-red-400 text-[9px] shrink-0" />
-                          : <IoImage className="text-blue-400 text-[9px] shrink-0" />
-                        }
-                        <p className="text-xs text-slate-300 truncate">{fondo.nombre}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal: Preview fondo ──────────────────────────────────────────── */}
-      {previsualizandoFondo && (
-        <div className="fixed inset-0 bg-black/92 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="relative max-w-4xl w-full">
-            <button type="button" onClick={() => setPrevisualizandoFondo(null)}
-              className="absolute -top-3 -right-3 z-10 bg-slate-800 hover:bg-slate-700 border border-white/10 text-white p-2 rounded-full transition-colors shadow-lg">
-              <FaTimes className="text-sm" />
-            </button>
-            <div className="bg-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-white/6">
-              {previsualizandoFondo.tipo === "animado"
-                ? (() => {
-                    const FondoAnimado = componenteFondoAnimado(previsualizandoFondo.url);
-                    return (
-                      <div className="relative w-full aspect-video">
-                        {FondoAnimado && <FondoAnimado />}
-                      </div>
-                    );
-                  })()
-                : previsualizandoFondo.tipo === "video"
-                ? <video src={previsualizandoFondo.url} className="w-full max-h-[70vh] object-contain" controls autoPlay />
-                : <img src={previsualizandoFondo.url} alt={previsualizandoFondo.nombre} className="w-full max-h-[70vh] object-contain" />
-              }
-              <div className="px-4 py-3 flex items-center justify-between border-t border-white/5">
-                <div className="flex items-center gap-2">
-                  {previsualizandoFondo.tipo === "animado"
-                    ? <IoSparkles className="text-amber-400 text-xs" />
-                    : previsualizandoFondo.tipo === "video"
-                    ? <FaVideo className="text-red-400 text-xs" />
-                    : <IoImage className="text-blue-400 text-xs" />
-                  }
-                  <p className="text-sm text-white font-medium">{previsualizandoFondo.nombre}</p>
-                </div>
-                <button type="button"
-                  onClick={() => { seleccionarFondo(previsualizandoFondo); setPrevisualizandoFondo(null); }}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 rounded-xl text-sm text-white font-semibold transition-colors">
-                  Usar este fondo
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

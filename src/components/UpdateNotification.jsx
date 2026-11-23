@@ -109,41 +109,20 @@ const UpdateNotification = () => {
 
     const handleCheckManual = (_e) => handleCheckUpdate();
 
-    if (window.electron?.on) {
-      window.electron.on("update-checking", handleCheckingUpdate);
-      window.electron.on("update-available", handleUpdateAvailable);
-      window.electron.on("update-not-available", handleUpdateNotAvailable);
-      window.electron.on("update-error", handleUpdateError);
-      window.electron.on("update-download-progress", handleDownloadProgress);
-      window.electron.on("update-downloaded", handleUpdateDownloaded);
-      window.electron.on("check-updates-manual", handleCheckManual);
-    }
+    const offs = window.electron?.on
+      ? [
+          window.electron.on("update-checking", handleCheckingUpdate),
+          window.electron.on("update-available", handleUpdateAvailable),
+          window.electron.on("update-not-available", handleUpdateNotAvailable),
+          window.electron.on("update-error", handleUpdateError),
+          window.electron.on("update-download-progress", handleDownloadProgress),
+          window.electron.on("update-downloaded", handleUpdateDownloaded),
+          window.electron.on("check-updates-manual", handleCheckManual),
+        ]
+      : [];
 
     return () => {
-      if (window.electron?.removeListener) {
-        window.electron.removeListener("update-checking", handleCheckingUpdate);
-        window.electron.removeListener(
-          "update-available",
-          handleUpdateAvailable,
-        );
-        window.electron.removeListener(
-          "update-not-available",
-          handleUpdateNotAvailable,
-        );
-        window.electron.removeListener("update-error", handleUpdateError);
-        window.electron.removeListener(
-          "update-download-progress",
-          handleDownloadProgress,
-        );
-        window.electron.removeListener(
-          "update-downloaded",
-          handleUpdateDownloaded,
-        );
-        window.electron.removeListener(
-          "check-updates-manual",
-          handleCheckManual,
-        );
-      }
+      offs.forEach((off) => typeof off === "function" && off());
     };
   }, []);
 

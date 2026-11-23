@@ -820,7 +820,7 @@ export default function Anuncios() {
               type="button"
               onClick={iniciarProyeccion}
               disabled={activos.length === 0}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 border border-orange-500/30 text-white text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
               title={
                 activos.length === 0 ? "Agrega al menos un anuncio activo" : ""
               }
@@ -832,7 +832,7 @@ export default function Anuncios() {
           <button
             type="button"
             onClick={abrirNuevo}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white text-xs font-semibold transition-colors"
           >
             <FaPlus className="text-[9px]" /> Nuevo
           </button>
@@ -856,7 +856,7 @@ export default function Anuncios() {
               <button
                 type="button"
                 onClick={abrirNuevo}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white text-sm font-semibold transition-colors"
               >
                 <FaPlus className="text-xs" /> Crear primer anuncio
               </button>

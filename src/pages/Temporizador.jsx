@@ -79,8 +79,8 @@ export default function Temporizador() {
 
   useEffect(() => {
     const h = (_, data) => { if (data) setEstado(data); };
-    window.electron?.on?.("timer-tick", h);
-    return () => window.electron?.removeListener?.("timer-tick", h);
+    const off = window.electron?.on?.("timer-tick", h);
+    return () => typeof off === "function" && off();
   }, []);
 
   const cmd = useCallback(async (fn) => {
@@ -207,11 +207,7 @@ export default function Temporizador() {
             {!proyectando ? (
               <button type="button" onClick={proyectar}
                 disabled={seg <= 0 || ocupado}
-                className="shrink-0 w-full flex items-center justify-center gap-2.5 py-3 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40"
-                style={{
-                  background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-                  boxShadow: "0 4px 20px #4f46e53a",
-                }}
+                className="shrink-0 w-full flex items-center justify-center gap-2.5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 font-bold text-sm text-white transition-colors disabled:opacity-40 shadow-lg shadow-emerald-900/30"
               >
                 <FaBroadcastTower /> Proyectar en pantalla
               </button>

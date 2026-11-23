@@ -95,6 +95,7 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
 - **`preload.js`** expone dos APIs: `window.electron` y `window.electronAPI` (alias para compatibilidad).
 - Los métodos `invoke` y `send` genéricos tienen **whitelist de canales** — no agregar canales arbitrarios sin agregarlos a la lista.
 - Los eventos entrantes al renderer usan `validChannels` en `on/removeListener/removeAllListeners`.
+- **`window.electron.on()` devuelve la función para desuscribirse — usarla siempre** (`const off = window.electron.on(...); return () => off();`, o el hook `useIpcListener`). `removeListener(canal, fn)` **no funciona** a través de contextBridge (cada llamada recibe una copia nueva de `fn`); antes de nov 2026 los listeners se acumulaban (11 `navegar-a-ruta` tras navegar, handlers del proyector duplicados).
 
 ### Base de datos
 
@@ -117,6 +118,8 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
   - Desde la misma PC (loopback): permitido sin PIN; escrituras con un `Origin` ajeno → 403 (anti CSRF). CORS solo para `localhost:3000/3001`.
   - Desde la red: todo `/api/*` exige el header `X-GloryView-Pin` (PIN de 6 dígitos en `{userData}/pin-movil.json`), salvo `RUTAS_PUBLICAS_LAN` (GET de solo lectura para OBS y miniaturas). `RUTAS_SOLO_LOCAL` (PIN, QR, diagnóstico, debug, pixabay) → 403 siempre.
   - 10 PIN incorrectos en 10 min → IP bloqueada 10 min (429). Regenerar el PIN (pantalla App Móvil) desbloquea.
+  - Switch "Exigir PIN" (pantalla App Móvil, `POST /api/movil/pin/exigir {exigir}`, guardado en `pin-movil.json`): apagarlo deja usar APKs viejos sin campo de PIN mientras se actualizan; `RUTAS_SOLO_LOCAL` siguen bloqueadas igual.
+  - **Compatibilidad con la app móvil**: todo cambio en rutas/formatos debe seguir funcionando con `app-gloryview/App.js` y con APKs viejos ya instalados — agregar campos/rutas, no renombrar ni quitar (ej. `/api/temporizador/estado` sigue devolviendo `segundosRestantes`).
   - El QR codifica `http://ip:3001/?pin=XXXXXX`; la app móvil (`app-gloryview/App.js`) envuelve `fetch` para agregar el header.
   - **Al agregar una ruta nueva**: queda protegida por defecto. Si OBS u otra fuente sin PIN la necesita, agregarla a `RUTAS_PUBLICAS_LAN` (solo si es GET de solo lectura); si expone secretos o hace peticiones salientes, a `RUTAS_SOLO_LOCAL`.
 
@@ -513,6 +516,12 @@ El proyector carga desde **puertos diferentes** según el modo:
 - En modo producción: ejecutar `npm run build` y reiniciar la app.
 
 ---
+
+## Convenciones de UI (nov 2026)
+
+- **Colores de botones**: Proyectar/Mostrar = `emerald-600` · Crear/Nuevo/Guardar/Subir = `indigo-600` · Eliminar/Detener = rojo. El color propio de cada sección (sidebar) va solo en su ícono.
+- **Configuración se guarda sola** (no hay botón "Guardar"): switches y selectores llaman `guardarSilencioso()`; nombre/eslogan se guardan 700 ms después de dejar de escribir; el logo se sube al elegirlo. Indicador "Guardado ✓" en la barra lateral.
+- Los fondos se administran solo en Gestión de Fondos (Configuración → Apariencia muestra el activo y un botón "Cambiar fondo").
 
 ## Lo que NO hacer
 

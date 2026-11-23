@@ -22,7 +22,10 @@ function registrar({
   // HANDLERS DEL TEMPORIZADOR (DESKTOP)
   // El timer corre en main process para persistir entre navegaciones
   // ====================================
-  ipcMain.handle('timer-estado', () => ({ ...timerEstadoServidor }));
+  // Incluye `segundos` (lo que lee Temporizador.jsx, igual que timer-tick):
+  // antes solo venía `segundosRestantes`, la página leía undefined → 00:00 y
+  // los botones Iniciar/Proyectar quedaban deshabilitados al abrirla.
+  ipcMain.handle('timer-estado', () => ({ ...timerEstadoServidor, ...timerGetData() }));
 
   ipcMain.handle('timer-iniciar', (_, { minutos, mensaje, fondo } = {}) => {
     if (minutos !== undefined) {

@@ -251,9 +251,9 @@ const Biblia = () => {
   const [partesProyector, setPartesProyector] = useState({parte: 1, total: 1});
   useEffect(() => {
     const onPartes = (_e, info) => setPartesProyector(info || {parte: 1, total: 1});
-    window.electron?.on?.("proyector-partes", onPartes);
+    const off = window.electron?.on?.("proyector-partes", onPartes);
     window.electron?.obtenerPartes?.().then((info) => info && setPartesProyector(info)).catch(() => {});
-    return () => window.electron?.removeListener?.("proyector-partes", onPartes);
+    return () => typeof off === "function" && off();
   }, []);
 
   const manejarSeleccionarLibro = (libroId) => {

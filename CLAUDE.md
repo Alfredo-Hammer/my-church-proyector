@@ -336,8 +336,10 @@ Sin las variables de entorno, el build funciona sin firma (modo desarrollo/prueb
    NOVEDADES.txt (el CI usa solo el primer bloque como notas).
 3. Push del commit y del tag `vX.Y.Z` → `.github/workflows/release.yml` compila Windows y Mac,
    publica el release y adjunta el APK como `GloryView-Movil.apk` (nombre fijo).
-4. Landing: `docs/index.html` (GitHub Pages, rama master, carpeta /docs). Los botones de descarga
-   se resuelven solos con la API del último release; las novedades están escritas a mano, actualizarlas.
+4. Landing: NO está en este repo. Son Artifacts de claude.ai: landing https://claude.ai/artifact/JpxfhUHRXgh7gaY1MUvBMc
+   y novedades https://claude.ai/artifact/B87QFnqdJmyftnwaz1gUQP (leerlos con la herramienta Artifact y
+   republicar con su `url`). Actualizar versión, links `releases/download/vX.Y.Z/...` y notas a mano.
+   El APK se enlaza con `releases/latest/download/GloryView-Movil.apk` (no cambia).
 
 ---
 

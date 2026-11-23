@@ -125,7 +125,7 @@ jobs:
       # APK de la app movil: se compila aparte con EAS (npm run build:preview
       # en app-gloryview) y su URL de descarga se guarda en
       # app-gloryview/apk-url.txt antes de crear el tag. Aca se baja y se
-      # adjunta con nombre fijo, asi la landing (docs/) siempre enlaza a
+      # adjunta con nombre fijo, asi la landing (Artifact de claude.ai) siempre enlaza a
       # releases/latest/download/GloryView-Movil.apk
       - name: Descargar APK de la app movil
         run: |

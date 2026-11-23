@@ -446,192 +446,230 @@ const FondoThumb = ({ item, resolverUrl }) => {
 };
 
 
-const INICIO_BRAND = '#34ffa0';
+// ════════════════════════════════════════════════════════════════════════
+// PANTALLA DE INICIO
+// Colores por sección = los mismos del sidebar de la app de escritorio
+// (src/components/Sidebar.jsx), para que las dos apps se sientan una sola.
+// ════════════════════════════════════════════════════════════════════════
+const INICIO_ACENTOS = {
+  himnos:         '#818cf8', // indigo
+  biblia:         '#fbbf24', // amber
+  presentaciones: '#fb923c', // orange
+  anuncios:       '#fb7185', // rose
+  diapositivas:   '#a78bfa', // violet
+  temporizador:   '#22d3ee', // cyan
+  multimedia:     '#2dd4bf', // teal
+  fondos:         '#60a5fa', // blue
+  favoritos:      '#f472b6', // pink
+  plantillas:     '#c084fc', // purple
+};
+const INICIO_VERDE = '#10b981'; // "en vivo / conectado" (igual que Proyectar en escritorio)
 
-const InicioAmbientGlow = () => {
-  const t = useRef(new Animated.Value(0)).current;
+// #rrggbb + alfa (0–1) → rgba()
+const conAlfa = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
 
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(t, { toValue: 1, duration: 6000, useNativeDriver: true }),
-        Animated.timing(t, { toValue: 0, duration: 6000, useNativeDriver: true }),
-      ])
+const saludoSegunHora = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+};
+
+const fechaLarga = () => {
+  try {
+    const t = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  } catch {
+    return '';
+  }
+};
+
+const InicioSaludo = ({ tablet }) => (
+  <View style={{ marginBottom: 16, marginTop: 2 }}>
+    <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+      {fechaLarga()}
+    </Text>
+    <Text style={{ color: '#f8fafc', fontSize: tablet ? 30 : 26, fontWeight: '800', marginTop: 4, letterSpacing: -0.4 }}>
+      {saludoSegunHora()}
+    </Text>
+    <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>
+      ¿Qué vamos a proyectar hoy?
+    </Text>
+  </View>
+);
+
+// Tarjeta de estado: multimedia sonando › conectado › sin conexión
+const InicioEstado = ({ hayMedia, nombreMedia, proyectando, conectado, servidor, setSeccion }) => {
+  if (hayMedia && !!nombreMedia) {
+    const color = proyectando ? '#f59e0b' : '#64748b';
+    return (
+      <Pressable
+        onPress={() => { Keyboard.dismiss(); setSeccion('multimedia'); }}
+        style={({ pressed }) => [estilosInicio.estado, {
+          borderColor: conAlfa(proyectando ? '#f59e0b' : '#94a3b8', 0.28),
+          backgroundColor: conAlfa(proyectando ? '#f59e0b' : '#94a3b8', 0.07),
+        }, pressed && estilosInicio.presionado]}
+      >
+        <View style={[estilosInicio.estadoIcono, { backgroundColor: conAlfa(color, 0.16) }]}>
+          <Ionicons name={proyectando ? 'volume-high' : 'pause'} size={18} color={color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[estilosInicio.estadoEtiqueta, { color: proyectando ? '#fbbf24' : '#94a3b8' }]}>
+            {proyectando ? 'Reproduciendo' : 'En pausa'}
+          </Text>
+          <Text style={estilosInicio.estadoTitulo} numberOfLines={1}>{nombreMedia}</Text>
+        </View>
+        {proyectando && <AnimatedSoundBars />}
+        <Ionicons name="chevron-forward" size={16} color="#475569" />
+      </Pressable>
     );
-    loop.start();
-    return () => loop.stop();
-  }, [t]);
+  }
 
-  const translateY1 = t.interpolate({ inputRange: [0, 1], outputRange: [0, 26] });
-  const translateY2 = t.interpolate({ inputRange: [0, 1], outputRange: [18, -10] });
-  const opacity1 = t.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.3] });
-  const opacity2 = t.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.16] });
+  if (conectado) {
+    return (
+      <Pressable
+        onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
+        style={({ pressed }) => [estilosInicio.estado, {
+          borderColor: conAlfa(INICIO_VERDE, 0.3),
+          backgroundColor: conAlfa(INICIO_VERDE, 0.08),
+        }, pressed && estilosInicio.presionado]}
+      >
+        <View style={[estilosInicio.estadoIcono, { backgroundColor: conAlfa(INICIO_VERDE, 0.16) }]}>
+          <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: INICIO_VERDE }} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[estilosInicio.estadoEtiqueta, { color: '#6ee7b7' }]}>Conectado</Text>
+          <Text style={estilosInicio.estadoTitulo} numberOfLines={1}>
+            {servidor ? `Proyector en ${servidor}` : 'Listo para proyectar'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#475569" />
+      </Pressable>
+    );
+  }
 
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
-      <Animated.View
-        style={{
-          position: 'absolute', top: -80, left: -60,
-          width: 220, height: 220, borderRadius: 110,
-          backgroundColor: INICIO_BRAND,
-          opacity: opacity1,
-          transform: [{ translateY: translateY1 }],
-        }}
-      />
-      <Animated.View
-        style={{
-          position: 'absolute', bottom: -80, right: -70,
-          width: 220, height: 220, borderRadius: 110,
-          backgroundColor: '#19e6ff',
-          opacity: opacity2,
-          transform: [{ translateY: translateY2 }],
-        }}
-      />
-      <BlurView intensity={65} tint="dark" style={{ flex: 1 }} />
+    <Pressable
+      onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
+      style={({ pressed }) => [estilosInicio.estado, {
+        borderColor: conAlfa('#60a5fa', 0.28),
+        backgroundColor: conAlfa('#3b82f6', 0.08),
+      }, pressed && estilosInicio.presionado]}
+    >
+      <View style={[estilosInicio.estadoIcono, { backgroundColor: conAlfa('#60a5fa', 0.16) }]}>
+        <Ionicons name="wifi-outline" size={18} color="#60a5fa" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[estilosInicio.estadoEtiqueta, { color: '#93c5fd' }]}>Sin conexión</Text>
+        <Text style={[estilosInicio.estadoTitulo, { fontSize: 13 }]} numberOfLines={2}>Conecta con el proyector</Text>
+      </View>
+      <View style={estilosInicio.botonConectar}>
+        <Ionicons name="qr-code-outline" size={13} color="#0b1220" />
+        <Text style={estilosInicio.botonConectarTexto}>Conectar</Text>
+      </View>
+    </Pressable>
+  );
+};
+
+// Tarjeta grande (Himnos, Biblia)
+const InicioDestacada = ({ item, setSeccion, alto }) => {
+  const c = INICIO_ACENTOS[item.id];
+  return (
+    <Pressable
+      onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
+      style={({ pressed }) => [{ flex: 1, height: alto, borderRadius: 20, overflow: 'hidden' }, pressed && estilosInicio.presionado]}
+    >
+      <LinearGradient
+        colors={[conAlfa(c, 0.30), conAlfa(c, 0.08)]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ flex: 1, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: conAlfa(c, 0.35), justifyContent: 'space-between' }}
+      >
+        <View style={[estilosInicio.iconoGrande, { backgroundColor: conAlfa(c, 0.22), borderColor: conAlfa(c, 0.45) }]}>
+          <Ionicons name={item.icon} size={24} color={c} />
+        </View>
+        <View>
+          <Text style={{ color: '#f8fafc', fontSize: 18, fontWeight: '800' }} numberOfLines={1}>{item.label}</Text>
+          <Text style={{ color: conAlfa(c, 0.95), fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{item.detalle}</Text>
+        </View>
+        <Ionicons name="arrow-forward" size={16} color={conAlfa(c, 0.8)} style={{ position: 'absolute', top: 18, right: 16 }} />
+      </LinearGradient>
+    </Pressable>
+  );
+};
+
+// Tarjeta chica de grupo (ícono a la izquierda + texto)
+const InicioMosaico = ({ item, setSeccion }) => {
+  const c = INICIO_ACENTOS[item.id];
+  return (
+    <Pressable
+      onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
+      style={({ pressed }) => [estilosInicio.mosaico, pressed && estilosInicio.presionado]}
+    >
+      <View style={[estilosInicio.iconoChico, { backgroundColor: conAlfa(c, 0.15), borderColor: conAlfa(c, 0.3) }]}>
+        <Ionicons name={item.icon} size={19} color={c} />
+      </View>
+      <Text style={estilosInicio.mosaicoTitulo} numberOfLines={1}>{item.label}</Text>
+      <Text style={estilosInicio.mosaicoDetalle} numberOfLines={1}>{item.detalle}</Text>
+    </Pressable>
+  );
+};
+
+// Filas de `cols` mosaicos, cada uno flex:1 (así no depende del padding del contenedor)
+const InicioGrupo = ({ titulo, items, setSeccion, cols, gap }) => {
+  const filas = [];
+  for (let i = 0; i < items.length; i += cols) filas.push(items.slice(i, i + cols));
+  return (
+    <View style={{ marginTop: 22 }}>
+      <Text style={estilosInicio.grupoTitulo}>{titulo}</Text>
+      <View style={{ gap }}>
+        {filas.map((fila, fi) => (
+          <View key={fi} style={{ flexDirection: 'row', gap }}>
+            {fila.map((it) => <InicioMosaico key={it.id} item={it} setSeccion={setSeccion} />)}
+            {Array(cols - fila.length).fill(null).map((_, k) => <View key={`v${k}`} style={{ flex: 1 }} />)}
+          </View>
+        ))}
+      </View>
     </View>
   );
 };
 
 const InicioFooter = () => (
-  <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-    <Text style={{ color: '#475569', fontSize: 12, fontWeight: '600', letterSpacing: 0.4 }}>
+  <View style={{ alignItems: 'center', paddingTop: 26, paddingBottom: 6 }}>
+    <Text style={{ color: '#334155', fontSize: 11, fontWeight: '600', letterSpacing: 0.4 }}>
       GloryView · Alfredo Hammer
     </Text>
   </View>
 );
 
-const InicioCard = ({ item, isLast, fixedH, gap, iconBoxSz, iconSz, iconRadius, lblSz, setSeccion }) => (
-  <Pressable
-    onPress={() => { Keyboard.dismiss(); setSeccion(item.id); }}
-    style={({ pressed }) => [{
-      flex: 1,
-      ...(fixedH ? { height: fixedH } : {}),
-      marginRight: isLast ? 0 : gap,
-      borderRadius: 16,
-      shadowColor: INICIO_BRAND,
-      shadowOpacity: 0.14,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 5 },
-      elevation: 3,
-    },
-    pressed && { opacity: 0.75, transform: [{ scale: 0.96 }] },
-    ]}
-  >
-    <BlurView
-      intensity={45}
-      tint="dark"
-      style={{
-        flex: 1,
-        borderRadius: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(52,255,160,0.22)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 10,
-        backgroundColor: 'rgba(12,17,28,0.35)',
-      }}
-    >
-      <View style={{
-        width: iconBoxSz, height: iconBoxSz,
-        borderRadius: iconRadius,
-        backgroundColor: 'rgba(52,255,160,0.16)',
-        borderWidth: 1,
-        borderColor: 'rgba(52,255,160,0.32)',
-        alignItems: 'center', justifyContent: 'center',
-        marginBottom: 8,
-      }}>
-        <Ionicons name={item.icon} size={iconSz} color={INICIO_BRAND} />
-      </View>
-      <Text style={{
-        color: '#e2e8f0', fontSize: lblSz, fontWeight: '600',
-        textAlign: 'center', letterSpacing: 0.1,
-      }} numberOfLines={2}>
-        {item.label}
-      </Text>
-    </BlurView>
-  </Pressable>
-);
-
-const InicioStatusPill = ({ hayMedia, nombreMedia, proyectando, conectado, setSeccion }) =>
-  hayMedia && !!nombreMedia ? (
-    <Pressable
-      onPress={() => { Keyboard.dismiss(); setSeccion('multimedia'); }}
-      style={({ pressed }) => [{
-        borderRadius: 14, marginBottom: 14,
-        borderWidth: 1, borderColor: proyectando ? 'rgba(245,158,11,0.30)' : 'rgba(255,255,255,0.08)',
-        backgroundColor: proyectando ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.04)',
-      }, pressed && { opacity: 0.75 }]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 12 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: proyectando ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={proyectando ? 'volume-high' : 'pause'} size={17} color={proyectando ? '#f59e0b' : '#64748b'} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: proyectando ? '#fbbf24' : '#64748b', fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 1 }}>
-            {proyectando ? 'Reproduciendo' : 'En pausa'}
-          </Text>
-          <Text style={{ color: '#f1f5f9', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{nombreMedia}</Text>
-        </View>
-        {proyectando && <AnimatedSoundBars />}
-        <Ionicons name="chevron-forward" size={14} color="#334155" />
-      </View>
-    </Pressable>
-  ) : (
-    <Pressable
-      onPress={() => { Keyboard.dismiss(); setSeccion('conexion'); }}
-      style={({ pressed }) => [{
-        borderRadius: 14, marginBottom: 14,
-        borderWidth: 1,
-        borderColor: conectado ? 'rgba(52,255,160,0.25)' : 'rgba(96,165,250,0.18)',
-        backgroundColor: conectado ? 'rgba(52,255,160,0.08)' : 'rgba(59,130,246,0.07)',
-      }, pressed && { opacity: 0.75 }]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11, gap: 10 }}>
-        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: conectado ? 'rgba(52,255,160,0.14)' : 'rgba(96,165,250,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={conectado ? 'checkmark-circle' : 'wifi-outline'} size={16} color={conectado ? INICIO_BRAND : '#60a5fa'} />
-        </View>
-        <Text style={{ flex: 1, color: conectado ? '#8ffcc4' : '#93c5fd', fontWeight: '600', fontSize: 12 }}>
-          {conectado ? '' : 'Sin conexión — toca para conectar'}
-        </Text>
-        <Ionicons name="chevron-forward" size={14} color="#334155" />
-      </View>
-    </Pressable>
-  );
-
-const InicioGrid = ({ rows, cols, gap, cardH, setSeccion, iconBoxSz, iconSz, iconRadius, lblSz, tablet }) => (
-  <View style={tablet ? { flex: 1 } : { gap: gap }}>
-    {rows.map((row, ri) => (
-      <View
-        key={`row-${ri}`}
-        style={[
-          { flexDirection: 'row' },
-          tablet
-            ? { flex: 1, marginBottom: ri < rows.length - 1 ? gap : 0 }
-            : {},
-        ]}
-      >
-        {row.map((item, ci) => (
-          <InicioCard
-            key={item.id}
-            item={item}
-            isLast={ci === row.length - 1}
-            fixedH={tablet ? undefined : cardH}
-            gap={gap}
-            iconBoxSz={iconBoxSz}
-            iconSz={iconSz}
-            iconRadius={iconRadius}
-            lblSz={lblSz}
-            setSeccion={setSeccion}
-          />
-        ))}
-        {Array(cols - row.length).fill(null).map((_, i) => (
-          <View key={`fill-${i}`} style={{ flex: 1, marginRight: i < cols - row.length - 1 ? gap : 0 }} />
-        ))}
-      </View>
-    ))}
-  </View>
-);
+const estilosInicio = StyleSheet.create({
+  presionado: { opacity: 0.78, transform: [{ scale: 0.97 }] },
+  estado: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  estadoIcono: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  estadoEtiqueta: { fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
+  estadoTitulo: { color: '#f1f5f9', fontSize: 14, fontWeight: '700', marginTop: 1 },
+  botonConectar: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#93c5fd', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
+  },
+  botonConectarTexto: { color: '#0b1220', fontSize: 12, fontWeight: '800' },
+  iconoGrande: { width: 46, height: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconoChico: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  grupoTitulo: { color: '#64748b', fontSize: 11, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 10 },
+  mosaico: {
+    flex: 1, minWidth: 0,
+    backgroundColor: 'rgba(30,41,59,0.45)', borderWidth: 1, borderColor: 'rgba(148,163,184,0.12)',
+    borderRadius: 16, paddingHorizontal: 13, paddingVertical: 13,
+  },
+  mosaicoTitulo: { color: '#f1f5f9', fontSize: 13, fontWeight: '700', marginTop: 10, letterSpacing: -0.1 },
+  mosaicoDetalle: { color: '#64748b', fontSize: 11, marginTop: 1 },
+});
 
 export default function App() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -3736,76 +3774,65 @@ export default function App() {
 
           <View style={styles.content}>
             {seccion === 'inicio' && (() => {
-              const isTablet   = screenWidth >= 600;
-              const cols       = screenWidth >= 900 ? 4 : 3;
-              const padH       = isTablet ? 20 : 16;
-              const gap        = isTablet ? 12 : 10;
-              // Móvil: altura fija. Tablet: altura calculada para llenar pantalla
-              const pillH      = 60; // barra de estado aprox
-              const footerH    = 36;
-              const vertPad    = 14 + 20; // paddingTop + paddingBottom
-              const numRows    = Math.ceil(9 / cols);
-              const tabletCardH = Math.min(
-                130,
-                Math.max(80, (screenHeight - pillH - footerH - vertPad - (numRows - 1) * gap) / numRows)
-              );
-              const cardH      = isTablet ? tabletCardH : 90;
-              const iconBoxSz  = isTablet ? 50 : 42;
-              const iconSz     = isTablet ? 24 : 20;
-              const iconRadius = 13;
-              const lblSz      = isTablet ? 13 : 11;
+              const isTablet = screenWidth >= 600;
+              const padH     = isTablet ? 22 : 16;
+              const gap      = isTablet ? 12 : 10;
+              const colsGrupo = isTablet ? 4 : 2;
 
-              const ITEMS = [
-                { id: 'himnos',         label: 'Himnos',           icon: 'musical-notes' },
-                { id: 'biblia',         label: 'Biblia',           icon: 'book' },
-                { id: 'presentaciones', label: 'Orden de Servicio',icon: 'list' },
-                { id: 'multimedia',     label: 'Multimedia',       icon: 'play-circle' },
-                { id: 'fondos',         label: 'Fondos',           icon: 'image' },
-                { id: 'favoritos',      label: 'Favoritos',        icon: 'heart' },
-                { id: 'anuncios',       label: 'Anuncios',         icon: 'megaphone' },
-                { id: 'diapositivas',   label: 'Diapositivas',     icon: 'images' },
-                { id: 'temporizador',   label: 'Temporizador',     icon: 'timer' },
-                { id: 'plantillas',     label: 'Plantillas',       icon: 'color-palette' },
+              const totalHimnos = (himnosData?.length || 0) + (vidaCristianaData?.length || 0);
+              const DESTACADAS = [
+                { id: 'himnos', label: 'Himnos', icon: 'musical-notes', detalle: totalHimnos ? `${totalHimnos} himnos` : 'Moravo · Vida Cristiana' },
+                { id: 'biblia', label: 'Biblia', icon: 'book', detalle: '66 libros · RVR60' },
               ];
-
-              const toRows = (arr) => {
-                const rows = [];
-                for (let i = 0; i < arr.length; i += cols) rows.push(arr.slice(i, i + cols));
-                return rows;
-              };
-              const rows = toRows(ITEMS);
-
-              // InicioCard is defined at module scope
+              const SERVICIO = [
+                { id: 'presentaciones', label: 'Orden de Servicio', icon: 'list',      detalle: 'Programa del culto' },
+                { id: 'anuncios',       label: 'Anuncios',          icon: 'megaphone', detalle: 'Avisos de la semana' },
+                { id: 'diapositivas',   label: 'Diapositivas',      icon: 'images',    detalle: 'Presentaciones' },
+                { id: 'temporizador',   label: 'Temporizador',      icon: 'timer',     detalle: 'Cuenta regresiva' },
+              ];
+              const MEDIOS = [
+                { id: 'multimedia', label: 'Multimedia', icon: 'play-circle',   detalle: 'Videos y música' },
+                { id: 'fondos',     label: 'Fondos',     icon: 'image',         detalle: 'Fondo del proyector' },
+                { id: 'favoritos',  label: 'Favoritos',  icon: 'heart',         detalle: 'Tus guardados' },
+                { id: 'plantillas', label: 'Plantillas', icon: 'color-palette', detalle: 'Estilos animados' },
+              ];
 
               const proyectando = estadoReproduccion === 'playing';
               const enPausa     = estadoReproduccion === 'paused';
               const hayMedia    = proyectando || enPausa;
               const nombreMedia = String(multimediaActiva?.nombre || multimediaUltimaProyectada?.nombre || '');
+              // Sin `new URL()`: en React Native algunos getters no están implementados
+              const servidor = String(normalizarBaseUrl(serverBaseUrl) || '')
+                .replace(/^https?:\/\//i, '')
+                .replace(/\/.*$/, '');
 
-              // InicioStatusPill, InicioGrid and InicioFooter are defined at module scope
-
-              // Tablet: filas con flex:1 llenan toda la pantalla
-              if (isTablet) {
-                return (
-                  <View style={{ flex: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 14 }}>
-                    <InicioAmbientGlow />
-                    <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
-                    <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} tablet />
-                    <InicioFooter />
-                  </View>
-                );
-              }
-
-              // Móvil: ScrollView con alturas fijas
               return (
                 <ScrollView
                   style={{ flex: 1 }}
-                  contentContainerStyle={{ flexGrow: 1, paddingHorizontal: padH, paddingTop: 14, paddingBottom: 20 }}
+                  contentContainerStyle={{ flexGrow: 1, paddingHorizontal: padH, paddingTop: 10, paddingBottom: 24, width: '100%', maxWidth: 1000, alignSelf: 'center' }}
                   showsVerticalScrollIndicator={false}
                 >
-                  <InicioAmbientGlow />
-                  <InicioStatusPill hayMedia={hayMedia} nombreMedia={nombreMedia} proyectando={proyectando} conectado={conectado} setSeccion={setSeccion} />
-                  <InicioGrid rows={rows} cols={cols} gap={gap} cardH={cardH} setSeccion={setSeccion} iconBoxSz={iconBoxSz} iconSz={iconSz} iconRadius={iconRadius} lblSz={lblSz} />
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['rgba(99,102,241,0.10)', 'rgba(16,185,129,0.04)', 'transparent']}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 260 }}
+                  />
+                  <InicioSaludo tablet={isTablet} />
+                  <InicioEstado
+                    hayMedia={hayMedia}
+                    nombreMedia={nombreMedia}
+                    proyectando={proyectando}
+                    conectado={conectado}
+                    servidor={servidor}
+                    setSeccion={setSeccion}
+                  />
+                  <View style={{ flexDirection: 'row', gap, marginTop: 18 }}>
+                    {DESTACADAS.map((it) => (
+                      <InicioDestacada key={it.id} item={it} setSeccion={setSeccion} alto={isTablet ? 150 : 132} />
+                    ))}
+                  </View>
+                  <InicioGrupo titulo="Servicio" items={SERVICIO} setSeccion={setSeccion} cols={colsGrupo} gap={gap} />
+                  <InicioGrupo titulo="Medios" items={MEDIOS} setSeccion={setSeccion} cols={colsGrupo} gap={gap} />
                   <InicioFooter />
                 </ScrollView>
               );

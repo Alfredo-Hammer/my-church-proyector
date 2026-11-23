@@ -164,7 +164,9 @@ const configuracionPorDefecto = {
     descripcion: "Tamaño de fuente para títulos"
   },
   fontSizeParrafo: {
-    valor: "text-6xl",
+    // Es el TECHO del auto-ajuste: con text-6xl (60px a 1080p) un versículo
+    // corto nunca pasaba del 5.6% del alto aunque sobrara pantalla.
+    valor: "text-10xl",
     tipo: "string",
     descripcion: "Tamaño de fuente para párrafos"
   },
@@ -198,6 +200,17 @@ const configuracionPorDefecto = {
     valor: "true",
     tipo: "boolean",
     descripcion: "Mostrar eslogan en la pantalla de bienvenida"
+  },
+  // ── Modo lejos (dividir versículos largos en partes) ──
+  modoLejosActivo: {
+    valor: "true",
+    tipo: "boolean",
+    descripcion: "Dividir versículos largos en partes si la letra quedaría más chica que el mínimo"
+  },
+  modoLejosMinimo: {
+    valor: "10",
+    tipo: "number",
+    descripcion: "Letra mínima del modo lejos, en % del alto de pantalla"
   },
   // ── Plantillas GSAP ──
   plantillaGsapActiva: {
@@ -319,6 +332,17 @@ if (!obtenerConfiguracion('migracionTituloGrande')) {
     actualizarConfiguracion('fontSizeTitulo', 'text-8xl');
   }
   actualizarConfiguracion('migracionTituloGrande', 'true');
+}
+
+// Una sola vez: la letra del párrafo por defecto subió de L (text-6xl) a 4XL
+// (text-10xl) porque se veía chica en la TV. Quien seguía en el valor viejo
+// por defecto pasa al nuevo; quien eligió otro tamaño no se toca. El
+// auto-ajuste igual achica los textos largos para que entren.
+if (!obtenerConfiguracion('migracionParrafoGrande')) {
+  if (obtenerConfiguracion('fontSizeParrafo') === 'text-6xl') {
+    actualizarConfiguracion('fontSizeParrafo', 'text-10xl');
+  }
+  actualizarConfiguracion('migracionParrafoGrande', 'true');
 }
 
 // ====================================

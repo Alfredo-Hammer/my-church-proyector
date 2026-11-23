@@ -62,6 +62,7 @@ const cors = require("cors");
 const https = require("https");
 const http = require("http");
 const QRCode = require("qrcode");
+const { crearSeguridadServidor } = require("./ipc/shared/seguridadServidor");
 
 let FFMPEG_BIN = "ffmpeg";
 try {
@@ -254,10 +255,14 @@ function obtenerCSP() {
       "connect-src 'self' http://localhost:3000 http://localhost:3001 ws://localhost:3000 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "frame-src 'self' https://*.youtube.com https://www.youtube.com https://youtube.com https://*.google.com;";
   } else {
-    // PRODUCCIÓN: Agregar 'unsafe-eval' temporalmente para React
-    // Algunos bundlers modernos pueden requerir eval() para source maps o dynamic imports
+    // PRODUCCIÓN: sin 'unsafe-inline' ni 'unsafe-eval' en script-src.
+    // - El bundle de CRA no usa eval() (no hay source maps eval en producción).
+    // - El único script inline de CRA es el runtime chunk; .env.production
+    //   define INLINE_RUNTIME_CHUNK=false para que salga como archivo aparte.
+    // - executeJavaScript() desde main no está sujeto al CSP de la página.
+    // Si algo nuevo necesita eval/inline, buscar otra forma antes de relajar esto.
     return "default-src 'self' http://localhost:3001 https://*.youtube.com https://*.google.com; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
+      "script-src 'self' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://www.google.com https://*.ggpht.com https://*.doubleclick.net https://*.gstatic.com; " +
       "style-src 'self' 'unsafe-inline' http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.google.com https://*.ggpht.com https://*.gstatic.com; " +
       "img-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.google.com https://*.ggpht.com https://*.gstatic.com https://pixabay.com https://*.pixabay.com; " +
       "media-src 'self' data: blob: file: http://localhost:3001 https://*.youtube.com https://*.ytimg.com https://*.googlevideo.com https://*.ggpht.com https://pixabay.com https://*.pixabay.com blob:; " +
@@ -1147,8 +1152,14 @@ function iniciarServidorMultimedia() {
       return `http://${ip}:${PORT}`;
     };
 
-    // Habilitar CORS para React
-    expressApp.use(cors());
+    // 🔐 Seguridad: CORS restringido + PIN para peticiones desde la red local
+    // (ver ipc/shared/seguridadServidor.js para las reglas).
+    const seguridad = crearSeguridadServidor({
+      rutaArchivoPin: path.join(app.getPath("userData"), "pin-movil.json"),
+      log: writeLog,
+    });
+    expressApp.use(cors(seguridad.opcionesCors));
+    expressApp.use(seguridad.middleware);
 
     // Parsear JSON en el body de las peticiones
     // ✨ Aumentar límites para videos grandes (500MB)
@@ -1371,14 +1382,39 @@ function iniciarServidorMultimedia() {
     });
 
     // ✅ Endpoint mínimo para apps externas (móvil) - prueba de conectividad
+    // Público en la red local; si se envía el PIN, informa si es correcto
+    // (cuenta como intento para el límite anti fuerza bruta).
     expressApp.get('/api/ping', (req, res) => {
+      const local = seguridad.esLoopback(req);
+      const auth = local ? { ok: true } : seguridad.autenticarPin(req);
       res.json({
         ok: true,
         app: 'GloryView',
         version: app.getVersion(),
         serverTime: new Date().toISOString(),
+        requierePin: !local,
+        autenticado: auth.ok,
+        motivo: auth.ok ? undefined : auth.motivo,
       });
     });
+
+    // 🔐 PIN de emparejamiento (solo desde la PC — ver RUTAS_SOLO_LOCAL)
+    expressApp.get('/api/movil/pin', (req, res) => {
+      res.json({ ok: true, pin: seguridad.obtenerPin() });
+    });
+    expressApp.post('/api/movil/pin/regenerar', (req, res) => {
+      res.json({ ok: true, pin: seguridad.regenerarPin() });
+    });
+
+    const urlConPin = (url) => {
+      try {
+        const u = new URL(url);
+        u.searchParams.set('pin', seguridad.obtenerPin());
+        return u.toString();
+      } catch {
+        return url;
+      }
+    };
 
     // ✅ Endpoint de diagnóstico para verificar rutas y archivos
     expressApp.get('/api/diagnostico', (req, res) => {
@@ -1415,7 +1451,8 @@ function iniciarServidorMultimedia() {
           port: PORT,
           urls,
           preferredUrl,
-          qrValue: preferredUrl,
+          pin: seguridad.obtenerPin(),
+          qrValue: urlConPin(preferredUrl),
           serverTime: new Date().toISOString(),
         });
       } catch (error) {
@@ -1429,7 +1466,8 @@ function iniciarServidorMultimedia() {
     expressApp.get('/api/qr.png', async (req, res) => {
       try {
         const raw = String(req.query?.url || '').trim();
-        const value = raw && /^https?:\/\//i.test(raw) ? raw : obtenerUrlPreferidaParaMovil();
+        // El QR lleva la URL + ?pin=XXXXXX para emparejar en un solo paso.
+        const value = urlConPin(raw && /^https?:\/\//i.test(raw) ? raw : obtenerUrlPreferidaParaMovil());
 
         const png = await QRCode.toBuffer(value, {
           type: 'png',
@@ -2044,6 +2082,7 @@ function iniciarServidorMultimedia() {
           console.log('📤 [MAIN] (API) Enviando himno a proyector existente:', payload.titulo);
           proyectorWindow.webContents.send('mostrar-himno', payload);
         }
+        require('./ipc/partesProyector').reiniciarPartes();
         actualizarObs('himno', payload);
         return res.json({ ok: true });
       } catch (error) {
@@ -2062,6 +2101,7 @@ function iniciarServidorMultimedia() {
         }
         if (proyectorWindow && !proyectorWindow.isDestroyed()) {
           proyectorWindow.webContents.send('limpiar-proyector');
+          require('./ipc/partesProyector').reiniciarPartes();
           actualizarObs('vacio');
           return res.json({ ok: true });
         }
@@ -2069,6 +2109,21 @@ function iniciarServidorMultimedia() {
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message });
       }
+    });
+
+    // ✅ Modo lejos: pasar a la parte siguiente/anterior del versículo dividido
+    // Body: { direccion: 1 | -1 } → { ok, movido, parte, total }
+    // movido:false = ya estaba en la primera/última parte → el móvil cambia de versículo.
+    expressApp.post('/api/control/parte', (req, res) => {
+      const partes = require('./ipc/partesProyector');
+      const direccion = Number(req.body?.direccion) > 0 ? 1 : -1;
+      const movido = partes.cambiarParte(direccion);
+      return res.json({ ok: true, movido, ...partes.obtenerPartes() });
+    });
+
+    // GET → { ok, parte, total }
+    expressApp.get('/api/proyector/partes', (_req, res) => {
+      return res.json({ ok: true, ...require('./ipc/partesProyector').obtenerPartes() });
     });
 
     // ✅ Control Biblia desde app móvil (sin duplicar texto en el móvil)
@@ -2101,6 +2156,7 @@ function iniciarServidorMultimedia() {
           libroId: libroId.trim(),
           capitulo: cap,
           versiculo: ver,
+          parteInicial: req.body?.parteInicial === 'ultima' ? 'ultima' : undefined,
         });
 
         return res.json({ ok: true });
@@ -5212,6 +5268,14 @@ function registrarHandlers() {
     timerEstaProyectando,
     timerRestaurarEnProyector,
     multimediaPlaybackStatus,
+  });
+
+  // ====================================
+  // MODO LEJOS: partes de un texto dividido por el proyector
+  // ====================================
+  require("./ipc/partesProyector").registrar({
+    getProyectorWindow: () => proyectorWindow,
+    getMainWindow: () => mainWindow,
   });
 
   // ====================================

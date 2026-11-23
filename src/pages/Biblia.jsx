@@ -166,9 +166,14 @@ const Biblia = () => {
   }, [libroSeleccionado]);
 
   useEffect(() => {
-    const manejarTeclas = (e) => {
+    const manejarTeclas = async (e) => {
       // Navegar versículos con flechas siempre que haya uno proyectado y el buscador esté cerrado
       if (!versiculoSeleccionado || !versiculos.length || mostrarBuscador) return;
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+
+      // Modo lejos: si el versículo está dividido, la flecha recorre sus
+      // partes antes de pasar al versículo siguiente/anterior.
+      if (await window.electron.cambiarParte?.(e.key === "ArrowRight" ? 1 : -1)) return;
 
       if (e.key === "ArrowRight" && versiculoSeleccionado < versiculos.length) {
         const nuevoVersiculo = versiculoSeleccionado + 1;
@@ -193,6 +198,7 @@ const Biblia = () => {
             .find((libro) => libro.id === libroSeleccionado)?.nombre,
           numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
           origen: "biblia",
+          parteInicial: "ultima", // al retroceder, entrar por su última parte
         });
       }
     };
@@ -210,7 +216,7 @@ const Biblia = () => {
   ]);
 
   const enviarVersiculoA = useCallback(
-    (nuevoVersiculo) => {
+    (nuevoVersiculo, parteInicial) => {
       setVersiculoSeleccionado(nuevoVersiculo);
 
       window.electron.enviarVersiculo({
@@ -220,22 +226,35 @@ const Biblia = () => {
           .find((libro) => libro.id === libroSeleccionado)?.nombre,
         numero: `${capituloSeleccionado}:${nuevoVersiculo}`,
         origen: "biblia",
+        parteInicial,
       });
     },
     [versiculos, libroSeleccionado, capituloSeleccionado],
   );
 
-  const irAnterior = useCallback(() => {
+  // Modo lejos: los botones recorren primero las partes del versículo.
+  const irAnterior = useCallback(async () => {
+    if (await window.electron.cambiarParte?.(-1)) return;
     if (versiculoSeleccionado > 1) {
-      enviarVersiculoA(versiculoSeleccionado - 1);
+      enviarVersiculoA(versiculoSeleccionado - 1, "ultima");
     }
   }, [versiculoSeleccionado, enviarVersiculoA]);
 
-  const irSiguiente = useCallback(() => {
+  const irSiguiente = useCallback(async () => {
+    if (await window.electron.cambiarParte?.(1)) return;
     if (versiculoSeleccionado < versiculos.length) {
       enviarVersiculoA(versiculoSeleccionado + 1);
     }
   }, [versiculoSeleccionado, versiculos.length, enviarVersiculoA]);
+
+  // Indicador "Parte 1 de 2" (lo informa el proyector vía ipc/partesProyector.js)
+  const [partesProyector, setPartesProyector] = useState({parte: 1, total: 1});
+  useEffect(() => {
+    const onPartes = (_e, info) => setPartesProyector(info || {parte: 1, total: 1});
+    window.electron?.on?.("proyector-partes", onPartes);
+    window.electron?.obtenerPartes?.().then((info) => info && setPartesProyector(info)).catch(() => {});
+    return () => window.electron?.removeListener?.("proyector-partes", onPartes);
+  }, []);
 
   const manejarSeleccionarLibro = (libroId) => {
     setLibroSeleccionado(libroId);
@@ -1151,18 +1170,26 @@ const Biblia = () => {
                   <button
                     type="button"
                     onClick={irAnterior}
-                    disabled={versiculoSeleccionado <= 1}
+                    disabled={versiculoSeleccionado <= 1 && partesProyector.parte <= 1}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                   >
                     <FaArrowLeft className="text-[9px]" /> Anterior
                   </button>
                   <span className="flex-1 text-center text-[11px] text-slate-600 tabular-nums">
                     {versiculoSeleccionado} / {versiculos.length}
+                    {partesProyector.total > 1 && (
+                      <span
+                        className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300"
+                        title="Modo lejos: el versículo se dividió para que se lea desde lejos. La flecha pasa a la siguiente parte."
+                      >
+                        parte {partesProyector.parte}/{partesProyector.total}
+                      </span>
+                    )}
                   </span>
                   <button
                     type="button"
                     onClick={irSiguiente}
-                    disabled={versiculoSeleccionado >= versiculos.length}
+                    disabled={versiculoSeleccionado >= versiculos.length && partesProyector.parte >= partesProyector.total}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs transition-colors"
                   >
                     Siguiente <FaArrowRight className="text-[9px]" />

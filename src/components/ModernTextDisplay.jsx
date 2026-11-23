@@ -10,7 +10,11 @@ function parseLines(text) {
     : [[""]];
 }
 
-const EXIT_TRANSITION = {duration: 0.22, ease: [0.4, 0, 1, 1]};
+// Espacio extra entre palabras. Era 0.28em (≈ doble espacio), que gastaba
+// ancho, metía más líneas y obligaba a achicar la letra.
+const ESPACIADO_PALABRAS = "0.1em";
+
+const EXIT_TRANSITION ={duration: 0.22, ease: [0.4, 0, 1, 1]};
 const containerVariants = {
   hidden: {},
   visible: {},
@@ -34,6 +38,7 @@ const ModernTextDisplay = ({
   mostrarTitulo = true,
 }) => {
   const measureRef = useRef(null);
+  const measureTituloRef = useRef(null);
   const [fontSizePx, setFontSizePx] = useState(null);
   const [tituloFontSizePx, setTituloFontSizePx] = useState(null);
 
@@ -53,7 +58,7 @@ const ModernTextDisplay = ({
 
   // ── Tamaño configurado (dispara recálculo) ───────────────────────────────
   const tamañoParrafo = useMemo(
-    () => configuracion?.fontSize?.parrafo || "text-9xl",
+    () => configuracion?.fontSize?.parrafo || "text-10xl",
     [configuracion]
   );
   const tamañoTitulo = useMemo(
@@ -75,7 +80,8 @@ const ModernTextDisplay = ({
     // el párrafo para no verse chico en pantallas de mayor resolución que
     // la de referencia (1920×1080).
     const tituloClass = configuracion?.fontSize?.titulo || "text-8xl";
-    setTituloFontSizePx((CLASS_PX[tituloClass] ?? 48) * escala);
+    const tituloPx = (CLASS_PX[tituloClass] ?? 48) * escala;
+    setTituloFontSizePx(tituloPx);
 
     const measure = measureRef.current;
     if (!measure || !display.parrafo?.trim()) {
@@ -83,13 +89,22 @@ const ModernTextDisplay = ({
       return;
     }
 
-    const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
+    const configClass = configuracion?.fontSize?.parrafo || "text-10xl";
     const userMaxPx = (CLASS_PX[configClass] ?? 128) * escala;
 
-    // Altura disponible: viewport menos padding (py-[2vh] = 4vh total) con
-    // margen extra. Si hay título visible, reservamos ~46% para él.
+    // Altura disponible: viewport menos padding (py-[2vh] = 4vh) y un margen
+    // chico, menos el alto REAL del título. Antes se reservaba un 46% fijo
+    // para el título aunque una referencia como "Juan 3:16" ocupe ~13%, y el
+    // versículo se achicaba sin necesidad.
     const tituloVisible = mostrarTitulo && display.titulo?.trim();
-    const avail = window.innerHeight * (tituloVisible ? 0.54 : 0.93);
+    let altoTitulo = 0;
+    const medTitulo = measureTituloRef.current;
+    if (tituloVisible && medTitulo) {
+      medTitulo.style.fontSize = `${tituloPx}px`;
+      // el h1 visible tiene max-h-[35%]; + margen inferior mb-[2vh]
+      altoTitulo = Math.min(medTitulo.scrollHeight, window.innerHeight * 0.35) + window.innerHeight * 0.02;
+    }
+    const avail = window.innerHeight * 0.94 - altoTitulo;
 
     const minPx = Math.max(24 * escala, Math.round(userMaxPx * 0.2));
     setFontSizePx(
@@ -147,7 +162,7 @@ const ModernTextDisplay = ({
           fontWeight: 600,
           lineHeight: 1.3,
           whiteSpace: "pre-line",
-          wordSpacing: "0.28em",
+          wordSpacing: ESPACIADO_PALABRAS,
           overflow: "visible",
         }}
       >
@@ -155,6 +170,24 @@ const ModernTextDisplay = ({
           ? display.parrafo.split("\n").filter(Boolean).join("\n")
           : ""}
       </p>
+      {/* Medidor del título: mismo ancho/estilo que el h1 visible */}
+      <h1
+        ref={measureTituloRef}
+        aria-hidden="true"
+        className="font-bold tracking-wide break-words"
+        style={{
+          position: "fixed",
+          top: "-9999px",
+          left: "2vw",
+          right: "2vw",
+          visibility: "hidden",
+          pointerEvents: "none",
+          zIndex: -1,
+          margin: 0,
+        }}
+      >
+        {display.titulo || ""}
+      </h1>
 
       <div className="text-center z-10 relative size-screen flex flex-col justify-center px-[2vw] py-[2vh] overflow-hidden">
         {/* Título */}
@@ -183,7 +216,7 @@ const ModernTextDisplay = ({
             style={{
               color: configuracion?.colorSecundario,
               lineHeight: 1.3,
-              wordSpacing: "0.28em",
+              wordSpacing: ESPACIADO_PALABRAS,
               fontSize: fontSizePx ? `${fontSizePx}px` : undefined,
             }}
           >

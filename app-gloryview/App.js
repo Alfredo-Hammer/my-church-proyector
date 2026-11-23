@@ -38,6 +38,33 @@ import librosBiblia from './src/data/librosBiblia';
 const STORAGE_KEY_LAST_URL = 'gloryview:lastServerBaseUrl';
 const STORAGE_KEY_MULTIMEDIA_SESION = 'gloryview:multimediaSesion';
 const STORAGE_KEY_ESTADO_REPRODUCCION = 'gloryview:estadoReproduccion';
+const STORAGE_KEY_PIN = 'gloryview:pinServidor';
+
+// 🔐 PIN de emparejamiento: el servidor del PC exige el header X-GloryView-Pin
+// en las peticiones que llegan por la red. Se envuelve fetch una sola vez para
+// agregarlo a toda petición dirigida al servidor conectado (así no hay que
+// tocar cada llamada). Las URLs de imágenes/videos no lo necesitan.
+const sesionServidor = { base: '', pin: '' };
+const fetchOriginal = global.fetch;
+global.fetch = (input, init = {}) => {
+  const url = typeof input === 'string' ? input : String(input?.url || '');
+  if (sesionServidor.pin && sesionServidor.base && url.startsWith(sesionServidor.base)) {
+    const headers = new Headers(init.headers || {});
+    headers.set('X-GloryView-Pin', sesionServidor.pin);
+    return fetchOriginal(input, { ...init, headers });
+  }
+  return fetchOriginal(input, init);
+};
+
+// Separa "http://ip:3001/?pin=123456" en { base, pin }. Usa regex en vez de
+// URL.searchParams porque el polyfill de URL de React Native es incompleto.
+const separarPinDeUrl = (value) => {
+  const raw = String(value || '').trim();
+  const m = raw.match(/[?&]pin=(\d{6})(?:&|#|$)/);
+  if (!m) return { base: raw, pin: '' };
+  const base = raw.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  return { base, pin: m[1] };
+};
 
 const IS_EXPO_GO = Constants?.appOwnership === 'expo';
 
@@ -612,6 +639,7 @@ export default function App() {
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   const [serverBaseUrl, setServerBaseUrl] = useState('');
+  const [pinServidor, setPinServidor] = useState('');
   const [estado, setEstado] = useState({
     status: 'idle',
     message: 'Ingresa la IP del PC y prueba conexión.',
@@ -1111,11 +1139,13 @@ export default function App() {
     (async () => {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY_LAST_URL);
+        const savedPin = String((await AsyncStorage.getItem(STORAGE_KEY_PIN)) || '');
         if (cancelado) return;
+        if (savedPin) setPinServidor(savedPin);
         if (saved && String(saved).trim()) {
           setServerBaseUrl(String(saved));
           reconnectTimeoutId = setTimeout(() => {
-            if (!cancelado) probarConexion(String(saved));
+            if (!cancelado) probarConexion(String(saved), savedPin);
           }, 80);
         }
 
@@ -1367,8 +1397,17 @@ export default function App() {
     });
   }, [bibliaBusqueda, bibliaTabActivo, librosAntiguoTestamento, librosNuevoTestamento]);
 
-  const probarConexion = async (baseOverride) => {
-    const base = normalizarBaseUrl(baseOverride ?? serverBaseUrl);
+  const probarConexion = async (baseOverride, pinOverride) => {
+    // Acepta también una URL pegada con "?pin=123456" (la del QR).
+    const separado = separarPinDeUrl(baseOverride ?? serverBaseUrl);
+    const base = normalizarBaseUrl(separado.base);
+    const pin = String(separado.pin || pinOverride || pinServidor || '').replace(/\D/g, '').slice(0, 6);
+    if (separado.pin) {
+      setServerBaseUrl(base);
+      setPinServidor(separado.pin);
+    }
+    sesionServidor.base = base;
+    sesionServidor.pin = pin;
     if (!base) {
       setEstado({
         status: 'error',
@@ -1409,15 +1448,32 @@ export default function App() {
         return;
       }
 
+      // Servidores con PIN informan requierePin/autenticado. Los viejos no
+      // envían esos campos y se aceptan como antes.
+      if (json.requierePin && !json.autenticado) {
+        const mensajes = {
+          'sin-pin': 'Escribe el PIN que aparece en el PC (App Móvil) o escanea el QR.',
+          'pin-incorrecto': 'PIN incorrecto. Revísalo en el PC (App Móvil) o escanea el QR de nuevo.',
+          bloqueado: 'Demasiados intentos con PIN incorrecto. Espera 10 minutos y escanea el QR.',
+        };
+        setEstado({
+          status: 'error',
+          message: mensajes[json.motivo] || 'El PC rechazó el PIN.',
+          payload: null,
+        });
+        return;
+      }
+
       setEstado({
         status: 'success',
         message: `Conectado: ${json.app} v${json.version}`,
         payload: json,
       });
 
-      // Guardar URL válida para reconexión automática
+      // Guardar URL y PIN válidos para reconexión automática
       try {
         await AsyncStorage.setItem(STORAGE_KEY_LAST_URL, base);
+        await AsyncStorage.setItem(STORAGE_KEY_PIN, pin);
       } catch {
         // ignore
       }
@@ -1485,13 +1541,15 @@ export default function App() {
     }
 
     console.log('Cerrando modal y conectando...');
+    const { base: baseQr, pin: pinQr } = separarPinDeUrl(url);
     setModalQrVisible(false);
-    setServerBaseUrl(url);
+    setServerBaseUrl(baseQr);
+    if (pinQr) setPinServidor(pinQr);
     setSeccion('conexion');
 
     setTimeout(() => {
       qrBloqueadoRef.current = false;
-      probarConexion(url);
+      probarConexion(baseQr, pinQr);
     }, 80);
   };
 
@@ -1701,7 +1759,7 @@ export default function App() {
     };
   }, [seccion, previewBibliaUrl, libroSeleccionado?.id, capitulo, versiculo]);
 
-  const enviarVersiculo = async ({ cap, ver }) => {
+  const enviarVersiculo = async ({ cap, ver, parteInicial }) => {
     if (!proyectorBibliaUrl) {
       setEstado({
         status: 'error',
@@ -1740,6 +1798,7 @@ export default function App() {
           libroId: libroSeleccionado.id,
           capitulo: cap,
           versiculo: ver,
+          ...(parteInicial ? { parteInicial } : {}),
         }),
         signal: controller.signal,
       });
@@ -1773,8 +1832,43 @@ export default function App() {
     await enviarVersiculo({ cap, ver });
   };
 
+  // Modo lejos: si el versículo proyectado está dividido en partes, primero se
+  // recorren las partes; solo en la primera/última se cambia de versículo.
+  // Devuelve true si movió de parte. Un servidor viejo (404) → false.
+  const moverParteProyector = async (direccion) => {
+    if (!proyectorBibliaUrl) return false;
+    const url = proyectorBibliaUrl.replace(/\/api\/control\/biblia\/proyectar.*$/, '/api/control/parte');
+    if (url === proyectorBibliaUrl) return false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direccion }),
+        signal: controller.signal,
+      });
+      if (!res.ok) return false;
+      const json = await res.json().catch(() => null);
+      if (json?.movido) {
+        setEstado((prev) => ({
+          ...prev,
+          status: 'success',
+          message: `Parte ${json.parte}/${json.total} · ${libroSeleccionado?.nombre || ''} ${capitulo}:${versiculo}`,
+        }));
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
   const proyectarVersiculoAnterior = async () => {
     Keyboard.dismiss();
+    if (await moverParteProyector(-1)) return;
     const cap = Number(capitulo);
     const ver = Number(versiculo);
     if (!Number.isFinite(ver) || ver <= 1) {
@@ -1783,11 +1877,12 @@ export default function App() {
     }
     const nuevo = ver - 1;
     setVersiculo(String(nuevo));
-    await enviarVersiculo({ cap, ver: nuevo });
+    await enviarVersiculo({ cap, ver: nuevo, parteInicial: 'ultima' });
   };
 
   const proyectarVersiculoSiguiente = async () => {
     Keyboard.dismiss();
+    if (await moverParteProyector(1)) return;
     const cap = Number(capitulo);
     const ver = Number(versiculo);
     if (!Number.isFinite(ver) || ver <= 0) {
@@ -3719,7 +3814,7 @@ export default function App() {
             {seccion === 'conexion' && (
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Conexión</Text>
-                <Text style={styles.smallText}>Escanea el QR o pega la URL.</Text>
+                <Text style={styles.smallText}>Escanea el QR, o pega la URL y escribe el PIN.</Text>
 
                 {tipoConexion && tipoConexion !== 'wifi' && (
                   <View style={{ backgroundColor: 'rgba(234,179,8,0.12)', borderColor: 'rgba(234,179,8,0.35)', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 4 }}>
@@ -3747,6 +3842,17 @@ export default function App() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
+                  style={styles.input}
+                />
+
+                <TextInput
+                  value={pinServidor}
+                  onChangeText={(t) => setPinServidor(String(t).replace(/\D/g, '').slice(0, 6))}
+                  placeholder="PIN (6 dígitos, se ve en el PC)"
+                  placeholderTextColor="#7c7c7c"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  secureTextEntry={false}
                   style={styles.input}
                 />
 

@@ -1,12 +1,30 @@
 import {useEffect, useMemo, useState} from "react";
 import {IoInformationCircle, IoRefresh} from "react-icons/io5";
-import {FaGooglePlay, FaWifi, FaMobileAlt, FaCopy, FaCheck} from "react-icons/fa";
+import {FaGooglePlay, FaWifi, FaMobileAlt, FaCopy, FaCheck, FaLock} from "react-icons/fa";
 
 const getBaseURL = () => "http://localhost:3001";
 
 const AppMovil = () => {
   const [estado, setEstado] = useState({status: "idle", info: null, error: null});
   const [copiado, setCopiado] = useState(false);
+  const [qrVersion, setQrVersion] = useState(0);
+  const [regenerando, setRegenerando] = useState(false);
+
+  const regenerarPin = async () => {
+    if (!window.confirm("¿Generar un PIN nuevo? Los celulares conectados tendrán que volver a escanear el QR o escribir el PIN nuevo.")) return;
+    setRegenerando(true);
+    try {
+      const res = await fetch(`${getBaseURL()}/api/movil/pin/regenerar`, {method: "POST"});
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Error HTTP ${res.status}`);
+      setEstado((prev) => ({...prev, info: {...prev.info, pin: json.pin}}));
+      setQrVersion((v) => v + 1);
+    } catch (e) {
+      window.alert(`No se pudo generar el PIN: ${e?.message || e}`);
+    } finally {
+      setRegenerando(false);
+    }
+  };
 
   const cargarInfo = async () => {
     setEstado({status: "loading", info: null, error: null});
@@ -88,7 +106,7 @@ const AppMovil = () => {
                 </p>
                 <div className="bg-white rounded-xl p-3 shadow-lg">
                   <img
-                    src={`${getBaseURL()}/api/qr.png`}
+                    src={`${getBaseURL()}/api/qr.png?v=${qrVersion}`}
                     alt="QR de conexión"
                     className="size-52 object-contain"
                   />
@@ -100,6 +118,31 @@ const AppMovil = () => {
 
               {/* Info */}
               <div className="flex flex-col gap-2">
+                {/* PIN de emparejamiento */}
+                <div className="bg-slate-900/60 border border-sky-500/30 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 mb-1.5 font-medium flex items-center gap-1.5">
+                    <FaLock className="text-sky-400 text-[10px]" /> PIN de la app móvil
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 font-mono text-2xl tracking-[0.35em] text-white bg-slate-800/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-center">
+                      {estado.info?.pin || "——————"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={regenerarPin}
+                      disabled={regenerando}
+                      className="shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-lg border bg-white/5 border-white/10 text-white/60 hover:text-white/90 hover:bg-white/10 text-xs disabled:opacity-50"
+                      title="Generar un PIN nuevo"
+                    >
+                      <IoRefresh className={regenerando ? "animate-spin" : ""} />
+                      Nuevo
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1.5">
+                    El QR ya incluye el PIN. Sin él, nadie en la red puede controlar el proyector. Genera uno nuevo si alguien que no debería lo conoce.
+                  </p>
+                </div>
+
                 {/* URL recomendada */}
                 <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-3">
                   <p className="text-xs text-slate-500 mb-1.5 font-medium">URL recomendada</p>
@@ -145,7 +188,7 @@ const AppMovil = () => {
                 <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-3">
                   <p className="text-xs font-semibold text-slate-300 mb-1">Sin QR</p>
                   <p className="text-xs text-slate-400">
-                    En la app, pega manualmente la URL recomendada en <span className="text-white font-medium">Conexión</span>.
+                    En la app, pega manualmente la URL recomendada y escribe el PIN en <span className="text-white font-medium">Conexión</span>.
                   </p>
                 </div>
 

@@ -237,3 +237,10 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
+
+/* Plantillas GSAP del proyector: respetar los saltos de línea de la estrofa
+   (cada verso del himno en su propia línea, como en ModernTextDisplay). El
+   auto-ajuste mide este mismo elemento, así que el tamaño ya lo contempla. */
+.plg-texto {
+  white-space: pre-line;
+}

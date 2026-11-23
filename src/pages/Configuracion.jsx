@@ -38,10 +38,22 @@ const CONFIG_DEFAULTS = {
   logo: "/images/icon-256.png", logoSize: "size-80",
   colorPrimario: "#ffffff", colorSecundario: "#d1d5db",
   fondoActivo: "", tipoFondo: "imagen",
-  fontSize: {titulo: "text-8xl", parrafo: "text-9xl", eslogan: "text-5xl"},
+  fontSize: {titulo: "text-8xl", parrafo: "text-10xl", eslogan: "text-5xl"},
   videosFondo: [], intervaloCambioVideo: 120,
   mostrarLogo: true, mostrarNombreIglesia: true, mostrarEslogan: true,
+  // Modo lejos: dividir versículos largos en partes si la letra quedaría
+  // por debajo de este % del alto de pantalla (ver Proyector.jsx)
+  modoLejosActivo: true, modoLejosMinimo: 10,
 };
+
+const MODO_LEJOS_OPCIONES = [
+  {valor: 8,  etiqueta: "Chica",    desc: "Divide poco"},
+  {valor: 10, etiqueta: "Normal",   desc: "Recomendado"},
+  {valor: 12, etiqueta: "Grande",   desc: "Salón grande"},
+  {valor: 15, etiqueta: "Muy grande", desc: "Divide más"},
+];
+
+const aBool = (v, def) => (v === undefined || v === null || v === "" ? def : v !== false && v !== "false");
 
 const TABS = [
   {id: "identidad",  label: "Identidad",  desc: "Nombre, logo e iglesia", icon: <FaChurch />},
@@ -216,6 +228,8 @@ const Configuracion = () => {
               return v === "text-3xl" || v === "text-4xl" ? "text-5xl" : v;
             })(),
           },
+          modoLejosActivo: aBool(config.modoLejosActivo, true),
+          modoLejosMinimo: Number(config.modoLejosMinimo) || CONFIG_DEFAULTS.modoLejosMinimo,
         };
         setConfiguracion(merged);
         setSavedConfig(merged);
@@ -258,11 +272,13 @@ const Configuracion = () => {
       colorPrimario: cfg.colorPrimario || "#ffffff",
       colorSecundario: cfg.colorSecundario || "#d1d5db",
       fontSizeTitulo:  cfg.fontSize?.titulo  || "text-8xl",
-      fontSizeParrafo: cfg.fontSize?.parrafo || "text-9xl",
+      fontSizeParrafo: cfg.fontSize?.parrafo || "text-10xl",
       fontSizeEslogan: cfg.fontSize?.eslogan || "text-5xl",
       mostrarLogo:            String(cfg.mostrarLogo            ?? true),
       mostrarNombreIglesia:   String(cfg.mostrarNombreIglesia   ?? true),
       mostrarEslogan:         String(cfg.mostrarEslogan         ?? true),
+      modoLejosActivo:        String(cfg.modoLejosActivo        ?? true),
+      modoLejosMinimo:        String(Number(cfg.modoLejosMinimo) || 10),
     };
     const ok = await window.electron.guardarConfiguracion(flat);
     if (!ok) throw new Error("No se pudo guardar");
@@ -839,6 +855,55 @@ const Configuracion = () => {
                         </div>
                         <span className="absolute bottom-1.5 right-2 text-[9px] text-slate-700 font-mono select-none">1:5</span>
                       </div>
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Modo lejos */}
+                <Section icon={<FaFont />} title="Modo Lejos" subtitle="Divide versículos largos en partes para que la letra no quede chica" accent="emerald">
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-slate-300">Dividir versículos largos</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Se divide solo; se avanza con las flechas o “Siguiente” (primero las partes, luego el próximo versículo).
+                        </p>
+                      </div>
+                      <Toggle
+                        checked={!!configuracion.modoLejosActivo}
+                        onChange={(v) => {
+                          const nueva = {...configuracion, modoLejosActivo: v};
+                          setConfiguracion(nueva);
+                          guardarSilencioso(nueva);
+                        }}
+                      />
+                    </div>
+                    <div className={configuracion.modoLejosActivo ? "" : "opacity-40 pointer-events-none"}>
+                      <p className="text-sm font-medium text-slate-300 mb-2">Letra mínima</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {MODO_LEJOS_OPCIONES.map(({valor, etiqueta, desc}) => (
+                          <button
+                            type="button"
+                            key={valor}
+                            onClick={() => {
+                              const nueva = {...configuracion, modoLejosMinimo: valor};
+                              setConfiguracion(nueva);
+                              guardarSilencioso(nueva);
+                            }}
+                            className={`py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                              Number(configuracion.modoLejosMinimo) === valor
+                                ? "bg-emerald-500/15 border-emerald-400/50 text-emerald-200"
+                                : "bg-slate-800/50 border-white/6 text-slate-500 hover:border-white/18 hover:text-slate-300"
+                            }`}
+                          >
+                            {etiqueta}
+                            <span className="block text-[10px] font-normal opacity-70 mt-0.5">{desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-2">
+                        {Number(configuracion.modoLejosMinimo) || 10}% del alto de pantalla ≈ {Math.round(((Number(configuracion.modoLejosMinimo) || 10) / 100) * 1080)}px en 1080p. Solo aplica a versículos de la Biblia.
+                      </p>
                     </div>
                   </div>
                 </Section>

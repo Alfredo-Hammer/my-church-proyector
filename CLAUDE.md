@@ -113,7 +113,12 @@ Renderer (React) → preload.js (contextBridge) → main.js (ipcMain.handle) →
 - Sirve archivos estáticos de `public/` (multimedia, uploads, fondos).
 - **`iniciarServidorMultimedia()` devuelve una Promise** que se resuelve cuando el servidor está escuchando.
 - En producción, sirve el directorio `build/` completo con `express.static()`.
-- No tiene autenticación (es localhost, no expuesto a red).
+- **Escucha en `0.0.0.0` (expuesto a la red local)** para la app móvil y OBS. Protegido por `ipc/shared/seguridadServidor.js` (nov 2026):
+  - Desde la misma PC (loopback): permitido sin PIN; escrituras con un `Origin` ajeno → 403 (anti CSRF). CORS solo para `localhost:3000/3001`.
+  - Desde la red: todo `/api/*` exige el header `X-GloryView-Pin` (PIN de 6 dígitos en `{userData}/pin-movil.json`), salvo `RUTAS_PUBLICAS_LAN` (GET de solo lectura para OBS y miniaturas). `RUTAS_SOLO_LOCAL` (PIN, QR, diagnóstico, debug, pixabay) → 403 siempre.
+  - 10 PIN incorrectos en 10 min → IP bloqueada 10 min (429). Regenerar el PIN (pantalla App Móvil) desbloquea.
+  - El QR codifica `http://ip:3001/?pin=XXXXXX`; la app móvil (`app-gloryview/App.js`) envuelve `fetch` para agregar el header.
+  - **Al agregar una ruta nueva**: queda protegida por defecto. Si OBS u otra fuente sin PIN la necesita, agregarla a `RUTAS_PUBLICAS_LAN` (solo si es GET de solo lectura); si expone secretos o hace peticiones salientes, a `RUTAS_SOLO_LOCAL`.
 
 **Inicialización correcta:**
 ```js
@@ -214,8 +219,9 @@ app-gloryview/               # App móvil de control remoto (Expo 54 / React Nat
 - No modificar estos límites sin motivo justificado.
 
 ### CSP
-- **Objetivo:** `'unsafe-eval'` y `'unsafe-inline'` en `script-src` no deberían estar en producción.
-- **⚠️ Estado actual (nov 2026): la CSP de producción en `obtenerCSP()` (main.js) SÍ incluye ambos**, agregados "temporalmente". Es deuda de seguridad pendiente: no agregar más relajaciones, y si se quitan, probar el build empaquetado (pantalla blanca = algo dependía de eval/inline).
+- `'unsafe-eval'` y `'unsafe-inline'` en `script-src` están **prohibidos en producción** (quitados en nov 2026; verificado en la app empaquetada: las 20 rutas cargan sin violaciones).
+- Depende de `.env.production` → `INLINE_RUNTIME_CHUNK=false` (si no, CRA mete un `<script>` inline en `index.html` y la app queda en blanco). No borrar ese archivo.
+- `executeJavaScript()` desde main no está sujeto al CSP de la página.
 - En desarrollo se permiten para el webpack dev server (source maps).
 - `style-src 'unsafe-inline'` se mantiene (React + TailwindCSS usan estilos inline).
 
@@ -454,10 +460,37 @@ la referencia 1920×1080 tal cual, así que ahora coincide con lo que se ve en c
 2. Título: `tituloFontSizePx = CLASS_PX[claseTitulo] * escala` (sin auto-fit propio — el contenedor ya lo
    limita con `max-h-[35%] overflow-hidden`)
 3. Párrafo — techo: `userMaxPx = CLASS_PX[claseParrafo] * escala`
-4. Espacio disponible: `avail = window.innerHeight * (hayTítuloVisible ? 0.50 : 0.87)`
-5. Si el texto entra a `userMaxPx`, se usa tal cual. Si no, búsqueda binaria entre
-   `minPx = max(24 * escala, userMaxPx * 0.2)` y `userMaxPx`, hasta encontrar el mayor tamaño donde
-   `measure.scrollHeight <= avail`
+4. Espacio disponible: `avail = innerHeight * 0.94 - altoRealDelTítulo` (el título se mide con un `<h1>`
+   oculto, `measureTituloRef`; antes se reservaba un 46% fijo aunque el título ocupara ~13%)
+5. `calcularAjusteTexto()` (en `pantallaScale.js`, compartida con `PlantillaGSAP`): si el texto entra a
+   `userMaxPx` se usa tal cual; si no, búsqueda binaria entre `minPx = max(24 * escala, userMaxPx * 0.2)` y
+   `userMaxPx` hasta el mayor tamaño con `scrollHeight <= avail` y `≤ AJUSTE_TEXTO.maxLines` (9) líneas.
+6. Estrofas (texto con `\n`): si ese tamaño parte un verso en dos líneas, se achica hasta
+   `AJUSTE_TEXTO.maxReduccionVersos` (25%) para que cada verso entre en su línea.
+
+**Ajuste de nov 2026 ("la letra se ve chica en la TV")** — medido a 1920×1080 con la plantilla Gozo:
+versículo medio 92→110px, largo 69→79px, estrofa 130→146px, referencia 39→54px. Cambios: `maxLines` 6→9,
+padding de las plantillas 8–10% → 4–5%, margen extra de `useAutoFontSize` 0.90→0.97, `REFERENCIA_BASE`
+1.75→2.4, `wordSpacing` 0.28em→0.1em, `.plg-texto { white-space: pre-line }` (las plantillas juntaban
+los versos), y el techo por defecto de la letra subió de `text-6xl` a `text-10xl` (migración
+`migracionParrafoGrande` en `db.js`). Para medir de nuevo: proyectar por `/api/proyector/himno` (2 envíos:
+el primero muestra solo el título) o `window.electron.enviarVersiculo` y emular 1920×1080 por CDP.
+
+### Modo lejos (nov 2026) — dividir versículos largos
+Si un versículo de la Biblia (`origen: "biblia"`) no entra con la letra mínima configurada, el proyector
+lo divide en partes: **la división es automática y el avance es manual**.
+- Config (claves planas): `modoLejosActivo` (boolean, true) y `modoLejosMinimo` (% del alto de pantalla,
+  10 por defecto; opciones 8/10/12/15 en Configuración → Proyector → "Modo Lejos").
+- `Proyector.jsx` mide con un `<p>` oculto a `minimo% × innerHeight` contra `innerHeight × 0.62`
+  (`MODO_LEJOS_ALTO_UTIL`) y llama a `dividirTextoEnPartes()` de `pantallaScale.js` (corta en fin de
+  oración > coma > palabra, partes equilibradas, máx. 8). Muestra un badge "N / M ▸" abajo a la derecha.
+- `ipc/partesProyector.js` guarda `{parte,total}`: el proyector lo reporta (`proyector-partes`), y quien
+  controla pide `cambiarParte(±1)` → devuelve `false` si ya está en el borde, y ahí recién se cambia de
+  versículo. "Anterior" entra al versículo previo por su última parte (`parteInicial: "ultima"`).
+- Controladores: flechas y botones de `Biblia.jsx` (`window.electron.cambiarParte`), app móvil vía
+  `POST /api/control/parte {direccion}` → `{movido, parte, total}` y `GET /api/proyector/partes`.
+- Medido a 1080p con Romanos 8:38-39: sin modo lejos 79px en una pantalla; con mínimo 10% → 4 partes a
+  160px; con 15% → 7 partes. Himnos no se dividen acá (tienen su propia división en `HimnoDetalle.jsx`).
 
 **Sincronización en tiempo real:** Configuración → `guardarSilencioso()` → IPC → DB → evento
 `configuracion-actualizada` → `useProyectorConfig.js` convierte claves planas → anidadas →

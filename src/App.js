@@ -160,6 +160,8 @@ function AppContent() {
           titulo: nombreLibro,
           numero: `${capitulo}:${versiculo}`,
           origen: "biblia",
+          // Modo lejos: "anterior" desde el móvil entra por la última parte
+          ...(payload?.parteInicial === "ultima" ? {parteInicial: "ultima"} : {}),
         });
       } catch (error) {
         console.error("❌ [App] Error control Biblia:", error);

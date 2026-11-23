@@ -11,7 +11,7 @@ const ConfigProyectorContext = createContext(null);
 function useAutoFontSize(wrapRef, textRef, texto, titulo) {
   const [fontSizePx, setFontSizePx] = useState(null);
   const configuracion = useContext(ConfigProyectorContext);
-  const configClass = configuracion?.fontSize?.parrafo || "text-9xl";
+  const configClass = configuracion?.fontSize?.parrafo || "text-10xl";
 
   const ajustarRef = useRef(null);
 
@@ -24,8 +24,10 @@ function useAutoFontSize(wrapRef, textRef, texto, titulo) {
       const rawAvail = wrap.clientHeight;
       if (rawAvail <= 0) return;
 
-      // Margen de seguridad del 10% para evitar desbordamiento en el proyector
-      const available = rawAvail * 0.90;
+      // Margen de seguridad chico: wrap ya está dentro del padding de la
+      // plantilla, y calcularAjusteTexto mide el scrollHeight real. Antes era
+      // 0.90, que sumado al padding dejaba ~45% de la pantalla sin usar.
+      const available = rawAvail * 0.97;
 
       // Escala vs. la resolución de referencia (1920×1080) — sin esto el
       // texto se ve chico en pantallas de mayor resolución (ej. TV 4K).
@@ -95,7 +97,9 @@ const TITULO_CLASS_DEFECTO = "text-6xl";
 // usuario viera "el texto bíblico bien, pero la referencia no". El factor de
 // configuración es relativo al tamaño por defecto para no alterar el look ya
 // afinado de cada plantilla cuando el usuario no toca esa opción.
-const REFERENCIA_BASE = 1.75;
+// 2.4 (antes 1.75): la referencia ("JUAN 3:16") medía 39px a 1080p, 3.6% del
+// alto — ilegible desde el fondo de la iglesia. Ahora ~54px (5%).
+const REFERENCIA_BASE = 2.4;
 
 function useEscalaReferencia() {
   const configuracion = useContext(ConfigProyectorContext);
@@ -194,7 +198,7 @@ function EstructuraAlabanza({titulo, texto}) {
     <>
       <div className="plg-bg absolute inset-0" />
       <div className="plg-flash absolute inset-0 pointer-events-none" />
-      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[8%] py-[6%] gap-2">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[4%] py-[4%] gap-2">
         {titulo && (
           <span
             className="plg-ref shrink-0 inline-block font-extrabold uppercase rounded-full"
@@ -303,7 +307,7 @@ function EstructuraReflexion({titulo, texto}) {
   return (
     <>
       <div className="plg-bg absolute inset-0" />
-      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[10%] py-[7%] gap-2">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[5%] py-[4%] gap-2">
         {titulo && (
           <span
             className="plg-ref shrink-0"
@@ -385,7 +389,7 @@ function EstructuraEnsenanza({titulo, texto}) {
   return (
     <>
       <div className="plg-bg absolute inset-0" />
-      <div className="relative z-10 flex flex-col justify-center size-full px-[9%] py-[6%] gap-3">
+      <div className="relative z-10 flex flex-col justify-center size-full px-[5%] py-[4%] gap-3">
         {titulo && (
           <span
             className="plg-ref shrink-0 font-bold uppercase"
@@ -500,7 +504,7 @@ function EstructuraEspecial({titulo, texto}) {
           style={{strokeDasharray: 900}}
         />
       </svg>
-      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[9%] py-[7%] gap-2">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[7%] py-[6%] gap-2">
         {titulo && (
           <span
             className="plg-ref shrink-0 uppercase"
@@ -601,7 +605,7 @@ function EstructuraVibra({titulo, texto}) {
     <>
       <div className="plg-bg absolute inset-0" />
       <div className="plg-flash absolute inset-0 pointer-events-none" />
-      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[8%] py-[6%] gap-2">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[4%] py-[4%] gap-2">
         {titulo && (
           <span
             className="plg-ref shrink-0 inline-block uppercase rounded-full"
@@ -731,7 +735,7 @@ function EstructuraGozo({titulo, texto}) {
           />
         ))}
       </div>
-      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[9%] py-[7%] gap-2">
+      <div className="relative z-10 flex flex-col items-center justify-center text-center size-full px-[4%] py-[4%] gap-2">
         {titulo && (
           <span
             className="plg-ref shrink-0 inline-block uppercase rounded-full"

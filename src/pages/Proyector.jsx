@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useReducer, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState} from "react";
 import {LazyMotion, domAnimation, m, AnimatePresence} from "framer-motion";
 import ModernMultimediaRenderer from "../components/ModernMultimediaRenderer";
 import ModernTextDisplay from "../components/ModernTextDisplay";
@@ -13,6 +13,18 @@ import {useProyectorConfig} from "../hooks/useProyectorConfig";
 import {useBackground} from "../hooks/useBackground";
 import {useMultimediaControl} from "../hooks/useMultimediaControl";
 import {setupConsoleSilencer} from "../utils/consoleSilencer";
+import {dividirTextoEnPartes, MODO_LEJOS} from "../utils/pantallaScale";
+
+// Área que se asume disponible para el texto al decidir si hay que dividirlo
+// (conservadora: deja lugar a la referencia/título y a la barra de las
+// plantillas). Ancho = 92vw, igual que el texto de las plantillas.
+const MODO_LEJOS_ALTO_UTIL = 0.62;
+
+const modoLejosActivo = (cfg) => cfg?.modoLejosActivo !== false && cfg?.modoLejosActivo !== "false";
+const modoLejosMinimoPct = (cfg) => {
+  const n = Number(cfg?.modoLejosMinimo);
+  return Number.isFinite(n) && n >= 4 && n <= 30 ? n : MODO_LEJOS.minimoDefectoPct;
+};
 
 // Silenciar logs en producción
 setupConsoleSilencer();
@@ -274,6 +286,72 @@ const Proyector = () => {
   const {configuracion, reload: reloadConfig} = useProyectorConfig();
   const background = useBackground({modo, configuracion});
 
+  // ── Modo lejos: versículos largos divididos en partes ─────────────────────
+  // textoDividir = {texto, ultima, id} del versículo recibido; null cuando lo
+  // que se muestra no se divide (himnos, multimedia, bienvenida...).
+  const [textoDividir, setTextoDividir] = useState(null);
+  const [partes, setPartes] = useState([]);
+  const [parteIdx, setParteIdx] = useState(0);
+  const [tamVentana, setTamVentana] = useState(0);
+  const medidorLejosRef = useRef(null);
+  const ultimoIdDivididoRef = useRef(null);
+  const lejosActivo = modoLejosActivo(configuracion);
+  const lejosMinimo = modoLejosMinimoPct(configuracion);
+
+  useEffect(() => {
+    const onResize = () => setTamVentana((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!textoDividir) {
+      setPartes([]);
+      setParteIdx(0);
+      return;
+    }
+    const med = medidorLejosRef.current;
+    let nuevas = [textoDividir.texto];
+    if (lejosActivo && med) {
+      const minPx = (lejosMinimo / 100) * window.innerHeight;
+      const altoUtil = window.innerHeight * MODO_LEJOS_ALTO_UTIL;
+      med.style.fontSize = `${minPx}px`;
+      const cabe = (s) => {
+        med.textContent = s;
+        return med.scrollHeight <= altoUtil;
+      };
+      nuevas = dividirTextoEnPartes(textoDividir.texto, cabe);
+      med.textContent = "";
+    }
+    const esNuevo = ultimoIdDivididoRef.current !== textoDividir.id;
+    ultimoIdDivididoRef.current = textoDividir.id;
+    setPartes(nuevas);
+    setParteIdx((prev) =>
+      esNuevo
+        ? textoDividir.ultima ? nuevas.length - 1 : 0
+        : Math.min(prev, nuevas.length - 1),
+    );
+  }, [textoDividir, lejosActivo, lejosMinimo, tamVentana]);
+
+  // Mostrar la parte actual y avisar al proceso principal (flechas / móvil)
+  useEffect(() => {
+    if (textoDividir && partes.length) {
+      setParrafo(partes[Math.min(parteIdx, partes.length - 1)]);
+    }
+    window.electron?.reportarPartes?.({
+      parte: partes.length ? parteIdx + 1 : 1,
+      total: partes.length || 1,
+    });
+  }, [partes, parteIdx, textoDividir]);
+
+  const totalPartesRef = useRef(1);
+  totalPartesRef.current = partes.length || 1;
+  const handleCambiarParte = useCallback((_, direccion) => {
+    const d = Number(direccion) > 0 ? 1 : -1;
+    setParteIdx((i) => Math.min(totalPartesRef.current - 1, Math.max(0, i + d)));
+  }, []);
+  useIpcListener("cambiar-parte", handleCambiarParte);
+
   // Ref estable para limpiarProyector (evita stale closure en useMultimediaControl)
   const limpiarRef = useRef(null);
   useMultimediaControl({multimediaActiva, limpiarRef});
@@ -281,6 +359,7 @@ const Proyector = () => {
   // ── limpiarProyector ───────────────────────────────────────────────────────
   const limpiarProyector = useCallback(() => {
     const reset = () => {
+      setTextoDividir(null);
       setParrafo("");
       setTitulo("");
       setNumero("");
@@ -317,6 +396,7 @@ const Proyector = () => {
       tituloMostradoRef.current = false;
     }
 
+    setTextoDividir(null); // los himnos se dividen en HimnoDetalle, no acá
     if (!tituloMostradoRef.current) {
       tituloMostradoRef.current = true;
       setParrafo(data.titulo); // título como párrafo en la primera proyección
@@ -333,7 +413,7 @@ const Proyector = () => {
   }, []);
 
   const handleMostrarVersiculo = useCallback(
-    (_, {parrafo: p, titulo: t, numero: n, origen}) => {
+    (_, {parrafo: p, titulo: t, numero: n, origen, parteInicial}) => {
       if (origen === "clear") {
         limpiarProyector();
         return;
@@ -344,9 +424,16 @@ const Proyector = () => {
       setMultimediaActiva(null);
       if (origen === "biblia") {
         setTitulo(`${t} ${n}`);
-        setParrafo(p || "No disponible");
+        // Modo lejos: el párrafo visible lo pone el efecto de división
+        // (parte 1, o la última si se llegó con "anterior").
+        setTextoDividir({
+          texto: p || "No disponible",
+          ultima: parteInicial === "ultima",
+          id: `${t}-${n}-${Date.now()}`,
+        });
         setNumero("");
       } else {
+        setTextoDividir(null);
         setTitulo(t || "Himno");
         setParrafo(p || "No disponible");
         setNumero(n || "");
@@ -364,6 +451,7 @@ const Proyector = () => {
       !mediaData.url.startsWith("https://")
     )
       return;
+    setTextoDividir(null);
     setParrafo("");
     setTitulo("");
     setNumero("");
@@ -379,6 +467,7 @@ const Proyector = () => {
 
   const handleActualizarMultimediaActiva = useCallback((_, data) => {
     if (!data?.url || !data?.tipo) return;
+    setTextoDividir(null);
     setParrafo("");
     setTitulo("");
     setNumero("");
@@ -390,6 +479,7 @@ const Proyector = () => {
   const handleLimpiarMultimediaActiva = useCallback(() => {
     if (modo !== "multimedia") return;
     setMultimediaActiva(null);
+    setTextoDividir(null);
     setParrafo("");
     setTitulo("");
     setNumero("");
@@ -402,6 +492,7 @@ const Proyector = () => {
     setShowContent(true);
     setSlideData(sd);
     setTitulo("");
+    setTextoDividir(null);
     setParrafo("");
     setNumero("");
     setMultimediaActiva(null);
@@ -817,6 +908,45 @@ const Proyector = () => {
                 />
               ))}
           </AnimatePresence>
+
+          {/* ── Modo lejos: medidor oculto (92vw, misma tipografía) ── */}
+          <p
+            ref={medidorLejosRef}
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              top: "-9999px",
+              left: "4vw",
+              right: "4vw",
+              visibility: "hidden",
+              pointerEvents: "none",
+              fontWeight: 700,
+              lineHeight: 1.3,
+              whiteSpace: "pre-line",
+              wordSpacing: "0.1em",
+              margin: 0,
+            }}
+          />
+
+          {/* ── Modo lejos: indicador de parte (ej. "1 / 2") ── */}
+          {modo === "himno" && showContent && textoDividir && partes.length > 1 && (
+            <div
+              className="absolute z-40 font-bold rounded-full"
+              style={{
+                right: "2vw",
+                bottom: "2.5vh",
+                fontSize: "3vh",
+                padding: "0.4vh 1.6vh",
+                color: "#ffffff",
+                background: "rgba(0,0,0,0.45)",
+                border: "1px solid rgba(255,255,255,0.25)",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {parteIdx + 1} / {partes.length}
+              {parteIdx < partes.length - 1 ? " ▸" : ""}
+            </div>
+          )}
 
           {/* ── Temporizador ── */}
           {modo === "temporizador" && timerData && showContent && (

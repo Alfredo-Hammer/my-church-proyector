@@ -105,6 +105,13 @@ contextBridge.exposeInMainWorld("electron", {
   //Enviar versiculo
   enviarVersiculo: (versiculo) => ipcRenderer.send("proyectar-versiculo", versiculo),
 
+  // Modo lejos (texto dividido en partes por el proyector — ipc/partesProyector.js)
+  // cambiarParte(+1|-1) → Promise<boolean>: true si cambió de parte.
+  cambiarParte: (direccion) => ipcRenderer.invoke("proyector-cambiar-parte", direccion),
+  obtenerPartes: () => ipcRenderer.invoke("proyector-obtener-partes"),
+  // Usado por la ventana del proyector para avisar {parte, total}
+  reportarPartes: (info) => ipcRenderer.send("proyector-partes", info),
+
   // Temporizador dedicado (sin animaciones de himno)
   proyectarTemporizador: (data) => ipcRenderer.send("proyectar-temporizador", data),
 
@@ -193,6 +200,8 @@ contextBridge.exposeInMainWorld("electron", {
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
       "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+      "proyector-partes", // modo lejos: {parte,total} hacia la ventana principal
+      "cambiar-parte", // modo lejos: ±1 hacia el proyector
 
       // Actualización automática
       "update-checking",
@@ -238,6 +247,8 @@ contextBridge.exposeInMainWorld("electron", {
       "seleccionar-libro-biblia",
       "control-biblia-proyectar",
       "control-biblia-preview",
+      "proyector-partes", // modo lejos: {parte,total} hacia la ventana principal
+      "cambiar-parte", // modo lejos: ±1 hacia el proyector
 
       // Actualización automática
       "update-checking",
@@ -278,6 +289,8 @@ contextBridge.exposeInMainWorld("electron", {
       "seleccionar-libro-biblia", // ✨ Canal para seleccionar libro bíblico
       "control-biblia-proyectar", // ✨ Control remoto (móvil) para proyectar Biblia
       "control-biblia-preview", // ✨ Vista previa (móvil) para mostrar anterior/actual/siguiente
+      "proyector-partes", // modo lejos: {parte,total} hacia la ventana principal
+      "cambiar-parte", // modo lejos: ±1 hacia el proyector
 
       // Actualización automática
       "update-checking",

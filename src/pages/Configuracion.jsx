@@ -128,6 +128,101 @@ function FontPicker({value, onChange, max = 7}) {
   );
 }
 
+// Clave propia de Pixabay (opcional). Si está vacía, Gestión de Fondos usa la que
+// trae la app al compilar. Se guarda aparte del resto de la configuración.
+function ClavePixabay() {
+  const [clave, setClave] = useState("");
+  const [guardada, setGuardada] = useState("");
+  const [estado, setEstado] = useState(null); // {tipo: "ok"|"error"|"info", texto}
+  const [probando, setProbando] = useState(false);
+
+  useEffect(() => {
+    Promise.resolve(window.electron?.obtenerConfiguracionPorClave?.("pixabayApiKey"))
+      .then((v) => {
+        setClave(v || "");
+        setGuardada(v || "");
+      })
+      .catch(() => {});
+  }, []);
+
+  const guardar = async (valor) => {
+    const limpia = valor.trim();
+    setProbando(true);
+    setEstado(null);
+    try {
+      if (limpia) {
+        const r = await fetch(
+          `https://pixabay.com/api/?key=${encodeURIComponent(limpia)}&q=church&per_page=3`,
+        );
+        if (!r.ok) {
+          setEstado({tipo: "error", texto: "Pixabay rechazó la clave. Revisa que esté bien copiada."});
+          return;
+        }
+      }
+      await window.electron?.actualizarConfiguracionPorClave?.("pixabayApiKey", limpia);
+      setClave(limpia);
+      setGuardada(limpia);
+      setEstado(
+        limpia
+          ? {tipo: "ok", texto: "Clave verificada y guardada."}
+          : {tipo: "info", texto: "Se usará la clave que trae la app."},
+      );
+    } catch {
+      setEstado({tipo: "error", texto: "No se pudo verificar. Revisa tu conexión a internet."});
+    } finally {
+      setProbando(false);
+    }
+  };
+
+  const colorEstado = {ok: "text-emerald-400", error: "text-red-400", info: "text-slate-400"};
+
+  return (
+    <Section icon={<IoImage />} title="Clave de Pixabay (opcional)" subtitle="Para buscar imágenes y videos gratuitos en Gestión de Fondos" accent="cyan" className="xl:col-span-2">
+      <p className="text-xs text-slate-400 mb-3">
+        La app ya trae una clave. Si las búsquedas fallan o quieres usar la tuya, crea una cuenta gratis en Pixabay,
+        copia tu clave de la página de la API y pégala aquí.{" "}
+        <button
+          type="button"
+          onClick={() => window.electron?.abrirEnlaceExterno?.("https://pixabay.com/api/docs/")}
+          className="text-indigo-400 hover:text-indigo-300 underline"
+        >
+          Obtener mi clave
+        </button>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="password"
+          value={clave}
+          onChange={(e) => setClave(e.target.value)}
+          placeholder="Pega aquí tu clave de Pixabay"
+          autoComplete="off"
+          spellCheck={false}
+          className="flex-1 min-w-[16rem] h-9 px-3 rounded-lg bg-slate-800/60 border border-white/[0.08] text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-400/60"
+        />
+        <button
+          type="button"
+          disabled={probando || clave.trim() === guardada}
+          onClick={() => guardar(clave)}
+          className="h-9 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-xs font-semibold text-white transition-colors"
+        >
+          {probando ? "Verificando…" : "Guardar"}
+        </button>
+        {guardada && (
+          <button
+            type="button"
+            disabled={probando}
+            onClick={() => guardar("")}
+            className="h-9 px-3 rounded-lg border border-white/[0.08] text-xs font-semibold text-slate-400 hover:text-red-300 hover:border-red-400/40 transition-colors"
+          >
+            Quitar
+          </button>
+        )}
+      </div>
+      {estado && <p className={`text-xs mt-2 ${colorEstado[estado.tipo]}`}>{estado.texto}</p>}
+    </Section>
+  );
+}
+
 function FieldLabel({children}) {
   return <p className="text-xs font-medium text-slate-400 mb-1.5">{children}</p>;
 }
@@ -684,6 +779,8 @@ const Configuracion = () => {
                     </div>
                   </div>
                 </Section>
+
+                <ClavePixabay />
               </div>
             )}
 

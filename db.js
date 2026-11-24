@@ -6,10 +6,14 @@ const { app } = require("electron");
 // Ruta y verificación de carpeta
 // En producción (empaquetado), usar la carpeta userData de Electron
 // En desarrollo, usar la carpeta data del proyecto
-const isDev = !app.isPackaged;
-const dataDir = isDev
-  ? path.join(__dirname, "data")
-  : path.join(app.getPath("userData"), "data");
+// GLORYVIEW_DATA_DIR: solo para las pruebas automáticas (tests/), que usan
+// una base temporal y corren sin ventana (ELECTRON_RUN_AS_NODE, sin `app`).
+const isDev = !app?.isPackaged;
+const dataDir = process.env.GLORYVIEW_DATA_DIR
+  ? process.env.GLORYVIEW_DATA_DIR
+  : isDev
+    ? path.join(__dirname, "data")
+    : path.join(app.getPath("userData"), "data");
 const dbPath = path.join(dataDir, "himnos.db");
 
 // Verificar y crear carpeta "data" si no existe
@@ -1652,7 +1656,7 @@ function actualizarMultimedia(multimediaData) {
 }
 
 // Eliminar archivo multimedia
-function eliminarMultimedia(id) {
+function eliminarMultimedia(id, opciones = {}) {
   try {
     console.log("🗑️ [DB] Eliminando archivo multimedia:", id);
 
@@ -1672,36 +1676,45 @@ function eliminarMultimedia(id) {
 
     console.log("✅ [DB] Archivo eliminado de la BD, filas afectadas:", info.changes);
 
-    // Eliminar archivo físico
-    if (multimedia.ruta_archivo) {
-      const fs = require("fs");
-      const path = require("path");
+    // Eliminar archivo físico y su miniatura.
+    // Antes buscaba en __dirname (dentro de app.asar en producción) y nunca
+    // encontraba el archivo, que vive en {userData}/public/multimedia: los
+    // videos se acumulaban en disco. Además, con una ruta absoluta borraba
+    // ese archivo donde estuviera. Ahora solo se borra por NOMBRE dentro de
+    // las carpetas de multimedia de la app (opciones.carpetas).
+    const fs = require("fs");
+    const path = require("path");
+    const archivoBorrado = { archivo: false, miniatura: false };
+    const ruta = String(multimedia.ruta_archivo || "");
+    const esEnlace = /^https?:\/\//i.test(ruta) || multimedia.tipo === "youtube";
 
+    if (ruta && !esEnlace) {
       try {
-        // Construir la ruta completa del archivo
-        let rutaArchivo = multimedia.ruta_archivo;
-
-        // Si la ruta no es absoluta, construir la ruta relativa a la carpeta multimedia
-        if (!path.isAbsolute(rutaArchivo)) {
-          const multimediaDir = path.join(__dirname, "public", "multimedia");
-          const buildMultimediaDir = path.join(__dirname, "build", "multimedia");
-
-          // Intentar en public/multimedia primero
-          const rutaPublic = path.join(multimediaDir, path.basename(rutaArchivo));
-          const rutaBuild = path.join(buildMultimediaDir, path.basename(rutaArchivo));
-
-          if (fs.existsSync(rutaPublic)) {
-            rutaArchivo = rutaPublic;
-          } else if (fs.existsSync(rutaBuild)) {
-            rutaArchivo = rutaBuild;
+        // Si otro registro usa el mismo archivo, no se toca
+        const otros = db
+          .prepare("SELECT COUNT(*) AS n FROM multimedia WHERE ruta_archivo = ?")
+          .get(ruta).n;
+        const carpetas = [
+          ...(opciones.carpetas || []),
+          path.join(__dirname, "public", "multimedia"),
+          path.join(__dirname, "build", "multimedia"),
+        ];
+        const nombre = path.basename(ruta);
+        if (otros === 0 && nombre && nombre !== "." && nombre !== "..") {
+          for (const carpeta of carpetas) {
+            const base = path.resolve(carpeta);
+            const candidato = path.resolve(base, nombre);
+            if (!candidato.startsWith(base + path.sep)) continue;
+            if (fs.existsSync(candidato)) {
+              fs.unlinkSync(candidato);
+              archivoBorrado.archivo = true;
+              console.log("🗑️ [DB] Archivo físico eliminado:", candidato);
+              break;
+            }
           }
-        }
-
-        if (fs.existsSync(rutaArchivo)) {
-          fs.unlinkSync(rutaArchivo);
-          console.log("🗑️ [DB] Archivo físico eliminado:", rutaArchivo);
-        } else {
-          console.warn("⚠️ [DB] Archivo físico no encontrado:", rutaArchivo);
+          if (!archivoBorrado.archivo) {
+            console.warn("⚠️ [DB] Archivo físico no encontrado:", nombre);
+          }
         }
       } catch (fileError) {
         console.error("❌ [DB] Error eliminando archivo físico:", fileError);
@@ -1709,7 +1722,20 @@ function eliminarMultimedia(id) {
       }
     }
 
-    return { success: true, changes: info.changes };
+    // Miniatura cacheada de videos (/api/multimedia/thumb → thumb_{id}.jpg)
+    if (opciones.carpetaMiniaturas) {
+      try {
+        const miniatura = path.join(opciones.carpetaMiniaturas, `thumb_${Number(id)}.jpg`);
+        if (fs.existsSync(miniatura)) {
+          fs.unlinkSync(miniatura);
+          archivoBorrado.miniatura = true;
+        }
+      } catch (e) {
+        console.error("❌ [DB] Error eliminando miniatura:", e);
+      }
+    }
+
+    return { success: true, changes: info.changes, ...archivoBorrado };
 
   } catch (error) {
     console.error("❌ [DB] Error eliminando archivo multimedia:", error);

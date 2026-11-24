@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GloryView</title>
+<meta name="description" content="GloryView: programa gratuito para proyectar himnos, la Biblia, anuncios y multimedia en tu iglesia. Funciona sin internet y se controla desde el celular.">
+<link rel="canonical" href="https://gloryview.app/">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta name="theme-color" content="#05070a">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GloryView">
+<meta property="og:title" content="GloryView">
+<meta property="og:description" content="GloryView: programa gratuito para proyectar himnos, la Biblia, anuncios y multimedia en tu iglesia. Funciona sin internet y se controla desde el celular.">
+<meta property="og:url" content="https://gloryview.app/">
+<meta property="og:image" content="https://gloryview.app/shot-panel.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>html{background:#05070a}body{margin:0}img{max-width:100%}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05070a;
+    --bg-2:#0c111c;
+    --bg-3:#111827;
+    --hair:rgba(255,255,255,0.09);
+    --hair-strong:rgba(255,255,255,0.16);
+    --ink:#f4f6f3;
+    --muted:#93a0b3;
+    --muted-2:#5f6b7d;
+    --brand:#34ffa0;
+    --brand-ink:#04140d;
+    --brand-dim:rgba(52,255,160,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Manrope',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .side{padding-inline:24px;}
+  @media(min-width:720px){.side{padding-inline:56px;}}
+  section{max-width:1120px;margin:0 auto;}
+  a{color:inherit;}
+  h1,h2,h3{font-family:'Unbounded',sans-serif;text-wrap:balance;margin:0;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .muted{color:var(--muted);}
+
+  nav{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-block:20px;border-bottom:1px solid var(--hair);
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-family:'Unbounded',sans-serif;font-weight:700;font-size:16px;letter-spacing:0.01em;}
+  .brand img{width:30px;height:30px;border-radius:8px;}
+  .nav-link{
+    font-size:14px;color:var(--muted);text-decoration:none;font-weight:500;
+    display:flex;align-items:center;gap:6px;
+  }
+  .nav-link:hover{color:var(--ink);}
+
+  .hero{padding-block:64px 40px;}
+  @media(min-width:900px){.hero{padding-block:96px 56px;}}
+  .hero-grid{display:grid;grid-template-columns:1fr;gap:40px;align-items:center;}
+  @media(min-width:960px){.hero-grid{grid-template-columns:1.05fr 1fr;gap:56px;}}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;font-weight:600;color:var(--brand);
+    background:var(--brand-dim);border:1px solid rgba(52,255,160,0.28);
+    padding:6px 14px;border-radius:999px;margin-bottom:22px;
+  }
+  .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--brand);}
+  .hero h1{
+    font-size:clamp(32px,4.6vw,54px);line-height:1.06;font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  .hero h1 em{color:var(--brand);font-style:normal;}
+  .hero p.lead{
+    font-size:17px;line-height:1.65;color:var(--muted);max-width:52ch;
+    margin:22px 0 32px;
+  }
+  .ver-line{
+    font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted-2);
+    margin:0 0 16px;
+  }
+  .ver-line strong{color:var(--brand);font-weight:600;}
+  .cta-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:9px 16px;border-radius:9px;font-weight:700;font-size:13.5px;
+    text-decoration:none;border:1px solid transparent;white-space:nowrap;
+  }
+  .btn-brand{background:var(--brand);color:var(--brand-ink);}
+  .btn-brand:hover{background:#5cffb3;}
+  .btn-ghost{background:transparent;border-color:var(--hair-strong);color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--muted);}
+  .btn small{font-size:11px;font-weight:500;opacity:0.75;font-family:'JetBrains Mono',monospace;}
+
+  .hero-shot{position:relative;}
+
+  .hero-logo{
+    aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;padding:6%;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(52,255,160,0.22), transparent 58%),
+      radial-gradient(circle at 50% 100%, rgba(52,255,160,0.10), transparent 55%);
+  }
+  .hero-logo img{
+    width:62%;height:auto;
+    filter:drop-shadow(0 0 60px rgba(52,255,160,0.4)) drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+  }
+  .hero-logo .wordmark{
+    font-family:'Unbounded',sans-serif;font-weight:700;font-size:13px;
+    letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;
+  }
+
+  .strip{padding-block:8px 64px;}
+  .strip-label{font-size:13px;color:var(--muted-2);font-weight:600;letter-spacing:0.03em;margin-bottom:18px;}
+  .strip-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(min-width:800px){
+    .strip-grid{grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;}
+    .strip-grid a:nth-child(1){grid-column:span 2;grid-row:span 2;}
+  }
+  .strip-grid a{
+    display:block;border-radius:14px;overflow:hidden;border:1px solid var(--hair);
+    position:relative;cursor:zoom-in;background:var(--bg-2);
+  }
+  .strip-grid img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease;}
+  .strip-grid a:hover img{transform:scale(1.045);}
+  .strip-grid a .tag{
+    position:absolute;left:10px;bottom:10px;font-size:11.5px;font-weight:600;color:#fff;
+    background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.16);
+    padding:4px 10px;border-radius:999px;backdrop-filter:blur(6px);
+  }
+  .strip-grid a .zoom{
+    position:absolute;right:10px;top:10px;width:26px;height:26px;border-radius:8px;
+    background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.16);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;
+    opacity:0;transition:opacity .2s ease;
+  }
+  .strip-grid a:hover .zoom{opacity:1;}
+
+  .lightbox{
+    position:fixed;inset:0;background:rgba(2,3,5,0.92);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:32px;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .lightbox.open{opacity:1;pointer-events:auto;}
+  .lightbox figure{margin:0;max-width:min(1100px,92vw);max-height:88vh;display:flex;flex-direction:column;gap:12px;align-items:center;}
+  .lightbox img{display:block;max-width:100%;max-height:78vh;border-radius:12px;border:1px solid var(--hair-strong);object-fit:contain;}
+  .lightbox figcaption{color:var(--muted);font-size:13.5px;font-family:'JetBrains Mono',monospace;}
+  .lightbox .lb-close, .lightbox .lb-nav{
+    position:absolute;background:rgba(255,255,255,0.06);border:1px solid var(--hair-strong);
+    color:var(--ink);border-radius:10px;cursor:pointer;font-size:18px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .lightbox .lb-close{top:20px;right:20px;width:40px;height:40px;}
+  .lightbox .lb-nav{top:50%;transform:translateY(-50%);width:44px;height:52px;}
+  .lightbox .lb-prev{left:12px;}
+  .lightbox .lb-next{right:12px;}
+  .lightbox .lb-close:hover, .lightbox .lb-nav:hover{border-color:var(--muted);}
+
+  .features{padding-block:56px 64px;border-top:1px solid var(--hair);}
+  .features h2{font-size:clamp(24px,3vw,32px);margin-bottom:10px;}
+  .features > p{color:var(--muted);font-size:15px;max-width:56ch;margin:0 0 40px;}
+  .feat-grid{display:grid;grid-template-columns:1fr;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:16px;overflow:hidden;}
+  @media(min-width:720px){.feat-grid{grid-template-columns:1fr 1fr;}}
+  @media(min-width:1040px){.feat-grid{grid-template-columns:1fr 1fr 1fr;}}
+  .feat{background:var(--bg-2);padding:26px 24px;}
+  .feat .ico{
+    width:36px;height:36px;border-radius:10px;background:var(--brand-dim);
+    display:flex;align-items:center;justify-content:center;margin-bottom:16px;
+    font-size:17px;
+  }
+  .feat h3{font-size:16px;font-weight:700;margin-bottom:8px;}
+  .feat p{font-size:13.5px;line-height:1.6;color:var(--muted);margin:0;}
+
+  .faq{padding-block:56px 64px;border-top:1px solid var(--hair);}
+  .faq h2{font-size:clamp(24px,3vw,32px);margin-bottom:24px;}
+  .faq-list{display:flex;flex-direction:column;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:16px;overflow:hidden;}
+  .faq-item{background:var(--bg-2);}
+  .faq-item summary{
+    padding:18px 22px;font-size:15px;font-weight:700;cursor:pointer;
+    list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  }
+  .faq-item summary::-webkit-details-marker{display:none;}
+  .faq-item summary::after{
+    content:"+";font-size:20px;font-weight:400;color:var(--muted);flex-shrink:0;
+    transition:transform .2s ease;
+  }
+  .faq-item[open] summary::after{transform:rotate(45deg);}
+  .faq-item p{margin:0;padding:0 22px 20px;font-size:14px;line-height:1.65;color:var(--muted);max-width:62ch;}
+
+  .mobileapp{padding-block:56px 64px;border-top:1px solid var(--hair);}
+  .mobileapp-grid{display:grid;grid-template-columns:1fr;gap:32px;align-items:center;}
+  @media(min-width:820px){.mobileapp-grid{grid-template-columns:200px 1fr;gap:44px;}}
+  .mobileapp-icon img{
+    display:block;margin:0 auto;width:100%;max-width:190px;border-radius:22px;
+    box-shadow:0 30px 60px -25px rgba(0,0,0,0.7), 0 0 55px -18px rgba(52,255,160,0.35);
+  }
+  .mobileapp-copy h2{font-size:clamp(22px,3vw,28px);margin-bottom:12px;}
+  .mobileapp-copy > p{color:var(--muted);font-size:15px;line-height:1.6;margin:0 0 18px;max-width:52ch;}
+  .mobileapp-list{margin:0 0 20px;padding:0;list-style:none;display:grid;gap:8px;}
+  .mobileapp-list li{font-size:14px;color:var(--ink);padding-left:22px;position:relative;}
+  .mobileapp-list li::before{content:"\2713";position:absolute;left:0;color:var(--brand);font-weight:700;}
+  .store-note{font-size:12px;color:var(--muted-2);margin:12px 0 0;font-family:'JetBrains Mono',monospace;}
+
+  .download{padding-block:64px 72px;border-top:1px solid var(--hair);}
+  .download h2{font-size:clamp(24px,3vw,32px);}
+  .download > p{color:var(--muted);font-size:15px;margin:10px 0 36px;max-width:56ch;}
+  .os-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media(min-width:720px){.os-grid{grid-template-columns:1fr 1fr;}}
+  .os-card{
+    border:1px solid var(--hair-strong);border-radius:16px;padding:26px 24px;
+    background:linear-gradient(165deg,var(--bg-2),var(--bg-3));
+  }
+  .os-card.ready{border-color:rgba(52,255,160,0.32);}
+  .os-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .os-name{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;}
+  .os-badge{
+    font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .os-badge.ok{background:var(--brand-dim);color:var(--brand);border:1px solid rgba(52,255,160,0.3);}
+  .os-badge.soon{background:rgba(255,255,255,0.06);color:var(--muted);border:1px solid var(--hair-strong);}
+  .os-specs{display:flex;gap:16px;margin:16px 0 20px;font-size:12.5px;color:var(--muted-2);font-family:'JetBrains Mono',monospace;}
+  .os-card .btn{width:100%;justify-content:center;}
+  .mac-btn-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .mac-btn-row .btn{flex:1 1 120px;width:auto;}
+  .os-note{font-size:11.5px;color:var(--muted-2);margin:10px 0 0;line-height:1.5;}
+
+  footer{border-top:1px solid var(--hair);padding-block:32px;}
+  .foot-grid{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;}
+  footer p{font-size:13px;color:var(--muted-2);margin:0;line-height:1.6;max-width:60ch;}
+  footer a{color:var(--muted);text-decoration:none;font-size:13px;}
+  footer a:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="side">
+  <nav>
+    <div class="brand"><img src="/icon.png" alt=""> GloryView</div>
+    <a class="nav-link" href="/novedades/">Novedades</a>
+  </nav>
+</div>
+
+<div class="side">
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">Gratis para tu iglesia · v0.5.0</span>
+        <h1>Proyección de iglesia que no te cobra <em>cada mes.</em></h1>
+        <p class="lead">Himnos, Biblia, anuncios y diapositivas &mdash; con plantillas animadas de verdad, control remoto desde el celular, y todo funcionando sin depender de internet.</p>
+        <p class="ver-line">Última versión <strong>v0.5.0</strong> &middot; modo lejos, PIN y app móvil nueva</p>
+        <div class="cta-row">
+          <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-Installer.exe">Windows</a>
+          <a class="btn btn-brand" href="#descarga">Mac</a>
+          <a class="btn btn-ghost" href="/novedades/">Novedades</a>
+        </div>
+      </div>
+      <div class="hero-shot hero-logo">
+        <img src="/logo-grande.png" alt="Logotipo de GloryView: una G con un haz de luz">
+        <span class="wordmark">GloryView</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="side">
+  <section class="strip">
+    <p class="strip-label">ASÍ SE VE EN UN CULTO REAL</p>
+    <div class="strip-grid" id="galeria">
+      <a href="#" data-full="/hero-gozo.png" data-cap="Plantilla Gozo · Filipenses 4:4">
+        <img src="/hero-gozo.png" alt="Versículo proyectado con la plantilla Gozo: rayos de luz multicolor">
+        <span class="tag">Gozo</span><span class="zoom">⤢</span>
+      </a>
+      <a href="#" data-full="/shot-vibra.png" data-cap="Plantilla Vibra · Salmos 47:1">
+        <img src="/shot-vibra.png" alt="Versículo proyectado con la plantilla Vibra, neón magenta y cian">
+        <span class="tag">Vibra</span><span class="zoom">⤢</span>
+      </a>
+      <a href="#" data-full="/shot-alabanza.png" data-cap="Plantilla Alabanza · Salmos 100:1-2">
+        <img src="/shot-alabanza.png" alt="Versículo proyectado con la plantilla Alabanza, tonos cálidos y tipografía audaz">
+        <span class="tag">Alabanza</span><span class="zoom">⤢</span>
+      </a>
+      <a href="#" data-full="/shot-especial.png" data-cap="Plantilla Especial · Lucas 2:14">
+        <img src="/shot-especial.png" alt="Versículo proyectado con la plantilla Especial, marco dorado sobre fondo verde oscuro">
+        <span class="tag">Especial</span><span class="zoom">⤢</span>
+      </a>
+      <a href="#" data-full="/shot-panel.png" data-cap="Panel de control · las 6 plantillas disponibles">
+        <img src="/shot-panel.png" alt="Panel de control de GloryView mostrando las 6 plantillas disponibles">
+        <span class="tag">Panel de control</span><span class="zoom">⤢</span>
+      </a>
+    </div>
+  </section>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" id="lbClose" aria-label="Cerrar">✕</button>
+  <button class="lb-nav lb-prev" id="lbPrev" aria-label="Anterior">‹</button>
+  <button class="lb-nav lb-next" id="lbNext" aria-label="Siguiente">›</button>
+  <figure>
+    <img id="lbImg" src="" alt="">
+    <figcaption id="lbCap"></figcaption>
+  </figure>
+</div>
+
+<div class="side">
+  <section class="features">
+    <h2>Todo lo que un culto necesita proyectar</h2>
+    <p>Sin plan mensual, sin límite de dispositivos por iglesia, sin que tus himnos o versículos vivan en un servidor ajeno.</p>
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="ico">✨</div>
+        <h3>6 plantillas animadas</h3>
+        <p>Alabanza, Reflexión, Enseñanza, Especial, Vibra y Gozo &mdash; un look distinto para cada momento del culto, no un solo estilo genérico.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">📱</div>
+        <h3>Control remoto desde el celular</h3>
+        <p>Avanza himnos, versículos, diapositivas y anuncios desde tu teléfono por WiFi local, protegido con PIN, sin tocar la computadora del proyector.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">🔭</div>
+        <h3>Modo lejos</h3>
+        <p>Los versículos largos se dividen solos en partes con letra grande, para que se lean desde la última fila. Avanzás parte por parte con las flechas o desde el celular.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">🖼️</div>
+        <h3>Diapositivas de PowerPoint</h3>
+        <p>Exporta tu presentación como imágenes y proyéctalas en secuencia, saltando a cualquier diapositiva con un clic.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">📢</div>
+        <h3>Anuncios rotativos</h3>
+        <p>Anuncios de la semana en rotación automática, con las mismas plantillas visuales que el resto del culto.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">🎨</div>
+        <h3>Gestión de fondos</h3>
+        <p>Sube tus propias imágenes y videos, o busca fondos libres sin salir de la app.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">🔒</div>
+        <h3>Todo en tu computadora</h3>
+        <p>Base de datos local, sin nube: tus himnos, versículos y fondos nunca salen de la iglesia.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">📡</div>
+        <h3>Integración con OBS</h3>
+        <p>Overlay listo para transmitir el culto en vivo, y un tercio inferior con nombre, cargo y tema del evento en 6 diseños.</p>
+      </div>
+      <div class="feat">
+        <div class="ico">🔄</div>
+        <h3>Se actualiza solo</h3>
+        <p>Cuando sale una versión nueva, GloryView te avisa y se actualiza sin que tengas que descargar nada de nuevo.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="side">
+  <section class="faq">
+    <h2>Preguntas frecuentes</h2>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>¿Necesita internet para funcionar?</summary>
+        <p>No. Himnos, Biblia, anuncios y proyección funcionan 100% local. Internet solo hace falta para buscar fondos en Pixabay, reproducir un video de YouTube, o revisar si hay una actualización.</p>
+      </details>
+      <details class="faq-item">
+        <summary>¿En cuántas computadoras lo puedo instalar?</summary>
+        <p>Sin límite. No hay licencia por dispositivo ni por iglesia: instalalo en todas las computadoras que necesites.</p>
+      </details>
+      <details class="faq-item">
+        <summary>¿Puedo pasar mis datos a otra computadora?</summary>
+        <p>Sí. Desde Configuración &gt; Datos podés exportar todo (himnos, fondos, configuración) a un archivo y restaurarlo en otra máquina, o como respaldo si algo le pasa a la actual.</p>
+      </details>
+      <details class="faq-item">
+        <summary>¿Sirve para transmitir el culto en vivo?</summary>
+        <p>Sí, tiene un overlay listo para usar directamente como fuente de navegador en OBS Studio, sincronizado con la proyección.</p>
+      </details>
+      <details class="faq-item">
+        <summary>¿Hay que pagar alguna suscripción?</summary>
+        <p>No. Es gratis para uso religioso y educativo en iglesias, templos y organizaciones sin fines de lucro.</p>
+      </details>
+      <details class="faq-item">
+        <summary>¿Funciona igual en Windows y Mac?</summary>
+        <p>Sí, mismas funciones en ambos sistemas. Elegí tu descarga en la sección de arriba.</p>
+      </details>
+    </div>
+  </section>
+</div>
+
+<div class="side">
+  <section class="mobileapp">
+    <div class="mobileapp-grid">
+      <div class="mobileapp-icon">
+        <img src="/mobile-icon.png" alt="Ícono de la app móvil GloryView">
+      </div>
+      <div class="mobileapp-copy">
+        <h2>Controla todo desde tu celular</h2>
+        <p>Sin soltar el micrófono ni acercarte a la computadora: manejá himnos, anuncios, plantillas y diapositivas por WiFi local, desde el teléfono.</p>
+        <ul class="mobileapp-list">
+          <li>Cambiar la plantilla visual del proyector</li>
+          <li>Avanzar, detener y elegir anuncios</li>
+          <li>Ver y proyectar diapositivas, saltando a cualquiera</li>
+          <li>Ver el estado del proyector en tiempo real</li>
+          <li>Protegido con PIN: solo los celulares que vos autorizás</li>
+          <li>Todo por WiFi local, sin depender de internet</li>
+        </ul>
+        <div class="cta-row">
+          <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest/download/GloryView-Movil.apk">Descargar APK para Android <small>&middot; v1.1.0</small></a>
+        </div>
+        <p class="store-note">Próximamente en Google Play y App Store</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="side">
+  <section class="download" id="descarga">
+    <h2>Descarga GloryView</h2>
+    <p>Instálalo en cualquier computadora de la iglesia &mdash; sin límite de equipos, sin licencia por dispositivo.</p>
+    <div class="os-grid">
+      <div class="os-card ready">
+        <div class="os-top">
+          <span class="os-name">🪟 Windows</span>
+          <span class="os-badge ok">Disponible</span>
+        </div>
+        <div class="os-specs"><span>v0.5.0</span><span>281&nbsp;MB</span><span>.exe</span></div>
+        <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-Installer.exe">Descargar instalador</a>
+      </div>
+      <div class="os-card ready">
+        <div class="os-top">
+          <span class="os-name">🍎 macOS</span>
+          <span class="os-badge ok">Disponible</span>
+        </div>
+        <div class="os-specs"><span>v0.5.0</span><span>.dmg</span><span>Apple e Intel</span></div>
+        <div class="mac-btn-row">
+          <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-arm64.dmg">Apple Silicon</a>
+          <a class="btn btn-ghost" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-x64.dmg">Intel</a>
+        </div>
+        <p class="os-note">Firmado y notarizado por Apple — se abre sin advertencias de seguridad.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="side">
+  <footer>
+    <div class="foot-grid">
+      <p>GloryView &mdash; gratis para tu iglesia. Hecho por Alfredo Hammer.</p>
+      <div style="display:flex;gap:18px;">
+        <a href="/novedades/">Novedades</a>
+        <a href="/privacidad/">Privacidad</a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('#galeria a'));
+    var lightbox = document.getElementById('lightbox');
+    var lbImg = document.getElementById('lbImg');
+    var lbCap = document.getElementById('lbCap');
+    var idx = 0;
+
+    function show(i){
+      idx = (i + links.length) % links.length;
+      var a = links[idx];
+      lbImg.src = a.getAttribute('data-full');
+      lbImg.alt = a.querySelector('img').alt;
+      lbCap.textContent = a.getAttribute('data-cap') || '';
+    }
+    function open(i){ show(i); lightbox.classList.add('open'); }
+    function close(){ lightbox.classList.remove('open'); }
+
+    links.forEach(function(a, i){
+      a.addEventListener('click', function(e){ e.preventDefault(); open(i); });
+    });
+    document.getElementById('lbClose').addEventListener('click', close);
+    document.getElementById('lbPrev').addEventListener('click', function(){ show(idx - 1); });
+    document.getElementById('lbNext').addEventListener('click', function(){ show(idx + 1); });
+    lightbox.addEventListener('click', function(e){ if (e.target === lightbox) close(); });
+    document.addEventListener('keydown', function(e){
+      if (!lightbox.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') show(idx - 1);
+      if (e.key === 'ArrowRight') show(idx + 1);
+    });
+  })();
+</script>
+</body>
+</html>

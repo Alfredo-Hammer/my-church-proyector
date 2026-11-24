@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld("electron", {
   seleccionarArchivosMultimedia: () => ipcRenderer.invoke('seleccionar-archivos-multimedia'),
   procesarArchivosPorRuta: (filePaths) => ipcRenderer.invoke('procesar-archivos-por-ruta', filePaths),
   procesarImagenesDiapositiva: (filePaths) => ipcRenderer.invoke('procesar-imagenes-diapositiva', filePaths),
+  guardarImagenDiapositiva: (nombre, bytes) => ipcRenderer.invoke('guardar-imagen-diapositiva', nombre, bytes),
 
 
   // Función para proyectar multimedia
@@ -447,6 +448,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   seleccionarArchivosMultimedia: () => ipcRenderer.invoke('seleccionar-archivos-multimedia'),
   procesarArchivosPorRuta: (filePaths) => ipcRenderer.invoke('procesar-archivos-por-ruta', filePaths),
   procesarImagenesDiapositiva: (filePaths) => ipcRenderer.invoke('procesar-imagenes-diapositiva', filePaths),
+  guardarImagenDiapositiva: (nombre, bytes) => ipcRenderer.invoke('guardar-imagen-diapositiva', nombre, bytes),
   actualizarFavoritoMultimedia: (id, favorito) => ipcRenderer.invoke('db-actualizar-favorito-multimedia', id, favorito),
   incrementarReproducido: (id) => ipcRenderer.invoke('db-incrementar-reproducido', id),
   enviarLog: (mensaje) => ipcRenderer.send('log-to-terminal', mensaje),

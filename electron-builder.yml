@@ -26,6 +26,7 @@ files:
   - preload.js
   - db.js
   - ipc/**/*
+  - servidor/**/*
   - assets/**/*
   - data/**/*
   - package.json
@@ -117,6 +118,9 @@ mac:
   gatekeeperAssess: false
   entitlements: assets/entitlements.mac.plist
   entitlementsInherit: assets/entitlements.mac.plist
+  # Electron 44+ requiere macOS 13 (Ventura). Con esto macOS 12 o anterior
+  # muestra un aviso claro en vez de cerrarse al abrir.
+  minimumSystemVersion: "13.0"
 
 dmg:
   artifactName: "${productName}-${version}-${arch}.${ext}"

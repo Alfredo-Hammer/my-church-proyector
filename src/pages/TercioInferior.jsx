@@ -362,7 +362,7 @@ export default function TercioInferior() {
     "size-9 shrink-0 flex items-center justify-center rounded-lg border text-sm transition disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="p-4 sm:p-5 max-w-6xl mx-auto">
+    <div className="bg-[#080c14] text-slate-100 h-full flex flex-col overflow-hidden">
       {mensaje && (
         <div
           role="status"
@@ -376,31 +376,32 @@ export default function TercioInferior() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <FaIdCard className="text-amber-400" />
-            Tercio Inferior
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Nombre y cargo sobre la transmisión en OBS. La URL está en
-            Servidor / OBS.
-          </p>
+      {/* ── Header (mismo patrón que Anuncios / Diapositivas) ── */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/50 flex-wrap gap-y-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FaIdCard className="text-amber-400 shrink-0" />
+          <span className="text-sm font-semibold text-white">Tercio Inferior</span>
+          <span className="text-xs text-slate-500 truncate">
+            Nombre y cargo sobre la transmisión en OBS · la URL está en
+            Servidor / OBS
+          </span>
         </div>
         <div
-          className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+          className={`flex items-center gap-1.5 h-8 text-[11px] font-semibold px-3 rounded-lg border ${
             visible
               ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
               : "bg-white/5 border-white/10 text-slate-400"
           }`}
         >
           <span
-            className={`size-2 rounded-full ${visible ? "bg-amber-400 animate-pulse" : "bg-slate-600"}`}
+            className={`size-1.5 rounded-full ${visible ? "bg-amber-400 animate-pulse" : "bg-slate-600"}`}
           />
           {visible ? "VISIBLE EN OBS" : "OCULTO"}
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+      <div className="max-w-6xl mx-auto">
       <div className="grid gap-4 lg:grid-cols-2 items-start">
         {/* ── Contenido ── */}
         <section className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 space-y-3">
@@ -685,6 +686,8 @@ export default function TercioInferior() {
             si el tercio ya está visible en OBS.
           </p>
         </section>
+      </div>
+      </div>
       </div>
     </div>
   );

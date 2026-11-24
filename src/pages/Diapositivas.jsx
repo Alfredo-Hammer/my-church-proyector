@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from "react";
+import React, {useState, useEffect, useCallback, useRef} from "react";
 import {
   FaPlus,
   FaTrash,
@@ -16,6 +16,7 @@ import {
   FaUpload,
   FaEdit,
   FaArrowLeft,
+  FaFilePdf,
 } from "react-icons/fa";
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -42,6 +43,8 @@ export default function Diapositivas() {
   const [indiceActual, setIndiceActual] = useState(0);
 
   const [vistaPreviaId, setVistaPreviaId] = useState(null);
+  const inputPdfRef = useRef(null);
+  const [progresoPdf, setProgresoPdf] = useState(null); // {hecho,total} mientras importa
 
   // ── Cargar presentaciones guardadas ──────────────────────────────────────
   const cargarPresentaciones = useCallback(async () => {
@@ -113,6 +116,55 @@ export default function Diapositivas() {
     } catch {
       mostrarMensaje("Error al agregar imágenes", "error");
     } finally {
+      setCargando(false);
+    }
+  };
+
+  // Importar un PDF (por ejemplo, un PowerPoint guardado como PDF): cada página
+  // se convierte en una imagen y se agrega como diapositiva.
+  const importarPdf = async (e) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo || !window.electron?.guardarImagenDiapositiva) return;
+    setCargando(true);
+    setProgresoPdf({hecho: 0, total: 0});
+    const base = archivo.name.replace(/\.pdf$/i, "");
+    const nuevas = [];
+    try {
+      const {paginasPdfComoJpeg} = await import("../utils/pdfADiapositivas");
+      const datos = await archivo.arrayBuffer();
+      for await (const {pagina, total, bytes} of paginasPdfComoJpeg(datos)) {
+        setProgresoPdf({hecho: pagina, total});
+        const r = await window.electron.guardarImagenDiapositiva(
+          `${base}-${String(pagina).padStart(3, "0")}`,
+          bytes,
+        );
+        if (r?.success) nuevas.push({url: r.url, nombre: `${base} · página ${pagina}`});
+      }
+      if (nuevas.length === 0) {
+        mostrarMensaje("No se pudo leer el PDF", "error");
+      } else {
+        setForm((f) => ({
+          ...f,
+          nombre: f.nombre.trim() ? f.nombre : base,
+          imagenes: [...f.imagenes, ...nuevas],
+        }));
+        mostrarMensaje(
+          `${nuevas.length} página${nuevas.length > 1 ? "s" : ""} importada${nuevas.length > 1 ? "s" : ""}`,
+          "success",
+        );
+      }
+    } catch (err) {
+      console.error("Error importando PDF:", err);
+      mostrarMensaje(
+        err?.name === "PasswordException"
+          ? "El PDF tiene contraseña. Guárdalo sin contraseña e inténtalo de nuevo."
+          : "No se pudo leer el PDF",
+        "error",
+      );
+      if (nuevas.length) setForm((f) => ({...f, imagenes: [...f.imagenes, ...nuevas]}));
+    } finally {
+      setProgresoPdf(null);
       setCargando(false);
     }
   };
@@ -450,9 +502,9 @@ export default function Diapositivas() {
                 Sin presentaciones
               </h3>
               <p className="text-slate-500 text-sm mb-4 max-w-sm">
-                Sube varias imágenes (por ejemplo, las diapositivas exportadas
-                de un PowerPoint) y proyéctalas en secuencia, avanzando con
-                flechas o control remoto.
+                Importa un PowerPoint guardado como PDF (Archivo → Guardar como
+                → PDF) o sube varias imágenes, y proyéctalas en secuencia,
+                avanzando con flechas o control remoto.
               </p>
               <button
                 type="button"
@@ -586,28 +638,67 @@ export default function Diapositivas() {
                   <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
                     Imágenes ({form.imagenes.length})
                   </label>
-                  <button
-                    type="button"
-                    onClick={agregarImagenes}
-                    disabled={cargando}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
-                  >
-                    <FaUpload className="text-[9px]" /> Agregar
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={agregarImagenes}
+                      disabled={cargando}
+                      className="flex items-center gap-1 text-[10px] font-semibold text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                    >
+                      <FaUpload className="text-[9px]" /> Imágenes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => inputPdfRef.current?.click()}
+                      disabled={cargando}
+                      title="PowerPoint, Keynote o Google Slides guardado como PDF"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                    >
+                      <FaFilePdf className="text-[9px]" /> PDF
+                    </button>
+                  </div>
+                  <input
+                    ref={inputPdfRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    onChange={importarPdf}
+                  />
                 </div>
 
+                {progresoPdf && (
+                  <p className="text-xs text-violet-300 mb-2">
+                    Importando PDF…{" "}
+                    {progresoPdf.total > 0 && `página ${progresoPdf.hecho} de ${progresoPdf.total}`}
+                  </p>
+                )}
+
                 {form.imagenes.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={agregarImagenes}
-                    disabled={cargando}
-                    className="w-full py-8 rounded-xl border-2 border-dashed border-white/10 hover:border-violet-500/40 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-violet-300 transition-colors"
-                  >
-                    <FaUpload className="text-lg" />
-                    <span className="text-xs font-medium">
-                      Selecciona imágenes exportadas de tu presentación
-                    </span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={agregarImagenes}
+                      disabled={cargando}
+                      className="py-7 px-2 rounded-xl border-2 border-dashed border-white/10 hover:border-violet-500/40 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-violet-300 transition-colors disabled:opacity-40"
+                    >
+                      <FaUpload className="text-lg" />
+                      <span className="text-xs font-medium text-center">Imágenes</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => inputPdfRef.current?.click()}
+                      disabled={cargando}
+                      className="py-7 px-2 rounded-xl border-2 border-dashed border-white/10 hover:border-violet-500/40 flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-violet-300 transition-colors disabled:opacity-40"
+                    >
+                      <FaFilePdf className="text-lg" />
+                      <span className="text-xs font-medium text-center">
+                        PDF
+                        <span className="block text-[10px] text-slate-600 font-normal mt-0.5">
+                          PowerPoint guardado como PDF
+                        </span>
+                      </span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-1.5">
                     {form.imagenes.map((img, idx) => (

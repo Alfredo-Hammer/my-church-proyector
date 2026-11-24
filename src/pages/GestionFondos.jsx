@@ -52,8 +52,17 @@ const GestionFondos = () => {
   const [paginaImagenes, setPaginaImagenes] = useState(() => Math.ceil(Math.random() * 8));
   const [paginaVideos, setPaginaVideos] = useState(() => Math.ceil(Math.random() * 8));
 
+  // Clave de Pixabay propia (Configuración → Apariencia). `null` = todavía cargando.
+  const [clavePropia, setClavePropia] = useState(null);
+  useEffect(() => {
+    Promise.resolve(window.electron?.obtenerConfiguracionPorClave?.("pixabayApiKey"))
+      .then((v) => setClavePropia((v || "").trim()))
+      .catch(() => setClavePropia(""));
+  }, []);
+
   // ✨ CARGAR DATOS AL INICIALIZAR
   useEffect(() => {
+    if (clavePropia === null) return; // esperar a saber qué clave de Pixabay usar
     console.log("🔄 [GestionFondos] Tab activo cambiado:", tabActivo);
 
     // Siempre cargar fondo activo
@@ -68,7 +77,7 @@ const GestionFondos = () => {
     } else if (tabActivo === "videos") {
       cargarPixabayVideos(undefined, paginaVideos);
     }
-  }, [tabActivo]);
+  }, [tabActivo, clavePropia]);
 
   // ✨ CARGAR AL MONTAR EL COMPONENTE
   useEffect(() => {
@@ -309,11 +318,22 @@ const GestionFondos = () => {
     }
   };
 
-  const apiKey =
-    process.env.REACT_APP_PIXABAY_API_KEY ||
-    "29325243-29bd81b56bd1800c81b3482a7";
+  // Clave de Pixabay: primero la que la iglesia puso en Configuración; si no hay,
+  // la que viene al compilar (secreto PIXABAY_API_KEY en CI / .env.local).
+  // Nunca escribir la clave en el código: el repositorio es público.
+  const apiKey = (clavePropia || "") || import.meta.env.REACT_APP_PIXABAY_API_KEY || "";
+  const avisarSinClave = () => {
+    mostrarMensaje(
+      "Falta la clave de Pixabay. Agrégala en Configuración → Apariencia.",
+      "error",
+    );
+  };
 
   const cargarPixabayImages = async (busqueda = "church,landscape,nature", pagina = paginaImagenes) => {
+    if (!apiKey) {
+      avisarSinClave();
+      return;
+    }
     if (!navigator.onLine) {
       setEstaOnline(false);
       mostrarMensaje("Sin conexión a internet. Conéctate para ver imágenes online.", "error");
@@ -338,6 +358,10 @@ const GestionFondos = () => {
   };
 
   const cargarPixabayVideos = async (busqueda = "church,nature,landscape", pagina = paginaVideos) => {
+    if (!apiKey) {
+      avisarSinClave();
+      return;
+    }
     if (!navigator.onLine) {
       setEstaOnline(false);
       mostrarMensaje("Sin conexión a internet. Conéctate para ver videos online.", "error");
@@ -841,7 +865,7 @@ const GestionFondos = () => {
   };
 
   return (
-    <div className="text-slate-100 min-h-screen bg-[#080c14] p-4 sm:p-6 overflow-y-auto">
+    <div className="bg-[#080c14] text-slate-100 h-full flex flex-col overflow-hidden">
       <ModalConfirmacion
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -850,44 +874,43 @@ const GestionFondos = () => {
         mensaje={`¿Estás seguro de que deseas eliminar "${fondoAEliminar?.nombre || "este fondo"}"? Esta acción no se puede deshacer.`}
       />
 
-      {/* ── HEADER ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
+      {/* ── Header (mismo patrón que Anuncios / Diapositivas) ── */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/50 flex-wrap gap-y-2">
+        <div className="flex items-center gap-2 min-w-0">
           {modoSeleccion && (
             <button
               type="button"
               onClick={() => navigate(volverA || "/")}
-              className="size-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
+              className="size-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
               title="Volver sin seleccionar"
             >
-              <IoArrowBack />
+              <IoArrowBack className="text-sm" />
             </button>
           )}
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {modoSeleccion ? "Seleccionar Imagen" : "Gestión de Fondos"}
-            </h1>
-            <p className="text-white/40 text-sm mt-0.5">
-              {modoSeleccion
-                ? "Elige una imagen para tu presentación"
-                : "Administra los fondos del proyector"}
-            </p>
-          </div>
+          <IoImage className="text-blue-400 shrink-0" />
+          <span className="text-sm font-semibold text-white">
+            {modoSeleccion ? "Seleccionar imagen" : "Gestión de Fondos"}
+          </span>
+          <span className="text-xs text-slate-500 truncate">
+            {modoSeleccion
+              ? "Elige una imagen para tu presentación"
+              : `${fondos.length} ${fondos.length === 1 ? "fondo" : "fondos"}`}
+          </span>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
           {fondoActivo && (
-            <div className="hidden sm:flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-              <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-emerald-300 font-medium max-w-[150px] truncate">
+            <div className="hidden sm:flex items-center gap-1.5 h-8 bg-emerald-500/10 border border-emerald-500/20 px-2.5 rounded-lg">
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] text-emerald-300 font-medium max-w-[140px] truncate">
                 {fondoActivo.nombre || "Fondo activo"}
               </span>
             </div>
           )}
           {fondoEspera && (
-            <div className="hidden sm:flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-xl">
-              <span className="size-2 rounded-full bg-violet-400" />
-              <span className="text-xs text-violet-300 font-medium max-w-[150px] truncate">
+            <div className="hidden sm:flex items-center gap-1.5 h-8 bg-violet-500/10 border border-violet-500/20 px-2.5 rounded-lg">
+              <span className="size-1.5 rounded-full bg-violet-400" />
+              <span className="text-[11px] text-violet-300 font-medium max-w-[140px] truncate">
                 Espera: {fondoEspera.nombre || `Fondo ${fondoEspera.id}`}
               </span>
             </div>
@@ -899,7 +922,7 @@ const GestionFondos = () => {
               else cargarFondoActivo();
             }}
             disabled={cargando}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-semibold transition-colors disabled:opacity-50"
           >
             <IoRefresh className={cargando ? "animate-spin" : ""} />
             <span className="hidden sm:inline">Refrescar</span>
@@ -907,6 +930,7 @@ const GestionFondos = () => {
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
       {/* ── MENSAJES ───────────────────────────────────────────────── */}
       {mensaje && (
         <div
@@ -936,11 +960,11 @@ const GestionFondos = () => {
 
       {/* ── TABS + ACCIÓN ──────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-1 flex gap-1 overflow-x-auto flex-shrink-0">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-1 flex gap-1 overflow-x-auto flex-shrink-0">
           <button
             type="button"
             onClick={() => setTabActivo("mis-imagenes")}
-            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
+            className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-all ${
               tabActivo === "mis-imagenes"
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                 : "text-white/50 hover:text-white hover:bg-white/5"
@@ -958,7 +982,7 @@ const GestionFondos = () => {
             type="button"
             onClick={() => setTabActivo("imagenes")}
             title={!estaOnline ? "Requiere conexión a internet" : ""}
-            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
+            className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-all ${
               tabActivo === "imagenes"
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                 : "text-white/50 hover:text-white hover:bg-white/5"
@@ -974,7 +998,7 @@ const GestionFondos = () => {
               type="button"
               onClick={() => setTabActivo("videos")}
               title={!estaOnline ? "Requiere conexión a internet" : ""}
-              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 whitespace-nowrap transition-all ${
+              className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-all ${
                 tabActivo === "videos"
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
                   : "text-white/50 hover:text-white hover:bg-white/5"
@@ -993,7 +1017,7 @@ const GestionFondos = () => {
             type="button"
             onClick={agregarFondoDesdeDispositivo}
             disabled={cargando}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-medium transition-colors shadow-lg shadow-indigo-600/20 flex-shrink-0"
+            className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 border border-indigo-500/30 text-white text-xs font-semibold transition-colors flex-shrink-0"
           >
             <IoAdd />
             Agregar fondo
@@ -1482,6 +1506,7 @@ const GestionFondos = () => {
 
         </>
       )}
+      </div>
     </div>
   );
 };

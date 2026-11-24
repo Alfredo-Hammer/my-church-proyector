@@ -181,7 +181,13 @@ function registrar({ obtenerRutaBase, actualizarObs }) {
   ipcMain.handle('db-eliminar-multimedia', async (event, id) => {
     try {
       console.log('🗑️ [IPC] Eliminando archivo multimedia:', id);
-      const resultado = await eliminarMultimedia(id);
+      // Las subidas viven en {rutaBase}/public/multimedia (ver
+      // 'procesar-archivos-por-ruta'); db.js no conoce esa ruta.
+      const rutaBase = obtenerRutaBase();
+      const resultado = await eliminarMultimedia(id, {
+        carpetas: [path.join(rutaBase, 'public', 'multimedia')],
+        carpetaMiniaturas: path.join(rutaBase, 'public', 'multimedia_thumbs'),
+      });
       console.log('✅ [IPC] Archivo multimedia eliminado:', resultado);
       return resultado;
     } catch (error) {
@@ -267,6 +273,10 @@ function registrar({ obtenerRutaBase, actualizarObs }) {
         title: 'Seleccionar archivos multimedia',
         properties: ['openFile', 'multiSelections'],
         filters: [
+          {
+            name: 'Videos, audio e imágenes',
+            extensions: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'],
+          },
           { name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'] },
           { name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'] },
           { name: 'Imágenes', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] },
@@ -325,6 +335,26 @@ function registrar({ obtenerRutaBase, actualizarObs }) {
             tipo = 'imagen';
           } else {
             throw new Error(`Tipo de archivo no soportado: ${extension}`);
+          }
+
+          // Duplicados: misma regla que 'verificar-archivo-duplicado' (nombre
+          // sin extensión, sin mayúsculas, y mismo tipo). Era la única ventaja
+          // del botón de subida viejo (base64), que se quitó.
+          const nombreBase = nombreSinExtension.toLowerCase();
+          const existentes = (await obtenerMultimedia()) || [];
+          const duplicado = existentes.find(
+            (item) =>
+              item.tipo === tipo &&
+              String(item.nombre || '').replace(/\.[^/.]+$/, '').toLowerCase() === nombreBase
+          );
+          if (duplicado) {
+            resultados.push({
+              success: false,
+              duplicado: true,
+              nombre: fileName,
+              error: 'Ya está en la biblioteca',
+            });
+            continue;
           }
 
           // Generar nombre único

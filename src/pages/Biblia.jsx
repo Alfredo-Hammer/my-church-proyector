@@ -20,6 +20,12 @@ import {
 } from "react-icons/fa";
 import librosDeLaBiblia from "../utils/libros";
 import {cargarLibro} from "../utils/cargarLibro";
+import {
+  VERSIONES_BIBLIA,
+  obtenerVersionBiblia,
+  cambiarVersionBiblia,
+  alCambiarVersionBiblia,
+} from "../utils/versionBiblia";
 
 const API_BASE = "http://localhost:3001";
 
@@ -157,13 +163,26 @@ const Biblia = () => {
     versiculos,
   ]);
 
+  // Versión de la Biblia (RVR60 por defecto). Al cambiarla se recarga el libro abierto.
+  const [versionBiblia, setVersionBiblia] = useState(obtenerVersionBiblia);
+  useEffect(() => alCambiarVersionBiblia(setVersionBiblia), []);
+
+  const versionAnteriorRef = useRef(versionBiblia);
+  const capituloActualRef = useRef(null);
+  capituloActualRef.current = capituloSeleccionado;
+
   useEffect(() => {
     if (libroSeleccionado) {
-      cargarLibro(libroSeleccionado).then((data) => {
+      const cambioVersion = versionAnteriorRef.current !== versionBiblia;
+      versionAnteriorRef.current = versionBiblia;
+      cargarLibro(libroSeleccionado, versionBiblia).then((data) => {
         setCapitulos(data);
+        // Mismo libro y capítulo abiertos, otra versión: mostrar el texto nuevo.
+        const cap = capituloActualRef.current;
+        if (cambioVersion && cap) setVersiculos(data[cap - 1] || []);
       });
     }
-  }, [libroSeleccionado]);
+  }, [libroSeleccionado, versionBiblia]);
 
   useEffect(() => {
     const manejarTeclas = async (e) => {
@@ -670,8 +689,21 @@ const Biblia = () => {
           <div className="flex items-center gap-1.5 shrink-0">
             <FaBible className="text-indigo-400 text-sm" />
             <span className="text-sm font-semibold text-white hidden sm:inline">
-              Biblia RVR60
+              Biblia
             </span>
+            <select
+              value={versionBiblia}
+              onChange={(e) => setVersionBiblia(cambiarVersionBiblia(e.target.value))}
+              title="Versión de la Biblia"
+              aria-label="Versión de la Biblia"
+              className="ml-1 h-7 px-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-400/60"
+            >
+              {VERSIONES_BIBLIA.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.corto}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">

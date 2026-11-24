@@ -12,8 +12,11 @@ con sincronización en tiempo real a una ventana proyectora separada.
 # Desarrollo (iniciar ambos: React + Electron)
 npm run electron-dev
 
-# Solo servidor React (sin Electron)
+# Solo servidor React (Vite en el puerto 3000, sin Electron)
 npm start
+
+# Compilar React → build/ (lo empaqueta electron-builder y lo sirve Express en :3001)
+npm run build
 
 # Build producción completo → dist-installer/
 npm run build-exe
@@ -23,7 +26,34 @@ npm run build-exe-win
 
 # Reconstruir módulos nativos (better-sqlite3) después de cambiar versión de Electron
 npm run rebuild
+
+# Pruebas automáticas (correr antes de publicar)
+npm test            # todo
+npm run test:main   # db.js y datos de la Biblia (tests/, con el Node de Electron y base temporal)
+npm run test:ui     # utilidades de React (src/**/*.test.js, Vitest — usar vi.fn, no jest.fn)
 ```
+
+**Vite (desde nov 2026, antes Create React App):** la entrada es `index.html` en la raíz →
+`src/index.jsx`. Archivos con JSX deben tener extensión `.jsx`. Variables de entorno: se leen con
+`import.meta.env.REACT_APP_*` (no `process.env`; `envPrefix` acepta `REACT_APP_` y `VITE_`). Archivos
+para pedir por URL (como el worker de pdf.js) se importan con `?url`. `base: "./"` = rutas relativas.
+
+**Clave de Pixabay:** nunca en el código (el repo es público). Local: `.env.local`
+(`REACT_APP_PIXABAY_API_KEY=…`, ignorado por git). CI: secreto de GitHub `PIXABAY_API_KEY`.
+Cada iglesia puede poner la suya en Configuración → Apariencia (clave `pixabayApiKey`, tiene prioridad).
+
+**Biblia:** una sola copia por versión: RV1960 en `public/data/biblia`, RV1909 (dominio público) en
+`public/data/biblia_rv1909`. Cada libro es `export default <JSON>;` — lo leen igual la pantalla
+(`src/utils/cargarLibro.js`, `fetch` + `JSON.parse`, sin eval por el CSP) y el servidor para la app móvil.
+No volver a crear `src/data/biblia` (desde nov 2026; la prueba `biblia-datos` lo verifica) y si se
+edita un libro, mantenerlo como JSON válido. Versión elegida: `src/utils/versionBiblia.js`
+(localStorage + configuración `bibliaVersion`); la API `/api/biblia/*` acepta `?version=` y si no,
+usa la de la compu (compatible con APKs viejos).
+
+**Diapositivas → Importar PDF** (PowerPoint guardado como PDF): `src/utils/pdfADiapositivas.js`
+con pdfjs-dist **3.11.174 fijo** y `isEvalSupported: false` siempre (CVE-2024-4367 / CSP sin eval).
+Fuentes estándar en `public/pdfjs/standard_fonts`. Las imágenes se guardan con el IPC
+`guardar-imagen-diapositiva` (valida JPEG/PNG y tamaño).
 
 > **Nota:** El servidor Express interno corre en el puerto **3001** (no configurable aún).
 > El servidor React dev corre en el puerto **3000**.
@@ -141,7 +171,17 @@ iniciarServidorMultimedia(); // demasiado tarde
 
 ```
 my-church-proyector/
-├── main.js                  # Proceso principal Electron (~5300 líneas; incluye rutas Express de la app móvil y algunos handlers IPC aún no extraídos, ej. diapositivas)
+├── main.js                  # Proceso principal Electron (~2400 líneas): ventanas, menú, updates, estado compartido (timer, OBS, proyector) y el arranque de Express (seguridad, estáticos)
+├── servidor/                # Servidor Express (puerto 3001) separado de main.js en nov 2026
+│   ├── obsHtml.js            # HTML de los overlays /obs y /obs/tercio-inferior + plantillas del Tercio Inferior
+│   └── rutas/                # Un módulo por tema: sistema, himnos, biblia, proyector, multimedia, fondos,
+│                             # ordenesServicio, anuncios, presentaciones, temporizador, plantillas, obs.
+│                             # Cada uno exporta registrar(expressApp, ctx). `ctx` (ctxServidor en main.js)
+│                             # tiene getters en vivo de lo compartido y setters para lo que cambia
+│                             # (mainWindow, proyectorWindow, diapositivaActiva, fondoActivoObs, FFMPEG_BIN):
+│                             # en los módulos esas se usan como ctx.mainWindow, nunca desestructuradas.
+│                             # Ruta nueva: agregarla al módulo del tema; si usa algo nuevo de main.js,
+│                             # agregar su getter a ctxServidor. Dentro de servidor/rutas, RAIZ_APP = __dirname de main.js.
 ├── preload.js               # Bridge IPC seguro (~450 líneas)
 ├── db.js                    # Schema SQLite + toda la capa de datos (archivo único)
 ├── ipc/                     # Handlers IPC extraídos de main.js, por dominio (modularización completa — ver nota abajo)
@@ -187,8 +227,7 @@ my-church-proyector/
 │   │   ├── bibliaParser.jsx / bibliaReader.jsx
 │   │   └── consoleSilencer.js
 │   └── data/
-│       ├── himnos.json / vidacristiana.json
-│       └── biblia/          # 66 libros como módulos JS
+│       └── himnos.json / vidacristiana.json   (la Biblia está en public/data/)
 └── public/
     ├── proyector.html       # Ventana proyectora (standalone)
     ├── preload-proyector.js # Bridge IPC para proyector
@@ -223,9 +262,9 @@ app-gloryview/               # App móvil de control remoto (Expo 54 / React Nat
 
 ### CSP
 - `'unsafe-eval'` y `'unsafe-inline'` en `script-src` están **prohibidos en producción** (quitados en nov 2026; verificado en la app empaquetada: las 20 rutas cargan sin violaciones).
-- Depende de `.env.production` → `INLINE_RUNTIME_CHUNK=false` (si no, CRA mete un `<script>` inline en `index.html` y la app queda en blanco). No borrar ese archivo.
+- Vite no mete scripts inline en `build/index.html` (solo `<script type="module" src=...>`). Si se agrega un plugin que inyecte `<script>` inline, la app empaquetada queda en blanco.
 - `executeJavaScript()` desde main no está sujeto al CSP de la página.
-- En desarrollo se permiten para el webpack dev server (source maps).
+- En desarrollo se permiten para el servidor de Vite (React Refresh usa un script inline y `ws://localhost:3000`).
 - `style-src 'unsafe-inline'` se mantiene (React + TailwindCSS usan estilos inline).
 
 ### Sandbox
@@ -238,16 +277,26 @@ app-gloryview/               # App móvil de control remoto (Expo 54 / React Nat
 
 | Capa | Tecnología |
 |------|-----------|
-| Desktop | Electron 35.7.5 |
+| Desktop | Electron 45 (Node 24) — requiere macOS 13+ y Windows 64 bits |
 | UI | React 19 + React Router 7 |
+| Compilación React | Vite 8 (`vite.config.mjs`, salida en `build/`); pruebas con Vitest |
 | Estilos | TailwindCSS 3 |
 | Animaciones | Framer Motion 12 |
-| Base de datos | better-sqlite3 11 |
+| Base de datos | better-sqlite3 13 |
 | Servidor local | Express 5 |
 | Editores ricos | TinyMCE 6, Quill 2, SunEditor |
 | Procesamiento multimedia | FFmpeg (ffmpeg-static) |
-| PowerPoint | pptx-parser, mammoth, officegen |
+| PowerPoint | Importar PDF con pdfjs-dist 3.11.174 (ver arriba) |
 | Empaquetado | electron-builder 26 |
+
+Al subir de versión de Electron: leer la página "Breaking Changes" de la documentación de Electron,
+correr `npx electron-builder install-app-deps` (recompila better-sqlite3), `npm test` y probar
+la app empaquetada. Electron solo da parches a las 3 últimas versiones mayores.
+- Desde Electron 43 los diálogos no recuerdan la última carpeta: main.js envuelve
+  `dialog.showOpenDialog/showSaveDialog` al inicio para recordarla.
+- macOS 13+: `mac.minimumSystemVersion` en electron-builder.yml, y release.yml agrega
+  `minimumSystemVersion: 22.0.0` (versión Darwin) a latest-mac.yml para que electron-updater
+  no actualice Macs más viejas.
 
 ---
 
@@ -336,10 +385,12 @@ Sin las variables de entorno, el build funciona sin firma (modo desarrollo/prueb
    NOVEDADES.txt (el CI usa solo el primer bloque como notas).
 3. Push del commit y del tag `vX.Y.Z` → `.github/workflows/release.yml` compila Windows y Mac,
    publica el release y adjunta el APK como `GloryView-Movil.apk` (nombre fijo).
-4. Landing: NO está en este repo. Son Artifacts de claude.ai: landing https://claude.ai/artifact/JpxfhUHRXgh7gaY1MUvBMc
-   y novedades https://claude.ai/artifact/B87QFnqdJmyftnwaz1gUQP (leerlos con la herramienta Artifact y
-   republicar con su `url`). Actualizar versión, links `releases/download/vX.Y.Z/...` y notas a mano.
+4. Página web: carpeta `sitio/` (https://gloryview.app, GitHub Pages; se publica sola con
+   `.github/workflows/sitio.yml` al hacer push de cambios en `sitio/`). Páginas: `index.html`,
+   `novedades/index.html`, `privacidad/index.html`. Actualizar a mano la versión, los links
+   `releases/download/vX.Y.Z/...` (en index y novedades) y las notas de novedades.
    El APK se enlaza con `releases/latest/download/GloryView-Movil.apk` (no cambia).
+   (Antes vivía en Artifacts de claude.ai; desde nov 2026 la fuente es `sitio/`.)
 
 ---
 
@@ -521,7 +572,7 @@ texto puede quedar chico. Solución existente: toggle "Auto-dividir párrafos la
 
 ### Modo de ejecución — IMPORTANTE
 El proyector carga desde **puertos diferentes** según el modo:
-- **Desarrollo** (`!app.isPackaged`): `http://localhost:3000` → código fuente via CRA dev server
+- **Desarrollo** (`!app.isPackaged`): `http://localhost:3000` → código fuente via servidor de Vite
 - **Producción** (`app.isPackaged`): `http://localhost:3001` → archivos del `build/`
 
 **Para que los cambios en código fuente se vean en el proyector:**
@@ -535,9 +586,28 @@ El proyector carga desde **puertos diferentes** según el modo:
 - **Colores de botones**: Proyectar/Mostrar = `emerald-600` · Crear/Nuevo/Guardar/Subir = `indigo-600` · Eliminar/Detener = rojo. El color propio de cada sección (sidebar) va solo en su ícono.
 - **Configuración se guarda sola** (no hay botón "Guardar"): switches y selectores llaman `guardarSilencioso()`; nombre/eslogan se guardan 700 ms después de dejar de escribir; el logo se sube al elegirlo. Indicador "Guardado ✓" en la barra lateral.
 - Los fondos se administran solo en Gestión de Fondos (Configuración → Apariencia muestra el activo y un botón "Cambiar fondo").
+- **Encabezado de página** (Anuncios, Diapositivas, Multimedia, Gestión de Fondos, Tercio Inferior): raíz
+  `bg-[#080c14] h-full flex flex-col overflow-hidden`; barra `shrink-0 px-4 py-2.5 border-b border-slate-800
+  bg-slate-900/50` con ícono del color de la sección + título `text-sm font-semibold` + dato `text-xs text-slate-500`;
+  botones `h-8 px-3 rounded-lg text-xs font-semibold`. El contenido va en `flex-1 min-h-0 overflow-y-auto`.
+- Multimedia tiene UN solo botón "Subir archivos" (`seleccionarArchivosMultimedia` + `procesarArchivosPorRuta`,
+  copia por ruta, sin base64). `procesar-archivos-por-ruta` salta duplicados (mismo nombre sin extensión + tipo)
+  y los devuelve con `duplicado: true`.
 
 ## Lo que NO hacer
 
+- No poner en `dependencies` librerías que solo usa React (se empaquetan en `build/` con webpack):
+  electron-builder mete TODO `dependencies` en app.asar. En `dependencies` van solo las que
+  carga el proceso principal (main.js, preload.js, db.js, ipc/): better-sqlite3, cors,
+  electron-updater, express, ffmpeg-static, jszip, node-fetch, qrcode. Lo demás → `devDependencies`.
+  (Nov 2026: así app.asar bajó de 287 MB / 40.7k archivos a 18 MB / 1.7k.)
+- No correr `npm audit fix --omit=dev` sin luego `npm install`: borra las devDependencies del disco.
+- No usar `__dirname` para rutas de archivos subidos: en producción apunta dentro de app.asar.
+  Usar `obtenerRutaBase()` (userData). `eliminarMultimedia(id, { carpetas, carpetaMiniaturas })`
+  en db.js borra solo por nombre dentro de las carpetas de multimedia de la app (nunca una ruta
+  externa, ni si otro registro usa el mismo archivo) y también `thumb_{id}.jpg`.
+- La ruta de `ffmpeg-static` debe reescribirse a `app.asar.unpacked` (main.js); si no, las
+  miniaturas de video fallan en la app instalada con `spawn ENOTDIR`.
 - No deshabilitar `sandbox` en las ventanas de Electron.
 - No agregar `'unsafe-eval'` o `'unsafe-inline'` a `script-src` en producción.
 - No usar `executeJavaScript()` con interpolación directa de variables — usar `JSON.stringify()`.

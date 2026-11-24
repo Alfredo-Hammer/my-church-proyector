@@ -27,7 +27,7 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Instalar dependencias
@@ -37,6 +37,7 @@ jobs:
         run: npm run build
         env:
           CI: false
+          REACT_APP_PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
 
       - name: Obtener versión
         id: get_version
@@ -168,7 +169,7 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Instalar dependencias
@@ -178,6 +179,7 @@ jobs:
         run: npm run build
         env:
           CI: false
+          REACT_APP_PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
 
       - name: Obtener versión
         id: get_version
@@ -210,6 +212,10 @@ jobs:
           NOTES=$(awk '/^Version /{n++} n==2{exit} {print}' NOVEDADES.txt)
           npx electron-builder --mac --x64 --arm64 --publish never \
             --config.releaseInfo.releaseNotes="$NOTES"
+          # electron-updater omite la actualizacion si el sistema es mas viejo
+          # que minimumSystemVersion (compara con os.release(): Darwin 22 =
+          # macOS 13). Asi una Mac con macOS 12 no baja una version que no abre.
+          echo "minimumSystemVersion: 22.0.0" >> dist-installer/latest-mac.yml
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}

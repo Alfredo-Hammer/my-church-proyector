@@ -1,0 +1,3 @@
+Reina-Valera 1909 — dominio público.
+Fuente: https://github.com/seven1m/open-bibles (spa-rv1909.usfx.xml), convertido al formato de la app
+(un archivo por libro: export default [[versículos del cap. 1], [cap. 2], ...]).

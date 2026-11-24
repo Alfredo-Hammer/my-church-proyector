@@ -24,7 +24,7 @@ import {
   FaFilter,
   FaTh,
   FaList,
-  FaDownload,
+  FaSync,
   FaEye,
   FaCopy,
   FaYoutube,
@@ -1289,291 +1289,6 @@ const Multimedia = () => {
     }
   };
 
-  // ✨ FUNCIÓN MEJORADA PARA PROCESAR ARCHIVOS
-  const handleFileUpload = async (event) => {
-    const files = Array.from(event.target.files);
-    if (files.length === 0) return;
-
-    setLoading(true);
-    showInfo(`📤 Procesando ${files.length} archivo(s)...`);
-
-    const archivosExitosos = [];
-    const archivosDuplicados = [];
-    const archivosErrores = [];
-
-    try {
-      for (const file of files) {
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-
-          let binary = "";
-          for (let i = 0; i < uint8Array.byteLength; i++) {
-            binary += String.fromCharCode(uint8Array[i]);
-          }
-          const base64String = btoa(binary);
-
-          const extension = file.name.split(".").pop().toLowerCase();
-          let tipo;
-
-          const extensionesVideo = new Set([
-            "mp4",
-            "avi",
-            "mov",
-            "wmv",
-            "flv",
-            "mkv",
-            "webm",
-          ]);
-          const extensionesAudio = new Set([
-            "mp3",
-            "wav",
-            "ogg",
-            "aac",
-            "flac",
-            "m4a",
-          ]);
-          const extensionesImagen = new Set([
-            "jpg",
-            "jpeg",
-            "png",
-            "gif",
-            "bmp",
-            "webp",
-          ]);
-
-          if (extensionesVideo.has(extension)) {
-            tipo = "video";
-          } else if (extensionesAudio.has(extension)) {
-            tipo = "audio";
-          } else if (extensionesImagen.has(extension)) {
-            tipo = "imagen";
-          } else {
-            archivosErrores.push({
-              nombre: file.name,
-              error: "Tipo de archivo no soportado",
-            });
-            showError(
-              `<strong>${file.name}</strong><br/>❌ Formato no soportado`,
-            );
-            continue;
-          }
-
-          const nombreSinExtension = file.name.replace(/\.[^/.]+$/, "");
-
-          // 🔍 VERIFICAR DUPLICADOS
-          console.log(
-            "🔍 [Upload] Verificando duplicado para:",
-            nombreSinExtension,
-          );
-
-          let verificacion = null;
-          try {
-            if (window.electronAPI?.verificarArchivoDuplicado) {
-              const datos = {
-                nombre: nombreSinExtension,
-                tamaño: file.size,
-                tipo: tipo,
-              };
-              verificacion =
-                await window.electronAPI.verificarArchivoDuplicado(datos);
-              console.log(
-                `📥 [Upload] Verificación:`,
-                verificacion?.existe ? "DUPLICADO" : "ÚNICO",
-              );
-            } else if (window.electron?.["verificar-archivo-duplicado"]) {
-              console.log(
-                `📞 [Upload] Usando window.electron["verificar-archivo-duplicado"]`,
-              );
-              const datos = {
-                nombre: nombreSinExtension,
-                tamaño: file.size,
-                tipo: tipo,
-              };
-              console.log(`📤 [Upload] Enviando datos:`, datos);
-              verificacion =
-                await window.electron["verificar-archivo-duplicado"](datos);
-              console.log(`📥 [Upload] Respuesta recibida:`, verificacion);
-            } else {
-              console.warn(
-                "⚠️ [Upload] No hay método de verificación disponible",
-              );
-            }
-          } catch (error) {
-            console.error("❌ [Upload] Error verificando duplicados:", error);
-          }
-
-          if (verificacion?.existe) {
-            console.log("🚫 [Upload] Archivo duplicado - bloqueando carga");
-            archivosDuplicados.push({
-              nombre: file.name,
-              archivoExistente: verificacion.archivo,
-            });
-            showWarning(
-              `<strong>${file.name}</strong><br/>⚠️ Este archivo ya existe en la base de datos`,
-            );
-            continue; // ✨ Saltar este archivo
-          } else {
-            console.log("✅ [Upload] Archivo único - procediendo con carga");
-          }
-
-          const fileData = {
-            nombre: nombreSinExtension,
-            extension: extension,
-            tipo: tipo,
-            tamaño: file.size,
-            data: base64String,
-            mimeType: file.type,
-          };
-
-          console.log("📦 [Upload] Datos del archivo preparados:");
-          console.log("  - Nombre:", fileData.nombre);
-          console.log("  - Extensión:", fileData.extension);
-          console.log("  - Tipo:", fileData.tipo);
-          console.log("  - Tamaño:", fileData.tamaño, "bytes");
-          console.log("  - MimeType:", fileData.mimeType);
-          console.log(
-            "  - Data (primeros 50 caracteres):",
-            fileData.data.substring(0, 50) + "...",
-          );
-
-          // Procesar archivo
-          let resultado = null;
-          try {
-            console.log("📤 [Upload] Enviando archivo para procesar...");
-            console.log("🔍 [Upload] Verificando métodos disponibles:");
-            console.log(
-              "  - window.electron['procesar-archivo-multimedia']:",
-              !!window.electron?.["procesar-archivo-multimedia"],
-            );
-            console.log(
-              "  - window.electronAPI?.procesarArchivoMultimedia:",
-              !!window.electronAPI?.procesarArchivoMultimedia,
-            );
-            console.log(
-              "  - window.electron?.procesarArchivoMultimedia:",
-              !!window.electron?.procesarArchivoMultimedia,
-            );
-
-            if (window.electron?.["procesar-archivo-multimedia"]) {
-              console.log(
-                "📞 [Upload] Usando window.electron['procesar-archivo-multimedia']",
-              );
-              resultado =
-                await window.electron["procesar-archivo-multimedia"](fileData);
-            } else if (window.electronAPI?.procesarArchivoMultimedia) {
-              console.log(
-                "📞 [Upload] Usando window.electronAPI.procesarArchivoMultimedia",
-              );
-              resultado =
-                await window.electronAPI.procesarArchivoMultimedia(fileData);
-            } else if (window.electron?.procesarArchivoMultimedia) {
-              console.log(
-                "📞 [Upload] Usando window.electron.procesarArchivoMultimedia",
-              );
-              resultado =
-                await window.electron.procesarArchivoMultimedia(fileData);
-            } else {
-              console.error(
-                "❌ [Upload] No se encontró ningún método IPC para procesar archivos",
-              );
-              throw new Error(
-                "No hay método disponible para procesar archivos",
-              );
-            }
-            console.log("📥 [Upload] Resultado recibido:", resultado);
-            console.log("📥 [Upload] Tipo de resultado:", typeof resultado);
-            console.log("📥 [Upload] Propiedad success:", resultado?.success);
-            console.log(
-              "📥 [Upload] Propiedad multimedia:",
-              resultado?.multimedia,
-            );
-            console.log("📥 [Upload] Propiedad error:", resultado?.error);
-          } catch (error) {
-            console.error("❌ [Multimedia] Error procesando archivo:", error);
-            console.error("❌ [Multimedia] Stack:", error.stack);
-            resultado = {success: false, error: error.message};
-          }
-
-          // ✨ VALIDACIÓN MEJORADA: Considerar exitoso si:
-          // 1. resultado.success === true, O
-          // 2. resultado.multimedia existe (significa que se creó el registro), O
-          // 3. resultado tiene id (significa que se guardó)
-          const exitoso =
-            resultado?.success === true ||
-            resultado?.multimedia !== undefined ||
-            resultado?.id !== undefined;
-
-          console.log("📥 [Upload] ¿Carga exitosa?:", exitoso);
-
-          if (exitoso) {
-            archivosExitosos.push({
-              nombre: file.name,
-              id: resultado.id || resultado.multimedia?.id,
-            });
-            showSuccess(
-              `<strong>${file.name}</strong><br/>✅ Agregado exitosamente`,
-            );
-          } else {
-            if (resultado?.error === "ARCHIVO_DUPLICADO") {
-              archivosDuplicados.push({nombre: file.name});
-              showWarning(
-                `<strong>${file.name}</strong><br/>⚠️ Archivo duplicado`,
-              );
-            } else {
-              archivosErrores.push({
-                nombre: file.name,
-                error: resultado?.error || "Error desconocido",
-              });
-              showError(
-                `<strong>${file.name}</strong><br/>❌ ${
-                  resultado?.error || "Error desconocido"
-                }`,
-              );
-            }
-          }
-        } catch (error) {
-          archivosErrores.push({nombre: file.name, error: error.message});
-          showError(`<strong>${file.name}</strong><br/>❌ ${error.message}`);
-        }
-      }
-
-      if (archivosExitosos.length > 0) {
-        await loadMediaFromDB();
-      }
-
-      // Resumen final mejorado
-      let mensaje = `📊 Procesamiento completado:\n`;
-      mensaje += `✅ ${archivosExitosos.length} archivos agregados\n`;
-
-      if (archivosDuplicados.length > 0) {
-        mensaje += `⚠️ ${archivosDuplicados.length} archivos duplicados omitidos\n`;
-        mensaje += `📝 Duplicados: ${archivosDuplicados
-          .map((d) => d.nombre)
-          .join(", ")}\n`;
-      }
-
-      if (archivosErrores.length > 0) {
-        mensaje += `❌ ${archivosErrores.length} archivos con errores\n`;
-        mensaje += `📝 Errores: ${archivosErrores
-          .map((e) => e.nombre)
-          .join(", ")}`;
-      }
-
-      console.log("📊 [Upload] Resumen final:", {
-        archivosExitosos,
-        archivosDuplicados,
-        archivosErrores,
-      });
-      showInfo(mensaje.replace(/\n/g, "<br/>"));
-    } catch (error) {
-      showError(`<strong>❌ Error general:</strong><br/>${error.message}`);
-    }
-
-    setLoading(false);
-    event.target.value = "";
-  };
-
   // ✨ NUEVA FUNCIÓN OPTIMIZADA PARA ARCHIVOS GRANDES
   const handleFileUploadOptimizado = async () => {
     try {
@@ -1618,11 +1333,18 @@ const Multimedia = () => {
 
       // Contar éxitos y errores
       const exitosos = resultadoProceso.resultados.filter((r) => r.success);
-      const fallidos = resultadoProceso.resultados.filter((r) => !r.success);
+      const duplicados = resultadoProceso.resultados.filter((r) => r.duplicado);
+      const fallidos = resultadoProceso.resultados.filter(
+        (r) => !r.success && !r.duplicado,
+      );
 
       // Mostrar notificaciones individuales
       exitosos.forEach((r) => {
         showSuccess(`<strong>${r.nombre}</strong><br/>✅ Cargado exitosamente`);
+      });
+
+      duplicados.forEach((r) => {
+        showInfo(`<strong>${r.nombre}</strong><br/>Ya está en la biblioteca`);
       });
 
       fallidos.forEach((r) => {
@@ -1986,11 +1708,6 @@ const Multimedia = () => {
   // togglePlayPause viene del contexto
   // stopMedia viene del contexto como stopGlobal
 
-  const handleQuickLinkClick = (link) => {
-    // Los quick links ahora son ítems de la DB — playMedia los maneja directamente
-    playMedia(link);
-  };
-
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     showSuccess("📋 Copiado al portapapeles");
@@ -2056,19 +1773,12 @@ const Multimedia = () => {
   const getMediaSize = (media) =>
     formatFileSize(media.tamaño ?? media.size ?? 0);
 
-  // Accesos rápidos: ítems de la DB que son URLs externas (YouTube u otras)
-  const quickLinks = mediaFiles
-    .filter((m) => {
-      if (m.tipo === "youtube") return true;
-      const ruta = String(m.ruta_archivo || "");
-      return (
-        (ruta.startsWith("http://") || ruta.startsWith("https://")) &&
-        !ruta.startsWith("http://localhost") &&
-        !ruta.startsWith("https://localhost")
-      );
-    })
-    .sort((a, b) => (b.id || 0) - (a.id || 0))
-    .slice(0, 20);
+  // "12.30 MB" para archivos; nada para YouTube/enlaces (antes decía 0.00 MB)
+  const etiquetaTamano = (media) => {
+    if (media.isUrl || getMediaType(media) === "youtube") return "";
+    const mb = getMediaSize(media);
+    return Number(mb) > 0 ? `${mb} MB` : "";
+  };
 
   // Filtros biblioteca
   const filteredMedia = mediaFiles.filter((media) => {
@@ -2089,108 +1799,64 @@ const Multimedia = () => {
         ))}
       </div>
 
-      {/* ✨ HEADER MODERNO ESTILO YOUTUBE */}
-      <div className="bg-gray-950/30 backdrop-blur border-b border-white/10 sticky top-0 z-40">
-        <div className="max-w-full mx-auto px-4 xl:px-6 py-3 xl:py-4">
-          <div className="flex items-center justify-between mb-3 xl:mb-4">
-            <div className="flex items-center gap-3 xl:gap-4">
-              <div className="p-2 xl:p-3 bg-white/5 border border-white/10 rounded-xl">
-                <FaPlay className="text-xl xl:text-2xl" />
-              </div>
-              <div>
-                <h1 className="text-2xl xl:text-3xl font-semibold text-white">
-                  Glory Studio
-                </h1>
-                <p className="text-white/60 text-sm xl:text-base">
-                  Tu centro de contenido multimedia
-                </p>
-              </div>
-            </div>
+      {/* ── Header (mismo patrón que Anuncios / Diapositivas) ── */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/50 flex-wrap gap-y-2">
+        <div className="flex items-center gap-2">
+          <FaPlay className="text-teal-400" />
+          <span className="text-sm font-semibold text-white">Multimedia</span>
+          <span className="text-xs text-slate-500">
+            {mediaFiles.length}{" "}
+            {mediaFiles.length === 1 ? "archivo" : "archivos"}
+          </span>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowUrlModal(true)}
-                className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl border border-white/10 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-              >
-                <FaLink />
-                <span>Agregar URL</span>
-              </button>
-
-              {/* Botón optimizado para archivos grandes */}
-              <button
-                type="button"
-                onClick={handleFileUploadOptimizado}
-                disabled={loading}
-                className={`${
-                  loading
-                    ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-500"
-                } text-white px-4 py-2 rounded-xl border border-indigo-500/30 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
-                title="Recomendado para videos grandes"
-              >
-                <FaUpload />
-                <span>{loading ? "Subiendo..." : "Subir (Rápido)"}</span>
-              </button>
-
-              {/* Botón original para archivos pequeños */}
-              <label
-                htmlFor="fileInputHeader"
-                className={`${
-                  loading
-                    ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-500 cursor-pointer"
-                } text-white px-4 py-2 rounded-xl border border-indigo-500/30 transition-colors flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30`}
-                title="Para archivos pequeños"
-              >
-                <FaUpload />
-                <span>{loading ? "Subiendo..." : "Subir Archivo"}</span>
-              </label>
-              <input
-                type="file"
-                multiple
-                accept="video/*,audio/*,image/*"
-                aria-label="Subir archivos multimedia"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="fileInputHeader"
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          {/* Advertencia de Internet */}
-          {!hayInternet && (
-            <div className="bg-yellow-900/20 border border-yellow-500/40 rounded-xl p-4 mb-4 flex items-center gap-3">
-              <FaExclamationTriangle className="text-yellow-400 text-xl flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-yellow-200 font-semibold text-sm">
-                  Sin conexión a Internet
-                </p>
-                <p className="text-yellow-300/80 text-xs mt-1">
-                  El contenido en línea como YouTube no estará disponible hasta
-                  que se restaure la conexión.
-                </p>
-              </div>
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowUrlModal(true)}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-semibold transition-colors"
+            title="YouTube o un enlace a un video, audio o imagen"
+          >
+            <FaLink className="text-[10px]" /> Agregar enlace
+          </button>
+          <button
+            type="button"
+            onClick={handleFileUploadOptimizado}
+            disabled={loading}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 border border-indigo-500/30 text-white text-xs font-semibold transition-colors"
+            title="Videos, audio o imágenes de tu computadora"
+          >
+            <FaUpload className="text-[10px]" />
+            {loading ? "Subiendo…" : "Subir archivos"}
+          </button>
         </div>
       </div>
+
+      {/* Aviso sin Internet */}
+      {!hayInternet && (
+        <div className="shrink-0 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
+          <FaExclamationTriangle className="text-amber-400 text-xs" />
+          <p className="text-xs text-amber-300">
+            Sin conexión a Internet: YouTube y los enlaces no se podrán
+            reproducir hasta que vuelva la conexión.
+          </p>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-screen-2xl mx-auto px-3 xl:px-4 py-4 xl:py-6 h-full min-h-0 flex flex-col">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 xl:gap-6 items-stretch flex-1 min-h-0">
             {/* Biblioteca Multimedia (izquierda, vertical) */}
             <div className="order-2 xl:order-1 xl:col-span-4 2xl:col-span-3 min-h-0">
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 xl:p-4 border border-white/10 shadow-xl h-full flex flex-col min-h-0">
+              <div className="bg-slate-900/50 rounded-xl p-3 xl:p-4 border border-slate-800 h-full flex flex-col min-h-0">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-x-3 min-w-0">
-                    <div className="bg-red-500/20 p-2.5 rounded-full">
-                      <FaFolder className="text-red-400 text-lg" />
+                    <div className="bg-teal-500/10 p-2 rounded-lg">
+                      <FaFolder className="text-teal-400 text-sm" />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-lg font-semibold text-white truncate">
-                        Biblioteca Multimedia
+                      <h2 className="text-sm font-semibold text-white truncate">
+                        Biblioteca
                       </h2>
                       <p className="text-xs text-white/60 truncate">
                         {filteredMedia.length} de {mediaFiles.length}
@@ -2200,10 +1866,10 @@ const Multimedia = () => {
                   <button
                     type="button"
                     onClick={loadMediaFromDB}
-                    className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                    className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
                     title="Actualizar biblioteca"
                   >
-                    <FaDownload className="text-base" />
+                    <FaSync className="text-sm" />
                   </button>
                 </div>
 
@@ -2213,7 +1879,7 @@ const Multimedia = () => {
                     <select
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
-                      className="bg-white/10 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                      className="bg-white/10 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
                       aria-label="Filtrar tipo de multimedia"
                     >
                       <option value="all" className="bg-gray-800">
@@ -2241,7 +1907,7 @@ const Multimedia = () => {
                       placeholder="Buscar..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+                      className="w-full pl-9 pr-3 py-1.5 bg-white/10 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
                       aria-label="Buscar multimedia"
                     />
                   </div>
@@ -2251,7 +1917,7 @@ const Multimedia = () => {
                       onClick={() => setViewMode("list")}
                       className={`p-2 rounded-lg transition-colors ${
                         viewMode === "list"
-                          ? "bg-red-500 text-white"
+                          ? "bg-indigo-600 text-white"
                           : "bg-white/10 text-white/60 hover:text-white"
                       }`}
                       title="Vista lista"
@@ -2263,7 +1929,7 @@ const Multimedia = () => {
                       onClick={() => setViewMode("grid")}
                       className={`p-2 rounded-lg transition-colors ${
                         viewMode === "grid"
-                          ? "bg-red-500 text-white"
+                          ? "bg-indigo-600 text-white"
                           : "bg-white/10 text-white/60 hover:text-white"
                       }`}
                       title="Vista grid"
@@ -2276,7 +1942,7 @@ const Multimedia = () => {
                 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
                   {loading && mediaFiles.length === 0 ? (
                     <div className="text-center py-10">
-                      <div className="animate-spin rounded-full size-10 border-4 border-transparent border-t-red-400 border-r-red-400 mx-auto mb-3"></div>
+                      <div className="animate-spin rounded-full size-10 border-4 border-transparent border-t-indigo-400 border-r-indigo-400 mx-auto mb-3"></div>
                       <p className="text-white/60 text-sm">
                         Cargando biblioteca…
                       </p>
@@ -2292,8 +1958,18 @@ const Multimedia = () => {
                       <p className="text-white/40 text-sm">
                         {searchTerm
                           ? "Intenta con otros términos"
-                          : "Sube tu primer archivo multimedia"}
+                          : "Sube un video, audio o imagen, o agrega un enlace de YouTube"}
                       </p>
+                      {!searchTerm && (
+                        <button
+                          type="button"
+                          onClick={handleFileUploadOptimizado}
+                          disabled={loading}
+                          className="mt-4 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+                        >
+                          <FaUpload className="text-[10px]" /> Subir archivos
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div
@@ -2314,12 +1990,12 @@ const Multimedia = () => {
                               viewMode === "grid"
                                 ? `bg-gray-700/50 rounded-xl overflow-hidden hover:bg-gray-600/50 transition-colors group cursor-pointer ${
                                     isCurrentlyPlaying
-                                      ? "ring-2 ring-green-500"
+                                      ? "ring-2 ring-emerald-500"
                                       : ""
                                   }`
                                 : `flex items-center p-2 rounded-xl transition-colors hover:bg-gray-700/50 ${
                                     isCurrentlyPlaying
-                                      ? "bg-green-900/30 border-2 border-green-400"
+                                      ? "bg-emerald-900/30 ring-1 ring-emerald-500/60"
                                       : "bg-gray-700/30"
                                   }`
                             }`}
@@ -2381,7 +2057,7 @@ const Multimedia = () => {
 
                                   <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
                                     {isCurrentlyPlaying && (
-                                      <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
+                                      <div className="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
                                         <FaPlay className="text-[10px]" />
                                         REPRODUCIENDO
                                       </div>
@@ -2410,11 +2086,11 @@ const Multimedia = () => {
                                       )}
                                   </div>
 
-                                  <div className="absolute bottom-2 right-2 bg-gray-950/70 text-white px-2 py-1 rounded text-xs">
-                                    {media.isUrl
-                                      ? "URL"
-                                      : `${getMediaSize(media)} MB`}
-                                  </div>
+                                  {etiquetaTamano(media) && (
+                                    <div className="absolute bottom-2 right-2 bg-gray-950/70 text-white px-2 py-1 rounded text-xs">
+                                      {etiquetaTamano(media)}
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="p-3">
@@ -2491,11 +2167,9 @@ const Multimedia = () => {
                                       <span className="capitalize">
                                         {getMediaType(media)}
                                       </span>
-                                      <span>
-                                        {media.isUrl
-                                          ? "URL"
-                                          : `${getMediaSize(media)} MB`}
-                                      </span>
+                                      {etiquetaTamano(media) && (
+                                        <span>{etiquetaTamano(media)}</span>
+                                      )}
                                       {media.favorito && (
                                         <FaStar className="text-yellow-400" />
                                       )}
@@ -2564,13 +2238,13 @@ const Multimedia = () => {
             </div>
 
             {/* Reproductor (centro/derecha) */}
-            <div className="order-1 xl:order-2 xl:col-span-6 2xl:col-span-7 min-h-0 flex justify-center">
+            <div className="order-1 xl:order-2 xl:col-span-8 2xl:col-span-9 min-h-0 flex justify-center">
               <div className="w-full max-w-4xl">
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-xl mb-6">
+                <div className="bg-slate-900/50 rounded-xl p-4 xl:p-5 border border-slate-800">
                   {mediaForPlayer ? (
                     <div className="space-y-4">
                       {/* Información del archivo actual */}
-                      <div className="bg-gray-700/50 p-4 rounded-xl">
+                      <div className="bg-white/[0.04] border border-white/[0.06] p-3 rounded-lg">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <h3 className="font-medium text-white truncate mb-1">
@@ -2580,12 +2254,12 @@ const Multimedia = () => {
                               <span className="capitalize">
                                 {getMediaType(mediaForPlayer)}
                               </span>
-                              <span>•</span>
-                              <span>
-                                {mediaForPlayer.isUrl
-                                  ? "URL"
-                                  : `${getMediaSize(mediaForPlayer)} MB`}
-                              </span>
+                              {etiquetaTamano(mediaForPlayer) && (
+                                <>
+                                  <span>•</span>
+                                  <span>{etiquetaTamano(mediaForPlayer)}</span>
+                                </>
+                              )}
                               {!currentMedia && (
                                 <span className="ml-1 text-xs text-white/60 bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
                                   Última reproducción
@@ -2698,7 +2372,7 @@ const Multimedia = () => {
                               step="0.1"
                               value={Math.min(currentTime, duration)}
                               onChange={(e) => seek(Number(e.target.value))}
-                              className="flex-1 accent-red-400"
+                              className="flex-1 accent-indigo-400"
                             />
                             <span className="text-xs text-gray-400 w-10 tabular-nums">
                               {formatTime(duration)}
@@ -2711,7 +2385,8 @@ const Multimedia = () => {
                         <button
                           type="button"
                           onClick={handleTogglePlayPause}
-                          className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                          className="bg-white hover:bg-slate-200 text-slate-900 p-4 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                          title={isPlaying ? "Pausar" : "Reproducir"}
                         >
                           {isPlaying ? (
                             <FaPause className="text-xl" />
@@ -2723,6 +2398,7 @@ const Multimedia = () => {
                           type="button"
                           onClick={stopGlobal}
                           className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                          title="Detener"
                         >
                           <FaStop />
                         </button>
@@ -2737,7 +2413,7 @@ const Multimedia = () => {
                         <button
                           type="button"
                           onClick={clearProjector}
-                          className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full transition-all duration-300"
+                          className="bg-white/10 hover:bg-red-600 text-white p-3 rounded-full transition-colors border border-white/10"
                           title="Limpiar proyector"
                         >
                           <FaTimes />
@@ -2748,7 +2424,7 @@ const Multimedia = () => {
                             onClick={() =>
                               copyToClipboard(mediaForPlayer.originalUrl)
                             }
-                            className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-full transition-all duration-300"
+                            className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors border border-white/10"
                             title="Copiar URL original"
                           >
                             <FaCopy />
@@ -2757,7 +2433,7 @@ const Multimedia = () => {
                       </div>
 
                       {/* Control de volumen (controla el audio del proyector) */}
-                      <div className="bg-gray-700/50 p-4 rounded-xl">
+                      <div className="bg-white/[0.04] border border-white/[0.06] px-4 py-3 rounded-lg">
                         <div className="flex items-center gap-x-3">
                           <FaVolumeUp className="text-gray-300 flex-shrink-0" />
                           <input
@@ -2766,7 +2442,7 @@ const Multimedia = () => {
                             max="100"
                             value={volume}
                             onChange={(e) => setVolume(e.target.value)}
-                            className="flex-1 accent-red-400"
+                            className="flex-1 accent-indigo-400"
                           />
                           <span className="text-sm text-gray-300 w-12 text-center">
                             {volume}%
@@ -2783,7 +2459,7 @@ const Multimedia = () => {
                         Sin contenido seleccionado
                       </h3>
                       <p className="text-gray-500 text-sm">
-                        Selecciona un archivo para reproducir o agrega una URL
+                        Elige un archivo de la biblioteca o agrega un enlace
                       </p>
                     </div>
                   )}
@@ -2791,124 +2467,6 @@ const Multimedia = () => {
               </div>
             </div>
 
-            {/* ✨ SIDEBAR CON ENLACES RÁPIDOS - MANTENER SOLO ESTA VERSIÓN */}
-            <div className="order-3 xl:col-span-2 min-h-0">
-              {/* Enlaces rápidos YouTube */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 xl:p-5 border border-white/10 shadow-xl h-full flex flex-col min-h-0">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <FaYoutube className="text-red-500" />
-                  Accesos Rápidos
-                </h3>
-
-                {/* Estado vacío */}
-                {quickLinks.length === 0 && (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center px-3 py-8">
-                    <FaLink className="text-3xl text-white/20 mb-3" />
-                    <p className="text-white/50 text-sm">Sin accesos rápidos</p>
-                    <p className="text-white/30 text-xs mt-1">
-                      Agrega una URL con el botón &ldquo;Agregar URL&rdquo;
-                    </p>
-                  </div>
-                )}
-
-                {/* Lista de accesos rápidos — vienen directamente de la DB */}
-                {quickLinks.length > 0 && (
-                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <FaStar className="text-yellow-400" />
-                        URLs guardadas
-                      </span>
-                      <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">
-                        {quickLinks.length}
-                      </span>
-                    </h4>
-                    <div className="space-y-2">
-                      {quickLinks.map((link) => {
-                        const isYT = getMediaType(link) === "youtube";
-                        const isLinkPlaying = currentMedia?.id === link.id;
-
-                        return (
-                          <div
-                            key={link.id}
-                            className={`group rounded-lg overflow-hidden transition-colors ${
-                              isLinkPlaying
-                                ? "bg-green-700/40 ring-2 ring-green-500"
-                                : "bg-gray-700/30 hover:bg-gray-600/50"
-                            }`}
-                          >
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => handleQuickLinkClick(link)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  handleQuickLinkClick(link);
-                                }
-                              }}
-                              className="p-1.5"
-                            >
-                              {isYT ? (
-                                <div className="relative w-full h-20 rounded-lg overflow-hidden bg-gray-800 mb-2">
-                                  <img
-                                    src={getYouTubeThumbnail(link.ruta_archivo || link.url)}
-                                    alt={getMediaName(link)}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = "none";
-                                    }}
-                                  />
-                                  <div className="absolute inset-0 bg-gray-950/30 flex items-center justify-center">
-                                    <FaYoutube className="text-red-500 text-xl" />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="w-full h-12 rounded-lg bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center mb-2">
-                                  <FaLink className="text-blue-400 text-xl" />
-                                </div>
-                              )}
-
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <h5 className="font-medium text-white text-xs leading-4 break-words mb-1">
-                                    {getMediaName(link)}
-                                  </h5>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                                    {isYT ? (
-                                      <>
-                                        <FaYoutube className="text-red-500 flex-shrink-0" />
-                                        <span>YouTube</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <FaLink className="text-blue-400 flex-shrink-0" />
-                                        <span>URL externa</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteMedia(link.id);
-                                  }}
-                                  className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300"
-                                  title="Eliminar enlace"
-                                >
-                                  <FaTimes className="text-sm" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2920,12 +2478,12 @@ const Multimedia = () => {
             <div className="p-6 border-b border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-x-3">
-                  <div className="bg-blue-500/20 p-3 rounded-full">
-                    <FaLink className="text-blue-400 text-xl" />
+                  <div className="bg-indigo-500/15 p-3 rounded-full">
+                    <FaLink className="text-indigo-300 text-xl" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">
-                      Agregar URL
+                      Agregar enlace
                     </h2>
                     <p className="text-gray-400 text-sm">
                       YouTube, videos, audio o imágenes
@@ -2958,7 +2516,7 @@ const Multimedia = () => {
                     value={urlTitle}
                     onChange={(e) => setUrlTitle(e.target.value)}
                     placeholder="Ej: Música de adoración, Predicación especial..."
-                    className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
                     onKeyPress={(e) =>
                       e.key === "Enter" &&
                       document.getElementById("url-input").focus()
@@ -2977,7 +2535,7 @@ const Multimedia = () => {
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
                     placeholder="https://youtube.com/watch?v=... o https://ejemplo.com/video.mp4"
-                    className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    className="w-full p-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-300"
                     onKeyPress={(e) => e.key === "Enter" && handleUrlSubmit()}
                   />
                 </div>
@@ -3014,10 +2572,10 @@ const Multimedia = () => {
                   <button
                     type="button"
                     onClick={handleUrlSubmit}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <FaLink />
-                    Agregar URL
+                    Agregar
                   </button>
                 </div>
               </div>

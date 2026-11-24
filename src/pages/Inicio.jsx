@@ -25,7 +25,7 @@ import {
 } from "react-icons/fa";
 import {LazyMotion, domAnimation, m} from "framer-motion";
 import {useMediaPlayer} from "../contexts/MediaPlayerContext";
-import himnosData from "../data/himnos.json";
+import {useHimnario} from "../utils/himnario";
 import vidacristianaData from "../data/vidacristiana.json";
 
 // Barras animadas de reproducción
@@ -128,6 +128,8 @@ const CITAS_BIBLICAS = [
 
 const Inicio = () => {
   const navigate = useNavigate();
+  const himnario = useHimnario();
+  const himnosData = himnario.himnos;
   const mediaContext = useMediaPlayer();
   const [mensaje, setMensaje] = useState(() => {
     const hora = new Date().getHours();
@@ -273,7 +275,7 @@ const Inicio = () => {
   const accesos = [
     {
       icon: FaMusic,
-      label: "Himno Moravo",
+      label: himnario.himno,
       sub: `${himnosData.length} himnos`,
       path: "/himnos",
       from: "from-emerald-500/25",
@@ -401,7 +403,7 @@ const Inicio = () => {
     {
       icon: FaMusic,
       value: himnosData.length,
-      label: "Himnos Moravo",
+      label: himnario.nombre,
       color: "text-emerald-400",
       bg: "bg-emerald-500/8  border-emerald-500/20",
     },

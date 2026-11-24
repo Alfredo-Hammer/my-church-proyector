@@ -4,9 +4,10 @@ import {
   IoSave, IoRefresh, IoImage, IoClose, IoCheckmark,
   IoWarning, IoInformationCircle, IoEye, IoCloudDone,
 } from "react-icons/io5";
-import {FaVideo, FaChurch, FaPalette, FaFont, FaDatabase} from "react-icons/fa";
+import {FaVideo, FaChurch, FaPalette, FaFont, FaDatabase, FaMusic} from "react-icons/fa";
 import {CLASS_PX} from "../utils/pantallaScale";
 import {componenteFondoAnimado} from "../components/fondosAnimados";
+import {HIMNARIOS, useHimnario, cambiarHimnario} from "../utils/himnario";
 
 const BASE_URL = "http://localhost:3001";
 
@@ -219,6 +220,44 @@ function ClavePixabay() {
         )}
       </div>
       {estado && <p className={`text-xs mt-2 ${colorEstado[estado.tipo]}`}>{estado.texto}</p>}
+    </Section>
+  );
+}
+
+// Himnario en miskito de la iglesia: se muestra uno solo (en el menú, en Inicio
+// y en la app del celular). Vida Cristiana y Mis Canciones siguen para todos.
+export function SelectorHimnario() {
+  const himnario = useHimnario();
+  return (
+    <Section icon={<FaMusic />} title="Himnario de la iglesia" subtitle="El himnario en miskito que usa tu iglesia. Se muestra solo el que elijas." accent="indigo">
+      <div role="radiogroup" aria-label="Himnario de la iglesia" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {HIMNARIOS.map((h) => {
+          const activo = himnario.id === h.id;
+          return (
+            <button
+              key={h.id}
+              type="button"
+              role="radio"
+              aria-checked={activo}
+              onClick={() => cambiarHimnario(h.id)}
+              className={`text-left rounded-xl border px-4 py-3 transition-colors ${
+                activo
+                  ? "border-indigo-400/60 bg-indigo-500/10"
+                  : "border-white/[0.08] hover:border-white/20 bg-slate-800/30"
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className={`text-sm font-semibold ${activo ? "text-white" : "text-slate-300"}`}>{h.nombre}</span>
+                {activo && <IoCheckmark className="text-indigo-300 shrink-0" />}
+              </span>
+              <span className="block text-[11px] text-slate-500 mt-0.5">{h.himnos.length} himnos en miskito</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-slate-500 mt-3">
+        Los favoritos de cada himnario se guardan por separado. La app del celular muestra el mismo que elijas acá.
+      </p>
     </Section>
   );
 }
@@ -714,6 +753,8 @@ const Configuracion = () => {
                     </div>
                   </div>
                 </Section>
+
+                <SelectorHimnario />
               </div>
             )}
 

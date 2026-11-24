@@ -9,13 +9,14 @@ import {
   IoAlertCircleOutline,
   IoSparkles,
 } from "react-icons/io5";
+import {HIMNARIOS, useHimnario, cambiarHimnario} from "../utils/himnario";
 
 const COLOR_PRESETS = [
   "#6366f1", "#8b5cf6", "#fb923c", "#f59e0b", "#22c55e",
   "#14b8a6", "#3b82f6", "#ec4899", "#ef4444", "#ffffff",
 ];
 
-const PASOS = ["bienvenida", "iglesia", "logo", "apariencia", "pantalla", "listo"];
+const PASOS = ["bienvenida", "iglesia", "himnario", "logo", "apariencia", "pantalla", "listo"];
 
 const inputCls =
   "w-full px-3.5 py-2.5 bg-slate-800/60 border border-white/8 hover:border-white/15 focus:border-indigo-500/50 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none transition-colors";
@@ -32,6 +33,7 @@ export default function OnboardingWizard({onFinish}) {
   const [detectando, setDetectando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const fileInputRef = useRef(null);
+  const himnario = useHimnario();
   // Solo se lee dentro de finalizar() (un handler), nunca durante el render
   // — un ref evita un re-render de todo el wizard al elegir el archivo.
   const archivoLogoRef = useRef(null);
@@ -202,6 +204,44 @@ export default function OnboardingWizard({onFinish}) {
                   placeholder="Ej: Bienvenidos a la Casa de Dios"
                   className={inputCls}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* ── Himnario en miskito ── */}
+          {paso === "himnario" && (
+            <div className="flex-1 flex flex-col gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">Himnario de tu iglesia</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Elegí el himnario en miskito que usan. Se muestra solo ese; Vida Cristiana está siempre.
+                  Lo podés cambiar después en Configuración.
+                </p>
+              </div>
+              <div role="radiogroup" aria-label="Himnario de tu iglesia" className="flex flex-col gap-2.5">
+                {HIMNARIOS.map((h) => {
+                  const activo = himnario.id === h.id;
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={activo}
+                      onClick={() => cambiarHimnario(h.id)}
+                      className={`flex items-center justify-between gap-3 text-left rounded-xl border px-4 py-3.5 transition-colors ${
+                        activo
+                          ? "border-indigo-400/60 bg-indigo-500/10"
+                          : "border-white/8 hover:border-white/20 bg-slate-800/40"
+                      }`}
+                    >
+                      <span>
+                        <span className={`block text-sm font-semibold ${activo ? "text-white" : "text-slate-300"}`}>{h.nombre}</span>
+                        <span className="block text-[11px] text-slate-500 mt-0.5">{h.himnos.length} himnos en miskito</span>
+                      </span>
+                      {activo && <IoCheckmarkCircle className="text-indigo-300 text-lg shrink-0" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

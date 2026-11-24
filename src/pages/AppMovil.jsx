@@ -1,3 +1,4 @@
+import {datosHimnario} from "../utils/himnario";
 import {useEffect, useMemo, useState} from "react";
 import {IoInformationCircle, IoRefresh} from "react-icons/io5";
 import {FaGooglePlay, FaWifi, FaMobileAlt, FaCopy, FaCheck, FaLock} from "react-icons/fa";
@@ -246,7 +247,7 @@ const AppMovil = () => {
               <p className="text-xs font-semibold text-slate-300 mb-3">¿Qué puedes hacer desde la app?</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  {label: "Himnario Moravo", color: "text-indigo-300", bg: "bg-indigo-500/10 border-indigo-500/20"},
+                  {label: datosHimnario().nombre, color: "text-indigo-300", bg: "bg-indigo-500/10 border-indigo-500/20"},
                   {label: "Vida Cristiana", color: "text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/20"},
                   {label: "Biblia", color: "text-amber-300", bg: "bg-amber-500/10 border-amber-500/20"},
                   {label: "Fondos de pantalla", color: "text-blue-300", bg: "bg-blue-500/10 border-blue-500/20"},

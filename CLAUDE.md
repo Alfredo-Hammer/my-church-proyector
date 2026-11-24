@@ -50,6 +50,15 @@ edita un libro, mantenerlo como JSON válido. Versión elegida: `src/utils/versi
 (localStorage + configuración `bibliaVersion`); la API `/api/biblia/*` acepta `?version=` y si no,
 usa la de la compu (compatible con APKs viejos).
 
+**Himnario en miskito: Moravo o Adventista, se muestra uno solo.** La iglesia lo elige en el
+asistente inicial o en Configuración → Identidad (`src/utils/himnario.js`: localStorage + configuración
+`himnario`). Internamente el tipo sigue siendo `"moravo"` (rutas `/himnos`, `/himno/:n`, órdenes de
+servicio): `useHimnario()` da nombre y datos del elegido. El servidor (`servidor/rutas/himnos.js`)
+responde `?tipo=moravo` con el elegido, así los APKs viejos funcionan sin actualizar. Ids y favoritos
+separados: `base:moravo:N` / `base:adventista:N`, claves `himnos_favoritos_moravo|adventista`.
+Datos: `himnos_adventista.json` (236 himnos, del proyecto Android HimnarioAdventistaMiskitu) en
+`src/data/` y `public/data/` — las dos copias iguales (la prueba `himnario-api` lo verifica).
+
 **Diapositivas → Importar PDF** (PowerPoint guardado como PDF): `src/utils/pdfADiapositivas.js`
 con pdfjs-dist **3.11.174 fijo** y `isEvalSupported: false` siempre (CVE-2024-4367 / CSP sin eval).
 Fuentes estándar en `public/pdfjs/standard_fonts`. Las imágenes se guardan con el IPC

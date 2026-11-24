@@ -18,7 +18,7 @@ module.exports = function registrar(expressApp, ctx) {
   } = ctx;
 
   // ✅ Catálogo de himnos para app móvil (siempre desde el escritorio)
-  // Query: ?tipo=moravo|vida|personal
+  // Query: ?tipo=moravo|vida|personal  (moravo = el himnario en miskito elegido: moravo o adventista)
   // Respuesta: { ok:true, tipo, himnos:[{ id, numero, titulo, parrafos, fuente }] }
   // Nota: moravo/vida devuelve solo el catálogo base; personal devuelve solo himnos creados por el usuario.
   const leerJsonHimnosSeguro = (filename) => {
@@ -46,6 +46,23 @@ module.exports = function registrar(expressApp, ctx) {
     return [];
   };
 
+  // Himnario en miskito elegido por la iglesia (Configuración → `himnario`): se muestra uno solo.
+  // La app móvil (también las versiones viejas) pide `tipo=moravo` y recibe el elegido.
+  const HIMNARIOS = {
+    moravo: { archivo: 'himnos.json', favoritos: 'himnos_favoritos_moravo', nombre: 'Himnario Moravo' },
+    adventista: { archivo: 'himnos_adventista.json', favoritos: 'himnos_favoritos_adventista', nombre: 'Himnario Adventista' },
+    vida: { archivo: 'vidacristiana.json', favoritos: 'himnos_favoritos_vida', nombre: 'Vida Cristiana' },
+  };
+  const himnarioElegido = async () => {
+    try {
+      return String(await obtenerConfiguracion('himnario')) === 'adventista' ? 'adventista' : 'moravo';
+    } catch {
+      return 'moravo';
+    }
+  };
+  // tipo de la petición → clave real en HIMNARIOS ('moravo' = el himnario elegido).
+  const resolverTipo = async (tipo) => (tipo === 'vida' ? 'vida' : await himnarioElegido());
+
   expressApp.get('/api/himnos', async (req, res) => {
     try {
       const tipoRaw = String(req.query?.tipo || 'moravo').toLowerCase();
@@ -54,10 +71,11 @@ module.exports = function registrar(expressApp, ctx) {
       let baseNormalizados = [];
       let dbNormalizados = [];
 
+      const real = tipo === 'personal' ? null : await resolverTipo(tipo);
       if (tipo !== 'personal') {
-        const filename = tipo === 'vida' ? 'vidacristiana.json' : 'himnos.json';
+        const filename = HIMNARIOS[real].archivo;
 
-        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+        const keyFavoritos = HIMNARIOS[real].favoritos;
         let favoritosBaseIds = [];
         try {
           const rawFav = await obtenerConfiguracion(keyFavoritos);
@@ -71,12 +89,12 @@ module.exports = function registrar(expressApp, ctx) {
         baseNormalizados = base.flatMap((h) => {
           if (!String(h?.titulo || '').trim()) return [];
           return [{
-            id: `base:${tipo}:${h?.numero ?? ''}`,
+            id: `base:${real}:${h?.numero ?? ''}`,
             numero: h?.numero ?? '',
             titulo: h?.titulo ?? '',
             parrafos: Array.isArray(h?.parrafos) ? h.parrafos : [],
-            fuente: tipo,
-            favorito: favoritosBaseIds.includes(`base:${tipo}:${h?.numero ?? ''}`),
+            fuente: real,
+            favorito: favoritosBaseIds.includes(`base:${real}:${h?.numero ?? ''}`),
           }];
         });
       }
@@ -105,6 +123,8 @@ module.exports = function registrar(expressApp, ctx) {
       return res.json({
         ok: true,
         tipo,
+        // Para versiones nuevas de la app móvil: qué himnario es (nombre para mostrar).
+        himnario: real ? { id: real, nombre: HIMNARIOS[real].nombre } : null,
         himnos: tipo === 'personal' ? dbNormalizados : baseNormalizados,
       });
     } catch (error) {
@@ -119,13 +139,14 @@ module.exports = function registrar(expressApp, ctx) {
   expressApp.get('/api/himnos/favoritos', async (req, res) => {
     try {
       const tipoRaw = String(req.query?.tipo || 'all').toLowerCase();
-      const tipos = tipoRaw === 'vida' ? ['vida'] : tipoRaw === 'moravo' ? ['moravo'] : ['moravo', 'vida'];
+      const principal = await himnarioElegido();
+      const tipos = tipoRaw === 'vida' ? ['vida'] : tipoRaw === 'moravo' ? [principal] : [principal, 'vida'];
 
       const favoritos = [];
 
       for (const t of tipos) {
-        const filename = t === 'vida' ? 'vidacristiana.json' : 'himnos.json';
-        const keyFavoritos = t === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+        const filename = HIMNARIOS[t].archivo;
+        const keyFavoritos = HIMNARIOS[t].favoritos;
 
         let favoritosBaseIds = [];
         try {
@@ -200,8 +221,8 @@ module.exports = function registrar(expressApp, ctx) {
 
       if (id.startsWith('base:')) {
         const parts = id.split(':');
-        const tipo = parts?.[1] === 'vida' ? 'vida' : 'moravo';
-        const keyFavoritos = tipo === 'vida' ? 'himnos_favoritos_vida' : 'himnos_favoritos_moravo';
+        const tipo = HIMNARIOS[parts?.[1]] ? parts[1] : 'moravo';
+        const keyFavoritos = HIMNARIOS[tipo].favoritos;
 
         let favoritosBaseIds = [];
         try {

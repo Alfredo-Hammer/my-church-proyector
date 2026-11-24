@@ -31,10 +31,16 @@ import UpdateNotification from "./components/UpdateNotification";
 import OnboardingWizard from "./components/OnboardingWizard";
 import librosDeLaBiblia from "./utils/libros";
 import { cargarLibro } from "./utils/cargarLibro";
+import { sincronizarHimnario } from "./utils/himnario";
 
 // Componente interno para manejar la navegación
 function AppContent() {
   const navigate = useNavigate();
+
+  // Himnario en miskito elegido (Moravo/Adventista): manda lo guardado en la configuración.
+  useEffect(() => {
+    sincronizarHimnario();
+  }, []);
 
   useEffect(() => {
     // Migración 1 vez: favoritos antiguos (localStorage) -> backend (SQLite/config)

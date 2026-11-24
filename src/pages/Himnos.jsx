@@ -15,13 +15,15 @@ import {
   FaCheck,
   FaBolt,
 } from "react-icons/fa6";
-import himnosData from "../data/himnos.json";
+import {useHimnario, idBaseHimno} from "../utils/himnario";
 
 const Himnos = () => {
   const API_BASE = "http://localhost:3001";
   const navigate = useNavigate();
 
   const [busqueda, setBusqueda] = useState("");
+  const himnario = useHimnario();
+  const himnosData = himnario.himnos;
   const [himnos, setHimnos] = useState(himnosData);
   const [vistaGrid, setVistaGrid] = useState(false);
   const [ordenamiento, setOrdenamiento] = useState("numero");
@@ -38,8 +40,9 @@ const Himnos = () => {
   const itemRefs = useRef([]);
 
   useEffect(() => {
+    setHimnos(himnosData);
     cargarHimnosDesdeServidor();
-  }, []);
+  }, [himnario.id]);
 
   // Shortcut: "/" o Ctrl+K abre la paleta
   useEffect(() => {
@@ -115,7 +118,7 @@ const Himnos = () => {
 
   const toggleFavorito = async (himno) => {
     const numero = himno?.numero;
-    const id = himno?.id || `base:moravo:${numero}`;
+    const id = himno?.id || idBaseHimno(numero, himnario.id);
     if (!numero) return;
     const prev = new Set(favoritos);
     const esAgregar = !prev.has(numero);
@@ -377,7 +380,7 @@ const Himnos = () => {
               <FaMusic className="text-emerald-400 text-[11px]" />
             </div>
             <span className="text-sm font-semibold text-white hidden sm:inline">
-              Himnario Moravo
+              {himnario.nombre}
             </span>
           </div>
 

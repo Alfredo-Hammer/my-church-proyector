@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Link, useLocation} from "react-router-dom";
+import {useHimnario} from "../utils/himnario";
 import {
   FaHome,
   FaMusic,
@@ -129,6 +130,7 @@ const MENU = [
 ];
 
 export default function Sidebar() {
+  const himnario = useHimnario();
   const location = useLocation();
   const [appVersion, setAppVersion] = useState("");
 
@@ -254,7 +256,9 @@ export default function Sidebar() {
         className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-px
         scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
       >
-        {MENU.map((item) => {
+        {MENU.map((itemBase) => {
+          // El himnario en miskito lleva el nombre del que eligió la iglesia (Moravo o Adventista).
+          const item = itemBase.id === "himnos" ? {...itemBase, label: himnario.nombre} : itemBase;
           /* Separador de sección */
           if (item.isSection) {
             return collapsed ? (

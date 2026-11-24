@@ -1,8 +1,8 @@
 import {useParams, useNavigate, useLocation} from "react-router-dom";
 import {useState, useEffect, useMemo} from "react";
-import himnosData from "../data/himnos.json";
 import vidacristianaData from "../data/vidacristiana.json";
 import {useNowPlaying} from "../contexts/NowPlayingContext";
+import {useHimnario} from "../utils/himnario";
 import {
   FaHeart,
   FaRegHeart,
@@ -69,6 +69,8 @@ const HimnoDetalle = () => {
   const {id, numero} = useParams();
   const {state} = useLocation();
   const nowPlaying = useNowPlaying();
+  const himnario = useHimnario();
+  const himnosData = himnario.himnos;
   const [himno, setHimno] = useState(null);
   const [localSelectedParrafo, setLocalSelectedParrafo] = useState(0);
   const [favoritos, setFavoritos] = useState(new Set());
@@ -186,7 +188,7 @@ const HimnoDetalle = () => {
       try {
         if (numero) {
           const fuenteKey =
-            state?.tipo === "vidaCristiana" ? "vidaCristiana" : "moravo";
+            state?.tipo === "vidaCristiana" ? "vidaCristiana" : himnario.id;
           const jsonData =
             state?.tipo === "vidaCristiana" ? vidacristianaData : himnosData;
           const hBase = jsonData.find((h) => h.numero.toString() === numero);
@@ -226,7 +228,8 @@ const HimnoDetalle = () => {
       }
     };
     cargarHimno();
-  }, [id, numero, state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, numero, state, himnario.id]);
 
 
   const proyectarHimno = () => {
@@ -268,7 +271,7 @@ const HimnoDetalle = () => {
     );
 
     const fuenteKey =
-      state?.tipo === "vidaCristiana" ? "vidaCristiana" : "moravo";
+      state?.tipo === "vidaCristiana" ? "vidaCristiana" : himnario.id;
 
     try {
       if (dbId) {
@@ -351,7 +354,7 @@ const HimnoDetalle = () => {
           throw new Error("IPC no disponible");
         await window.electron.marcarFavorito(id, esAgregar);
       } else {
-        const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : "moravo";
+        const tipoApi = state?.tipo === "vidaCristiana" ? "vida" : himnario.id;
         const himnoId = `base:${tipoApi}:${String(himno.numero)}`;
         const res = await fetch(
           `${API_BASE}/api/himnos/${encodeURIComponent(himnoId)}/favorito`,
@@ -531,7 +534,7 @@ const HimnoDetalle = () => {
                   ) : (
                     <FaBible className="text-[8px]" />
                   )}
-                  {isVidaCristiana ? "Vida Cristiana" : "Himno Moravo"}
+                  {isVidaCristiana ? "Vida Cristiana" : himnario.himno}
                 </span>
                 <span className="text-white/20 text-[10px]">·</span>
                 <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-400/80">

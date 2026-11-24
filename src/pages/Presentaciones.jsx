@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useMemo, useCallback, useRef} from "react";
-import himnosData from "../data/himnos.json";
+import {useHimnario, datosHimnario} from "../utils/himnario";
 import vidacristianaData from "../data/vidacristiana.json";
 import librosDeLaBiblia from "../utils/libros";
 import {cargarLibro} from "../utils/cargarLibro";
@@ -104,7 +104,7 @@ const itemSub = (item) => {
   if (item.tipo === "himno") {
     if (item.tipoHimno === "vida") return "Vida Cristiana";
     if (item.tipoHimno === "personalizado") return "Himno Personalizado";
-    return "Himno Moravo";
+    return datosHimnario().himno;
   }
   if (item.tipo === "versiculo")
     return (
@@ -144,6 +144,8 @@ export default function Presentaciones() {
   const [filtroMedia, setFiltroMedia] = useState("todos"); // "todos" | "imagen" | "video"
   const [busquedaHimno, setBusquedaHimno] = useState("");
   const [tipoHimno, setTipoHimno] = useState("moravo");
+  const himnario = useHimnario();
+  const himnosData = himnario.himnos;
   const [himnosPersonalizados, setHimnosPersonalizados] = useState([]);
   const [notaTexto, setNotaTexto] = useState("");
 
@@ -478,7 +480,7 @@ export default function Presentaciones() {
           h.numero?.toString().includes(b),
       )
       .slice(0, 50);
-  }, [busquedaHimno, tipoHimno, himnosPersonalizados]);
+  }, [busquedaHimno, tipoHimno, himnosPersonalizados, himnosData]);
 
   const agregarHimno = (himno) => {
     // Los himnos personalizados usan `letra` (array de estrofas); los del himnario usan `parrafos`
@@ -905,7 +907,7 @@ export default function Presentaciones() {
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/25 text-emerald-300 text-xs font-medium transition-colors"
                 >
-                  <FaMusic className="text-[9px]" /> Himno Moravo
+                  <FaMusic className="text-[9px]" /> {himnario.himno}
                 </button>
                 <button
                   type="button"
@@ -1296,7 +1298,7 @@ export default function Presentaciones() {
                       onClick={() => setTipoHimno("moravo")}
                       className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${tipoHimno === "moravo" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
                     >
-                      Moravo
+                      {himnario.corto}
                     </button>
                     <button
                       type="button"

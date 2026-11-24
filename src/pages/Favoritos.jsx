@@ -15,6 +15,7 @@ import {
   FaBible,
 } from "react-icons/fa";
 import {useNavigate} from "react-router-dom";
+import {useHimnario, idBaseHimno} from "../utils/himnario";
 import {toast, ToastContainer} from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -34,6 +35,7 @@ export default function Favoritos() {
   const [loadingPersonalizados, setLoadingPersonalizados] = useState(false);
 
   const navigate = useNavigate();
+  const himnario = useHimnario();
 
   useEffect(() => {
     cargarFavoritos();
@@ -138,7 +140,7 @@ export default function Favoritos() {
     const {himno} = modalEliminar;
     try {
       if (himno.tipo === "moravo") {
-        const idApi = `base:moravo:${String(himno.identificador)}`;
+        const idApi = idBaseHimno(String(himno.identificador), himnario.id);
         const res = await fetch(
           `${API_BASE}/api/himnos/${encodeURIComponent(idApi)}/favorito`,
           {
@@ -268,7 +270,7 @@ export default function Favoritos() {
             )}
             {favoritosHimnos.length > 0 && (
               <span className="shrink-0 text-[10px] text-cyan-400/80 bg-cyan-500/10 border border-cyan-500/20 rounded px-1.5 py-0.5 tabular-nums">
-                {favoritosHimnos.length} moravos
+                {favoritosHimnos.length} {himnario.plural.toLowerCase()}
               </span>
             )}
             {favoritosVidaCristiana.length > 0 && (
@@ -334,7 +336,7 @@ export default function Favoritos() {
                 onClick={() => navigate("/himnos")}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors"
               >
-                <FaBook className="text-[10px]" /> Moravos
+                <FaBook className="text-[10px]" /> {himnario.plural}
               </button>
               <button
                 type="button"
@@ -368,7 +370,7 @@ export default function Favoritos() {
             )}
             {favoritosHimnos.length > 0 && (
               <SeccionFavoritos
-                titulo="Moravos"
+                titulo={himnario.plural}
                 icono={<FaBook className="text-cyan-400 text-xs" />}
                 favoritos={favoritosHimnos}
                 colorScheme="cyan"

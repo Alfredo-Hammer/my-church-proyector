@@ -176,3 +176,46 @@ p { margin: 0; }
 .version h2 { margin-top: 0; }
 .version .acciones { margin-top: 18px; }
 .doc .resumen { background: var(--brand-soft); border-radius: var(--radius); padding: 18px 20px; color: var(--ink); margin: 28px 0; }
+
+/* Carrusel de capturas */
+.carrusel { position: relative; }
+.carrusel-lista {
+  list-style: none; margin: 0; padding: 4px 0 8px; display: flex; gap: 20px;
+  overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.carrusel-lista::-webkit-scrollbar { display: none; }
+.carrusel-lista:focus-visible { outline: 3px solid var(--brand); outline-offset: 6px; border-radius: var(--radius-lg); }
+.diapo { flex: 0 0 100%; scroll-snap-align: center; }
+@media (min-width: 900px) { .diapo { flex-basis: 84%; } }
+.diapo .ventana { box-shadow: 0 24px 50px -28px rgba(15, 27, 45, 0.45), 0 0 0 1px rgba(15, 27, 45, 0.08); }
+.diapo-texto { margin-top: 14px; color: var(--ink-2); max-width: 46em; }
+.diapo-texto strong { color: var(--ink); }
+.carrusel-controles { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 20px; }
+.flecha {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.flecha svg { width: 20px; height: 20px; }
+.flecha:hover:not(:disabled) { border-color: #c5cbd5; }
+.flecha:disabled { opacity: .35; cursor: default; }
+.puntos { display: flex; gap: 4px; }
+.punto { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.punto::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: #c5cbd5; transition: width .2s ease, background-color .2s ease; }
+.punto[aria-current="true"]::before { width: 22px; background: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .punto::before { transition: none; } }
+
+/* Próximamente: Himnario Adventista */
+.nota-aviso { margin-top: 6px; }
+.nota-aviso a { color: var(--brand-strong); }
+.proximamente {
+  display: flex; align-items: center; justify-content: space-between; gap: 32px;
+  background: var(--brand-soft); border: 1px solid #c8eadb; border-radius: var(--radius-lg); padding: 36px;
+}
+.proximamente h2 { font-size: clamp(24px, 2.6vw, 32px); }
+.proximamente p { color: var(--ink-2); margin-top: 12px; max-width: 42em; }
+.proximamente .proximamente-etiqueta { margin: 0 0 8px; color: var(--brand-strong); font-weight: 700; font-size: 15px; }
+.proximamente-nota { font-size: 15px; }
+.proximamente-nota a { color: var(--ink); font-weight: 600; }
+.proximamente-icono { width: 72px; height: 72px; color: var(--brand); flex: none; }
+@media (max-width: 640px) { .proximamente { padding: 24px; } .proximamente-icono { display: none; } }

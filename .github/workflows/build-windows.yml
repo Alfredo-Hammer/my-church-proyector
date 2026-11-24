@@ -30,10 +30,12 @@ jobs:
           CI: false  # Ignorar warnings de ESLint
           REACT_APP_PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       
+      # Solo compila para revisar que el build de Windows anda. No publica:
+      # los releases los arma release.yml con el tag vX.Y.Z. Sin --publish never,
+      # electron-builder intenta subir al release de la version actual y falla
+      # (ya publicado, o choca con el borrador que esta armando release.yml).
       - name: Compilar ejecutable Windows
-        run: npx electron-builder --win --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --x64 --publish never
       
       - name: Subir ejecutable portable
         uses: actions/upload-artifact@v4

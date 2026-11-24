@@ -217,7 +217,7 @@ function EstructuraAlabanza({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line font-extrabold w-full"
+            className="plg-texto font-extrabold w-full"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(2rem, 5vw, 6rem)"}}
           >
             {partes.map((parte, i) =>
@@ -322,7 +322,7 @@ function EstructuraReflexion({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line w-full"
+            className="plg-texto w-full"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
           >
             {texto}
@@ -409,7 +409,7 @@ function EstructuraEnsenanza({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line font-semibold w-full text-left"
+            className="plg-texto font-semibold w-full text-left"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
           >
             {texto}
@@ -519,7 +519,7 @@ function EstructuraEspecial({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line font-semibold w-full"
+            className="plg-texto font-semibold w-full"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.6rem, 4vw, 4rem)"}}
           >
             {texto}
@@ -624,7 +624,7 @@ function EstructuraVibra({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line w-full"
+            className="plg-texto w-full"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(2rem, 5vw, 6rem)"}}
           >
             {texto}
@@ -755,7 +755,7 @@ function EstructuraGozo({titulo, texto}) {
         >
           <p
             ref={textRef}
-            className="plg-texto whitespace-pre-line w-full"
+            className="plg-texto w-full"
             style={{fontSize: fontSizePx ? `${fontSizePx}px` : "clamp(1.8rem, 4.5vw, 5.5rem)"}}
           >
             {texto}

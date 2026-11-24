@@ -74,7 +74,7 @@ test("los favoritos de cada himnario van por separado", async () => {
   assert.deepEqual(favM.himnos.map((h) => h.id), ["base:moravo:7"]);
 });
 
-test("datos del Himnario Adventista: 236 himnos completos, misma copia en src y public", () => {
+test("datos del Himnario Adventista: 236 himnos completos, texto corrido (como el Moravo), misma copia en src y public", () => {
   const pub = fs.readFileSync(path.join(raiz, "public/data/himnos_adventista.json"), "utf8");
   const src = fs.readFileSync(path.join(raiz, "src/data/himnos_adventista.json"), "utf8");
   assert.equal(pub, src);
@@ -84,6 +84,6 @@ test("datos del Himnario Adventista: 236 himnos completos, misma copia en src y 
   for (const h of himnos) {
     assert.ok(h.titulo.trim(), `#${h.numero} sin título`);
     assert.ok(h.parrafos.length > 0, `#${h.numero} sin estrofas`);
-    for (const p of h.parrafos) assert.ok(p.trim() && !/\/n|\r|\t| \n|\n /.test(p), `#${h.numero}: ${JSON.stringify(p)}`);
+    for (const p of h.parrafos) assert.ok(p.trim() && !/\/n|\r|\t|\n|  /.test(p), `#${h.numero}: ${JSON.stringify(p)}`);
   }
 });

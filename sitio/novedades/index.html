@@ -3,173 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>GloryView Novedades</title>
-<meta name="description" content="Novedades y descargas de la última versión de GloryView.">
+<title>Novedades de GloryView</title>
+<meta name="description" content="Qué trae la última versión de GloryView y dónde descargarla.">
 <link rel="canonical" href="https://gloryview.app/novedades/">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
-<meta name="theme-color" content="#05070a">
+<meta name="theme-color" content="#f5f6f8">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="GloryView">
-<meta property="og:title" content="GloryView Novedades">
-<meta property="og:description" content="Novedades y descargas de la última versión de GloryView.">
+<meta property="og:title" content="Novedades de GloryView">
+<meta property="og:description" content="Qué trae la última versión de GloryView y dónde descargarla.">
 <meta property="og:url" content="https://gloryview.app/novedades/">
-<meta property="og:image" content="https://gloryview.app/shot-panel.png">
+<meta property="og:image" content="https://gloryview.app/img/proy-miskito.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<style>html{background:#05070a}body{margin:0}img{max-width:100%}</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#05070a;
-    --bg-2:#0c111c;
-    --bg-3:#111827;
-    --hair:rgba(255,255,255,0.09);
-    --hair-strong:rgba(255,255,255,0.16);
-    --ink:#f4f6f3;
-    --muted:#93a0b3;
-    --muted-2:#5f6b7d;
-    --brand:#34ffa0;
-    --brand-ink:#04140d;
-    --brand-dim:rgba(52,255,160,0.12);
-  }
-  *{box-sizing:border-box;}
-  body{
-    background:var(--bg);
-    color:var(--ink);
-    font-family:'Manrope',system-ui,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
-  .side{padding-inline:24px;}
-  @media(min-width:720px){.side{padding-inline:56px;}}
-  .wrap{max-width:760px;margin:0 auto;}
-  a{color:inherit;}
-  h1,h2,h3{font-family:'Unbounded',sans-serif;text-wrap:balance;margin:0;}
-  .mono{font-family:'JetBrains Mono',monospace;}
-
-  nav{
-    display:flex;align-items:center;justify-content:space-between;
-    padding-block:20px;border-bottom:1px solid var(--hair);
-    max-width:760px;margin:0 auto;
-  }
-  .brand{display:flex;align-items:center;gap:10px;font-family:'Unbounded',sans-serif;font-weight:700;font-size:16px;letter-spacing:0.01em;text-decoration:none;}
-  .brand img{width:30px;height:30px;border-radius:8px;}
-  .nav-link{font-size:14px;color:var(--muted);text-decoration:none;font-weight:600;}
-  .nav-link:hover{color:var(--ink);}
-
-  .head{padding-block:48px 32px;}
-  .head h1{font-size:clamp(28px,4vw,40px);font-weight:800;letter-spacing:-0.01em;}
-  .head p{color:var(--muted);font-size:15.5px;margin:14px 0 0;max-width:56ch;line-height:1.6;}
-
-  .latest{
-    margin:28px 0 64px;padding:28px;border-radius:16px;
-    border:1px solid rgba(52,255,160,0.32);
-    background:linear-gradient(165deg,var(--bg-2),var(--bg-3));
-  }
-  .latest-top{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
-  .latest-badge{
-    font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;
-    font-family:'JetBrains Mono',monospace;background:var(--brand-dim);color:var(--brand);
-    border:1px solid rgba(52,255,160,0.3);
-  }
-  .latest h2{font-size:22px;}
-  .latest .dl-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;}
-  .btn{
-    display:inline-flex;align-items:center;gap:8px;
-    padding:11px 18px;border-radius:10px;font-weight:700;font-size:14px;
-    text-decoration:none;white-space:nowrap;border:1px solid transparent;
-  }
-  .btn-brand{background:var(--brand);color:var(--brand-ink);}
-  .btn-brand:hover{background:#5cffb3;}
-  .btn-ghost{background:transparent;border:1px solid var(--hair-strong);color:var(--ink);}
-  .btn-ghost:hover{border-color:var(--muted);}
-  .btn small{font-weight:500;opacity:0.75;font-family:'JetBrains Mono',monospace;}
-
-  .ver-body{padding-bottom:72px;}
-  .ver-body h3{
-    font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted-2);
-    font-family:'Manrope',sans-serif;font-weight:700;margin:24px 0 10px;
-  }
-  .ver-body h3:first-child{margin-top:0;}
-  .ver-body ul{margin:0;padding-left:20px;}
-  .ver-body li{font-size:15px;line-height:1.65;color:var(--ink);margin-bottom:8px;}
-  .ver-body li:last-child{margin-bottom:0;}
-
-  footer{border-top:1px solid var(--hair);padding-block:32px;max-width:760px;margin:0 auto;}
-  .foot-grid{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;}
-  footer p{font-size:13px;color:var(--muted-2);margin:0;}
-  footer a{color:var(--muted);text-decoration:none;}
-  footer a:hover{color:var(--ink);}
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
-<div class="side">
-  <nav>
-    <a class="brand" href="/"><img src="/icon.png" alt=""> GloryView</a>
-    <a class="nav-link" href="/">&larr; Volver al inicio</a>
-  </nav>
-</div>
 
-<div class="side">
+<header class="top con-borde">
   <div class="wrap">
-    <section class="head">
-      <h1>Novedades</h1>
-      <p>Lo que trae la última versión de GloryView. Descargá desde acá.</p>
-    </section>
-
-    <section class="latest">
-      <div class="latest-top">
-        <span class="latest-badge">ÚLTIMA VERSIÓN</span>
-      </div>
-      <h2>GloryView v0.5.0</h2>
-      <div class="dl-row">
-        <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-Installer.exe">
-          Windows <small>&middot; 281&nbsp;MB</small>
-        </a>
-        <a class="btn btn-brand" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-arm64.dmg">
-          Mac Apple Silicon <small>&middot; 254&nbsp;MB</small>
-        </a>
-        <a class="btn btn-ghost" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.0/GloryView-0.5.0-x64.dmg">
-          Mac Intel <small>&middot; 261&nbsp;MB</small>
-        </a>
-        <a class="btn btn-ghost" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest/download/GloryView-Movil.apk">
-          App Android <small>&middot; v1.1.0 &middot; 91&nbsp;MB</small>
-        </a>
-      </div>
-    </section>
-
-    <section class="ver-body">
-      <h3>Nuevas funciones</h3>
-      <ul>
-        <li><strong>Modo lejos:</strong> los versículos largos se dividen solos en partes para que la letra se lea desde el fondo del templo. Avanzás parte por parte con las flechas, igual que con los versículos (también desde la app móvil). Se activa y se ajusta en Configuración &gt; Proyector</li>
-        <li><strong>PIN para la app móvil:</strong> los celulares de la red local necesitan un PIN de 6 dígitos para controlar el proyector. Se ve y se renueva en la página App Móvil, y se puede desactivar si no lo necesitás</li>
-        <li><strong>App móvil 1.1.0:</strong> pantalla de inicio nueva, con saludo, estado de la conexión y accesos rápidos con los mismos colores del escritorio</li>
-      </ul>
-      <h3>Mejoras</h3>
-      <ul>
-        <li>Letra más grande en el proyector, pensada para pantallas grandes y salones amplios</li>
-        <li>Configuración más simple: los cambios se guardan solos (ya no hay botón Guardar), se quitaron opciones repetidas y el fondo se cambia desde Gestión de Fondos</li>
-        <li>Colores unificados en toda la app: verde para Proyectar/Mostrar, índigo para Crear/Guardar/Subir y rojo para Eliminar</li>
-        <li>Mayor seguridad en la versión instalada</li>
-      </ul>
-      <h3>Correcciones</h3>
-      <ul>
-        <li>El Temporizador abría en 00:00 con los botones Iniciar y Proyectar deshabilitados</li>
-        <li>Al navegar entre páginas se acumulaban avisos internos y la app se podía poner lenta con el uso</li>
-      </ul>
-      <h3>Importante</h3>
-      <ul>
-        <li>Instalá la app móvil 1.1.0 en los celulares: la versión anterior no sabe pedir el PIN. Mientras los actualizás, desactivá “Exigir PIN” en la página App Móvil</li>
-      </ul>
-    </section>
+    <a class="marca" href="/"><img src="/icon.png" alt="" width="32" height="32">GloryView</a>
+    <nav class="menu" aria-label="Principal">
+      <a class="ocultable" href="/#pantallas">Cómo se ve</a>
+      <a class="ocultable" href="/novedades/">Novedades</a>
+      <a class="btn btn-principal" href="/#descargar">Descargar</a>
+    </nav>
   </div>
-</div>
+</header>
 
-<footer>
-  <div class="foot-grid">
-    <p>GloryView &mdash; gratis para tu iglesia. Hecho por Alfredo Hammer.</p>
-    <a href="/privacidad/">Privacidad</a>
+<main class="doc">
+  <div class="wrap">
+    <h1>Novedades</h1>
+    <p class="lead">Lo que trae la última versión de GloryView. Si ya la tenés instalada, la actualización te llega sola.</p>
+
+    <section class="version" aria-labelledby="v051">
+      <h2 id="v051">Versión 0.5.1</h2>
+      <div class="acciones">
+        <a class="btn btn-principal" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.1/GloryView-0.5.1-Installer.exe">Windows <small data-tam="exe">212 MB</small></a>
+        <a class="btn btn-principal" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.1/GloryView-0.5.1-arm64.dmg">Mac Apple Silicon <small data-tam="arm64"></small></a>
+        <a class="btn btn-borde" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/download/v0.5.1/GloryView-0.5.1-x64.dmg">Mac Intel <small data-tam="x64"></small></a>
+        <a class="btn btn-borde" href="https://github.com/Alfredo-Hammer/my-church-proyector/releases/latest/download/GloryView-Movil.apk">App Android</a>
+      </div>
+    </section>
+
+    <h2>Nuevas funciones</h2>
+    <ul>
+      <li><strong>Biblia Reina-Valera 1909.</strong> Elegila en la página Biblia, junto a la RVR60. La app del celular también la usa.</li>
+      <li><strong>Importar PDF en Diapositivas.</strong> Guardá tu PowerPoint como PDF y cada página se convierte en una diapositiva.</li>
+      <li><strong>Imágenes Online con tu propia clave.</strong> Cada iglesia puede poner su clave de Pixabay en Configuración &gt; Apariencia.</li>
+    </ul>
+
+    <h2>Mejoras</h2>
+    <ul>
+      <li>Motor de la app actualizado (Electron 45): más seguro y más rápido.</li>
+      <li>La app pesa menos: la Biblia ya no se guarda dos veces.</li>
+      <li>Las ventanas para abrir y guardar archivos recuerdan la última carpeta usada.</li>
+    </ul>
+
+    <h2>Correcciones</h2>
+    <ul>
+      <li>Algunos versículos mostraban marcas sueltas como “/n”.</li>
+      <li>Eclesiastés no abría desde la app del celular.</li>
+      <li>Los videos muy cortos (1 segundo o menos) no generaban miniatura.</li>
+    </ul>
+
+    <p class="resumen"><strong>Importante:</strong> en Mac ahora se necesita macOS 13 Ventura o más nuevo. En Windows, 10 u 11 de 64 bits.</p>
+  </div>
+</main>
+
+<footer class="pie">
+  <div class="wrap">
+    <a class="marca" href="/"><img src="/icon.png" alt="" width="32" height="32">GloryView</a>
+    <nav aria-label="Pie">
+      <a href="/novedades/">Novedades</a>
+      <a href="/privacidad/">Privacidad</a>
+    </nav>
+    <p>Hecho por Alfredo Hammer</p>
   </div>
 </footer>
 </body>

@@ -3,6 +3,7 @@ import {useState, useEffect, useMemo} from "react";
 import vidacristianaData from "../data/vidacristiana.json";
 import {useNowPlaying} from "../contexts/NowPlayingContext";
 import {useHimnario} from "../utils/himnario";
+import PistaHimno from "../components/PistaHimno";
 import {
   FaHeart,
   FaRegHeart,
@@ -576,6 +577,14 @@ const HimnoDetalle = () => {
             </button>
 
             <div className="w-px h-5 bg-white/10 mx-1" />
+
+            {/* Pista (audio) — solo Himnario Adventista */}
+            {numero && !isVidaCristiana && himnario.id === "adventista" && (
+              <>
+                <PistaHimno numero={numero} />
+                <div className="w-px h-5 bg-white/10 mx-1" />
+              </>
+            )}
 
             {/* Favorito */}
             <button

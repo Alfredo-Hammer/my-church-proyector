@@ -4,7 +4,7 @@ import {
   IoSave, IoRefresh, IoImage, IoClose, IoCheckmark,
   IoWarning, IoInformationCircle, IoEye, IoCloudDone,
 } from "react-icons/io5";
-import {FaVideo, FaChurch, FaPalette, FaFont, FaDatabase, FaMusic} from "react-icons/fa";
+import {FaVideo, FaChurch, FaPalette, FaFont, FaDatabase, FaMusic, FaHeadphones} from "react-icons/fa";
 import {CLASS_PX} from "../utils/pantallaScale";
 import {componenteFondoAnimado} from "../components/fondosAnimados";
 import {HIMNARIOS, useHimnario, cambiarHimnario} from "../utils/himnario";
@@ -226,6 +226,11 @@ function ClavePixabay() {
 
 // Himnario en miskito de la iglesia: se muestra uno solo (en el menú, en Inicio
 // y en la app del celular). Vida Cristiana y Mis Canciones siguen para todos.
+function PistasSiAdventista() {
+  const himnario = useHimnario();
+  return himnario.id === "adventista" ? <PistasAdventistas /> : null;
+}
+
 export function SelectorHimnario() {
   const himnario = useHimnario();
   return (
@@ -258,6 +263,117 @@ export function SelectorHimnario() {
       <p className="text-[11px] text-slate-500 mt-3">
         Los favoritos de cada himnario se guardan por separado. La app del celular muestra el mismo que elijas acá.
       </p>
+    </Section>
+  );
+}
+
+// Pistas del Himnario Adventista (servidor/rutas/pistas.js): se bajan de Firebase y quedan
+// en esta compu para que suenen sin internet el día del culto.
+const API_PISTAS = `${BASE_URL}/api/pistas/adventista`;
+const mb = (b) => `${Math.round((Number(b) || 0) / 1048576)} MB`;
+
+function PistasAdventistas() {
+  const [resumen, setResumen] = useState(null);
+  const [descarga, setDescarga] = useState(null);
+  const [error, setError] = useState("");
+
+  const refrescar = async () => {
+    try {
+      const [r, d] = await Promise.all([
+        fetch(`${API_PISTAS}/resumen`).then((x) => x.json()),
+        fetch(`${API_PISTAS}/descarga`).then((x) => x.json()),
+      ]);
+      setResumen(r);
+      setDescarga(d);
+      return d;
+    } catch {
+      setError("No se pudo consultar las pistas.");
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    refrescar();
+  }, []);
+
+  // Mientras baja, actualizar el avance cada segundo
+  useEffect(() => {
+    if (!descarga?.activa) return undefined;
+    const t = setInterval(refrescar, 1000);
+    return () => clearInterval(t);
+  }, [descarga?.activa]);
+
+  const llamar = async (ruta, metodo) => {
+    setError("");
+    try {
+      await fetch(`${API_PISTAS}${ruta}`, {method: metodo});
+    } catch {
+      setError("No se pudo completar la acción.");
+    }
+    refrescar();
+  };
+
+  const activa = Boolean(descarga?.activa);
+  const avance = descarga?.total ? Math.round((descarga.revisadas / descarga.total) * 100) : 0;
+
+  return (
+    <Section icon={<FaHeadphones />} title="Pistas del Himnario Adventista" subtitle="Audio de los himnos para tocar por los parlantes de la iglesia" accent="cyan">
+      <p className="text-xs text-slate-400 mb-3">
+        Cada himno con pista tiene un botón <strong className="text-slate-200">Pista</strong>. La primera vez se baja de
+        internet y después suena sin conexión. Si el día del culto no van a tener internet, bajalas todas antes
+        (unos 900 MB; no todos los himnos tienen pista).
+      </p>
+
+      <p className="text-sm text-slate-200 mb-3">
+        {resumen ? `${resumen.descargadas} pistas en esta compu (${mb(resumen.bytes)})` : "Consultando…"}
+      </p>
+
+      {activa && (
+        <div className="mb-3">
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-cyan-400/80 transition-all" style={{width: `${avance}%`}} />
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1.5">
+            Revisando himno {descarga.revisadas} de {descarga.total} · {descarga.bajadas} pistas listas
+          </p>
+        </div>
+      )}
+      {!activa && descarga?.revisadas > 0 && (
+        <p className="text-[11px] text-slate-400 mb-3">
+          Última descarga: {descarga.bajadas} pistas listas
+          {descarga.errores > 0 ? `, ${descarga.errores} no se pudieron bajar (probá de nuevo)` : ""}.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {activa ? (
+          <button
+            type="button"
+            onClick={() => llamar("/descarga/cancelar", "POST")}
+            className="h-9 px-4 rounded-lg border border-white/[0.08] text-xs font-semibold text-slate-300 hover:text-white hover:border-white/20 transition-colors"
+          >
+            Cancelar
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => llamar("/descargar-todas", "POST")}
+            className="h-9 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white transition-colors"
+          >
+            Bajar todas las pistas
+          </button>
+        )}
+        {resumen?.descargadas > 0 && !activa && (
+          <button
+            type="button"
+            onClick={() => llamar("", "DELETE")}
+            className="h-9 px-3 rounded-lg border border-white/[0.08] text-xs font-semibold text-slate-400 hover:text-red-300 hover:border-red-400/40 transition-colors"
+          >
+            Borrar pistas de esta compu
+          </button>
+        )}
+      </div>
+      {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
     </Section>
   );
 }
@@ -755,6 +871,7 @@ const Configuracion = () => {
                 </Section>
 
                 <SelectorHimnario />
+                <PistasSiAdventista />
               </div>
             )}
 

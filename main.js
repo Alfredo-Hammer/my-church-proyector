@@ -675,6 +675,8 @@ function iniciarServidorMultimedia() {
       get obtenerRutaRecursos() { return obtenerRutaRecursos; },
       get obtenerUrlPreferidaParaMovil() { return obtenerUrlPreferidaParaMovil; },
       get path() { return path; },
+      // Pistas del Himnario Adventista bajadas de Firebase (userData en producción).
+      get pistasDir() { return process.env.GLORYVIEW_DATA_DIR ? path.join(process.env.GLORYVIEW_DATA_DIR, "pistas") : path.join(rutaBase, "pistas"); },
       get proyectorWindow() { return proyectorWindow; }, set proyectorWindow(v) { proyectorWindow = v; },
       get rutaBase() { return rutaBase; },
       get seguridad() { return seguridad; },
@@ -694,6 +696,8 @@ function iniciarServidorMultimedia() {
     require("./servidor/rutas/sistema")(expressApp, ctxServidor);
 
     require("./servidor/rutas/himnos")(expressApp, ctxServidor);
+
+    require("./servidor/rutas/pistas")(expressApp, ctxServidor);
 
     require("./servidor/rutas/biblia")(expressApp, ctxServidor);
 

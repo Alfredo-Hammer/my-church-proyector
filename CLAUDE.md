@@ -58,6 +58,13 @@ responde `?tipo=moravo` con el elegido, así los APKs viejos funcionan sin actua
 separados: `base:moravo:N` / `base:adventista:N`, claves `himnos_favoritos_moravo|adventista`.
 Datos: `himnos_adventista.json` (236 himnos, del proyecto Android HimnarioAdventistaMiskitu) en
 `src/data/` y `public/data/` — las dos copias iguales (la prueba `himnario-api` lo verifica).
+Texto corrido por estrofa (sin `\n`), igual que el Moravo.
+
+**Pistas del Himnario Adventista** (`servidor/rutas/pistas.js`, botón `src/components/PistaHimno.jsx`,
+sección en Configuración → Identidad): audio de Firebase Storage de la app Android
+(`himnario-adventista-miskitu.firebasestorage.app`, `audios/NNN.mp3`, lectura pública; ~190 de 236
+himnos). Se bajan a `<rutaBase>/pistas/adventista` (userData en producción; en desarrollo la carpeta
+`/pistas/` del repo, ignorada por git) y se sirven desde `/api/pistas/adventista/N.mp3`. Prueba: `tests/pistas.test.js`.
 
 **Diapositivas → Importar PDF** (PowerPoint guardado como PDF): `src/utils/pdfADiapositivas.js`
 con pdfjs-dist **3.11.174 fijo** y `isEvalSupported: false` siempre (CVE-2024-4367 / CSP sin eval).

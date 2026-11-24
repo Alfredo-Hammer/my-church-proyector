@@ -64,3 +64,6 @@ final-build.log
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Pistas del Himnario Adventista bajadas en desarrollo (runtime)
+/pistas/

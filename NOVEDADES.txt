@@ -1,3 +1,19 @@
+Version 0.5.2
+
+Nuevas funciones
+- Himnario Adventista Miskitu: 236 himnos en miskito, listos para
+  proyectar. Cada iglesia elige su himnario (Moravo o Adventista) al
+  empezar o en Configuracion, y se muestra solo ese
+- Pistas de audio: los himnos adventistas que tienen pista muestran el
+  boton "Pista" para tocar el audio por los parlantes de la compu. Se
+  baja la primera vez y despues suena sin internet
+- Configuracion > Identidad: bajar todas las pistas de una vez para
+  usarlas sin internet, o borrarlas para liberar espacio
+
+Mejoras
+- Los favoritos se guardan aparte para cada himnario
+- La app movil muestra el himnario que eligio la iglesia
+
 Version 0.5.1
 
 Nuevas funciones

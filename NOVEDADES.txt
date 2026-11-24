@@ -1,3 +1,29 @@
+Version 0.5.1
+
+Nuevas funciones
+- Biblia Reina-Valera 1909: nueva version para elegir en la pagina
+  Biblia, junto a la RVR60. La app movil tambien la usa
+- Diapositivas: importar un PDF (por ejemplo, un PowerPoint guardado
+  como PDF). Cada pagina se convierte en una diapositiva
+- Imagenes Online: cada iglesia puede poner su propia clave de Pixabay
+  en Configuracion > Apariencia
+
+Mejoras
+- Motor de la app actualizado (Electron 45): mas seguro y mas rapido
+- La app pesa menos: la Biblia ya no se guarda dos veces
+- Las ventanas para abrir y guardar archivos recuerdan la ultima
+  carpeta usada
+
+Correcciones
+- Corregido: algunos versiculos mostraban marcas sueltas como "/n"
+- Corregido: Eclesiastes no abria desde la app movil
+- Corregido: los videos muy cortos (1 segundo o menos) no generaban
+  miniatura
+
+Importante
+- En Mac ahora se necesita macOS 13 (Ventura) o mas nuevo. En Windows,
+  10 u 11 de 64 bits
+
 Version 0.5.0
 
 Nuevas funciones
